@@ -1,0 +1,6 @@
+{
+  "name": "TOEFL Prep Studio",
+  "description": "Interactive TOEFL iBT practice platform with authentic Reading, Listening, Speaking, and Writing task simulations, diagnostic scoring, and AI evaluation.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
