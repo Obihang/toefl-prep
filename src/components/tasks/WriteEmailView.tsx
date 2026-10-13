@@ -20,6 +20,14 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    setSubject('');
+    setBody('');
+    setIsEvaluating(false);
+    setEvalResult(null);
+    setEvalError(null);
+  }, [task.id, task.title]);
+
   const wordCount = body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0;
   const isWithinTarget = wordCount >= 80 && wordCount <= 130;
 

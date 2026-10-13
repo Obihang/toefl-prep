@@ -26,11 +26,13 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  ChevronLeft,
   ChevronRight,
   Settings,
   Sun,
   Moon,
   Flag,
+  X,
 } from 'lucide-react';
 
 import {
@@ -63,77 +65,21 @@ import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionVie
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
 import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
 
+import { TaskTypeId, TaskDefinition, TASK_DEFINITIONS } from './types/taskTypes';
+import {
+  PrefetchQueue,
+  PrefetchedItem,
+  loadPrefetchQueueFromStorage,
+  savePrefetchQueueToStorage,
+  getNextTaskToPrefetch,
+  getTotalReadyCount,
+  hasReadyTask,
+  popPrefetchedTask,
+} from './utils/prefetchManager';
+
 const DashboardModal = lazy(() => import('./components/modals/DashboardModal').then(m => ({ default: m.DashboardModal })));
 const PerformanceHistoryModal = lazy(() => import('./components/modals/PerformanceHistoryModal').then(m => ({ default: m.PerformanceHistoryModal })));
 const MockTestView = lazy(() => import('./components/tasks/MockTestView').then(m => ({ default: m.MockTestView })));
-
-export type TaskTypeId =
-  | 'complete-words'
-  | 'reading-passage'
-  | 'listening-dialogue'
-  | 'listen-repeat'
-  | 'speaking-interview'
-  | 'build-sentence'
-  | 'write-email'
-  | 'academic-discussion';
-
-export interface TaskDefinition {
-  id: TaskTypeId;
-  name: string;
-  section: 'Reading' | 'Listening' | 'Speaking' | 'Writing';
-  description: string;
-}
-
-const TASK_DEFINITIONS: TaskDefinition[] = [
-  {
-    id: 'complete-words',
-    name: 'Complete the Words',
-    section: 'Reading',
-    description: 'C-Test: Academic paragraph with masked second halves of content words',
-  },
-  {
-    id: 'reading-passage',
-    name: 'Reading Passage',
-    section: 'Reading',
-    description: 'Academic text with 3 multiple-choice comprehension questions',
-  },
-  {
-    id: 'listening-dialogue',
-    name: 'Listening Audio',
-    section: 'Listening',
-    description: 'Campus conversation or lecture excerpt with audio simulation and questions',
-  },
-  {
-    id: 'listen-repeat',
-    name: 'Listen & Repeat',
-    section: 'Speaking',
-    description: 'Progressive sentences with speech synthesis and voice recognition accuracy',
-  },
-  {
-    id: 'speaking-interview',
-    name: 'Take an Interview',
-    section: 'Speaking',
-    description: '4 academic interview questions with official prep & speaking countdowns',
-  },
-  {
-    id: 'build-sentence',
-    name: 'Build a Sentence',
-    section: 'Writing',
-    description: 'Sentence scramble: tap tiles in correct sequence to form valid syntax',
-  },
-  {
-    id: 'write-email',
-    name: 'Write an Email',
-    section: 'Writing',
-    description: 'Campus scenario: achieve 3 goals with appropriate tone and word count',
-  },
-  {
-    id: 'academic-discussion',
-    name: 'Academic Discussion',
-    section: 'Writing',
-    description: 'Post in a university course forum engaging with professor & classmate views',
-  },
-];
 
 export default function App() {
   const { user, displayName } = useAuth();
@@ -160,11 +106,19 @@ export default function App() {
     'academic-discussion': 0,
   });
 
+  // Background question pre-fetch queue for instant generation
+  const [prefetchedQueue, setPrefetchedQueue] = useState<PrefetchQueue>(() => loadPrefetchQueueFromStorage());
+  const [isPrefetching, setIsPrefetching] = useState(false);
+  const isPrefetchingRef = React.useRef<Record<string, boolean>>({});
+  const failedRecentlyRef = React.useRef<Record<string, number>>({});
+  const quotaExhaustedUntilRef = React.useRef<number>(0);
+  const [lastGenerationWasInstant, setLastGenerationWasInstant] = useState(false);
+
   // Modals
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
-  const [dashboardDefaultTab, setDashboardDefaultTab] = useState<'dashboard' | 'settings' | 'vocabulary' | 'mistakes'>('dashboard');
+  const [dashboardDefaultTab, setDashboardDefaultTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>('dashboard');
 
   // Dark Mode
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -174,6 +128,17 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('toefl_dark_mode', darkMode ? 'true' : 'false');
   }, [darkMode]);
+
+  // Listen for API key updates to reset any quota backoff timer
+  useEffect(() => {
+    const handleKeyChange = () => {
+      quotaExhaustedUntilRef.current = 0;
+      failedRecentlyRef.current = {};
+      setGenerationError(null);
+    };
+    window.addEventListener('apiKeyUpdated', handleKeyChange);
+    return () => window.removeEventListener('apiKeyUpdated', handleKeyChange);
+  }, []);
 
   // Exam mode timer (optional simulation clock)
   const [isExamMode, setIsExamMode] = useState(false);
@@ -304,13 +269,339 @@ export default function App() {
     }
   };
 
-  // Generate fresh task using Server-side Gemini API and save to shared bank
+  // Horizontal Hover-to-Scroll Mechanism for Section / Task Bar
+  const sectionBarRef = React.useRef<HTMLDivElement>(null);
+  const hoverScrollAnimationRef = React.useRef<number | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkSectionScrollState = () => {
+    const el = sectionBarRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 6);
+  };
+
+  useEffect(() => {
+    checkSectionScrollState();
+    const el = sectionBarRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', checkSectionScrollState, { passive: true });
+    window.addEventListener('resize', checkSectionScrollState);
+    return () => {
+      el.removeEventListener('scroll', checkSectionScrollState);
+      window.removeEventListener('resize', checkSectionScrollState);
+      if (hoverScrollAnimationRef.current !== null) {
+        cancelAnimationFrame(hoverScrollAnimationRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-scroll active section into view when changed
+  useEffect(() => {
+    const container = sectionBarRef.current;
+    if (!container) return;
+    checkSectionScrollState();
+    const activeBtn = container.querySelector('[data-active="true"]') as HTMLElement;
+    if (activeBtn) {
+      const containerRect = container.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+      if (btnRect.left < containerRect.left || btnRect.right > containerRect.right) {
+        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [currentTaskType, isMockTest]);
+
+  const stopHoverScroll = () => {
+    if (hoverScrollAnimationRef.current !== null) {
+      cancelAnimationFrame(hoverScrollAnimationRef.current);
+      hoverScrollAnimationRef.current = null;
+    }
+  };
+
+  const startContinuousScroll = (direction: 'left' | 'right', speed = 6) => {
+    stopHoverScroll();
+    const el = sectionBarRef.current;
+    if (!el) return;
+
+    const step = () => {
+      if (!el) {
+        stopHoverScroll();
+        return;
+      }
+      if (direction === 'left') {
+        if (el.scrollLeft > 0) {
+          el.scrollLeft -= speed;
+          hoverScrollAnimationRef.current = requestAnimationFrame(step);
+          checkSectionScrollState();
+        } else {
+          stopHoverScroll();
+        }
+      } else {
+        if (el.scrollLeft < el.scrollWidth - el.clientWidth - 1) {
+          el.scrollLeft += speed;
+          hoverScrollAnimationRef.current = requestAnimationFrame(step);
+          checkSectionScrollState();
+        } else {
+          stopHoverScroll();
+        }
+      }
+    };
+    hoverScrollAnimationRef.current = requestAnimationFrame(step);
+  };
+
+  const lastWheelTimeRef = React.useRef(0);
+
+  const handleBarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Suppress hover-scroll if wheel was used in last 500ms
+    if (Date.now() - lastWheelTimeRef.current < 500) return;
+    
+    const el = sectionBarRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+    const threshold = Math.min(180, width * 0.28); // 28% edge zone or up to 180px
+
+    if (x < threshold) {
+      const factor = (threshold - x) / threshold;
+      const speed = Math.max(2, Math.round(factor * 12));
+      startContinuousScroll('left', speed);
+    } else if (x > width - threshold) {
+      const factor = (x - (width - threshold)) / threshold;
+      const speed = Math.max(2, Math.round(factor * 12));
+      startContinuousScroll('right', speed);
+    } else {
+      stopHoverScroll();
+    }
+  };
+
+  const handleBarWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = sectionBarRef.current;
+    if (!el) return;
+    
+    lastWheelTimeRef.current = Date.now();
+    stopHoverScroll();
+    
+    // Stop the page from scrolling while we handle the bar
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Always translate scroll motion to horizontal scrolling
+    const scrollAmount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    el.scrollLeft += scrollAmount;
+    checkSectionScrollState();
+  };
+
+  const scrollBarBy = (amount: number) => {
+    const el = sectionBarRef.current;
+    if (!el) return;
+    el.scrollBy({ left: amount, behavior: 'smooth' });
+    setTimeout(checkSectionScrollState, 350);
+  };
+
+  // Background question pre-fetch worker for any task type
+  const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
+    const key = getStoredApiKey().trim();
+    const currentCount = prefetchedQueue[type]?.length || 0;
+    if (!key || isPrefetchingRef.current[type] || isGenerating || currentCount >= 2) return;
+    if (Date.now() < quotaExhaustedUntilRef.current) return;
+
+    isPrefetchingRef.current[type] = true;
+    setIsPrefetching(true);
+
+    try {
+      const res = await fetch('/api/generate-task', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({
+          taskType: type,
+          level: lvl,
+          topic: top,
+          apiKey: key,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && !json.data.isFallback) {
+        const prefetchedItem: PrefetchedItem = {
+          ...json.data,
+          level: lvl,
+          topic: top,
+          id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          isPrefetched: true,
+          createdAt: Date.now(),
+        };
+        setPrefetchedQueue((prev) => {
+          const currentItems = prev[type] || [];
+          // Ensure we don't exceed 2 questions per task type
+          const nextItems = [...currentItems, prefetchedItem].slice(-2);
+          const nextQueue: PrefetchQueue = {
+            ...prev,
+            [type]: nextItems,
+          };
+          savePrefetchQueueToStorage(nextQueue);
+          return nextQueue;
+        });
+      } else {
+        failedRecentlyRef.current[type] = Date.now();
+        // If quota was hit or fallback was used due to quota, pause background prefetching for 30 minutes
+        const reason = String(json?.data?.fallbackReason || json?.error || '').toLowerCase();
+        if (json?.data?.isQuotaExhausted || reason.includes('quota') || reason.includes('429') || reason.includes('resource_exhausted')) {
+          quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+        }
+      }
+    } catch (e) {
+      console.debug('Background prefetch notice:', e);
+      failedRecentlyRef.current[type] = Date.now();
+    } finally {
+      isPrefetchingRef.current[type] = false;
+      const anyStillFetching = Object.values(isPrefetchingRef.current).some(Boolean);
+      setIsPrefetching(anyStillFetching);
+    }
+  };
+
+  // Sync / filter queue when difficulty level or academic topic changes
+  useEffect(() => {
+    setPrefetchedQueue((prev) => {
+      let changed = false;
+      const next: PrefetchQueue = {};
+      for (const [k, items] of Object.entries(prev)) {
+        if (!Array.isArray(items)) continue;
+        const matching = items.filter((item) => item.level === level && item.topic === topic);
+        if (matching.length !== items.length) {
+          changed = true;
+        }
+        if (matching.length > 0) {
+          next[k] = matching;
+        }
+      }
+      if (changed) {
+        savePrefetchQueueToStorage(next);
+        return next;
+      }
+      return prev;
+    });
+  }, [level, topic]);
+
+  // Proactive multi-task background pre-fetching when user is idle
+  useEffect(() => {
+    const key = getStoredApiKey().trim();
+    if (!key) return;
+
+    let isCancelled = false;
+    let intervalTimer: any = null;
+    let coldStartTimeout: any = null;
+    let lastActivityTime = Date.now();
+
+    const onUserActivity = () => {
+      lastActivityTime = Date.now();
+    };
+
+    window.addEventListener('mousemove', onUserActivity, { passive: true });
+    window.addEventListener('keydown', onUserActivity, { passive: true });
+    window.addEventListener('scroll', onUserActivity, { passive: true });
+    window.addEventListener('touchstart', onUserActivity, { passive: true });
+    window.addEventListener('click', onUserActivity, { passive: true });
+
+    const processProactiveQueue = async () => {
+      if (isCancelled || isGenerating) return;
+      if (Date.now() < quotaExhaustedUntilRef.current) return;
+      const keyPresent = Boolean(getStoredApiKey().trim());
+      if (!keyPresent) return;
+
+      // Only fetch when user has been idle for at least 1500ms
+      const timeSinceActivity = Date.now() - lastActivityTime;
+      if (timeSinceActivity < 1500) return;
+
+      const target = getNextTaskToPrefetch(
+        currentTaskType,
+        prefetchedQueue,
+        isPrefetchingRef.current,
+        failedRecentlyRef.current,
+        level,
+        topic
+      );
+      if (!target) return;
+
+      await prefetchTaskInBackground(target, level, topic);
+    };
+
+    // Cold-start boost: if active task has 0 cached items, prefetch 1 item if quota is healthy
+    if (!hasReadyTask(prefetchedQueue, currentTaskType) && !isPrefetchingRef.current[currentTaskType] && Date.now() >= quotaExhaustedUntilRef.current) {
+      coldStartTimeout = setTimeout(() => {
+        if (!isCancelled && !isGenerating && Date.now() >= quotaExhaustedUntilRef.current) {
+          prefetchTaskInBackground(currentTaskType, level, topic);
+        }
+      }, 400);
+    }
+
+    // Run proactive queue worker every 3500ms
+    intervalTimer = setInterval(processProactiveQueue, 3500);
+
+    return () => {
+      isCancelled = true;
+      clearInterval(intervalTimer);
+      clearTimeout(coldStartTimeout);
+      window.removeEventListener('mousemove', onUserActivity);
+      window.removeEventListener('keydown', onUserActivity);
+      window.removeEventListener('scroll', onUserActivity);
+      window.removeEventListener('touchstart', onUserActivity);
+      window.removeEventListener('click', onUserActivity);
+    };
+  }, [currentTaskType, level, topic, prefetchedQueue, isGenerating]);
+
+  // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {
+    // 1. Instant delivery if pre-fetched question is ready in the queue!
+    if (hasReadyTask(prefetchedQueue, currentTaskType)) {
+      const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType);
+      if (readyTask) {
+        setPrefetchedQueue(updatedQueue);
+
+        // Instantly activate
+        setCustomTasks((prev) => ({
+          ...prev,
+          [currentTaskType]: readyTask,
+        }));
+
+        if (readyTask.modelUsed) {
+          setLastModelUsed(readyTask.modelUsed);
+        }
+
+        setGenerationError(null);
+        setLastGenerationWasInstant(true);
+        setGenerationSuccess(true);
+        setTimeout(() => setGenerationSuccess(false), 3000);
+
+        if (user) {
+          saveSharedQuestion({
+            taskType: currentTaskType,
+            level,
+            topic,
+            data: readyTask,
+            createdByName: displayName || 'Anonymous Scholar',
+            createdByUid: user.uid,
+          }).catch(() => {});
+        }
+
+        // Immediately replenish the next question in the background
+        setTimeout(() => {
+          prefetchTaskInBackground(currentTaskType, level, topic);
+        }, 150);
+        return;
+      }
+    }
+
+    // 2. Standard fetch if queue was empty
     setIsGenerating(true);
     setGenerationError(null);
     setGenerationSuccess(false);
+    setLastGenerationWasInstant(false);
 
     try {
+      const apiKey = getStoredApiKey().trim();
       const res = await fetch('/api/generate-task', {
         method: 'POST',
         headers: getApiHeaders(),
@@ -318,6 +609,7 @@ export default function App() {
           taskType: currentTaskType,
           level,
           topic,
+          apiKey,
         }),
       });
 
@@ -327,7 +619,16 @@ export default function App() {
       }
 
       if (json.data.isFallback) {
-        setGenerationError(`AI generation failed (${json.data.fallbackReason || 'model unavailable'}). Showing a curated question instead.`);
+        const reason = json.data.fallbackReason || 'model unavailable';
+        const isQuota = Boolean(json.data.isQuotaExhausted) || reason.toLowerCase().includes('quota') || reason.toLowerCase().includes('429');
+        if (isQuota) {
+          quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+        }
+        setGenerationError(
+          isQuota
+            ? "Your key's free daily Gemini quota is used up. Practicing with an authentic ETS TOEFL curated question."
+            : `AI notice: ${reason}. Showing an authentic curated TOEFL question instead.`
+        );
         handleNextCurated(currentTaskType);
         setIsGenerating(false);
         return;
@@ -367,19 +668,29 @@ export default function App() {
         ...prev,
         [currentTaskType]: newTask,
       }));
+      setLastGenerationWasInstant(false);
       setGenerationSuccess(true);
       setTimeout(() => setGenerationSuccess(false), 3000);
-    } catch (err: any) {
-      console.error('AI generation error:', err);
-      const msg = err.message || '';
-      if (msg.startsWith('No Gemini API key') || msg.includes('API key') || msg.includes('quota')) {
-        setGenerationError(msg);
-      } else {
-        setGenerationError(
-          `AI generation failed (${msg}). Showing a curated question instead.`
-        );
-        handleNextCurated(currentTaskType);
+
+      // Immediately pre-fetch the next question into queue if quota is healthy
+      if (Date.now() >= quotaExhaustedUntilRef.current) {
+        setTimeout(() => {
+          prefetchTaskInBackground(currentTaskType, level, topic);
+        }, 500);
       }
+    } catch (err: any) {
+      console.warn('AI generation notice:', err?.message || err);
+      const rawMsg = err.message || 'unknown error';
+      const isQuota = rawMsg.toLowerCase().includes('quota') || rawMsg.toLowerCase().includes('429');
+      if (isQuota) {
+        quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+      }
+      setGenerationError(
+        isQuota
+          ? "Your key's free daily Gemini quota is used up. Practicing with an authentic ETS TOEFL curated question."
+          : `AI notice: ${rawMsg.slice(0, 120)}. Showing an authentic curated question instead.`
+      );
+      handleNextCurated(currentTaskType);
     } finally {
       setIsGenerating(false);
     }
@@ -419,6 +730,7 @@ export default function App() {
   const activeTask = getCurrentTaskData();
   const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
   const adaptiveRec = getRecommendedLevel(getPracticeHistory(), level as DifficultyLevel, currentTaskType);
+  const totalReady = getTotalReadyCount(prefetchedQueue);
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
@@ -480,7 +792,10 @@ export default function App() {
 
           {/* Zone 3: 1 primary action */}
           <div className="flex items-center gap-3 shrink-0">
-            <WeeklyGoalTracker />
+            <WeeklyGoalTracker onOpenGoals={() => {
+              setDashboardDefaultTab('goals');
+              setIsDashboardOpen(true);
+            }} />
             <button
               onClick={() => setIsHistoryOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
@@ -554,42 +869,98 @@ export default function App() {
             </div>
           </div>
 
-          {/* Segmented Task Selector Buttons */}
-          <div className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none">
-            <button
-              onClick={() => {
-                setIsMockTest(true);
-                setCurrentTaskType('academic-discussion'); // Default
-              }}
-              className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                isMockTest
-                  ? 'bg-rose-100 text-rose-900 font-bold shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-              }`}
-            >
-              Full Mock Test
-            </button>
-            {TASK_DEFINITIONS.map((td) => {
-              const isActive = currentTaskType === td.id && !isMockTest;
-              return (
+          {/* Segmented Task Selector Buttons with Hover-to-Scroll & Navigation Controls */}
+          <div className="relative group">
+            {/* Left Scroll Indicator / Button */}
+            {canScrollLeft && (
+              <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-4 pl-1 bg-gradient-to-r from-slate-200 via-slate-200/90 to-transparent pointer-events-auto rounded-l-xl">
                 <button
-                  key={td.id}
-                  onClick={() => {
-                    setIsMockTest(false);
-                    setCurrentTaskType(td.id);
-                    setGenerationError(null);
-                  }}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                    isActive
-                      ? 'bg-white text-slate-950 font-bold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
+                  type="button"
+                  onClick={() => scrollBarBy(-200)}
+                  onMouseEnter={() => startContinuousScroll('left', 8)}
+                  onMouseLeave={stopHoverScroll}
+                  className="w-6 h-6 rounded-full bg-white/95 hover:bg-white text-slate-700 shadow-xs flex items-center justify-center transition-all hover:scale-110 cursor-pointer border border-slate-300/60"
+                  title="Scroll left (or hover near left edge)"
+                  aria-label="Scroll sections left"
                 >
-                  <span className="text-slate-400 mr-1.5 font-normal text-[11px]">{td.section.slice(0, 1)}·</span>
-                  {td.name}
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-              );
-            })}
+              </div>
+            )}
+
+            {/* Scrollable Bar Track */}
+            <div
+              ref={sectionBarRef}
+              onMouseMove={handleBarMouseMove}
+              onMouseLeave={stopHoverScroll}
+              onWheel={handleBarWheel}
+              className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none select-none cursor-grab active:cursor-grabbing scroll-smooth"
+            >
+              <button
+                data-active={isMockTest ? 'true' : 'false'}
+                onClick={() => {
+                  setIsMockTest(true);
+                  setCurrentTaskType('academic-discussion'); // Default
+                }}
+                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  isMockTest
+                    ? 'bg-rose-100 text-rose-900 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                Full Mock Test
+              </button>
+              {TASK_DEFINITIONS.map((td) => {
+                const isActive = currentTaskType === td.id && !isMockTest;
+                const readyCount = prefetchedQueue[td.id]?.length || 0;
+                const isReady = readyCount > 0;
+                return (
+                  <button
+                    key={td.id}
+                    data-active={isActive ? 'true' : 'false'}
+                    onClick={() => {
+                      setIsMockTest(false);
+                      setCurrentTaskType(td.id);
+                      setGenerationError(null);
+                    }}
+                    className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-white text-slate-950 font-bold shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                    }`}
+                  >
+                    <span className="text-slate-400 mr-0.5 font-normal text-[11px]">{td.section.slice(0, 1)}·</span>
+                    <span>{td.name}</span>
+                    {isReady && (
+                      <span
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 rounded-full"
+                        title={`${readyCount} instant question${readyCount > 1 ? 's' : ''} pre-fetched and ready`}
+                      >
+                        <span>⚡</span>
+                        {readyCount > 1 && <span>{readyCount}</span>}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right Scroll Indicator / Button */}
+            {canScrollRight && (
+              <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-4 pr-1 bg-gradient-to-l from-slate-200 via-slate-200/90 to-transparent pointer-events-auto rounded-r-xl">
+                <button
+                  type="button"
+                  onClick={() => scrollBarBy(200)}
+                  onMouseEnter={() => startContinuousScroll('right', 8)}
+                  onMouseLeave={stopHoverScroll}
+                  className="w-6 h-6 rounded-full bg-white/95 hover:bg-white text-slate-700 shadow-xs flex items-center justify-center transition-all hover:scale-110 cursor-pointer border border-slate-300/60"
+                  title="Scroll right (or hover near right edge)"
+                  aria-label="Scroll sections right"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -655,16 +1026,52 @@ export default function App() {
               <button
                 onClick={handleGenerateNewAiTask}
                 disabled={isGenerating}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                title="Generate a fresh customized TOEFL item using Gemini 3.8 Flash"
+                className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 rounded-lg shadow-xs transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  hasReadyTask(prefetchedQueue, currentTaskType)
+                    ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-500/20'
+                    : 'bg-teal-800 hover:bg-teal-900'
+                }`}
+                title={
+                  hasReadyTask(prefetchedQueue, currentTaskType)
+                    ? 'Instant generation from background cache'
+                    : 'Generate customized TOEFL item with Gemini'
+                }
               >
                 <Sparkles className="w-3.5 h-3.5 text-teal-300" />
-                <span>{isGenerating ? 'Generating Question...' : 'Generate New with AI'}</span>
+                <span>
+                  {isGenerating
+                    ? 'Generating Question...'
+                    : hasReadyTask(prefetchedQueue, currentTaskType)
+                    ? 'Generate New (Instant ⚡)'
+                    : 'Generate New with AI'}
+                </span>
               </button>
               {Boolean(getStoredApiKey().trim()) ? (
-                <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full whitespace-nowrap">Using your key</span>
+                hasReadyTask(prefetchedQueue, currentTaskType) ? (
+                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1 shadow-2xs">
+                    ⚡ Instant ready ({prefetchedQueue[currentTaskType]?.length})
+                  </span>
+                ) : isPrefetching ? (
+                  <span className="text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1.5 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-ping shrink-0" />
+                    <span>Pre-fetching next...</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+                    {totalReady > 0 ? (
+                      <>
+                        <span>⚡ {totalReady} ready</span>
+                        <span className="text-emerald-600 font-normal">across sections</span>
+                      </>
+                    ) : (
+                      'Using your key'
+                    )}
+                  </span>
+                )
               ) : (
-                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full whitespace-nowrap">No key set</span>
+                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full whitespace-nowrap">
+                  No key set
+                </span>
               )}
             </div>
           </div>
@@ -672,8 +1079,15 @@ export default function App() {
 
         {generationError && (
           generationError.startsWith('No Gemini API key') ? (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
-              <div className="flex items-center gap-2 font-semibold text-sm">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900 relative">
+              <button
+                onClick={() => setGenerationError(null)}
+                className="absolute top-3 right-3 text-amber-600 hover:text-amber-800 p-1 rounded-md cursor-pointer transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 font-semibold text-sm pr-6">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>Add your free Gemini API key to use AI features</span>
               </div>
@@ -698,8 +1112,15 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
-              <div className="flex items-center gap-2 font-semibold text-sm">
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900 relative">
+              <button
+                onClick={() => setGenerationError(null)}
+                className="absolute top-3 right-3 text-amber-600 hover:text-amber-800 p-1 rounded-md cursor-pointer transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 font-semibold text-sm pr-6">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>{generationError}</span>
               </div>
@@ -713,6 +1134,12 @@ export default function App() {
                 >
                   Dashboard &gt; API Key
                 </button>
+                <button
+                  onClick={() => setGenerationError(null)}
+                  className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-800 font-medium rounded-lg transition-colors cursor-pointer"
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
           )
@@ -722,7 +1149,11 @@ export default function App() {
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-              <span>Successfully generated with AI</span>
+              <span>
+                {lastGenerationWasInstant
+                  ? '⚡ Question loaded instantly from background cache!'
+                  : 'Successfully generated with AI'}
+              </span>
             </div>
             {lastModelUsed && (
               <span className="text-[10px] bg-teal-100 text-teal-900 px-2 py-0.5 rounded-full font-mono">
@@ -740,6 +1171,18 @@ export default function App() {
             </Suspense>
           ) : (
             <>
+              {activeTask?.modelUsed && !activeTask.createdByName && (
+                <div className="mb-4 flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
+                    Generated with {activeTask.modelUsed}
+                  </span>
+                  {activeTask?.isPrefetched && (
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-medium">
+                      ⚡ Instant Delivery
+                    </span>
+                  )}
+                </div>
+              )}
               {activeTask?.createdByName && (!activeTask.reportCount || activeTask.reportCount < 3) && (
                 <div className="mb-6 flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
                   <div className="flex items-center gap-2">
@@ -747,6 +1190,11 @@ export default function App() {
                     <span>Created by <strong className="text-slate-900 font-semibold">{activeTask.createdByName}</strong></span>
                     {activeTask.level && (
                       <span className="text-[11px] text-slate-400 capitalize">· {activeTask.level}</span>
+                    )}
+                    {activeTask.modelUsed && (
+                      <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
+                        Generated with {activeTask.modelUsed}
+                      </span>
                     )}
                   </div>
                   {activeTask.questionDocId && (
@@ -770,6 +1218,7 @@ export default function App() {
 
               {currentTaskType === 'complete-words' && (
                 <CompleteWordsView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as CompleteWordsTask}
                   onNextTask={() => handleNextQuestion('complete-words')}
                 />
@@ -777,6 +1226,7 @@ export default function App() {
 
               {currentTaskType === 'reading-passage' && (
                 <ReadingPassageView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ReadingPassageTask}
                   onNextTask={() => handleNextQuestion('reading-passage')}
                 />
@@ -784,6 +1234,7 @@ export default function App() {
 
               {currentTaskType === 'listening-dialogue' && (
                 <ListeningDialogueView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListeningTask}
                   onNextTask={() => handleNextQuestion('listening-dialogue')}
                 />
@@ -791,6 +1242,7 @@ export default function App() {
 
               {currentTaskType === 'listen-repeat' && (
                 <ListenRepeatView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListenRepeatTask}
                   onNextTask={() => handleNextQuestion('listen-repeat')}
                 />
@@ -798,6 +1250,7 @@ export default function App() {
 
               {currentTaskType === 'speaking-interview' && (
                 <SpeakingInterviewView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as SpeakingInterviewTask}
                   onNextTask={() => handleNextQuestion('speaking-interview')}
                   onOpenApiKeySettings={() => {
@@ -809,6 +1262,7 @@ export default function App() {
 
               {currentTaskType === 'build-sentence' && (
                 <BuildSentenceView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as BuildSentenceTask}
                   onNextTask={() => handleNextQuestion('build-sentence')}
                 />
@@ -816,6 +1270,7 @@ export default function App() {
 
               {currentTaskType === 'write-email' && (
                 <WriteEmailView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as WriteEmailTask}
                   onNextTask={() => handleNextQuestion('write-email')}
                   onOpenApiKeySettings={() => {
@@ -827,6 +1282,7 @@ export default function App() {
 
               {currentTaskType === 'academic-discussion' && (
                 <AcademicDiscussionView
+                  key={activeTask.id || (activeTask as any).title}
                   task={activeTask as AcademicDiscussionTask}
                   onNextTask={() => handleNextQuestion('academic-discussion')}
                   onOpenApiKeySettings={() => {

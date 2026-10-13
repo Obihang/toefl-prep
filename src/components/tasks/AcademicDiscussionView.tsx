@@ -20,6 +20,13 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    setResponse('');
+    setIsEvaluating(false);
+    setEvalResult(null);
+    setEvalError(null);
+  }, [task.id, task.title]);
+
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
   const isTargetMet = wordCount >= 100 && wordCount <= 150;
 

@@ -11,3 +11,48 @@
     font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
   }
 }
+
+/* =========================================================================
+   Custom Interactive Cursor for Clickable Points
+   Transforms cursor into an academic object (Fountain Pen, Quill, Wand)
+   whenever hovering over buttons, links, controls, tabs, and interactive points
+   ========================================================================= */
+
+:root,
+html.cursor-obj-pen {
+  --clickable-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3Cfilter id='s' x='-30%25' y='-30%25' width='160%25' height='160%25'%3E%3CfeDropShadow dx='1' dy='1.5' stdDeviation='1' flood-color='%23000000' flood-opacity='0.45'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23s)'%3E%3Cpath d='M4 4 L14 3.5 L24 13.5 L20 21.5 L13.5 24 L3.5 14 Z' fill='%230f766e' stroke='%23134e4a' stroke-width='1.2' stroke-linejoin='round'/%3E%3Cpath d='M15 15 L21 13.5 L23 15.5 L16.5 22 L14.5 20 Z' fill='%23f59e0b' stroke='%23b45309' stroke-width='0.8'/%3E%3Cline x1='4' y1='4' x2='14' y2='14' stroke='%23042f2e' stroke-width='1.2' stroke-linecap='round'/%3E%3Ccircle cx='14' cy='14' r='1.3' fill='%23ffffff' stroke='%23042f2e' stroke-width='0.8'/%3E%3Cpath d='M5 5 L12 4.5 L7.5 9.5 Z' fill='%235eead4' opacity='0.85'/%3E%3Ccircle cx='4' cy='4' r='1.5' fill='%23f59e0b' stroke='%23ffffff' stroke-width='0.5'/%3E%3C/g%3E%3C/svg%3E") 4 4, pointer;
+}
+
+html.cursor-obj-quill {
+  --clickable-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3Cfilter id='sq' x='-30%25' y='-30%25' width='160%25' height='160%25'%3E%3CfeDropShadow dx='1' dy='1.5' stdDeviation='1' flood-color='%23000000' flood-opacity='0.45'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23sq)'%3E%3Cpath d='M4 4 Q12 10 24 6 Q28 14 20 20 Q14 24 4 4 Z' fill='%23818cf8' stroke='%234338ca' stroke-width='1.2'/%3E%3Cpath d='M4 4 L18 16' stroke='%23312e81' stroke-width='1.5' stroke-linecap='round'/%3E%3Ccircle cx='4' cy='4' r='1.5' fill='%234338ca' stroke='%23ffffff' stroke-width='0.5'/%3E%3C/g%3E%3C/svg%3E") 4 4, pointer;
+}
+
+html.cursor-obj-wand {
+  --clickable-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3Cfilter id='sw' x='-30%25' y='-30%25' width='160%25' height='160%25'%3E%3CfeDropShadow dx='1' dy='1.5' stdDeviation='1.2' flood-color='%23000000' flood-opacity='0.45'/%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23sw)'%3E%3Cpath d='M6 6 L22 22 L19 25 L3 9 Z' fill='%230284c7' stroke='%230369a1' stroke-width='1.2'/%3E%3Cpath d='M6 6 L12 12 L9 15 L3 9 Z' fill='%2338bdf8'/%3E%3Cpath d='M6 2 Q6 6 2 6 Q6 6 6 10 Q6 6 10 6 Q6 6 6 2 Z' fill='%23fbbf24' stroke='%23f59e0b' stroke-width='0.6'/%3E%3Ccircle cx='6' cy='6' r='1.2' fill='%23ffffff'/%3E%3C/g%3E%3C/svg%3E") 6 6, pointer;
+}
+
+html.cursor-obj-classic {
+  --clickable-cursor: pointer;
+}
+
+/* Clickable points selector targeting all interactive UI elements */
+button:not(:disabled),
+a,
+select,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+label[for],
+summary,
+[role="button"]:not([aria-disabled="true"]),
+.cursor-pointer,
+[tabindex="0"]:not([contenteditable]) {
+  cursor: var(--clickable-cursor) !important;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed !important;
+}

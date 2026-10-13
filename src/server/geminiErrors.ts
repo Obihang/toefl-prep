@@ -1,12 +1,26 @@
 export function getStatus(err: any): number {
   if (typeof err?.status === 'number') return err.status;
   if (typeof err?.statusCode === 'number') return err.statusCode;
+  if (typeof err?.error?.code === 'number') return err.error.code;
   if (err?.message) {
-    try {
-      const parsed = JSON.parse(err.message);
-      if (parsed?.error?.code) return parsed.error.code;
-    } catch {
-      // Ignore
+    if (typeof err.message === 'object' && typeof err.message.error?.code === 'number') {
+      return err.message.error.code;
+    }
+    if (typeof err.message === 'string') {
+      try {
+        const parsed = JSON.parse(err.message);
+        if (typeof parsed?.error?.code === 'number') return parsed.error.code;
+      } catch {
+        const jsonMatch = err.message.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (typeof parsed?.error?.code === 'number') return parsed.error.code;
+          } catch {
+            // Ignore
+          }
+        }
+      }
     }
   }
   return 0;
@@ -14,34 +28,128 @@ export function getStatus(err: any): number {
 
 export function isKeyError(err: any): boolean {
   const status = getStatus(err);
+  
+  // Extract message safely to check
+  let msg = '';
+  if (typeof err?.message === 'string') {
+    msg = err.message.toLowerCase();
+  } else if (typeof err?.message === 'object' && err.message?.error?.message) {
+    msg = String(err.message.error.message).toLowerCase();
+  } else if (err?.error?.message) {
+    msg = String(err.error.message).toLowerCase();
+  } else if (err?.message) {
+    msg = String(err.message).toLowerCase();
+  }
+
+  // Key errors are 401/403, and 400 only when the message contains API_KEY_INVALID or "API key not valid"
   if (status === 401 || status === 403) return true;
-  if (status === 400) {
-    const msg = (err?.message || '').toLowerCase();
-    if (msg.includes('api_key_invalid') || msg.includes('api key not valid')) {
+  if (status === 400 && (msg.includes('api_key_invalid') || msg.includes('api key not valid'))) {
+    return true;
+  }
+
+  // Only if no status is found, fall back to checking text (never match bare numbers like "400")
+  if (!status) {
+    if (
+      msg.includes('api_key_invalid') ||
+      msg.includes('api key not valid') ||
+      msg.includes('invalid api key') ||
+      msg.includes('permission denied') ||
+      msg.includes('unauthenticated')
+    ) {
       return true;
     }
   }
-  const msg = (err?.message || '').toLowerCase();
-  if (msg.includes('invalid api key') || msg.includes('api_key_invalid') ||
-      msg.includes('permission denied') || msg.includes('unauthenticated') ||
-      msg.includes('api key not valid')) {
-    return true;
-  }
+
   return false;
 }
 
 export function isTransientError(err: any): boolean {
   const status = getStatus(err);
+  // Transient are 429/500/503/404
   if (status === 429 || status === 500 || status === 503 || status === 404) return true;
-  const msg = (err?.message || '').toLowerCase();
-  if (msg.includes('unavailable') || msg.includes('resource_exhausted') ||
-      msg.includes('quota') || msg.includes('overloaded')) {
-    return true;
+
+  // Only if no status is found, fall back to checking text such as "UNAVAILABLE", "RESOURCE_EXHAUSTED", "quota"
+  if (!status) {
+    let msg = '';
+    if (typeof err?.message === 'string') {
+      msg = err.message.toLowerCase();
+    } else if (err?.message) {
+      msg = String(err.message).toLowerCase();
+    }
+    if (
+      msg.includes('unavailable') ||
+      msg.includes('resource_exhausted') ||
+      msg.includes('quota') ||
+      msg.includes('overloaded') ||
+      msg.includes('not found') ||
+      msg.includes('no longer available')
+    ) {
+      return true;
+    }
   }
+
   return false;
+}
+
+export function isQuotaExhaustedError(err: any): boolean {
+  const status = getStatus(err);
+  if (status === 429) return true;
+  let msg = '';
+  if (typeof err === 'string') msg = err;
+  else if (typeof err?.message === 'string') msg = err.message;
+  else if (err?.error?.message) msg = String(err.error.message);
+  else msg = String(err || '');
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes('429') ||
+    lower.includes('quota') ||
+    lower.includes('resource_exhausted') ||
+    lower.includes('rate_limit') ||
+    lower.includes('generativelanguage.googleapis.com/generate_content_free_tier_requests')
+  );
 }
 
 export function redactKey(text: string): string {
   if (!text) return text;
   return text.replace(/AIza[0-9A-Za-z_-]{35}/g, '[REDACTED]');
+}
+
+export function extractErrorMessage(err: any): string {
+  if (!err) return 'Unknown error';
+  let rawMsg = '';
+  if (typeof err === 'string') {
+    rawMsg = err;
+  } else if (typeof err.message === 'string') {
+    rawMsg = err.message;
+  } else if (err.error?.message) {
+    rawMsg = String(err.error.message);
+  } else {
+    rawMsg = String(err);
+  }
+
+  // Extract nested JSON error message if present (e.g. from Google API)
+  try {
+    const jsonMatch = rawMsg.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed?.error?.message) {
+        rawMsg = parsed.error.message;
+      }
+    }
+  } catch {}
+
+  const lower = rawMsg.toLowerCase();
+  if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key')) {
+    rawMsg = 'Invalid Gemini API key. Please check your key in Dashboard > Settings & API Key.';
+  } else if (lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted')) {
+    rawMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT).";
+  } else if (lower.includes('503') || lower.includes('unavailable') || lower.includes('overloaded') || lower.includes('model busy')) {
+    rawMsg = 'Gemini models are temporarily busy. Please try again in a moment.';
+  } else if (lower.includes('no longer available') || lower.includes('not supported') || lower.includes('not found')) {
+    rawMsg = 'Gemini model temporarily unavailable. Please try again in a moment.';
+  } else if (lower.includes('not enabled') || lower.includes('api has not been used')) {
+    rawMsg = 'Gemini API is not enabled for this key.';
+  }
+
+  return redactKey(rawMsg);
 }

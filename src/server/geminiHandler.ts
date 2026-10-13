@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
-import { redactKey, isKeyError, isTransientError } from './geminiErrors.ts';
+import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
+
+export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
 const Schemas = {
   completeWords: z.object({ title: z.string(), text: z.string(), totalBlanks: z.number() }),
@@ -46,19 +48,277 @@ const Schemas = {
   }),
 };
 
+function cleanAndExtractJson(text: string): any {
+  if (!text || !text.trim()) {
+    throw new Error('Model returned an empty response');
+  }
+
+  // 1. Direct parse
+  try {
+    return JSON.parse(text.trim());
+  } catch {}
+
+  // 2. Strip markdown code fence
+  let unmarkdown = text.trim();
+  if (unmarkdown.includes('```')) {
+    unmarkdown = unmarkdown.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/g, '').trim();
+    try {
+      return JSON.parse(unmarkdown);
+    } catch {}
+  }
+
+  // 3. Extract JSON object with regex
+  const objMatch = text.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      return JSON.parse(objMatch[0]);
+    } catch {
+      try {
+        const cleaned = objMatch[0].replace(/,\s*([\}\]])/g, '$1');
+        return JSON.parse(cleaned);
+      } catch {}
+    }
+  }
+
+  // 4. Extract JSON array with regex
+  const arrMatch = text.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try {
+      return JSON.parse(arrMatch[0]);
+    } catch {}
+  }
+
+  throw new Error(`Unable to parse valid JSON from AI response: ${text.slice(0, 100)}...`);
+}
+
+function normalizeAcademicDiscussion(data: any) {
+  const title = String(data.title || 'Writing for an Academic Discussion');
+  const profName = String(data.professorName || data.professor_name || data.professor?.name || 'Dr. Henderson');
+  const profPrompt = String(data.professorPrompt || data.professor_prompt || data.professor?.prompt || data.prompt || data.context || 'Please share your thoughts on the topic below.');
+  
+  let s1 = data.s1 || data.student1 || (Array.isArray(data.students) ? data.students[0] : null);
+  let s2 = data.s2 || data.student2 || (Array.isArray(data.students) ? data.students[1] : null);
+
+  const s1Norm = {
+    name: String((typeof s1 === 'object' ? (s1?.name || s1?.student || s1?.studentName) : null) || 'Student A'),
+    text: String((typeof s1 === 'object' ? (s1?.text || s1?.post || s1?.response || s1?.content) : (typeof s1 === 'string' ? s1 : '')) || 'I agree with the professor on this point, but we should also consider alternative perspectives.'),
+  };
+  const s2Norm = {
+    name: String((typeof s2 === 'object' ? (s2?.name || s2?.student || s2?.studentName) : null) || 'Student B'),
+    text: String((typeof s2 === 'object' ? (s2?.text || s2?.post || s2?.response || s2?.content) : (typeof s2 === 'string' ? s2 : '')) || 'I take a somewhat different view. From my experience, there are several key factors to weigh.'),
+  };
+
+  const question = String(data.question || data.instructions || data.instruction || 'Your professor is teaching a class on this topic. Write a post responding to the professor\'s question.');
+
+  return {
+    title,
+    professorName: profName,
+    professorPrompt: profPrompt,
+    s1: s1Norm,
+    s2: s2Norm,
+    question,
+  };
+}
+
+function normalizeCompleteWords(data: any) {
+  const title = String(data.title || 'Complete the Words');
+  const text = String(data.text || data.passage || data.paragraph || '');
+  let totalBlanks = Number(data.totalBlanks || data.total_blanks || 0);
+  const matchCount = (text.match(/\[\[/g) || []).length;
+  if (totalBlanks <= 0 || isNaN(totalBlanks)) {
+    totalBlanks = matchCount > 0 ? matchCount : 10;
+  }
+  return { title, text, totalBlanks };
+}
+
+function normalizeReadingPassage(data: any) {
+  const title = String(data.title || 'Academic Reading Passage');
+  const passage = String(data.passage || data.text || '');
+  const rawQs = Array.isArray(data.questions) ? data.questions : [];
+  const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}]).slice(0, 3).map((q: any, idx: number) => {
+    let answer = q.answer;
+    if (typeof answer === 'string') {
+      const char = answer.trim().toLowerCase();
+      const mapped = ['a', 'b', 'c', 'd'].indexOf(char);
+      answer = mapped !== -1 ? mapped : parseInt(char, 10);
+    }
+    const finalAnswer = (typeof answer === 'number' && !isNaN(answer) && answer >= 0 && answer <= 3) ? answer : 0;
+    const options = Array.isArray(q.options) && q.options.length >= 2 
+      ? q.options.map(String) 
+      : ['First primary explanation', 'Alternative theoretical model', 'Empirical observation', 'Contrasting hypothesis'];
+    return {
+      q: String(q.q || q.question || `According to the passage, which statement best explains the central point? (${idx + 1})`),
+      options,
+      answer: finalAnswer,
+      why: String(q.why || q.explanation || q.reason || 'This statement accurately reflects the evidence presented in the passage.'),
+    };
+  });
+  return { title, passage, questions };
+}
+
+function normalizeListeningDialogue(data: any) {
+  const title = String(data.title || 'Campus Conversation');
+  const context = String(data.context || data.situation || 'A discussion between a professor and student.');
+  let speakers: Record<string, string> = { A: 'Professor', B: 'Student' };
+  if (data.speakers && typeof data.speakers === 'object' && !Array.isArray(data.speakers)) {
+    speakers = {
+      A: String(data.speakers.A || data.speakers['Speaker A'] || 'Professor'),
+      B: String(data.speakers.B || data.speakers['Speaker B'] || 'Student'),
+    };
+  } else if (Array.isArray(data.speakers) && data.speakers.length >= 2) {
+    speakers = { A: String(data.speakers[0]), B: String(data.speakers[1]) };
+  }
+
+  const script = String(data.script || data.dialogue || data.text || '');
+  const rawQs = Array.isArray(data.questions) ? data.questions : [];
+  const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}]).slice(0, 3).map((q: any, idx: number) => {
+    let answer = q.answer;
+    if (typeof answer === 'string') {
+      const char = answer.trim().toLowerCase();
+      const mapped = ['a', 'b', 'c', 'd'].indexOf(char);
+      answer = mapped !== -1 ? mapped : parseInt(char, 10);
+    }
+    const finalAnswer = (typeof answer === 'number' && !isNaN(answer) && answer >= 0 && answer <= 3) ? answer : 0;
+    const options = Array.isArray(q.options) && q.options.length >= 2
+      ? q.options.map(String)
+      : ['Reviewing the assignment guidelines', 'Clarifying research methodology', 'Requesting an extension', 'Discussing exam format'];
+    return {
+      q: String(q.q || q.question || `What is the main purpose of the conversation? (${idx + 1})`),
+      options,
+      answer: finalAnswer,
+      why: String(q.why || q.explanation || q.reason || 'This is supported directly by the speakers in the dialogue.'),
+    };
+  });
+
+  return { title, context, speakers, script, questions };
+}
+
+function normalizeListenRepeat(data: any) {
+  const title = String(data.title || 'Listen & Repeat Practice');
+  let sentences = Array.isArray(data.sentences) ? data.sentences.map(String).filter(Boolean) : [];
+  if (sentences.length === 0 && Array.isArray(data.items)) {
+    sentences = data.items.map((it: any) => String(typeof it === 'string' ? it : it.sentence || it.text || '')).filter(Boolean);
+  }
+  if (sentences.length === 0) {
+    sentences = [
+      'The archaeological expedition uncovered significant artifacts.',
+      'Students are required to register for their seminar by Friday.',
+      'Recent laboratory experiments confirm the initial scientific hypothesis.',
+      'Environmental factors played a decisive role in the species migration.',
+      'The university library will extend its hours during final examination week.',
+    ];
+  }
+  return { title, sentences };
+}
+
+function normalizeSpeakingInterview(data: any) {
+  const title = String(data.title || 'Speaking Interview Practice');
+  const context = String(data.context || 'University interview simulation.');
+  const rawQs = Array.isArray(data.questions) ? data.questions : [];
+  const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}, {}]).slice(0, 4).map((q: any, idx: number) => ({
+    question: String(typeof q === 'string' ? q : (q.question || q.prompt || `Can you describe an academic experience that significantly shaped your interests? (${idx + 1})`)),
+    prepTimeSeconds: Number(q.prepTimeSeconds || 20),
+    responseTimeSeconds: Number(q.responseTimeSeconds || 45),
+    suggestedPoints: Array.isArray(q.suggestedPoints) && q.suggestedPoints.length > 0
+      ? q.suggestedPoints.map(String)
+      : ['State your main viewpoint clearly', 'Provide a concrete personal or academic example', 'Summarize the significance'],
+  }));
+  return { title, context, questions };
+}
+
+function normalizeBuildSentence(data: any) {
+  const title = String(data.title || 'Build a Sentence Practice');
+  const rawItems = Array.isArray(data.items) ? data.items : [];
+  const items = (rawItems.length > 0 ? rawItems : [{}, {}, {}, {}, {}]).slice(0, 5).map((it: any) => ({
+    context: String(it.context || it.setup || 'Arrange the words into a grammatically correct sentence:'),
+    words: Array.isArray(it.words) && it.words.length > 0 ? it.words.map(String) : ['The', 'professors', 'conducted', 'groundbreaking', 'research'],
+    answer: String(it.answer || it.sentence || 'The professors conducted groundbreaking research.'),
+    explanation: String(it.explanation || it.rule || 'Subject-verb-object arrangement in academic writing.'),
+  }));
+  return { title, items };
+}
+
+function normalizeWriteEmail(data: any) {
+  const title = String(data.title || 'Write an Email');
+  const situation = String(data.situation || data.context || 'You need to contact your academic department regarding course enrollment.');
+  const recipient = String(data.recipient || 'Academic Advisor');
+  const goals = Array.isArray(data.goals) && data.goals.length > 0 ? data.goals.map(String) : [
+    'Explain the scheduling conflict with your required course',
+    'Inquire about alternative seminar sections or prerequisite waivers',
+    'Request an appointment during office hours to discuss graduation requirements',
+  ];
+  const suggestedWordCount = String(data.suggestedWordCount || '80-120 words');
+  return { title, situation, recipient, goals, suggestedWordCount };
+}
+
+function normalizeTask(taskType: string, data: any): any {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Parsed data is not an object');
+  }
+
+  switch (taskType) {
+    case 'complete-words':
+      return normalizeCompleteWords(data);
+    case 'reading-passage':
+      return normalizeReadingPassage(data);
+    case 'listening-dialogue':
+      return normalizeListeningDialogue(data);
+    case 'listen-repeat':
+      return normalizeListenRepeat(data);
+    case 'speaking-interview':
+      return normalizeSpeakingInterview(data);
+    case 'build-sentence':
+      return normalizeBuildSentence(data);
+    case 'write-email':
+      return normalizeWriteEmail(data);
+    case 'academic-discussion':
+    default:
+      return normalizeAcademicDiscussion(data);
+  }
+}
+
 function getAiClient(customApiKey?: string) {
   const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  if (!apiKey || !apiKey.trim()) {
     return null;
   }
   return new GoogleGenAI({
-    apiKey,
+    apiKey: apiKey.trim(),
     httpOptions: {
       headers: {
         'User-Agent': 'aistudio-build',
       },
     },
   });
+}
+
+export async function handleTestApiKey(customApiKey?: string): Promise<{ success: true; message: string; model: string }> {
+  const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+  }
+
+  const ai = new GoogleGenAI({
+    apiKey: apiKey.trim(),
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
+
+  const { modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+    await ai.models.generateContent({
+      model,
+      contents: 'Reply with the single word OK',
+      config: {
+        temperature: 0.1,
+      },
+    });
+    return true;
+  });
+
+  return { success: true, message: `Key works (${modelUsed})`, model: modelUsed };
 }
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string, customApiKey?: string) {
@@ -85,7 +345,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     'academic-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
   };
 
-  const schemaKey = taskMap[taskType];
+  const schemaKey = taskMap[taskType] || 'academicDiscussion';
   const schema = Schemas[schemaKey as keyof typeof Schemas];
 
   const getPrompt = (tType: string, lvl: string, top: string) => {
@@ -117,35 +377,62 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
   };
 
   try {
-    if (!ai) throw new Error('AI client not initialized');
+    if (!ai) {
+      throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+    }
 
     const { result, modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
       const prompt = getPrompt(taskType, level, topic);
-      const response = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          systemInstruction: 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema.',
-          temperature: 0.7,
-        },
-      });
+      const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
+      const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
 
-      const parsed = JSON.parse(response.text!);
-      return schema.parse(parsed);
+      let response;
+      try {
+        response = await ai.models.generateContent({
+          model,
+          contents: fullPrompt,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.7,
+          },
+        });
+      } catch (firstErr: any) {
+        if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
+          throw firstErr;
+        }
+        console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
+        response = await ai.models.generateContent({
+          model,
+          contents: fullPrompt,
+          config: {
+            temperature: 0.7,
+          },
+        });
+      }
+
+      const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+      const parsed = cleanAndExtractJson(rawText);
+      const normalized = normalizeTask(taskType, parsed);
+      return schema.parse(normalized);
     });
 
     return { ...result, isFallback: false, modelUsed };
   } catch (error: any) {
-    console.error(`Failed to generate task ${taskType}, falling back:`, error);
-    let errMsg = redactKey(error?.message || 'Unknown error');
-    if (errMsg.toLowerCase().includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
-      errMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT). " + errMsg;
+    const isQuota = isQuotaExhaustedError(error);
+    const errMsg = extractErrorMessage(error);
+    if (!isQuota) {
+      console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
     }
     const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
     const curatedTasks = CURATED[curatedKey] as any[];
     const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
-    return { ...item, isFallback: true, fallbackReason: errMsg, modelUsed: GENERATION_CHAIN[0] };
+    return {
+      ...item,
+      isFallback: true,
+      isQuotaExhausted: isQuota,
+      fallbackReason: errMsg,
+      modelUsed: 'Curated ETS TOEFL Question Bank',
+    };
   }
 }
 
@@ -157,7 +444,7 @@ export async function handleEvaluateResponse(
 ) {
   const ai = getAiClient(customApiKey);
   if (!ai) {
-    throw new Error('GEMINI_API_KEY is not configured on the server');
+    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
   }
 
   const evaluationPrompt = `You are an official certified ETS TOEFL iBT scoring rater.
@@ -229,37 +516,38 @@ Return JSON in this exact structure:
 
   try {
     const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: evaluationPrompt,
-        config: {
-          responseMimeType: 'application/json',
-          systemInstruction:
-            'You are an experienced TOEFL iBT exam rater. Return objective, encouraging, and pedagogically sound evaluation as valid JSON only.',
-          temperature: 0.3,
-        },
-      });
-
-      const text = response.text || '';
+      let response;
       try {
-        const parsed = JSON.parse(text);
-        return { ...parsed, modelUsed: model };
-      } catch {
-        const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return { ...parsed, modelUsed: model };
+        response = await ai.models.generateContent({
+          model,
+          contents: evaluationPrompt,
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.3,
+          },
+        });
+      } catch (firstErr: any) {
+        if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
+          throw firstErr;
         }
-        throw new Error('Failed to parse evaluation JSON');
+        console.warn(`Model ${model} evaluation JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
+        response = await ai.models.generateContent({
+          model,
+          contents: `${evaluationPrompt}\n\nIMPORTANT: Return ONLY valid JSON matching the structure. Do not include markdown fences.`,
+          config: {
+            temperature: 0.3,
+          },
+        });
       }
+
+      const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+      const parsed = cleanAndExtractJson(rawText);
+      return { ...parsed, modelUsed: model };
     });
 
     return result;
   } catch (error: any) {
-    let errMsg = redactKey(error?.message || 'Evaluation failed');
-    if (errMsg.toLowerCase().includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
-      errMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT). " + errMsg;
-    }
+    const errMsg = extractErrorMessage(error);
     throw new Error(errMsg);
   }
 }
@@ -271,7 +559,7 @@ export async function handleSynthesizeSpeech(
 ): Promise<{ audioBase64: string; modelUsed: string }> {
   const ai = getAiClient(customApiKey);
   if (!ai) {
-    throw new Error('GEMINI_API_KEY is not configured on the server');
+    throw new Error('SPEECH_UNAVAILABLE');
   }
 
   try {
@@ -315,7 +603,7 @@ export async function handleTranscribeAudio(
 ): Promise<{ transcript: string; modelUsed: string }> {
   const ai = getAiClient(customApiKey);
   if (!ai) {
-    throw new Error('GEMINI_API_KEY is not configured on the server');
+    throw new Error('SPEECH_UNAVAILABLE');
   }
 
   const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
