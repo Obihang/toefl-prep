@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, User, Settings, Clock, FileText, LayoutDashboard, Calendar, BookOpen, AlertCircle } from 'lucide-react';
+import { X, User, Settings, Clock, FileText, LayoutDashboard, Calendar, BookOpen, AlertCircle, Key, CheckCircle2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { SettingsModal } from './SettingsModal';
 import { getPracticeHistory, getUserStats, getCompletedDays, getWeakAreas } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
 import { MistakeNotebook } from '../tasks/MistakeNotebook';
+import { getStoredApiKey, setStoredApiKey } from '../../utils/apiKey';
 
 interface Props {
   isOpen: boolean;
@@ -19,12 +20,16 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
   const [stats, setStats] = useState<any>(null);
   const [completedDays, setCompletedDays] = useState<string[]>([]);
   const [vocab, setVocab] = useState<VocabularyWord[]>([]);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [apiKeySaved, setApiKeySaved] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       getUserStats().then(setStats);
       getCompletedDays().then(setCompletedDays);
       getVocabularyWords().then(setVocab);
+      setApiKeyInput(getStoredApiKey());
+      setApiKeySaved(false);
     }
   }, [isOpen]);
 
@@ -64,7 +69,7 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-        <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 p-6 space-y-6">
+        <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 p-6 space-y-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center">
@@ -182,15 +187,56 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
               )}
               
               {activeTab === 'settings' && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-slate-900">Study Goals & Preferences</h3>
-                  <button 
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
-                  >
-                    <span className="text-sm font-medium text-teal-900">Configure Study Goals & Test Date</span>
-                    <Settings className="w-4 h-4 text-teal-600" />
-                  </button>
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-slate-900">Study Goals & Preferences</h3>
+                    <button 
+                      onClick={() => setIsSettingsOpen(true)}
+                      className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-teal-900">Configure Study Goals & Test Date</span>
+                      <Settings className="w-4 h-4 text-teal-600" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t border-slate-200">
+                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                      <Key className="w-4 h-4 text-teal-700" />
+                      Gemini API Key
+                    </h3>
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={apiKeyInput}
+                        onChange={(e) => {
+                          setApiKeyInput(e.target.value);
+                          setApiKeySaved(false);
+                        }}
+                        placeholder="AIzaSy..."
+                        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
+                      />
+                      <p className="text-xs text-slate-500">
+                        Use your own Gemini api key. Enter your personal Gemini API key to power AI generation, evaluation, and speech features.
+                      </p>
+                      <div className="flex items-center justify-between pt-1">
+                        <button
+                          onClick={() => {
+                            setStoredApiKey(apiKeyInput);
+                            setApiKeySaved(true);
+                            setTimeout(() => setApiKeySaved(false), 2000);
+                          }}
+                          className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg transition-colors"
+                        >
+                          Save API Key
+                        </button>
+                        {apiKeySaved && (
+                          <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Saved!
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

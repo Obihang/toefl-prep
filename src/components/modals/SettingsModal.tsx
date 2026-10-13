@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Target, Calendar, CheckCircle2, User, Key } from 'lucide-react';
+import { X, Settings, Target, Calendar, CheckCircle2, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getStoredApiKey, setStoredApiKey } from '../../utils/apiKey';
 
 interface Props {
   isOpen: boolean;
@@ -13,7 +12,6 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [nameInput, setNameInput] = useState('');
   const [targetScore, setTargetScore] = useState('100');
   const [testDate, setTestDate] = useState('');
-  const [apiKeyInput, setApiKeyInput] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -21,10 +19,8 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
     const storedTarget = localStorage.getItem('toefl_target_score') || '100';
     const storedDate = localStorage.getItem('toefl_test_date') || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-    const storedApiKey = getStoredApiKey();
     setTargetScore(storedTarget);
     setTestDate(storedDate);
-    setApiKeyInput(storedApiKey);
     setNameError(null);
     setSavedSuccess(false);
   }, [isOpen, displayName]);
@@ -42,7 +38,6 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }
     localStorage.setItem('toefl_target_score', targetScore);
     localStorage.setItem('toefl_test_date', testDate);
-    setStoredApiKey(apiKeyInput);
     setSavedSuccess(true);
     setTimeout(() => {
       onClose();
@@ -124,23 +119,6 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             />
             <p className="text-xs text-slate-500">
               Enables exam countdown timer and recommended daily question quotas.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Key className="w-4 h-4 text-teal-700" />
-              Gemini API Key
-            </label>
-            <input
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="AIzaSy..."
-              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
-            />
-            <p className="text-xs text-slate-500">
-              Use your own Gemini api key. Enter your personal Gemini API key to power AI generation, evaluation, and speech features.
             </p>
           </div>
         </div>
