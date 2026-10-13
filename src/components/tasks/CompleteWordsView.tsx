@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CompleteWordsTask } from '../../data/curatedQuestions';
 import { CheckCircle2, RotateCcw, ArrowRight, Info, Keyboard } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import { auth } from '../../firebase';
+import { saveMistake } from '../../utils/mistakes';
 
 interface Props {
   task: CompleteWordsTask;
@@ -74,6 +76,20 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
     setBlanks(evaluated);
     setChecked(true);
     setScore({ correct: correctCount, total: blanks.length });
+
+    if (auth.currentUser) {
+      evaluated.forEach((b) => {
+        if (!b.isCorrect) {
+          saveMistake(
+            task.title,
+            'complete-words',
+            b.userValue || '(blank)',
+            b.solution,
+            `Complete the word: prefix "${b.prefix}", correct full word ends with "${b.solution}"`
+          );
+        }
+      });
+    }
 
     // Save record
     const scaledScore = convertToScaledScore(correctCount, blanks.length);

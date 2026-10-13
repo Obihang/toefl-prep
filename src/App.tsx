@@ -197,9 +197,10 @@ export default function App() {
     const map: Record<string, string> = {
       'beginner': 'intermediate',
       'intermediate': 'upper-intermediate',
+      'upper-intermediate': 'upper-intermediate',
       'advanced': 'advanced'
     };
-    setLevel(map[recommended]);
+    setLevel(map[recommended.level] || 'upper-intermediate');
   }, []);
 
   useEffect(() => {
@@ -339,6 +340,7 @@ export default function App() {
 
   const activeTask = getCurrentTaskData();
   const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
+  const adaptiveRec = getRecommendedLevel(getPracticeHistory(), currentTaskType);
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
@@ -526,10 +528,17 @@ export default function App() {
                 onChange={(e) => setLevel(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
+                <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate (B1-B2 · 60-80)</option>
                 <option value="upper-intermediate">Upper-Intermediate (B2-C1 · 80-100)</option>
                 <option value="advanced">Advanced (C1 · 100-120)</option>
               </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 font-medium" title={adaptiveRec.reason}>
+                Adaptive Level: <strong className="capitalize">{adaptiveRec.level}</strong>
+              </span>
             </div>
 
             <div className="flex items-center gap-2">

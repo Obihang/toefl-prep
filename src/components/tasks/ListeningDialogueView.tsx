@@ -3,6 +3,8 @@ import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
 import { playDialogue, stopSpeaking } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import { auth } from '../../firebase';
+import { saveMistake } from '../../utils/mistakes';
 
 interface Props {
   task: ListeningTask;
@@ -70,6 +72,20 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask }) => 
     const correctCount = calculateScore();
     const total = task.questions.length;
     const scaledScore = convertToScaledScore(correctCount, total);
+
+    if (auth.currentUser) {
+      task.questions.forEach((q, i) => {
+        if (selectedAnswers[i] !== q.answer) {
+          saveMistake(
+            task.title,
+            'listening-dialogue',
+            q.options[selectedAnswers[i]] ?? 'No answer',
+            q.options[q.answer],
+            q.why
+          );
+        }
+      });
+    }
 
     savePracticeRecord({
       taskType: 'listening-dialogue',

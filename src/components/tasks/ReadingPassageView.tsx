@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { ReadingPassageTask } from '../../data/curatedQuestions';
 import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import { auth } from '../../firebase';
+import { saveMistake } from '../../utils/mistakes';
 
 interface Props {
   task: ReadingPassageTask;
@@ -31,6 +33,20 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask }) => {
     const correctCount = calculateScore();
     const total = task.questions.length;
     const scaledScore = convertToScaledScore(correctCount, total);
+
+    if (auth.currentUser) {
+      task.questions.forEach((q, i) => {
+        if (selectedAnswers[i] !== q.answer) {
+          saveMistake(
+            task.title,
+            'reading-passage',
+            q.options[selectedAnswers[i]] ?? 'No answer',
+            q.options[q.answer],
+            q.why
+          );
+        }
+      });
+    }
 
     savePracticeRecord({
       taskType: 'reading-passage',

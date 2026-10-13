@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { BuildSentenceTask, BuildSentenceItem } from '../../data/curatedQuestions';
 import { RotateCcw, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import { auth } from '../../firebase';
+import { saveMistake } from '../../utils/mistakes';
 
 interface Props {
   task: BuildSentenceTask;
@@ -84,6 +86,16 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask }) => {
     const target = task.items[itemIdx].answer;
 
     const isMatch = normalize(userBuilt) === normalize(target);
+
+    if (!isMatch && auth.currentUser) {
+      saveMistake(
+        task.title,
+        'build-sentence',
+        userBuilt,
+        target,
+        'Order the scrambled words correctly to form a grammatically valid sentence.'
+      );
+    }
 
     setStates((prev) => {
       const next = [...prev];

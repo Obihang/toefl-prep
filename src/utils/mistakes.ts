@@ -1,5 +1,5 @@
 import { db, auth } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, where, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, where, deleteDoc, updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 
 export interface Mistake {
   id: string;
@@ -9,6 +9,7 @@ export interface Mistake {
   userAnswer: string;
   correctAnswer: string;
   explanation: string;
+  correctStreak?: number;
   createdAt: any;
 }
 
@@ -28,6 +29,7 @@ export async function saveMistake(
     userAnswer,
     correctAnswer,
     explanation,
+    correctStreak: 0,
     createdAt: serverTimestamp(),
   });
 }
@@ -43,6 +45,21 @@ export async function getMistakes(): Promise<Mistake[]> {
   
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Mistake));
+}
+
+export async function updateMistakeReview(mistakeId: string, correct: boolean) {
+  if (!auth.currentUser) throw new Error('User not authenticated');
+  const ref = doc(db, 'mistakes', mistakeId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const currentStreak = correct ? (data.correctStreak || 0) + 1 : 0;
+
+  if (currentStreak >= 2) {
+    await deleteDoc(ref);
+  } else {
+    await updateDoc(ref, { correctStreak: currentStreak });
+  }
 }
 
 export async function deleteMistake(mistakeId: string) {
