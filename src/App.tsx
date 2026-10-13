@@ -72,6 +72,7 @@ import {
   loadPrefetchQueueFromStorage,
   savePrefetchQueueToStorage,
   getNextTaskToPrefetch,
+  getPrefetchProgress,
   getTotalReadyCount,
   hasReadyTask,
   popPrefetchedTask,
@@ -387,23 +388,7 @@ export default function App() {
     }
   };
 
-  const handleBarWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    const el = sectionBarRef.current;
-    if (!el) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-
-    lastWheelTimeRef.current = Date.now();
-    stopHoverScroll();
-    
-    // Always translate scroll motion to horizontal scrolling
-    // Use deltaX if present, fallback to deltaY for mouse wheels
-    const scrollAmount = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-    el.scrollLeft += scrollAmount;
-    checkSectionScrollState();
-  };
-
+  // handleBarWheel removed in favor of useEffect listener
   const scrollBarBy = (amount: number) => {
     const el = sectionBarRef.current;
     if (!el) return;
@@ -494,73 +479,75 @@ export default function App() {
     });
   }, [level, topic]);
 
-  // Proactive multi-task background pre-fetching when user is idle
+  // New sequential prefetch loop
+  const inFlightLock = React.useRef(false);
+  const [prefetchProgress, setPrefetchProgress] = useState({ round: 1 as 1 | 2 | 'done', filled: 0, total: 16 });
   useEffect(() => {
-    const key = getStoredApiKey().trim();
-    if (!key) return;
+    const el = sectionBarRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const scrollAmount = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+      el.scrollLeft += scrollAmount;
+      checkSectionScrollState();
+      lastWheelTimeRef.current = Date.now();
+      stopHoverScroll();
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
 
+  useEffect(() => {
+    if (!enablePrefetching || !getStoredApiKey().trim()) return;
+    
     let isCancelled = false;
-    let intervalTimer: any = null;
-    let coldStartTimeout: any = null;
+    let idleTimeout: any = null;
     let lastActivityTime = Date.now();
 
-    const onUserActivity = () => {
-      lastActivityTime = Date.now();
-    };
-
+    const onUserActivity = () => { lastActivityTime = Date.now(); };
     window.addEventListener('mousemove', onUserActivity, { passive: true });
     window.addEventListener('keydown', onUserActivity, { passive: true });
     window.addEventListener('scroll', onUserActivity, { passive: true });
-    window.addEventListener('touchstart', onUserActivity, { passive: true });
-    window.addEventListener('click', onUserActivity, { passive: true });
 
-    const processProactiveQueue = async () => {
-      if (isCancelled || isGenerating) return;
+    const runLoop = async () => {
+      if (isCancelled || inFlightLock.current || isGenerating || document.visibilityState !== 'visible') return;
       if (Date.now() < quotaExhaustedUntilRef.current) return;
-      const keyPresent = Boolean(getStoredApiKey().trim());
-      if (!keyPresent) return;
-
-      // Only fetch when user has been idle for at least 1500ms
+      
       const timeSinceActivity = Date.now() - lastActivityTime;
-      if (timeSinceActivity < 1500 || !enablePrefetching) return;
+      if (timeSinceActivity < 1500) {
+        idleTimeout = setTimeout(runLoop, 1500 - timeSinceActivity);
+        return;
+      }
 
-      const target = getNextTaskToPrefetch(
-        currentTaskType,
-        prefetchedQueue,
-        isPrefetchingRef.current,
-        failedRecentlyRef.current,
-        level,
-        topic
-      );
+      const target = getNextTaskToPrefetch(currentTaskType, prefetchedQueue, level, topic, failedRecentlyRef.current, Date.now());
       if (!target) return;
 
-      await prefetchTaskInBackground(target, level, topic);
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      inFlightLock.current = true;
+      try {
+        await prefetchTaskInBackground(target, level, topic);
+      } finally {
+        inFlightLock.current = false;
+        if (!isCancelled) setTimeout(runLoop, 1500);
+      }
     };
 
-    // Cold-start boost: if active task has 0 cached items, prefetch 1 item if quota is healthy
-    if (!hasReadyTask(prefetchedQueue, currentTaskType) && !isPrefetchingRef.current[currentTaskType] && Date.now() >= quotaExhaustedUntilRef.current) {
-      coldStartTimeout = setTimeout(() => {
-        if (!isCancelled && !isGenerating && Date.now() >= quotaExhaustedUntilRef.current) {
-          prefetchTaskInBackground(currentTaskType, level, topic);
-        }
-      }, 400);
-    }
-
-    // Run proactive queue worker every 3500ms
-    intervalTimer = setInterval(processProactiveQueue, 3500);
+    const interval = setInterval(runLoop, 5000);
+    runLoop();
 
     return () => {
       isCancelled = true;
-      clearInterval(intervalTimer);
-      clearTimeout(coldStartTimeout);
+      clearInterval(interval);
+      clearTimeout(idleTimeout);
       window.removeEventListener('mousemove', onUserActivity);
       window.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onUserActivity);
-      window.removeEventListener('touchstart', onUserActivity);
-      window.removeEventListener('click', onUserActivity);
     };
-  }, [currentTaskType, level, topic, prefetchedQueue, isGenerating]);
+  }, [currentTaskType, level, topic, prefetchedQueue, isGenerating, enablePrefetching]);
+
+  useEffect(() => {
+    setPrefetchProgress(getPrefetchProgress(prefetchedQueue, level, topic));
+  }, [prefetchedQueue, level, topic]);
 
   // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {
@@ -739,7 +726,6 @@ export default function App() {
   const activeTask = getCurrentTaskData();
   const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
   const adaptiveRec = getRecommendedLevel(getPracticeHistory(), level as DifficultyLevel, currentTaskType);
-  const totalReady = getTotalReadyCount(prefetchedQueue);
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
@@ -902,7 +888,6 @@ export default function App() {
               ref={sectionBarRef}
               onMouseMove={handleBarMouseMove}
               onMouseLeave={stopHoverScroll}
-              onWheel={handleBarWheel}
               className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none select-none cursor-grab active:cursor-grabbing scroll-smooth overscroll-none"
             >
               <button
@@ -1055,31 +1040,14 @@ export default function App() {
                     : 'Generate New with AI'}
                 </span>
               </button>
-              {Boolean(getStoredApiKey().trim()) ? (
-                hasReadyTask(prefetchedQueue, currentTaskType) ? (
-                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1 shadow-2xs">
-                    ⚡ Instant ready ({prefetchedQueue[currentTaskType]?.length})
-                  </span>
-                ) : isPrefetching ? (
-                  <span className="text-[10px] font-medium text-teal-700 bg-teal-50 border border-teal-200 px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1.5 animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-ping shrink-0" />
-                    <span>Pre-fetching next...</span>
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
-                    {totalReady > 0 ? (
-                      <>
-                        <span>⚡ {totalReady} ready</span>
-                        <span className="text-emerald-600 font-normal">across sections</span>
-                      </>
-                    ) : (
-                      'Using your key'
-                    )}
-                  </span>
-                )
-              ) : (
-                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full whitespace-nowrap">
-                  No key set
+              {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.round !== 'done' && (
+                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                  Preparing questions: round {prefetchProgress.round} of 2 ({prefetchProgress.filled}/8 ready)
+                </span>
+              )}
+              {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.round === 'done' && (
+                <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                  Questions ready
                 </span>
               )}
             </div>
