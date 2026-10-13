@@ -18,9 +18,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { audioBase64, mimeType } = req.body || {};
-    const transcript = await handleTranscribeAudio(audioBase64, mimeType, customApiKey);
-    return res.status(200).json({ success: true, transcript });
+    const { transcript, modelUsed } = await handleTranscribeAudio(audioBase64, mimeType, customApiKey);
+    return res.status(200).json({ success: true, transcript, modelUsed });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message || 'Audio transcription failed' });
+    const msg = error.message || 'Audio transcription failed';
+    if (msg === 'SPEECH_UNAVAILABLE') {
+      return res.status(503).json({ success: false, error: 'SPEECH_UNAVAILABLE' });
+    }
+    return res.status(500).json({ success: false, error: msg });
   }
 }

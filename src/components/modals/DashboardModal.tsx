@@ -306,11 +306,16 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
                     placeholder="AIzaSy..."
                     className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
                   />
-                  <p className="text-xs text-slate-500">
-                    Use your own Gemini API key. Enter your personal Gemini API key to power AI generation, evaluation, and speech features.
-                  </p>
+                  <div className="p-3 bg-teal-50/60 border border-teal-200 rounded-xl space-y-1.5 text-xs text-teal-900">
+                    <p className="font-semibold">Quick setup guide:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-700">
+                      <li>Create your free API key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-teal-700 underline font-medium">Google AI Studio</a>.</li>
+                      <li>Copy your API key.</li>
+                      <li>Paste it here and click <strong>Test Key</strong>.</li>
+                    </ol>
+                  </div>
                   <p className="text-xs text-slate-500 italic">
-                    Note: Your API key is stored only in this browser (localStorage) and never transmitted to our servers.
+                    Stored only in this browser. It is sent with each request to this app's server only to call Gemini, and is not saved there.
                   </p>
                   
                   {testKeyResult && (

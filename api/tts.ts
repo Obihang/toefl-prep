@@ -18,9 +18,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { text, voiceName } = req.body || {};
-    const audioBase64 = await handleSynthesizeSpeech(text, voiceName, customApiKey);
-    return res.status(200).json({ success: true, audioBase64 });
+    const { audioBase64, modelUsed } = await handleSynthesizeSpeech(text, voiceName, customApiKey);
+    return res.status(200).json({ success: true, audioBase64, modelUsed });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message || 'TTS synthesis failed' });
+    const msg = error.message || 'TTS synthesis failed';
+    if (msg === 'SPEECH_UNAVAILABLE') {
+      return res.status(503).json({ success: false, error: 'SPEECH_UNAVAILABLE' });
+    }
+    return res.status(500).json({ success: false, error: msg });
   }
 }

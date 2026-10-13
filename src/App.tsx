@@ -143,6 +143,7 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccess, setGenerationSuccess] = useState(false);
+  const [lastModelUsed, setLastModelUsed] = useState<string | null>(null);
   const [isMockTest, setIsMockTest] = useState(false);
   const [reportedQuestionId, setReportedQuestionId] = useState<string | null>(null);
 
@@ -325,6 +326,17 @@ export default function App() {
         throw new Error(json.error || 'Generation failed');
       }
 
+      if (json.data.isFallback) {
+        setGenerationError(`AI generation failed (${json.data.fallbackReason || 'model unavailable'}). Showing a curated question instead.`);
+        handleNextCurated(currentTaskType);
+        setIsGenerating(false);
+        return;
+      }
+
+      if (json.data.modelUsed) {
+        setLastModelUsed(json.data.modelUsed);
+      }
+
       const newTask: any = {
         ...json.data,
         level,
@@ -360,11 +372,11 @@ export default function App() {
     } catch (err: any) {
       console.error('AI generation error:', err);
       const msg = err.message || '';
-      if (msg.startsWith('No Gemini API key')) {
+      if (msg.startsWith('No Gemini API key') || msg.includes('API key') || msg.includes('quota')) {
         setGenerationError(msg);
       } else {
         setGenerationError(
-          'The AI is taking a moment to catch up. Here is a curated question from our bank while we work on your custom task.'
+          `AI generation failed (${msg}). Showing a curated question instead.`
         );
         handleNextCurated(currentTaskType);
       }
@@ -686,17 +698,37 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>{generationError}</span>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
+              <div className="flex items-center gap-2 font-semibold text-sm">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{generationError}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                <button
+                  onClick={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Dashboard &gt; API Key
+                </button>
+              </div>
             </div>
           )
         )}
 
         {generationSuccess && (
-          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
-            <span>Successfully generated with AI</span>
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>Successfully generated with AI</span>
+            </div>
+            {lastModelUsed && (
+              <span className="text-[10px] bg-teal-100 text-teal-900 px-2 py-0.5 rounded-full font-mono">
+                Generated with {lastModelUsed}
+              </span>
+            )}
           </div>
         )}
 

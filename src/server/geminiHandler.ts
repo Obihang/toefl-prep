@@ -1,16 +1,65 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { MODELS } from '../constants/models.ts';
+import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 2, backoff = 1000): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries === 0) throw error;
-    await new Promise(resolve => setTimeout(resolve, backoff));
-    return withRetry(fn, retries - 1, backoff * 2);
+function isKeyError(err: any): boolean {
+  const msg = (err?.message || '').toLowerCase();
+  const status = err?.status || err?.statusCode || 0;
+  if (status === 400 || status === 401 || status === 403) return true;
+  if (msg.includes('400') || msg.includes('401') || msg.includes('403') ||
+      msg.includes('invalid api key') || msg.includes('api_key_invalid') ||
+      msg.includes('permission denied') || msg.includes('unauthenticated') ||
+      msg.includes('api key not valid')) {
+    return true;
   }
+  return false;
+}
+
+function isTransientError(err: any): boolean {
+  const msg = (err?.message || '').toLowerCase();
+  const status = err?.status || err?.statusCode || 0;
+  if (status === 503 || status === 429 || status === 404 || status === 500) return true;
+  if (msg.includes('503') || msg.includes('429') || msg.includes('404') ||
+      msg.includes('unavailable') || msg.includes('resource_exhausted') ||
+      msg.includes('quota') || msg.includes('overloaded') || msg.includes('not found')) {
+    return true;
+  }
+  return false;
+}
+
+async function generateWithFallback<T>(
+  ai: GoogleGenAI,
+  chain: string[],
+  requestFn: (model: string) => Promise<T>
+): Promise<{ result: T; modelUsed: string }> {
+  let lastError: any = null;
+
+  for (const model of chain) {
+    let attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        const result = await requestFn(model);
+        return { result, modelUsed: model };
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Model ${model} attempt ${attempts} failed:`, err?.message || err);
+
+        if (isKeyError(err)) {
+          throw err;
+        }
+
+        if (attempts === 1 && isTransientError(err)) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError || new Error('All models in fallback chain failed');
 }
 
 const Schemas = {
@@ -54,7 +103,6 @@ const Schemas = {
   }),
 };
 
-
 function getAiClient(customApiKey?: string) {
   const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -97,41 +145,41 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
   const schemaKey = taskMap[taskType];
   const schema = Schemas[schemaKey as keyof typeof Schemas];
 
-  const getPrompt = (taskType: string, level: string, topic: string) => {
+  const getPrompt = (tType: string, lvl: string, top: string) => {
     const levelDesc =
-      level === 'advanced'
+      lvl === 'advanced'
         ? 'Advanced (C1 CEFR / TOEFL 100-120)'
-        : level === 'intermediate'
+        : lvl === 'intermediate'
         ? 'Intermediate (B1-B2 CEFR / TOEFL 60-80)'
         : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
-    switch (taskType) {
+    switch (tType) {
       case 'complete-words':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${topic}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select exactly 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select exactly 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
       case 'reading-passage':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${topic}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
       case 'listening-dialogue':
-        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${topic}. Requirements: 1. A campus conversation OR a short classroom lecture. 2. Script must be 120-150 words. 3. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Role of Speaker A", "B": "Role of Speaker B"}, "script": "Speaker A: ...\\nSpeaker B: ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classroom lecture. 2. Script must be 120-150 words. 3. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Role of Speaker A", "B": "Role of Speaker B"}, "script": "Speaker A: ...\\nSpeaker B: ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
       case 'listen-repeat':
-        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Listen & Repeat Exercise", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
+        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Listen & Repeat Exercise", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
       case 'speaking-interview':
-        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
+        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
       case 'build-sentence':
-        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
+        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
       case 'write-email':
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
+        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
       case 'academic-discussion':
       default:
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
+        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
     }
   };
 
   try {
-    return await withRetry(async () => {
-      if (!ai) throw new Error('AI client not initialized');
-      
+    if (!ai) throw new Error('AI client not initialized');
+
+    const { result, modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
       const prompt = getPrompt(taskType, level, topic);
       const response = await ai.models.generateContent({
-        model: MODELS.GENERATION,
+        model,
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -141,14 +189,20 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       });
 
       const parsed = JSON.parse(response.text!);
-      return { ...schema.parse(parsed), isFallback: false };
+      return schema.parse(parsed);
     });
-  } catch (error) {
+
+    return { ...result, isFallback: false, modelUsed };
+  } catch (error: any) {
     console.error(`Failed to generate task ${taskType}, falling back:`, error);
+    let errMsg = error?.message || 'Unknown error';
+    if (errMsg.toLowerCase().includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
+      errMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT). " + errMsg;
+    }
     const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
     const curatedTasks = CURATED[curatedKey] as any[];
     const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
-    return { ...item, isFallback: true, fallbackReason: (error as any)?.message || 'Unknown error' };
+    return { ...item, isFallback: true, fallbackReason: errMsg, modelUsed: GENERATION_CHAIN[0] };
   }
 }
 
@@ -230,26 +284,40 @@ Return JSON in this exact structure:
   "exemplar": "A model high-scoring C1/C2 response demonstrating target structure and vocabulary."
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODELS.EVALUATION,
-    contents: evaluationPrompt,
-    config: {
-      responseMimeType: 'application/json',
-      systemInstruction:
-        'You are an experienced TOEFL iBT exam rater. Return objective, encouraging, and pedagogically sound evaluation as valid JSON only.',
-      temperature: 0.3,
-    },
-  });
-
-  const text = response.text || '';
   try {
-    return JSON.parse(text);
-  } catch {
-    const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+    const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: evaluationPrompt,
+        config: {
+          responseMimeType: 'application/json',
+          systemInstruction:
+            'You are an experienced TOEFL iBT exam rater. Return objective, encouraging, and pedagogically sound evaluation as valid JSON only.',
+          temperature: 0.3,
+        },
+      });
+
+      const text = response.text || '';
+      try {
+        const parsed = JSON.parse(text);
+        return { ...parsed, modelUsed: model };
+      } catch {
+        const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return { ...parsed, modelUsed: model };
+        }
+        throw new Error('Failed to parse evaluation JSON');
+      }
+    });
+
+    return result;
+  } catch (error: any) {
+    let errMsg = error?.message || 'Evaluation failed';
+    if (errMsg.toLowerCase().includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
+      errMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT). " + errMsg;
     }
-    throw new Error('Failed to parse evaluation JSON');
+    throw new Error(errMsg);
   }
 }
 
@@ -257,43 +325,51 @@ export async function handleSynthesizeSpeech(
   text: string,
   voiceName: 'Kore' | 'Puck' | 'Fenrir' | 'Zephyr' | 'Charon' = 'Kore',
   customApiKey?: string
-) {
+): Promise<{ audioBase64: string; modelUsed: string }> {
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('GEMINI_API_KEY is not configured on the server');
   }
 
-  const response = await ai.models.generateContent({
-    model: MODELS.TTS,
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text }],
-      },
-    ],
-    config: {
-      responseModalities: ['AUDIO'],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName },
+  try {
+    const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text }],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName },
+            },
+          },
         },
-      },
-    },
-  });
+      });
 
-  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!base64Audio) {
-    throw new Error('Failed to generate audio from speech model');
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Audio) {
+        throw new Error('Failed to generate audio from speech model');
+      }
+      return base64Audio;
+    });
+
+    return { audioBase64: result, modelUsed };
+  } catch (error: any) {
+    console.error('TTS error:', error);
+    throw new Error('SPEECH_UNAVAILABLE');
   }
-
-  return base64Audio;
 }
 
 export async function handleTranscribeAudio(
   audioBase64: string,
   mimeType: string = 'audio/webm',
   customApiKey?: string
-): Promise<string> {
+): Promise<{ transcript: string; modelUsed: string }> {
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('GEMINI_API_KEY is not configured on the server');
@@ -303,94 +379,42 @@ export async function handleTranscribeAudio(
   const promptText =
     'Transcribe the spoken English speech in this audio accurately. Write out spoken times and numbers as standard words where appropriate to match natural speech (e.g. transcribe "10:00" as "ten o\'clock", "2" as "two", "50%" as "fifty percent"). Return only the exact transcription without introductory phrases or commentary.';
 
-  // 1. Try low-latency dedicated transcription model gemini-3.5-transcribe
   try {
-    const response = await ai.models.generateContent({
-      model: MODELS.TRANSCRIBE_PRIMARY,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: cleanMime,
-                data: audioBase64,
-              },
-            },
-            {
-              text: promptText,
-            },
-          ],
-        },
-      ],
-      config: {
-        temperature: 0.0,
-        maxOutputTokens: 120,
-      },
-    });
-
-    const text = (response.text || '').trim();
-    if (text) return text;
-  } catch (err) {
-    console.warn('gemini-3.5-transcribe error, falling back to gemini-2.5-flash:', err);
-  }
-
-  // 2. High-speed multimodal fallback: gemini-2.5-flash
-  try {
-    const fallbackResponse = await ai.models.generateContent({
-      model: MODELS.TRANSCRIBE_FALLBACK,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                mimeType: cleanMime,
-                data: audioBase64,
-              },
-            },
-            {
-              text: promptText,
-            },
-          ],
-        },
-      ],
-      config: {
-        temperature: 0.0,
-        maxOutputTokens: 120,
-      },
-    });
-
-    const fallbackText = (fallbackResponse.text || '').trim();
-    if (fallbackText) return fallbackText;
-  } catch (err) {
-    console.warn('gemini-2.5-flash fallback error:', err);
-  }
-
-  // 3. Last-resort fallback: gemini-3.8-flash
-  const lastResort = await ai.models.generateContent({
-    model: MODELS.TRANSCRIBE_LAST_RESORT,
-    contents: [
-      {
-        role: 'user',
-        parts: [
+    const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
           {
-            inlineData: {
-              mimeType: cleanMime,
-              data: audioBase64,
-            },
-          },
-          {
-            text: promptText,
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: cleanMime,
+                  data: audioBase64,
+                },
+              },
+              {
+                text: promptText,
+              },
+            ],
           },
         ],
-      },
-    ],
-    config: {
-      temperature: 0.0,
-      maxOutputTokens: 120,
-    },
-  });
+        config: {
+          temperature: 0.0,
+          maxOutputTokens: 120,
+        },
+      });
 
-  return (lastResort.text || '').trim();
+      const text = (response.text || '').trim();
+      if (!text) {
+        throw new Error('Empty transcription returned');
+      }
+      return text;
+    });
+
+    return { transcript: result, modelUsed };
+  } catch (error: any) {
+    console.error('Transcription error:', error);
+    throw new Error('SPEECH_UNAVAILABLE');
+  }
 }
