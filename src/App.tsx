@@ -399,8 +399,9 @@ export default function App() {
   const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
     const key = getStoredApiKey().trim();
     const currentCount = prefetchedQueue[type]?.length || 0;
-    if (!key || isPrefetchingRef.current[type] || isGenerating || currentCount >= 2 || inFlightLock.current) return;
+    if (!key || isPrefetchingRef.current[type] || isGenerating || currentCount >= 2) return;
     if (Date.now() < quotaExhaustedUntilRef.current) return;
+    inFlightLock.current = true;
 
     isPrefetchingRef.current[type] = true;
     setIsPrefetching(true);
@@ -450,6 +451,7 @@ export default function App() {
       failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
     } finally {
       isPrefetchingRef.current[type] = false;
+      inFlightLock.current = false;
       const anyStillFetching = Object.values(isPrefetchingRef.current).some(Boolean);
       setIsPrefetching(anyStillFetching);
     }
@@ -522,12 +524,10 @@ export default function App() {
       const target = getNextTaskToPrefetch(currentTaskType, prefetchedQueue, level, topic, failedRecentlyRef.current, Date.now());
       if (!target) return;
 
-      inFlightLock.current = true;
-      try {
-        await prefetchTaskInBackground(target, level, topic);
-      } finally {
-        inFlightLock.current = false;
-        if (!isCancelled) setTimeout(runLoop, 1500);
+      await prefetchTaskInBackground(target, level, topic);
+      if (!isCancelled) {
+        if (idleTimeout) clearTimeout(idleTimeout);
+        idleTimeout = setTimeout(runLoop, 1500);
       }
     };
 

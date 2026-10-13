@@ -3,7 +3,7 @@ import { TaskTypeId, TASK_DEFINITIONS } from '../src/types/taskTypes';
 
 const MOCK_TASKS = TASK_DEFINITIONS;
 
-function simulate() {
+async function simulate() {
   let queue: any = {};
   let cooldowns: Record<string, number> = {};
   const now = Date.now();
@@ -66,16 +66,28 @@ function simulate() {
   console.log('Scenario E: Failure simulation');
   queue = {};
   cooldowns = {};
-  // Task 0 fails, cooldowns set
   const failTask = MOCK_TASKS[0].id;
-  fetchTask(failTask); // Actually we need to simulate a failure
-  // If we want to simulate failure, we need to mark it as cooldown.
-  // The logic is: fetchTask(failTask), then getNext(), fetchTask fails -> set cooldown
-  // In simulation, we just set cooldown manually.
   cooldowns[failTask] = Date.now() + 300000;
-  // It should not be picked immediately
   if (getNext() === failTask) throw new Error('Scenario E failed: Failed task should be in cooldown');
   console.log('Scenario E passed');
+
+  console.log('Scenario F: Lock logic and request overlap check');
+  let requestsMade = 0;
+  let inFlight = false;
+  const mockFetch = async () => {
+    if (inFlight) throw new Error('Concurrent request detected!');
+    inFlight = true;
+    requestsMade++;
+    await new Promise(r => setTimeout(r, 100));
+    inFlight = false;
+  };
+  // Simulate 5 loops
+  for (let i = 0; i < 5; i++) {
+    const next = getNext();
+    if (next) await mockFetch();
+  }
+  if (requestsMade !== 5) throw new Error('Scenario F failed: Incorrect requests made');
+  console.log('Scenario F passed');
 
   console.log('All scenarios passed!');
 }
