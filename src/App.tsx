@@ -49,6 +49,7 @@ import { WriteEmailView } from './components/tasks/WriteEmailView';
 import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionView';
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
 import { PerformanceHistoryModal } from './components/modals/PerformanceHistoryModal';
+import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
 
 export type TaskTypeId =
   | 'complete-words'
@@ -319,6 +320,7 @@ export default function App() {
 
           {/* Zone 3: 1 primary action */}
           <div className="flex items-center gap-3 shrink-0">
+            <WeeklyGoalTracker target={5} />
             <button
               onClick={() => setIsHistoryOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
