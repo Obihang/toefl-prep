@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ReadingPassageTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
 interface Props {
@@ -52,6 +52,13 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask }) => {
   const score = submitted ? calculateScore() : 0;
   const total = task.questions.length;
   const allAnswered = task.questions.every((_, i) => selectedAnswers[i] !== undefined);
+
+  const missedIndices = React.useMemo(() => {
+    if (!submitted) return [];
+    return task.questions
+      .map((q, i) => (selectedAnswers[i] !== q.answer ? i : -1))
+      .filter((i) => i !== -1);
+  }, [submitted, selectedAnswers, task.questions]);
 
   return (
     <div className="space-y-6">
@@ -119,6 +126,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask }) => {
             return (
               <div
                 key={qIdx}
+                id={`question-${qIdx}`}
                 className={`bg-white border rounded-xl p-5 shadow-xs transition-colors ${
                   submitted
                     ? isCorrect
@@ -212,6 +220,18 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask }) => {
                   <RotateCcw className="w-4 h-4" />
                   Retake
                 </button>
+                {submitted && missedIndices.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const firstMissed = document.getElementById(`question-${missedIndices[0]}`);
+                      firstMissed?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    Review Mistakes
+                  </button>
+                )}
                 {onNextTask && (
                   <button
                     onClick={onNextTask}

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { DashboardModal } from './components/modals/DashboardModal';
 import { db, auth } from './firebase';
 import { addDoc, collection } from 'firebase/firestore';
 import {
@@ -20,6 +21,7 @@ import {
   AlertCircle,
   HelpCircle,
   ChevronRight,
+  Settings,
 } from 'lucide-react';
 
 import {
@@ -127,6 +129,7 @@ export default function App() {
   const [topic, setTopic] = useState('science-tech');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationSuccess, setGenerationSuccess] = useState(false);
 
   // Active task payload per type
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});
@@ -144,20 +147,22 @@ export default function App() {
   // Modals
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
 
   // Exam mode timer (optional simulation clock)
   const [isExamMode, setIsExamMode] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
 
   useEffect(() => {
     let interval: any = null;
-    if (isExamMode && examSecondsRemaining > 0) {
+    if (isExamMode && !isPaused && examSecondsRemaining > 0) {
       interval = setInterval(() => {
         setExamSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isExamMode, examSecondsRemaining]);
+  }, [isExamMode, isPaused, examSecondsRemaining]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -199,6 +204,7 @@ export default function App() {
   const handleGenerateNewAiTask = async () => {
     setIsGenerating(true);
     setGenerationError(null);
+    setGenerationSuccess(false);
 
     try {
       const res = await fetch('/api/generate-task', {
@@ -242,8 +248,10 @@ export default function App() {
         ...prev,
         [currentTaskType]: newTask,
       }));
+      setGenerationSuccess(true);
+      setTimeout(() => setGenerationSuccess(false), 3000);
     } catch (err: any) {
-      console.warn('AI generation error, cycling to next curated item instead:', err);
+      console.error('AI generation error:', err);
       setGenerationError(
         'Server generation encountered an issue. Loaded next curated item from official question bank.'
       );
@@ -344,7 +352,7 @@ export default function App() {
 
           {/* Zone 3: 1 primary action */}
           <div className="flex items-center gap-3 shrink-0">
-            <WeeklyGoalTracker target={5} />
+            <WeeklyGoalTracker />
             <button
               onClick={() => setIsHistoryOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
@@ -352,21 +360,41 @@ export default function App() {
               <BarChart2 className="w-3.5 h-3.5" />
               <span>Score History</span>
             </button>
-
             <button
-              onClick={() => {
-                setIsExamMode(!isExamMode);
-                if (!isExamMode) setExamSecondsRemaining(1800);
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 ${
-                isExamMode
-                  ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                  : 'bg-slate-900 hover:bg-slate-800 text-white'
-              }`}
+              onClick={() => setIsDashboardOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
-              <Clock className="w-3.5 h-3.5" />
-              <span>{isExamMode ? `Exam: ${formatTimer(examSecondsRemaining)}` : 'Timed Exam Mode'}</span>
+              <Settings className="w-3.5 h-3.5" />
+              <span>Dashboard</span>
             </button>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  setIsExamMode(!isExamMode);
+                  if (!isExamMode) {
+                    setExamSecondsRemaining(1800);
+                    setIsPaused(false);
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-l-lg shadow-xs transition-colors whitespace-nowrap shrink-0 ${
+                  isExamMode
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>{isExamMode ? `Exam: ${formatTimer(examSecondsRemaining)}` : 'Timed Exam Mode'}</span>
+              </button>
+              {isExamMode && (
+                <button
+                  onClick={() => setIsPaused(!isPaused)}
+                  className="px-2.5 py-1.5 text-xs font-semibold rounded-r-lg shadow-xs transition-colors whitespace-nowrap shrink-0 bg-slate-700 hover:bg-slate-600 text-white border-l border-slate-600"
+                >
+                  {isPaused ? 'Resume' : 'Pause'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -482,6 +510,13 @@ export default function App() {
           </div>
         )}
 
+        {generationSuccess && (
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+            <span>Successfully generated with AI</span>
+          </div>
+        )}
+
         {/* Interactive Task Stage */}
         <section aria-label="Interactive Task Workspace" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
           {currentTaskType === 'complete-words' && (
@@ -573,6 +608,12 @@ export default function App() {
       {/* Modals */}
       <RubricGuideModal isOpen={isRubricsOpen} onClose={() => setIsRubricsOpen(false)} />
       <PerformanceHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+      <DashboardModal 
+        isOpen={isDashboardOpen} 
+        onClose={() => setIsDashboardOpen(false)} 
+        openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
+        openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
+      />
     </div>
   );
 }

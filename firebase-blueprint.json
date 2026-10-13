@@ -13,12 +13,72 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "taskType", "level", "topic", "data", "createdAt"]
+    },
+    "TaskCompletion": {
+      "title": "Task Completion",
+      "description": "A record of a completed practice task.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "taskType": { "type": "string" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "taskType", "completedAt"]
+    },
+    "UserStats": {
+      "title": "User Statistics",
+      "description": "User practice statistics.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "currentStreak": { "type": "number" },
+        "lastCompletedDate": { "type": "string", "format": "date" }
+      },
+      "required": ["userId", "currentStreak"]
+    },
+    "CompletedDay": {
+      "title": "Completed Day",
+      "description": "A day when the user completed at least one task.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["date"]
+    },
+    "VocabularyWord": {
+      "title": "Vocabulary Word",
+      "description": "A saved vocabulary word.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "word": { "type": "string" },
+        "definition": { "type": "string" },
+        "context": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "word", "definition", "createdAt"]
     }
   },
   "firestore": {
     "/questions/{questionId}": {
       "schema": "Question",
       "description": "Storage for generated questions."
+    },
+    "/completions/{completionId}": {
+      "schema": "TaskCompletion",
+      "description": "Record of all task completions."
+    },
+    "/userStats/{userId}": {
+      "schema": "UserStats",
+      "description": "Stores current streak for a user."
+    },
+    "/userStats/{userId}/completedDays/{dayId}": {
+      "schema": "CompletedDay",
+      "description": "Subcollection of days user was active."
+    },
+    "/vocabulary/{wordId}": {
+      "schema": "VocabularyWord",
+      "description": "Saved vocabulary words for a user."
     }
   }
 }

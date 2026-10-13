@@ -1,3 +1,6 @@
+import { db, auth } from '../firebase';
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc, setDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+
 export interface PracticeRecord {
   id: string;
   taskType: string;
@@ -24,7 +27,7 @@ export function getPracticeHistory(): PracticeRecord[] {
   }
 }
 
-export function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'date'>): PracticeRecord {
+export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'date'>): Promise<PracticeRecord> {
   const scaledScore30 = record.scaledScore30;
   const bandScore6 = record.bandScore6 ?? convertScaledToBand6(scaledScore30);
 
@@ -39,6 +42,10 @@ export function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'date'>):
     const history = getPracticeHistory();
     history.unshift(fullRecord);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 100)));
+
+    if (auth.currentUser) {
+      await saveTaskCompletion(fullRecord.taskType);
+    }
   } catch (e) {
     console.error('Failed to save score record', e);
   }
@@ -46,11 +53,68 @@ export function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'date'>):
   return fullRecord;
 }
 
+export async function saveTaskCompletion(taskType: string) {
+  if (!auth.currentUser) return;
+  const userId = auth.currentUser.uid;
+  const today = new Date().toISOString().split('T')[0];
+
+  // 1. Save Completion
+  await addDoc(collection(db, 'completions'), {
+    userId,
+    taskType,
+    completedAt: serverTimestamp(),
+  });
+
+  // 2. Update Stats (Streak)
+  const statsRef = doc(db, 'userStats', userId);
+  const statsSnap = await getDoc(statsRef);
+  
+  let currentStreak = 1;
+  let lastCompletedDate = today;
+
+  if (statsSnap.exists()) {
+    const data = statsSnap.data();
+    const lastDate = new Date(data.lastCompletedDate);
+    const todayDate = new Date(today);
+    
+    // Check if consecutive day
+    const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      currentStreak = (data.currentStreak || 0) + 1;
+    } else if (diffDays > 1) {
+      currentStreak = 1;
+    } else {
+      currentStreak = data.currentStreak || 1;
+    }
+    lastCompletedDate = today;
+  }
+
+  await setDoc(statsRef, { userId, currentStreak, lastCompletedDate }, { merge: true });
+  
+  // 3. Save Day in Subcollection
+  await setDoc(doc(db, 'userStats', userId, 'completedDays', today), { date: today });
+}
+
+export async function getUserStats() {
+  if (!auth.currentUser) return null;
+  const statsSnap = await getDoc(doc(db, 'userStats', auth.currentUser.uid));
+  return statsSnap.exists() ? statsSnap.data() : null;
+}
+
+export async function getCompletedDays() {
+  if (!auth.currentUser) return [];
+  const snapshot = await getDocs(collection(db, 'userStats', auth.currentUser.uid, 'completedDays'));
+  return snapshot.docs.map(doc => doc.data().date);
+}
+
 export function clearPracticeHistory() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(STORAGE_KEY);
   }
 }
+// ... rest of the file
 
 // Convert 0-30 scaled score to the new TOEFL 1.0 - 6.0 band scale (0.5 increments)
 export function convertScaledToBand6(scaledScore30: number): number {
