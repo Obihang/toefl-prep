@@ -9,9 +9,10 @@ interface Props {
   task: SpeakingInterviewTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
+  onOpenApiKeySettings?: () => void;
 }
 
-export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onComplete, onOpenApiKeySettings }) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timerMode, setTimerMode] = useState<'idle' | 'prep' | 'speaking'>('idle');
@@ -536,10 +537,37 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       </div>
 
       {evalError && (
-        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-xs text-rose-800">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>{evalError}</span>
-        </div>
+        evalError.startsWith('No Gemini API key') ? (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
+            <div className="flex items-center gap-2 font-semibold text-sm">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Add your free Gemini API key to use AI features</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+              {onOpenApiKeySettings && (
+                <button
+                  onClick={onOpenApiKeySettings}
+                  className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Configure API Key
+                </button>
+              )}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-teal-700 underline hover:text-teal-900 font-medium"
+              >
+                https://aistudio.google.com/apikey
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-xs text-rose-800">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{evalError}</span>
+          </div>
+        )
       )}
 
       {/* AI Evaluation Diagnostic Card */}

@@ -12,7 +12,7 @@ import {
   fetchRandomSharedQuestion,
   reportSharedQuestion,
 } from './utils/sharedQuestions';
-import { getApiHeaders } from './utils/apiKey';
+import { getApiHeaders, getStoredApiKey } from './utils/apiKey';
 import {
   BookOpen,
   Headphones,
@@ -163,6 +163,7 @@ export default function App() {
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [dashboardDefaultTab, setDashboardDefaultTab] = useState<'dashboard' | 'settings' | 'vocabulary' | 'mistakes'>('dashboard');
 
   // Dark Mode
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -358,10 +359,15 @@ export default function App() {
       setTimeout(() => setGenerationSuccess(false), 3000);
     } catch (err: any) {
       console.error('AI generation error:', err);
-      setGenerationError(
-        'The AI is taking a moment to catch up. Here is a curated question from our bank while we work on your custom task.'
-      );
-      handleNextCurated(currentTaskType);
+      const msg = err.message || '';
+      if (msg.startsWith('No Gemini API key')) {
+        setGenerationError(msg);
+      } else {
+        setGenerationError(
+          'The AI is taking a moment to catch up. Here is a curated question from our bank while we work on your custom task.'
+        );
+        handleNextCurated(currentTaskType);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -471,7 +477,10 @@ export default function App() {
               <span>Score History</span>
             </button>
             <button
-              onClick={() => setIsDashboardOpen(true)}
+              onClick={() => {
+                setDashboardDefaultTab('dashboard');
+                setIsDashboardOpen(true);
+              }}
               aria-label="Open Dashboard"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
@@ -630,23 +639,58 @@ export default function App() {
               <span>Next Question</span>
             </button>
 
-            <button
-              onClick={handleGenerateNewAiTask}
-              disabled={isGenerating}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              title="Generate a fresh customized TOEFL item using Gemini 3.8 Flash"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-teal-300" />
-              <span>{isGenerating ? 'Generating Question...' : 'Generate New with AI'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleGenerateNewAiTask}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                title="Generate a fresh customized TOEFL item using Gemini 3.8 Flash"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-teal-300" />
+                <span>{isGenerating ? 'Generating Question...' : 'Generate New with AI'}</span>
+              </button>
+              {Boolean(getStoredApiKey().trim()) ? (
+                <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full whitespace-nowrap">Using your key</span>
+              ) : (
+                <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full whitespace-nowrap">No key set</span>
+              )}
+            </div>
           </div>
         </section>
 
         {generationError && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>{generationError}</span>
-          </div>
+          generationError.startsWith('No Gemini API key') ? (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
+              <div className="flex items-center gap-2 font-semibold text-sm">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Add your free Gemini API key to use AI features</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                <button
+                  onClick={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Configure API Key
+                </button>
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-700 underline hover:text-teal-900 font-medium"
+                >
+                  https://aistudio.google.com/apikey
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{generationError}</span>
+            </div>
+          )
         )}
 
         {generationSuccess && (
@@ -724,6 +768,10 @@ export default function App() {
                 <SpeakingInterviewView
                   task={activeTask as SpeakingInterviewTask}
                   onNextTask={() => handleNextQuestion('speaking-interview')}
+                  onOpenApiKeySettings={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
                 />
               )}
 
@@ -738,6 +786,10 @@ export default function App() {
                 <WriteEmailView
                   task={activeTask as WriteEmailTask}
                   onNextTask={() => handleNextQuestion('write-email')}
+                  onOpenApiKeySettings={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
                 />
               )}
 
@@ -745,6 +797,10 @@ export default function App() {
                 <AcademicDiscussionView
                   task={activeTask as AcademicDiscussionTask}
                   onNextTask={() => handleNextQuestion('academic-discussion')}
+                  onOpenApiKeySettings={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
                 />
               )}
             </>
@@ -787,6 +843,7 @@ export default function App() {
         <DashboardModal 
           isOpen={isDashboardOpen} 
           onClose={() => setIsDashboardOpen(false)} 
+          defaultTab={dashboardDefaultTab}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
         />
