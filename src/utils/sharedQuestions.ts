@@ -2,6 +2,7 @@ import { db } from '../firebase';
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   query,
@@ -11,6 +12,7 @@ import {
   getDocs,
   serverTimestamp,
   increment,
+  arrayUnion,
 } from 'firebase/firestore';
 
 const SEEN_STORAGE_KEY = 'toefl_seen_question_ids';
@@ -101,6 +103,7 @@ export async function saveSharedQuestion(params: {
         createdAt: serverTimestamp(),
         rand: Math.random(),
         reportCount: 0,
+        reportedBy: [],
       },
       { merge: false }
     );
@@ -113,63 +116,84 @@ export async function saveSharedQuestion(params: {
 
 export async function fetchRandomSharedQuestion(taskType: string): Promise<any | null> {
   const seenIds = getSeenQuestionIds();
-  const randVal = Math.random();
 
+  // 1. Retry up to 5 times with a new random start value
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const randVal = Math.random();
+    try {
+      let q = query(
+        collection(db, 'questions'),
+        where('taskType', '==', taskType),
+        where('reportCount', '<', 3),
+        where('rand', '>=', randVal),
+        orderBy('rand'),
+        limit(1)
+      );
+
+      let snapshot = await getDocs(q);
+
+      // Wrap around if empty
+      if (snapshot.empty) {
+        q = query(
+          collection(db, 'questions'),
+          where('taskType', '==', taskType),
+          where('reportCount', '<', 3),
+          where('rand', '>=', 0),
+          orderBy('rand'),
+          limit(1)
+        );
+        snapshot = await getDocs(q);
+      }
+
+      if (!snapshot.empty) {
+        const docSnap = snapshot.docs[0];
+        if (!seenIds.includes(docSnap.id)) {
+          markQuestionAsSeen(docSnap.id);
+          const data = docSnap.data();
+          return {
+            ...data.data,
+            level: data.level,
+            topic: data.topic,
+            createdByName: data.createdByName,
+            createdByUid: data.createdByUid,
+            questionDocId: docSnap.id,
+            reportCount: data.reportCount || 0,
+            reportedBy: data.reportedBy || [],
+            isSharedBank: true,
+          };
+        }
+      }
+    } catch {
+      // Continue retry
+    }
+  }
+
+  // 2. Fall back to scanning 25 candidates starting from a random rand value, skipping seen IDs
   try {
-    // Primary query: rand >= randVal, orderBy rand, reportCount < 3, limit 1
+    const randVal = Math.random();
     let q = query(
       collection(db, 'questions'),
       where('taskType', '==', taskType),
       where('reportCount', '<', 3),
       where('rand', '>=', randVal),
       orderBy('rand'),
-      limit(1)
+      limit(25)
     );
-
     let snapshot = await getDocs(q);
 
-    // Wrap around if empty
-    if (snapshot.empty) {
-      q = query(
+    if (snapshot.empty || snapshot.docs.length < 5) {
+      const q2 = query(
         collection(db, 'questions'),
         where('taskType', '==', taskType),
         where('reportCount', '<', 3),
         where('rand', '>=', 0),
         orderBy('rand'),
-        limit(1)
+        limit(25)
       );
-      snapshot = await getDocs(q);
+      snapshot = await getDocs(q2);
     }
 
-    if (snapshot.empty) return null;
-
-    const firstDoc = snapshot.docs[0];
-    if (!seenIds.includes(firstDoc.id)) {
-      markQuestionAsSeen(firstDoc.id);
-      const data = firstDoc.data();
-      return {
-        ...data.data,
-        level: data.level,
-        topic: data.topic,
-        createdByName: data.createdByName,
-        createdByUid: data.createdByUid,
-        questionDocId: firstDoc.id,
-        reportCount: data.reportCount || 0,
-        isSharedBank: true,
-      };
-    }
-
-    // If the single random item was already seen, query up to 10 candidates to find an unseen one
-    const scanQ = query(
-      collection(db, 'questions'),
-      where('taskType', '==', taskType),
-      where('reportCount', '<', 3),
-      where('rand', '>=', 0),
-      orderBy('rand'),
-      limit(10)
-    );
-    const scanSnap = await getDocs(scanQ);
-    for (const docSnap of scanSnap.docs) {
+    for (const docSnap of snapshot.docs) {
       if (!seenIds.includes(docSnap.id)) {
         markQuestionAsSeen(docSnap.id);
         const data = docSnap.data();
@@ -181,21 +205,37 @@ export async function fetchRandomSharedQuestion(taskType: string): Promise<any |
           createdByUid: data.createdByUid,
           questionDocId: docSnap.id,
           reportCount: data.reportCount || 0,
+          reportedBy: data.reportedBy || [],
           isSharedBank: true,
         };
       }
     }
-
-    return null;
   } catch (err) {
-    console.warn('Failed to query shared questions bank:', err);
-    return null;
+    console.warn('Failed to scan shared questions bank:', err);
   }
+
+  // 3. Return null only after that
+  return null;
 }
 
-export async function reportSharedQuestion(questionDocId: string): Promise<void> {
+export async function reportSharedQuestion(questionDocId: string, userId?: string): Promise<boolean> {
+  if (!userId) return false;
   const docRef = doc(db, 'questions', questionDocId);
-  await updateDoc(docRef, {
-    reportCount: increment(1),
-  });
+  try {
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return false;
+    const data = docSnap.data();
+    const reportedBy = data.reportedBy || [];
+    if (reportedBy.includes(userId)) {
+      return false; // Already reported by this user
+    }
+    await updateDoc(docRef, {
+      reportCount: increment(1),
+      reportedBy: arrayUnion(userId),
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to report shared question:', err);
+    return false;
+  }
 }

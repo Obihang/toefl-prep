@@ -59,42 +59,53 @@ export async function saveTaskCompletion(taskType: string) {
   const today = new Date().toISOString().split('T')[0];
 
   // 1. Save Completion
-  await addDoc(collection(db, 'completions'), {
-    userId,
-    taskType,
-    completedAt: serverTimestamp(),
-  });
-
-  // 2. Update Stats (Streak)
-  const statsRef = doc(db, 'userStats', userId);
-  const statsSnap = await getDoc(statsRef);
-  
-  let currentStreak = 1;
-  let lastCompletedDate = today;
-
-  if (statsSnap.exists()) {
-    const data = statsSnap.data();
-    const lastDate = new Date(data.lastCompletedDate);
-    const todayDate = new Date(today);
-    
-    // Check if consecutive day
-    const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) {
-      currentStreak = (data.currentStreak || 0) + 1;
-    } else if (diffDays > 1) {
-      currentStreak = 1;
-    } else {
-      currentStreak = data.currentStreak || 1;
-    }
-    lastCompletedDate = today;
+  try {
+    await addDoc(collection(db, 'completions'), {
+      userId,
+      taskType,
+      completedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error('Failed to save completion record:', err);
   }
 
-  await setDoc(statsRef, { userId, currentStreak, lastCompletedDate }, { merge: true });
+  // 2. Update Stats (Streak)
+  try {
+    const statsRef = doc(db, 'userStats', userId);
+    const statsSnap = await getDoc(statsRef);
+    
+    let currentStreak = 1;
+    let lastCompletedDate = today;
+
+    if (statsSnap.exists()) {
+      const data = statsSnap.data();
+      const lastDate = new Date(data.lastCompletedDate);
+      const todayDate = new Date(today);
+      
+      const diffTime = Math.abs(todayDate.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 1) {
+        currentStreak = (data.currentStreak || 0) + 1;
+      } else if (diffDays > 1) {
+        currentStreak = 1;
+      } else {
+        currentStreak = data.currentStreak || 1;
+      }
+      lastCompletedDate = today;
+    }
+
+    await setDoc(statsRef, { userId, currentStreak, lastCompletedDate }, { merge: true });
+  } catch (err) {
+    console.error('Failed to update userStats:', err);
+  }
   
   // 3. Save Day in Subcollection
-  await setDoc(doc(db, 'userStats', userId, 'completedDays', today), { date: today });
+  try {
+    await setDoc(doc(db, 'userStats', userId, 'completedDays', today), { date: today, userId });
+  } catch (err) {
+    console.error('Failed to save completedDay:', err);
+  }
 }
 
 export async function getUserStats() {

@@ -277,14 +277,24 @@ export default function App() {
   };
 
   const handleReportQuestion = async (questionDocId: string) => {
+    if (!user) return;
+    const currentTask = customTasks[currentTaskType];
+    if (currentTask?.reportedBy?.includes(user.uid)) {
+      return; // Already reported by this user
+    }
     try {
-      await reportSharedQuestion(questionDocId);
-      setReportedQuestionId(questionDocId);
-      const currentTask = customTasks[currentTaskType];
-      if (currentTask && (currentTask.reportCount ?? 0) + 1 >= 3) {
-        setTimeout(() => {
-          handleNextQuestion(currentTaskType);
-        }, 800);
+      const success = await reportSharedQuestion(questionDocId, user.uid);
+      if (success) {
+        setReportedQuestionId(questionDocId);
+        if (currentTask) {
+          currentTask.reportedBy = [...(currentTask.reportedBy || []), user.uid];
+          currentTask.reportCount = (currentTask.reportCount || 0) + 1;
+        }
+        if (currentTask && (currentTask.reportCount ?? 0) >= 3) {
+          setTimeout(() => {
+            handleNextQuestion(currentTaskType);
+          }, 800);
+        }
       }
     } catch (err) {
       console.error('Failed to report question:', err);

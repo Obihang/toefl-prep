@@ -56,29 +56,14 @@ export const MockTestView: React.FC = () => {
 
   const currentSection = SECTIONS[currentSectionIndex];
 
-  // Reset timer on section change
-  useEffect(() => {
-    if (isTestComplete) return;
-    setTimeLeft(SECTIONS[currentSectionIndex].time);
-  }, [currentSectionIndex, isTestComplete]);
-
-  // Handle section timer countdown without calling state triggers inside updater
-  useEffect(() => {
-    if (isTestComplete) return;
-
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) return 0;
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [currentSectionIndex, isTestComplete]);
-
+  // TEST COMMENT: Sequence sequence: when timer reaches 0 or section is completed,
+  // handleNextSection increments currentSectionIndex and sets timeLeft for the new section
+  // in the same synchronous handler execution, preventing double-advance race conditions.
   const handleNextSection = useCallback(() => {
     if (currentSectionIndex < SECTIONS.length - 1) {
-      setCurrentSectionIndex((prev) => prev + 1);
+      const nextIdx = currentSectionIndex + 1;
+      setCurrentSectionIndex(nextIdx);
+      setTimeLeft(SECTIONS[nextIdx].time);
     } else {
       // Complete mock test
       setIsTestComplete(true);
@@ -102,6 +87,20 @@ export const MockTestView: React.FC = () => {
       });
     }
   }, [currentSectionIndex, completedSections]);
+
+  // Handle section timer countdown without calling state triggers inside updater
+  useEffect(() => {
+    if (isTestComplete) return;
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentSectionIndex, isTestComplete]);
 
   // When timer hits zero, advance cleanly outside setState updater
   useEffect(() => {

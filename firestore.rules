@@ -27,7 +27,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && resource.data.reportCount < 3;
 
       // On create, require createdByUid == request.auth.uid, valid taskType,
-      // createdByName string of 2-30 characters, reportCount == 0, and data size is reasonable
+      // createdByName string of 2-30 characters, reportCount == 0, reportedBy empty list, and data size is reasonable
       allow create: if isSignedIn()
         && request.resource.data.createdByUid == request.auth.uid
         && isValidTaskType(request.resource.data.taskType)
@@ -35,14 +35,19 @@ service cloud.firestore {
         && request.resource.data.createdByName.size() >= 2
         && request.resource.data.createdByName.size() <= 30
         && request.resource.data.reportCount == 0
+        && request.resource.data.reportedBy is list
+        && request.resource.data.reportedBy.size() == 0
         && request.resource.data.data is map
         && request.resource.data.data.keys().size() >= 1
         && request.resource.data.data.keys().size() <= 50;
 
-      // No client updates except incrementing reportCount by exactly 1
+      // Allow update for reporting: add request.auth.uid to reportedBy and increment reportCount by 1
       allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
-        && request.resource.data.reportCount == resource.data.reportCount + 1;
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount', 'reportedBy'])
+        && !(request.auth.uid in resource.data.reportedBy)
+        && request.resource.data.reportedBy == resource.data.reportedBy.concat([request.auth.uid])
+        && request.resource.data.reportCount == resource.data.reportCount + 1
+        && request.resource.data.reportCount < 4;
 
       // No client deletes
       allow delete: if false;
@@ -71,16 +76,11 @@ service cloud.firestore {
     }
 
     match /userStats/{uid} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
+      allow read, create, update, delete: if isSignedIn() && uid == request.auth.uid;
 
       match /completedDays/{dayId} {
-        allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-        allow update: if false;
+        allow read, create, update: if isSignedIn() && uid == request.auth.uid;
+        allow delete: if false;
       }
     }
   }
