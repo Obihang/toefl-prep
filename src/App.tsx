@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { db, auth } from './firebase';
+import { addDoc, collection } from 'firebase/firestore';
 import {
   BookOpen,
   Headphones,
@@ -214,14 +216,31 @@ export default function App() {
         throw new Error(json.error || 'Generation failed');
       }
 
+      const newTask = {
+        ...json.data,
+        level,
+        topic,
+        id: `ai-${Date.now()}`,
+      };
+
+      if (auth.currentUser) {
+        try {
+          await addDoc(collection(db, 'questions'), {
+            userId: auth.currentUser.uid,
+            taskType: currentTaskType,
+            level,
+            topic,
+            data: newTask,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.error('Failed to save to Firestore:', e);
+        }
+      }
+
       setCustomTasks((prev) => ({
         ...prev,
-        [currentTaskType]: {
-          ...json.data,
-          level,
-          topic,
-          id: `ai-${Date.now()}`,
-        },
+        [currentTaskType]: newTask,
       }));
     } catch (err: any) {
       console.warn('AI generation error, cycling to next curated item instead:', err);
