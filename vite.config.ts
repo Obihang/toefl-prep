@@ -104,6 +104,60 @@ function toeflApiPlugin(): Plugin {
           return;
         }
 
+        if (req.url === '/api/test-key' && req.method === 'POST') {
+          try {
+            const body = await readBody();
+            // Implement test-key logic similar to the Vercel function, 
+            // but adapted for Express-like request/response
+            // Or just import and call the handler if it's compatible
+            
+            // Re-implementing logic here for now to match the existing pattern in vite.config.ts
+            // Actually, let's just make it simple:
+            const customApiKey = req.headers['x-gemini-api-key'] as string || '';
+            const apiKey = customApiKey || process.env.GEMINI_API_KEY || '';
+            
+            if (!apiKey) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'No Gemini API key provided.' }));
+              return;
+            }
+
+            const { GoogleGenAI } = await import('@google/genai');
+            const { GENERATION_CHAIN } = await import('./src/constants/models.ts');
+            const { generateWithFallback } = await import('./src/server/geminiUtils.ts');
+            const { redactKey, isKeyError, isTransientError } = await import('./src/server/geminiErrors.ts');
+            
+            const ai = new GoogleGenAI({ apiKey });
+            
+            const { modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+              await ai.models.generateContent({
+                model,
+                contents: 'Reply with the single word OK',
+                config: { temperature: 0.1 },
+              });
+              return true;
+            });
+            
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, message: `Key works (${modelUsed})`, model: modelUsed }));
+          } catch (error: any) {
+            let status = 500;
+            if (isKeyError(error)) {
+              status = 401;
+            } else if (isTransientError(error)) {
+              status = 429;
+            } else if (error?.status === 400) {
+              status = 400;
+            }
+
+            res.statusCode = status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: error.message || 'Test key failed' }));
+          }
+          return;
+        }
+
         if (req.url === '/api/health') {
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ status: 'ok', hasGeminiKey: !!process.env.GEMINI_API_KEY }));

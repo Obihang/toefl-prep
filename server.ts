@@ -24,6 +24,15 @@ const apiLimiter = rateLimit({
 app.use('/api/', apiLimiter);
 app.use(express.json({ limit: '10mb' }));
 
+// Debug logging
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    const key = req.headers['x-gemini-api-key'];
+    console.log(`API Request: ${req.method} ${req.path}, x-gemini-api-key: ${key ? `PRESENT (starts with ${key.toString().slice(0, 6)})` : 'MISSING'}`);
+  }
+  next();
+});
+
 // API endpoints
 app.post('/api/generate-task', async (req, res) => {
   try {
@@ -69,11 +78,46 @@ app.post('/api/transcribe', async (req, res) => {
   }
 });
 
+app.post('/api/test-key', async (req, res) => {
+  const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim();
+  const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(400).json({ success: false, error: 'No Gemini API key provided.' });
+  }
+
+  try {
+    const { GoogleGenAI } = await import('@google/genai');
+    const { GENERATION_CHAIN } = await import('./src/constants/models.ts');
+    const { generateWithFallback } = await import('./src/server/geminiUtils.ts');
+    
+    const ai = new GoogleGenAI({ apiKey });
+    const { modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+      await ai.models.generateContent({
+        model,
+        contents: 'Reply with the single word OK',
+        config: { temperature: 0.1 },
+      });
+      return true;
+    });
+    
+    res.json({ success: true, message: `Key works (${modelUsed})`, model: modelUsed });
+  } catch (error: any) {
+    let status = 500;
+    if (isKeyError(error)) {
+      status = 401;
+    } else if (isTransientError(error)) {
+      status = 429;
+    } else if (error?.status === 400) {
+      status = 400;
+    }
+
+    res.status(status).json({ success: false, error: error.message || 'Test key failed' });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', hasGeminiKey: !!process.env.GEMINI_API_KEY });
 });
-
-// Serve static assets in production
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
