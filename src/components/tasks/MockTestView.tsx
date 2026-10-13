@@ -33,6 +33,7 @@ function pickRandomTasks() {
 }
 
 export const MockTestView: React.FC = () => {
+  const [isStarted, setIsStarted] = useState(false);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(SECTIONS[0].time);
   const [isTestComplete, setIsTestComplete] = useState(false);
@@ -90,7 +91,7 @@ export const MockTestView: React.FC = () => {
 
   // Handle section timer countdown without calling state triggers inside updater
   useEffect(() => {
-    if (isTestComplete) return;
+    if (!isStarted || isTestComplete) return;
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
@@ -100,14 +101,14 @@ export const MockTestView: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentSectionIndex, isTestComplete]);
+  }, [isStarted, currentSectionIndex, isTestComplete]);
 
   // When timer hits zero, advance cleanly outside setState updater
   useEffect(() => {
-    if (timeLeft === 0 && !isTestComplete) {
+    if (timeLeft === 0 && !isTestComplete && isStarted) {
       handleNextSection();
     }
-  }, [timeLeft, isTestComplete, handleNextSection]);
+  }, [timeLeft, isTestComplete, isStarted, handleNextSection]);
 
   const handleSectionComplete = (section: 'Reading' | 'Listening' | 'Speaking' | 'Writing', score: number) => {
     setSectionScores((prev) => ({ ...prev, [section]: score }));
@@ -121,6 +122,7 @@ export const MockTestView: React.FC = () => {
     setCurrentSectionIndex(0);
     setTimeLeft(SECTIONS[0].time);
     setIsTestComplete(false);
+    setIsStarted(false);
   };
 
   const formatTimer = (seconds: number) => {
@@ -128,6 +130,41 @@ export const MockTestView: React.FC = () => {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  if (!isStarted) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6 text-center">
+        <div className="w-16 h-16 bg-teal-100 text-teal-800 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+          <Clock className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900">Full TOEFL iBT Simulated Exam</h2>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
+            Experience a complete 4-section TOEFL exam simulation under official time constraints. Timer begins only after you click Start.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left">
+          {SECTIONS.map((sec, idx) => (
+            <div key={sec.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+              <div className="text-[10px] font-semibold text-teal-700 uppercase">Section {idx + 1}</div>
+              <div className="text-xs font-bold text-slate-900 truncate">{sec.name}</div>
+              <div className="text-[11px] text-slate-500 font-mono">{Math.round(sec.time / 60)} mins</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="pt-2">
+          <button
+            onClick={() => setIsStarted(true)}
+            className="px-8 py-3 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition-colors shadow-md cursor-pointer"
+          >
+            Start Full Mock Test
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isTestComplete) {
     const totalScore = sectionScores.Reading + sectionScores.Listening + sectionScores.Speaking + sectionScores.Writing;
