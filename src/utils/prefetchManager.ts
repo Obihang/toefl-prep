@@ -63,6 +63,23 @@ export function savePrefetchQueueToStorage(queue: PrefetchQueue): void {
  * and move to another section without prefetching more in the same section.
  * Only after all sections have at least one question ready can it cover remaining unpopulated tasks (strictly max 1 per task).
  */
+export function getPrefetchProgress(
+  queue: PrefetchQueue,
+  level: string,
+  topic: string
+): { round: 1 | 2 | 'done'; filled: number; total: 16 } {
+  let totalFilled = 0;
+  for (const task of TASK_DEFINITIONS) {
+    const items = queue[task.id] || [];
+    const matching = items.filter((item) => item.level === level && item.topic === topic);
+    totalFilled += Math.min(matching.length, 2);
+  }
+  
+  if (totalFilled < 8) return { round: 1, filled: totalFilled, total: 16 };
+  if (totalFilled < 16) return { round: 2, filled: totalFilled, total: 16 };
+  return { round: 'done', filled: 16, total: 16 };
+}
+
 export function getNextTaskToPrefetch(
   currentTaskType: TaskTypeId,
   queue: PrefetchQueue,
@@ -72,66 +89,39 @@ export function getNextTaskToPrefetch(
   currentTopic: string
 ): TaskTypeId | null {
   const now = Date.now();
-  const currentDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType);
-  const currentSection = currentDef?.section || 'Writing';
-
-  // Filter tasks that are currently fetching or failed within the last 2 minutes
-  const isAvailable = (id: string) => {
-    if (inFlight[id]) return false;
-    const lastFail = failedRecently[id] || 0;
-    if (now - lastFail < 120000) return false;
-    return true;
+  const getEligibleCount = (taskId: TaskTypeId) => {
+    if (inFlight[taskId] || (failedRecently[taskId] && now - failedRecently[taskId] < 120000)) return -1;
+    const items = queue[taskId] || [];
+    return items.filter((item) => item.level === currentLevel && item.topic === currentTopic).length;
   };
 
-  const getTaskCount = (id: string) => (queue[id] || []).length;
+  const sectionCounts: Record<string, number> = {};
+  for (const task of TASK_DEFINITIONS) {
+    const count = getEligibleCount(task.id);
+    if (count === -1) continue;
+    sectionCounts[task.section] = (sectionCounts[task.section] || 0) + count;
+  }
 
-  // The 4 official TOEFL sections ordered starting with user's current section
-  const allSections: Array<'Reading' | 'Listening' | 'Speaking' | 'Writing'> = [
-    currentSection,
-    ...(['Reading', 'Listening', 'Speaking', 'Writing'] as const).filter((s) => s !== currentSection),
-  ];
+  const sections = ['Reading', 'Listening', 'Speaking', 'Writing'] as const;
+  const currentSection = TASK_DEFINITIONS.find(t => t.id === currentTaskType)?.section || 'Writing';
+  const orderedSections = [currentSection, ...sections.filter(s => s !== currentSection)];
 
-  // Helper to check if a section already has any question ready or in-flight
-  const getSectionReadyOrInFlightCount = (section: string) => {
-    const tasks = TASK_DEFINITIONS.filter((t) => t.section === section);
-    return tasks.reduce((acc, t) => {
-      const count = getTaskCount(t.id);
-      const isFetching = inFlight[t.id] ? 1 : 0;
-      return acc + count + isFetching;
-    }, 0);
-  };
+  let minCount = 2;
+  for (const section of sections) {
+    minCount = Math.min(minCount, sectionCounts[section] || 0);
+  }
 
-  // Phase 1: Ensure each section has at least 1 question.
-  for (const section of allSections) {
-    const countInSection = getSectionReadyOrInFlightCount(section);
-    if (countInSection < 1) {
-      const tasksInSection = TASK_DEFINITIONS.filter((t) => t.section === section);
-      // Prioritize current type
-      if (section === currentSection && isAvailable(currentTaskType) && getTaskCount(currentTaskType) === 0) {
-        return currentTaskType;
-      }
-      for (const t of tasksInSection) {
-        if (isAvailable(t.id) && getTaskCount(t.id) === 0) {
-          return t.id;
-        }
+  if (minCount >= 2) return null;
+
+  for (const section of orderedSections) {
+    if ((sectionCounts[section] || 0) === minCount) {
+      const tasks = TASK_DEFINITIONS.filter(t => t.section === section);
+      for (const task of tasks) {
+        if (getEligibleCount(task.id) === 0) return task.id;
       }
     }
   }
 
-  // Phase 2: Once each section has 1, ensure each section has 2.
-  for (const section of allSections) {
-    const countInSection = getSectionReadyOrInFlightCount(section);
-    if (countInSection < 2) {
-      const tasksInSection = TASK_DEFINITIONS.filter((t) => t.section === section);
-      for (const t of tasksInSection) {
-        if (isAvailable(t.id) && getTaskCount(t.id) < 2) {
-          return t.id;
-        }
-      }
-    }
-  }
-
-  // Max 2 questions per section.
   return null;
 }
 

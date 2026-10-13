@@ -144,6 +144,16 @@ export default function App() {
   const [isExamMode, setIsExamMode] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
+  
+  // Settings
+  const [enablePrefetching, setEnablePrefetching] = useState<boolean>(() => {
+    const saved = localStorage.getItem('toefl_enable_prefetching');
+    return saved === null ? true : saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('toefl_enable_prefetching', enablePrefetching ? 'true' : 'false');
+  }, [enablePrefetching]);
 
   // Keyboard shortcuts: 'N' for next task, 'Space' to pause/resume exam timer
   useEffect(() => {
@@ -381,15 +391,15 @@ export default function App() {
     const el = sectionBarRef.current;
     if (!el) return;
     
+    e.preventDefault();
+    e.stopPropagation();
+
     lastWheelTimeRef.current = Date.now();
     stopHoverScroll();
     
-    // Stop the page from scrolling while we handle the bar
-    e.preventDefault();
-    e.stopPropagation();
-    
     // Always translate scroll motion to horizontal scrolling
-    const scrollAmount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    // Use deltaX if present, fallback to deltaY for mouse wheels
+    const scrollAmount = e.deltaX !== 0 ? e.deltaX : e.deltaY;
     el.scrollLeft += scrollAmount;
     checkSectionScrollState();
   };
@@ -414,12 +424,11 @@ export default function App() {
     try {
       const res = await fetch('/api/generate-task', {
         method: 'POST',
-        headers: getApiHeaders(),
+        headers: { ...getApiHeaders(), 'x-gemini-api-key': key },
         body: JSON.stringify({
           taskType: type,
           level: lvl,
           topic: top,
-          apiKey: key,
         }),
       });
 
@@ -513,7 +522,7 @@ export default function App() {
 
       // Only fetch when user has been idle for at least 1500ms
       const timeSinceActivity = Date.now() - lastActivityTime;
-      if (timeSinceActivity < 1500) return;
+      if (timeSinceActivity < 1500 || !enablePrefetching) return;
 
       const target = getNextTaskToPrefetch(
         currentTaskType,
@@ -526,6 +535,7 @@ export default function App() {
       if (!target) return;
 
       await prefetchTaskInBackground(target, level, topic);
+      await new Promise(resolve => setTimeout(resolve, 1500));
     };
 
     // Cold-start boost: if active task has 0 cached items, prefetch 1 item if quota is healthy
@@ -604,12 +614,11 @@ export default function App() {
       const apiKey = getStoredApiKey().trim();
       const res = await fetch('/api/generate-task', {
         method: 'POST',
-        headers: getApiHeaders(),
+        headers: { ...getApiHeaders(), 'x-gemini-api-key': apiKey },
         body: JSON.stringify({
           taskType: currentTaskType,
           level,
           topic,
-          apiKey,
         }),
       });
 
@@ -894,7 +903,7 @@ export default function App() {
               onMouseMove={handleBarMouseMove}
               onMouseLeave={stopHoverScroll}
               onWheel={handleBarWheel}
-              className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none select-none cursor-grab active:cursor-grabbing scroll-smooth"
+              className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none select-none cursor-grab active:cursor-grabbing scroll-smooth overscroll-none"
             >
               <button
                 data-active={isMockTest ? 'true' : 'false'}

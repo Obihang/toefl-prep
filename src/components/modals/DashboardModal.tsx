@@ -366,15 +366,16 @@ export const DashboardModal: React.FC<Props> = ({
 
               {/* Activity Chart */}
               <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <h3 className="font-semibold text-slate-900 text-sm mb-4">Practice Activity (Last 7 Days)</h3>
-                <div className="h-48 w-full">
+                <h3 className="font-semibold text-slate-900 text-sm mb-2">Study Consistency Trend</h3>
+                <p className="text-[10px] text-slate-400 mb-4">Tasks completed per day over the last week</p>
+                <div className="h-32 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="sessions" stroke="#0d9488" strokeWidth={2} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
+                      <YAxis hide allowDecimals={false} />
+                      <Tooltip cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }} />
+                      <Line type="monotone" dataKey="sessions" stroke="#0d9488" strokeWidth={2} dot={{ r: 3 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
