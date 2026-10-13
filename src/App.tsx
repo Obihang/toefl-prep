@@ -182,10 +182,15 @@ export default function App() {
       return next;
     });
 
-    setCuratedIndices((prev) => ({
-      ...prev,
-      [type]: (prev[type] + 1) % max,
-    }));
+    setCuratedIndices((prev) => {
+      const current = prev[type];
+      if (max <= 1) return { ...prev, [type]: 0 };
+      let next;
+      do {
+        next = Math.floor(Math.random() * max);
+      } while (next === current);
+      return { ...prev, [type]: next };
+    });
   };
 
   // Generate fresh task using Server-side Gemini API
