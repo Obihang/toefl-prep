@@ -148,7 +148,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
     const curatedTasks = CURATED[curatedKey] as any[];
     const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
-    return { ...item, isFallback: true };
+    return { ...item, isFallback: true, fallbackReason: (error as any)?.message || 'Unknown error' };
   }
 }
 

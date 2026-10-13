@@ -8,5 +8,6 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
 
   const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim();
   const hasGeminiKey = !!(customApiKey || process.env.GEMINI_API_KEY);
-  return res.status(200).json({ status: 'ok', hasGeminiKey });
+  const deep = req.query?.deep;
+  return res.status(200).json({ status: 'ok', hasGeminiKey, ...(deep ? { deepSkipped: true } : {}) });
 }

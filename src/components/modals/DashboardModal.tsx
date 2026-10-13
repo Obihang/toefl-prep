@@ -52,18 +52,20 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
     setIsTestingKey(true);
     setTestKeyResult(null);
     try {
-      const res = await fetch('/api/generate-task', {
+      const res = await fetch('/api/test-key', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-gemini-api-key': apiKeyInput,
         },
-        body: JSON.stringify({
-          taskType: 'complete-words',
-          level: 'intermediate',
-          topic: 'Test',
-        }),
+        body: JSON.stringify({}),
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('The /api server is not responding. Check the Vercel deployment.');
+      }
+
       const json = await res.json();
       if (!res.ok || !json.success) {
         throw new Error(json.error || 'Test failed');
