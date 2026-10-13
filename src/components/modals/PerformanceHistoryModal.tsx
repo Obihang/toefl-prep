@@ -18,6 +18,9 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
   const [targetScore, setTargetScore] = useState(100);
   const [testDate, setTestDate] = useState<string>('');
 
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setHistory(getPracticeHistory());
@@ -30,6 +33,8 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
         const defaultDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
         setTestDate(defaultDate);
       }
+      setStatusMessage(null);
+      setConfirmingClear(false);
     }
   }, [isOpen]);
 
@@ -42,15 +47,26 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
   const scoreDiff = targetScore - stats.overallScore;
   const dailyWorkload = daysToTest > 0 ? Math.max(1, Math.ceil(Math.abs(scoreDiff) / (daysToTest * 0.5))) : 2;
 
+  const showNotification = (text: string, type: 'success' | 'error') => {
+    setStatusMessage({ text, type });
+    setTimeout(() => {
+      setStatusMessage(null);
+    }, 4000);
+  };
+
   const handleClear = () => {
-    if (confirm('Are you sure you want to clear your TOEFL practice history?')) {
-      clearPracticeHistory();
-      setHistory([]);
-    }
+    clearPracticeHistory();
+    setHistory([]);
+    setConfirmingClear(false);
+    showNotification('Practice history cleared successfully.', 'success');
   };
 
   // Export JSON
   const handleExportJson = () => {
+    if (history.length === 0) {
+      showNotification('No history to export.', 'error');
+      return;
+    }
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(history, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
@@ -58,12 +74,13 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    showNotification('Exported JSON history successfully.', 'success');
   };
 
   // Export CSV
   const handleExportCsv = () => {
     if (history.length === 0) {
-      alert('No history to export.');
+      showNotification('No history to export.', 'error');
       return;
     }
     const headers = ['ID', 'Date', 'Section', 'TaskType', 'TaskTitle', 'ScaledScore30', 'BandScore6', 'TimeSpentSeconds'];
@@ -85,6 +102,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
     document.body.appendChild(link);
     link.click();
     link.remove();
+    showNotification('Exported CSV history successfully.', 'success');
   };
 
   // Import JSON
@@ -98,12 +116,12 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           if (Array.isArray(parsed)) {
             localStorage.setItem('toefl_prep_history_v1', JSON.stringify(parsed));
             setHistory(parsed);
-            alert('History imported successfully!');
+            showNotification('History imported successfully!', 'success');
           } else {
-            alert('Invalid JSON format.');
+            showNotification('Invalid JSON format: expected an array of records.', 'error');
           }
         } catch {
-          alert('Failed to parse JSON file.');
+          showNotification('Failed to parse JSON file.', 'error');
         }
       };
     }
@@ -296,6 +314,24 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </div>
         </div>
 
+        {statusMessage && (
+          <div
+            className={`p-3 rounded-lg text-xs font-semibold flex items-center justify-between ${
+              statusMessage.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-rose-50 text-rose-800 border border-rose-200'
+            }`}
+          >
+            <span>{statusMessage.text}</span>
+            <button
+              onClick={() => setStatusMessage(null)}
+              className="text-slate-400 hover:text-slate-700 ml-2"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* History Table */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -303,13 +339,33 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
               Recent Activity ({history.length})
             </h3>
             {history.length > 0 && (
-              <button
-                onClick={handleClear}
-                className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Clear History
-              </button>
+              <div className="flex items-center gap-2">
+                {confirmingClear ? (
+                  <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-1 rounded-md text-xs">
+                    <span className="text-rose-800 text-[11px] font-medium">Clear all?</span>
+                    <button
+                      onClick={handleClear}
+                      className="px-2 py-0.5 font-bold bg-rose-600 text-white rounded hover:bg-rose-700 transition-colors text-[11px]"
+                    >
+                      Yes, Clear
+                    </button>
+                    <button
+                      onClick={() => setConfirmingClear(false)}
+                      className="px-1.5 py-0.5 text-slate-600 hover:text-slate-900 transition-colors text-[11px]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingClear(true)}
+                    className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-800 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Clear History
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

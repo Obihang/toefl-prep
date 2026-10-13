@@ -183,12 +183,12 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
               
               {activeTab === 'settings' && (
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-slate-900">Application Settings</h3>
+                  <h3 className="font-semibold text-slate-900">Study Goals & Preferences</h3>
                   <button 
                     onClick={() => setIsSettingsOpen(true)}
                     className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors"
                   >
-                    <span className="text-sm font-medium text-teal-900">Manage API Keys</span>
+                    <span className="text-sm font-medium text-teal-900">Configure Study Goals & Test Date</span>
                     <Settings className="w-4 h-4 text-teal-600" />
                   </button>
                 </div>

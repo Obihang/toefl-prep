@@ -9,9 +9,10 @@ import { saveMistake } from '../../utils/mistakes';
 interface Props {
   task: ListeningTask;
   onNextTask?: () => void;
+  onComplete?: (result: number) => void;
 }
 
-export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask }) => {
+export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -97,6 +98,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask }) => 
       timeSpentSeconds: 150,
       feedbackSummary: `Listening comprehension: scored ${correctCount}/${total} (${Math.round((correctCount / total) * 100)}%)`,
     });
+    onComplete?.(scaledScore);
   };
 
   const handleReset = () => {

@@ -7,9 +7,10 @@ import { savePracticeRecord } from '../../utils/scoreTracker';
 interface Props {
   task: SpeakingInterviewTask;
   onNextTask?: () => void;
+  onComplete?: (result: number) => void;
 }
 
-export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => {
+export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timerMode, setTimerMode] = useState<'idle' | 'prep' | 'speaking'>('idle');
@@ -274,6 +275,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
         timeSpentSeconds: 240,
         feedbackSummary: `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${json.data.rawRubricScore ?? json.data.bandScore}/4.0 (${json.data.performanceLevel})`,
       });
+
+      onComplete?.(scaled);
     } catch (err: any) {
       setEvalError(err.message || 'Failed to connect to AI evaluator');
     } finally {

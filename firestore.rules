@@ -1,33 +1,87 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isSignedIn() { return request.auth != null; }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidTaskType(t) {
+      return t in [
+        'complete-words',
+        'reading-passage',
+        'listening-dialogue',
+        'listen-repeat',
+        'speaking-interview',
+        'build-sentence',
+        'write-email',
+        'academic-discussion'
+      ];
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
 
     match /questions/{questionId} {
-      allow read, create: if isOwner(resource != null ? resource.data.userId : request.resource.data.userId);
+      // Any signed-in user can read only where reportCount < 3
+      allow read: if isSignedIn() && resource.data.reportCount < 3;
+
+      // On create, require createdByUid == request.auth.uid, valid taskType,
+      // createdByName string of 2-30 characters, reportCount == 0, and data size is reasonable
+      allow create: if isSignedIn()
+        && request.resource.data.createdByUid == request.auth.uid
+        && isValidTaskType(request.resource.data.taskType)
+        && request.resource.data.createdByName is string
+        && request.resource.data.createdByName.size() >= 2
+        && request.resource.data.createdByName.size() <= 30
+        && request.resource.data.reportCount == 0
+        && request.resource.data.data is map
+        && request.resource.data.data.keys().size() >= 1
+        && request.resource.data.data.keys().size() <= 50;
+
+      // No client updates except incrementing reportCount by exactly 1
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
+        && request.resource.data.reportCount == resource.data.reportCount + 1;
+
+      // No client deletes
+      allow delete: if false;
     }
 
     match /completions/{completionId} {
-      allow read, create: if isOwner(request.resource.data.userId);
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if false;
     }
 
-    match /userStats/{userId} {
-      allow read, update: if isOwner(userId);
-      
-      match /completedDays/{dayId} {
-        allow read, create: if isOwner(userId);
-      }
+    match /mistakes/{mistakeId} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
     }
 
     match /vocabulary/{wordId} {
-      allow read, create, delete: if isOwner(request.resource != null ? request.resource.data.userId : resource.data.userId);
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /userStats/{uid} {
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+
+      match /completedDays/{dayId} {
+        allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update: if false;
+      }
     }
   }
 }

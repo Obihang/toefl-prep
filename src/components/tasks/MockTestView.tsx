@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   CURATED_READING_PASSAGES, 
   CURATED_LISTENING, 
@@ -14,91 +14,114 @@ import { ListeningDialogueView } from './ListeningDialogueView';
 import { SpeakingInterviewView } from './SpeakingInterviewView';
 import { AcademicDiscussionView } from './AcademicDiscussionView';
 import { savePracticeRecord, calculateToeflEstimate } from '../../utils/scoreTracker';
-import { Clock, ArrowRight, Award, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, ArrowRight, Award } from 'lucide-react';
 
 const SECTIONS = [
-  { id: 'reading', name: 'Reading Section', time: 900, type: 'reading-passage' },
-  { id: 'listening', name: 'Listening Section', time: 900, type: 'listening-dialogue' },
-  { id: 'speaking', name: 'Speaking Section', time: 300, type: 'speaking-interview' },
-  { id: 'writing', name: 'Writing Section (Academic Discussion)', time: 600, type: 'academic-discussion' },
+  { id: 'reading', name: 'Reading Section', sectionKey: 'Reading' as const, time: 900, type: 'reading-passage' },
+  { id: 'listening', name: 'Listening Section', sectionKey: 'Listening' as const, time: 900, type: 'listening-dialogue' },
+  { id: 'speaking', name: 'Speaking Section', sectionKey: 'Speaking' as const, time: 300, type: 'speaking-interview' },
+  { id: 'writing', name: 'Writing Section (Academic Discussion)', sectionKey: 'Writing' as const, time: 600, type: 'academic-discussion' },
 ];
+
+function pickRandomTasks() {
+  return {
+    reading: CURATED_READING_PASSAGES[Math.floor(Math.random() * CURATED_READING_PASSAGES.length)] as ReadingPassageTask,
+    listening: CURATED_LISTENING[Math.floor(Math.random() * CURATED_LISTENING.length)] as ListeningTask,
+    speaking: CURATED_SPEAKING_INTERVIEWS[Math.floor(Math.random() * CURATED_SPEAKING_INTERVIEWS.length)] as SpeakingInterviewTask,
+    writing: CURATED_ACADEMIC_DISCUSSIONS[Math.floor(Math.random() * CURATED_ACADEMIC_DISCUSSIONS.length)] as AcademicDiscussionTask,
+  };
+}
 
 export const MockTestView: React.FC = () => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(SECTIONS[0].time);
   const [isTestComplete, setIsTestComplete] = useState(false);
-  const [sectionScores, setSectionScores] = useState<Record<string, number>>({
-    Reading: 24,
-    Listening: 25,
-    Speaking: 23,
-    Writing: 25,
+  
+  // Real section scores and completion tracking
+  const [sectionScores, setSectionScores] = useState<Record<'Reading' | 'Listening' | 'Speaking' | 'Writing', number>>({
+    Reading: 0,
+    Listening: 0,
+    Speaking: 0,
+    Writing: 0,
   });
+  const [completedSections, setCompletedSections] = useState<Record<'Reading' | 'Listening' | 'Speaking' | 'Writing', boolean>>({
+    Reading: false,
+    Listening: false,
+    Speaking: false,
+    Writing: false,
+  });
+
+  // Pick random curated tasks per section
+  const [testTasks, setTestTasks] = useState(pickRandomTasks);
 
   const currentSection = SECTIONS[currentSectionIndex];
 
+  // Reset timer on section change
   useEffect(() => {
     if (isTestComplete) return;
-    setTimeLeft(currentSection.time);
+    setTimeLeft(SECTIONS[currentSectionIndex].time);
+  }, [currentSectionIndex, isTestComplete]);
+
+  // Handle section timer countdown without calling state triggers inside updater
+  useEffect(() => {
+    if (isTestComplete) return;
+
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleNextSection();
-          return 0;
-        }
+        if (prev <= 1) return 0;
         return prev - 1;
       });
     }, 1000);
+
     return () => clearInterval(interval);
   }, [currentSectionIndex, isTestComplete]);
 
-  const handleNextSection = () => {
+  const handleNextSection = useCallback(() => {
     if (currentSectionIndex < SECTIONS.length - 1) {
       setCurrentSectionIndex((prev) => prev + 1);
     } else {
       // Complete mock test
       setIsTestComplete(true);
-      // Save practice records for each section
-      savePracticeRecord({
-        taskType: 'reading-passage',
-        taskTitle: 'Full Mock Test - Reading',
-        section: 'Reading',
-        score: sectionScores.Reading,
-        maxScore: 30,
-        scaledScore30: sectionScores.Reading,
-        timeSpentSeconds: 900,
-        feedbackSummary: `Mock Test Reading Score: ${sectionScores.Reading}/30`,
-      });
-      savePracticeRecord({
-        taskType: 'listening-dialogue',
-        taskTitle: 'Full Mock Test - Listening',
-        section: 'Listening',
-        score: sectionScores.Listening,
-        maxScore: 30,
-        scaledScore30: sectionScores.Listening,
-        timeSpentSeconds: 900,
-        feedbackSummary: `Mock Test Listening Score: ${sectionScores.Listening}/30`,
-      });
-      savePracticeRecord({
-        taskType: 'speaking-interview',
-        taskTitle: 'Full Mock Test - Speaking',
-        section: 'Speaking',
-        score: sectionScores.Speaking,
-        maxScore: 30,
-        scaledScore30: sectionScores.Speaking,
-        timeSpentSeconds: 300,
-        feedbackSummary: `Mock Test Speaking Score: ${sectionScores.Speaking}/30`,
-      });
-      savePracticeRecord({
-        taskType: 'academic-discussion',
-        taskTitle: 'Full Mock Test - Writing',
-        section: 'Writing',
-        score: sectionScores.Writing,
-        maxScore: 30,
-        scaledScore30: sectionScores.Writing,
-        timeSpentSeconds: 600,
-        feedbackSummary: `Mock Test Writing Score: ${sectionScores.Writing}/30`,
+
+      // Only save practice records for sections that were NOT completed by the task view
+      // (score 0 for timed out sections, avoid duplicate records)
+      SECTIONS.forEach((sec) => {
+        const key = sec.sectionKey;
+        if (!completedSections[key]) {
+          savePracticeRecord({
+            taskType: sec.type,
+            taskTitle: `Full Mock Test - ${key} (Timed Out)`,
+            section: key,
+            score: 0,
+            maxScore: 30,
+            scaledScore30: 0,
+            timeSpentSeconds: sec.time,
+            feedbackSummary: `Mock Test ${key} Section: timed out unfinished (0/30)`,
+          });
+        }
       });
     }
+  }, [currentSectionIndex, completedSections]);
+
+  // When timer hits zero, advance cleanly outside setState updater
+  useEffect(() => {
+    if (timeLeft === 0 && !isTestComplete) {
+      handleNextSection();
+    }
+  }, [timeLeft, isTestComplete, handleNextSection]);
+
+  const handleSectionComplete = (section: 'Reading' | 'Listening' | 'Speaking' | 'Writing', score: number) => {
+    setSectionScores((prev) => ({ ...prev, [section]: score }));
+    setCompletedSections((prev) => ({ ...prev, [section]: true }));
+  };
+
+  const handleRetake = () => {
+    setSectionScores({ Reading: 0, Listening: 0, Speaking: 0, Writing: 0 });
+    setCompletedSections({ Reading: false, Listening: false, Speaking: false, Writing: false });
+    setTestTasks(pickRandomTasks());
+    setCurrentSectionIndex(0);
+    setTimeLeft(SECTIONS[0].time);
+    setIsTestComplete(false);
   };
 
   const formatTimer = (seconds: number) => {
@@ -110,10 +133,10 @@ export const MockTestView: React.FC = () => {
   if (isTestComplete) {
     const totalScore = sectionScores.Reading + sectionScores.Listening + sectionScores.Speaking + sectionScores.Writing;
     const est = calculateToeflEstimate([
-      { id: '1', taskType: 'reading', taskTitle: 'Mock', section: 'Reading', date: '', score: 24, maxScore: 30, scaledScore30: sectionScores.Reading, timeSpentSeconds: 0 },
-      { id: '2', taskType: 'listening', taskTitle: 'Mock', section: 'Listening', date: '', score: 25, maxScore: 30, scaledScore30: sectionScores.Listening, timeSpentSeconds: 0 },
-      { id: '3', taskType: 'speaking', taskTitle: 'Mock', section: 'Speaking', date: '', score: 23, maxScore: 30, scaledScore30: sectionScores.Speaking, timeSpentSeconds: 0 },
-      { id: '4', taskType: 'writing', taskTitle: 'Mock', section: 'Writing', date: '', score: 25, maxScore: 30, scaledScore30: sectionScores.Writing, timeSpentSeconds: 0 },
+      { id: '1', taskType: 'reading-passage', taskTitle: 'Mock Reading', section: 'Reading', date: new Date().toISOString(), score: sectionScores.Reading, maxScore: 30, scaledScore30: sectionScores.Reading, timeSpentSeconds: 900 },
+      { id: '2', taskType: 'listening-dialogue', taskTitle: 'Mock Listening', section: 'Listening', date: new Date().toISOString(), score: sectionScores.Listening, maxScore: 30, scaledScore30: sectionScores.Listening, timeSpentSeconds: 900 },
+      { id: '3', taskType: 'speaking-interview', taskTitle: 'Mock Speaking', section: 'Speaking', date: new Date().toISOString(), score: sectionScores.Speaking, maxScore: 30, scaledScore30: sectionScores.Speaking, timeSpentSeconds: 300 },
+      { id: '4', taskType: 'academic-discussion', taskTitle: 'Mock Writing', section: 'Writing', date: new Date().toISOString(), score: sectionScores.Writing, maxScore: 30, scaledScore30: sectionScores.Writing, timeSpentSeconds: 600 },
     ]);
 
     return (
@@ -161,11 +184,8 @@ export const MockTestView: React.FC = () => {
 
         <div className="pt-4 flex justify-center">
           <button
-            onClick={() => {
-              setIsTestComplete(false);
-              setCurrentSectionIndex(0);
-            }}
-            className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg transition-colors"
+            onClick={handleRetake}
+            className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg transition-colors shadow-xs"
           >
             Retake Full Mock Test
           </button>
@@ -197,7 +217,7 @@ export const MockTestView: React.FC = () => {
 
           <button
             onClick={handleNextSection}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-lg transition-colors shadow-xs"
           >
             <span>{currentSectionIndex === SECTIONS.length - 1 ? 'Finish & View Report' : 'Next Section'}</span>
             <ArrowRight className="w-4 h-4" />
@@ -208,16 +228,32 @@ export const MockTestView: React.FC = () => {
       {/* Render Active Section Component */}
       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-2xs">
         {currentSectionIndex === 0 && (
-          <ReadingPassageView task={CURATED_READING_PASSAGES[0] as ReadingPassageTask} onNextTask={handleNextSection} />
+          <ReadingPassageView 
+            task={testTasks.reading} 
+            onNextTask={handleNextSection} 
+            onComplete={(score) => handleSectionComplete('Reading', score)} 
+          />
         )}
         {currentSectionIndex === 1 && (
-          <ListeningDialogueView task={CURATED_LISTENING[0] as ListeningTask} onNextTask={handleNextSection} />
+          <ListeningDialogueView 
+            task={testTasks.listening} 
+            onNextTask={handleNextSection} 
+            onComplete={(score) => handleSectionComplete('Listening', score)} 
+          />
         )}
         {currentSectionIndex === 2 && (
-          <SpeakingInterviewView task={CURATED_SPEAKING_INTERVIEWS[0] as SpeakingInterviewTask} onNextTask={handleNextSection} />
+          <SpeakingInterviewView 
+            task={testTasks.speaking} 
+            onNextTask={handleNextSection} 
+            onComplete={(score) => handleSectionComplete('Speaking', score)} 
+          />
         )}
         {currentSectionIndex === 3 && (
-          <AcademicDiscussionView task={CURATED_ACADEMIC_DISCUSSIONS[0] as AcademicDiscussionTask} onNextTask={handleNextSection} />
+          <AcademicDiscussionView 
+            task={testTasks.writing} 
+            onNextTask={handleNextSection} 
+            onComplete={(score) => handleSectionComplete('Writing', score)} 
+          />
         )}
       </div>
     </div>

@@ -5,9 +5,13 @@
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { getPracticeHistory } from './utils/scoreTracker';
-import { getRecommendedLevel } from './utils/difficulty';
-import { db, auth } from './firebase';
-import { addDoc, collection } from 'firebase/firestore';
+import { getRecommendedLevel, DifficultyLevel } from './utils/difficulty';
+import { useAuth } from './context/AuthContext';
+import {
+  saveSharedQuestion,
+  fetchRandomSharedQuestion,
+  reportSharedQuestion,
+} from './utils/sharedQuestions';
 import {
   BookOpen,
   Headphones,
@@ -25,6 +29,7 @@ import {
   Settings,
   Sun,
   Moon,
+  Flag,
 } from 'lucide-react';
 
 import {
@@ -130,13 +135,15 @@ const TASK_DEFINITIONS: TaskDefinition[] = [
 ];
 
 export default function App() {
+  const { user, displayName } = useAuth();
   const [currentTaskType, setCurrentTaskType] = useState<TaskTypeId>('academic-discussion');
-  const [level, setLevel] = useState('upper-intermediate');
+  const [level, setLevel] = useState<string>('upper-intermediate');
   const [topic, setTopic] = useState('science-tech');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccess, setGenerationSuccess] = useState(false);
   const [isMockTest, setIsMockTest] = useState(false);
+  const [reportedQuestionId, setReportedQuestionId] = useState<string | null>(null);
 
   // Active task payload per type
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});
@@ -178,7 +185,7 @@ export default function App() {
 
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
-        handleNextCurated(currentTaskType);
+        handleNextQuestion(currentTaskType);
       }
       if (e.key === ' ') {
         if (isExamMode) {
@@ -193,14 +200,8 @@ export default function App() {
 
   useEffect(() => {
     const history = getPracticeHistory();
-    const recommended = getRecommendedLevel(history);
-    const map: Record<string, string> = {
-      'beginner': 'intermediate',
-      'intermediate': 'upper-intermediate',
-      'upper-intermediate': 'upper-intermediate',
-      'advanced': 'advanced'
-    };
-    setLevel(map[recommended.level] || 'upper-intermediate');
+    const recommended = getRecommendedLevel(history, level as DifficultyLevel);
+    setLevel(recommended.level);
   }, []);
 
   useEffect(() => {
@@ -249,7 +250,48 @@ export default function App() {
     });
   };
 
-  // Generate fresh task using Server-side Gemini API
+  // Serve a random question: either from shared bank (using rand) or curated pool
+  const handleNextQuestion = async (type: TaskTypeId) => {
+    setReportedQuestionId(null);
+    // Sometimes (60% probability) serve a random unseen question from the shared bank
+    if (Math.random() < 0.6) {
+      try {
+        const shared = await fetchRandomSharedQuestion(type);
+        if (shared) {
+          setCustomTasks((prev) => ({
+            ...prev,
+            [type]: shared,
+          }));
+          return;
+        }
+        // When none is found in shared bank, fall back to AI generation
+        await handleGenerateNewAiTask();
+        return;
+      } catch (err) {
+        console.warn('Shared question bank query failed:', err);
+      }
+    }
+
+    // Fall back to curated pool
+    handleNextCurated(type);
+  };
+
+  const handleReportQuestion = async (questionDocId: string) => {
+    try {
+      await reportSharedQuestion(questionDocId);
+      setReportedQuestionId(questionDocId);
+      const currentTask = customTasks[currentTaskType];
+      if (currentTask && (currentTask.reportCount ?? 0) + 1 >= 3) {
+        setTimeout(() => {
+          handleNextQuestion(currentTaskType);
+        }, 800);
+      }
+    } catch (err) {
+      console.error('Failed to report question:', err);
+    }
+  };
+
+  // Generate fresh task using Server-side Gemini API and save to shared bank
   const handleGenerateNewAiTask = async () => {
     setIsGenerating(true);
     setGenerationError(null);
@@ -271,25 +313,29 @@ export default function App() {
         throw new Error(json.error || 'Generation failed');
       }
 
-      const newTask = {
+      const newTask: any = {
         ...json.data,
         level,
         topic,
         id: `ai-${Date.now()}`,
       };
 
-      if (auth.currentUser) {
+      if (user) {
         try {
-          await addDoc(collection(db, 'questions'), {
-            userId: auth.currentUser.uid,
+          const docId = await saveSharedQuestion({
             taskType: currentTaskType,
             level,
             topic,
             data: newTask,
-            createdAt: new Date().toISOString(),
+            createdByName: displayName || 'Anonymous Scholar',
+            createdByUid: user.uid,
           });
+          newTask.questionDocId = docId;
+          newTask.createdByName = displayName || 'Anonymous Scholar';
+          newTask.createdByUid = user.uid;
+          newTask.isSharedBank = true;
         } catch (e) {
-          console.error('Failed to save to Firestore:', e);
+          console.error('Failed to save to shared question bank:', e);
         }
       }
 
@@ -310,10 +356,13 @@ export default function App() {
     }
   };
 
-  // Resolve current active task data
+  // Resolve current active task data (hide questions with reportCount >= 3)
   const getCurrentTaskData = () => {
     if (customTasks[currentTaskType]) {
-      return customTasks[currentTaskType];
+      const task = customTasks[currentTaskType];
+      if (!task.reportCount || task.reportCount < 3) {
+        return task;
+      }
     }
 
     const idx = curatedIndices[currentTaskType] || 0;
@@ -340,7 +389,7 @@ export default function App() {
 
   const activeTask = getCurrentTaskData();
   const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
-  const adaptiveRec = getRecommendedLevel(getPracticeHistory(), currentTaskType);
+  const adaptiveRec = getRecommendedLevel(getPracticeHistory(), level as DifficultyLevel, currentTaskType);
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
@@ -562,9 +611,9 @@ export default function App() {
 
           <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
             <button
-              onClick={() => handleNextCurated(currentTaskType)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
-              title="Load next pre-loaded question from question bank"
+              onClick={() => handleNextQuestion(currentTaskType)}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              title="Load next question from shared question bank or curated pool"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
               <span>Next Question</span>
@@ -573,7 +622,7 @@ export default function App() {
             <button
               onClick={handleGenerateNewAiTask}
               disabled={isGenerating}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0"
+              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               title="Generate a fresh customized TOEFL item using Gemini 3.8 Flash"
             >
               <Sparkles className="w-3.5 h-3.5 text-teal-300" />
@@ -604,59 +653,87 @@ export default function App() {
             </Suspense>
           ) : (
             <>
+              {activeTask?.createdByName && (!activeTask.reportCount || activeTask.reportCount < 3) && (
+                <div className="mb-6 flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-teal-600"></span>
+                    <span>Created by <strong className="text-slate-900 font-semibold">{activeTask.createdByName}</strong></span>
+                    {activeTask.level && (
+                      <span className="text-[11px] text-slate-400 capitalize">· {activeTask.level}</span>
+                    )}
+                  </div>
+                  {activeTask.questionDocId && (
+                    reportedQuestionId === activeTask.questionDocId ? (
+                      <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" /> Question reported
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleReportQuestion(activeTask.questionDocId)}
+                        className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-600 transition-colors px-2 py-1 rounded-md hover:bg-rose-50 cursor-pointer"
+                        title="Report this question"
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                        <span>Report this question</span>
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+
               {currentTaskType === 'complete-words' && (
                 <CompleteWordsView
                   task={activeTask as CompleteWordsTask}
-                  onNextTask={() => handleNextCurated('complete-words')}
+                  onNextTask={() => handleNextQuestion('complete-words')}
                 />
               )}
 
               {currentTaskType === 'reading-passage' && (
                 <ReadingPassageView
                   task={activeTask as ReadingPassageTask}
-                  onNextTask={() => handleNextCurated('reading-passage')}
+                  onNextTask={() => handleNextQuestion('reading-passage')}
                 />
               )}
 
               {currentTaskType === 'listening-dialogue' && (
                 <ListeningDialogueView
                   task={activeTask as ListeningTask}
-                  onNextTask={() => handleNextCurated('listening-dialogue')}
+                  onNextTask={() => handleNextQuestion('listening-dialogue')}
                 />
               )}
 
               {currentTaskType === 'listen-repeat' && (
                 <ListenRepeatView
                   task={activeTask as ListenRepeatTask}
-                  onNextTask={() => handleNextCurated('listen-repeat')}
+                  onNextTask={() => handleNextQuestion('listen-repeat')}
                 />
               )}
 
               {currentTaskType === 'speaking-interview' && (
                 <SpeakingInterviewView
                   task={activeTask as SpeakingInterviewTask}
-                  onNextTask={() => handleNextCurated('speaking-interview')}
+                  onNextTask={() => handleNextQuestion('speaking-interview')}
                 />
               )}
 
               {currentTaskType === 'build-sentence' && (
                 <BuildSentenceView
                   task={activeTask as BuildSentenceTask}
-                  onNextTask={() => handleNextCurated('build-sentence')}
+                  onNextTask={() => handleNextQuestion('build-sentence')}
                 />
               )}
 
               {currentTaskType === 'write-email' && (
                 <WriteEmailView
                   task={activeTask as WriteEmailTask}
-                  onNextTask={() => handleNextCurated('write-email')}
+                  onNextTask={() => handleNextQuestion('write-email')}
                 />
               )}
 
               {currentTaskType === 'academic-discussion' && (
                 <AcademicDiscussionView
                   task={activeTask as AcademicDiscussionTask}
-                  onNextTask={() => handleNextCurated('academic-discussion')}
+                  onNextTask={() => handleNextQuestion('academic-discussion')}
                 />
               )}
             </>

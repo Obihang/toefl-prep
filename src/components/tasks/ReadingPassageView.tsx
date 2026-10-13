@@ -8,9 +8,10 @@ import { saveMistake } from '../../utils/mistakes';
 interface Props {
   task: ReadingPassageTask;
   onNextTask?: () => void;
+  onComplete?: (result: number) => void;
 }
 
-export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask }) => {
+export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
@@ -58,6 +59,8 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask }) => {
       timeSpentSeconds: 180,
       feedbackSummary: `Scored ${correctCount}/${total} on passage comprehension (${Math.round((correctCount / total) * 100)}%)`,
     });
+
+    onComplete?.(scaledScore);
   };
 
   const handleReset = () => {

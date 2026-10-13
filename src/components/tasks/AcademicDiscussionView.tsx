@@ -9,9 +9,10 @@ import { saveMistake } from '../../utils/mistakes';
 interface Props {
   task: AcademicDiscussionTask;
   onNextTask?: () => void;
+  onComplete?: (result: number) => void;
 }
 
-export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask }) => {
+export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
   const [response, setResponse] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
@@ -82,6 +83,8 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask }) =>
         timeSpentSeconds: 420,
         feedbackSummary: `Academic Discussion: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${json.data.rawRubricScore ?? json.data.bandScore}/5.0 (${json.data.performanceLevel})`,
       });
+
+      onComplete?.(scaled);
     } catch (err: any) {
       setEvalError(err.message || 'Failed to connect to AI evaluator');
     } finally {
