@@ -56,7 +56,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     if (activeMicIdx === index && voiceSessionRef.current) {
       setMicStatus('transcribing');
       try {
-        const finalTranscript = await voiceSessionRef.current.stop();
+        const result = await voiceSessionRef.current.stop();
+        const finalTranscript = typeof result === 'string' ? result : result?.transcript || '';
         if (finalTranscript) {
           setStates((prev) => {
             const next = [...prev];

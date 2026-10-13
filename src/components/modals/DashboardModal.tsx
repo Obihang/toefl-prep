@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, User, Settings, Clock, FileText, LayoutDashboard, Calendar, BookOpen } from 'lucide-react';
+import { X, User, Settings, Clock, FileText, LayoutDashboard, Calendar, BookOpen, AlertCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { SettingsModal } from './SettingsModal';
 import { getPracticeHistory, getUserStats, getCompletedDays, getWeakAreas } from '../../utils/scoreTracker';

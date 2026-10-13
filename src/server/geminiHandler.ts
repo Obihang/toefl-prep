@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { MODELS } from '../constants/models';
-import * as CURATED from '../data/curatedQuestions';
+import { MODELS } from '../constants/models.ts';
+import * as CURATED from '../data/curatedQuestions.ts';
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 2, backoff = 1000): Promise<T> {
   try {
@@ -23,7 +23,7 @@ const Schemas = {
   listeningDialogue: z.object({
     title: z.string(),
     context: z.string(),
-    speakers: z.record(z.string()),
+    speakers: z.record(z.string(), z.string()),
     script: z.string(),
     questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
   }),

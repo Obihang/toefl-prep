@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { getPracticeHistory } from './utils/scoreTracker';
 import { getRecommendedLevel } from './utils/difficulty';
-import { DashboardModal } from './components/modals/DashboardModal';
 import { db, auth } from './firebase';
 import { addDoc, collection } from 'firebase/firestore';
 import {
@@ -56,9 +55,11 @@ import { BuildSentenceView } from './components/tasks/BuildSentenceView';
 import { WriteEmailView } from './components/tasks/WriteEmailView';
 import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionView';
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
-import { PerformanceHistoryModal } from './components/modals/PerformanceHistoryModal';
 import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
-import { MockTestView } from './components/tasks/MockTestView';
+
+const DashboardModal = lazy(() => import('./components/modals/DashboardModal').then(m => ({ default: m.DashboardModal })));
+const PerformanceHistoryModal = lazy(() => import('./components/modals/PerformanceHistoryModal').then(m => ({ default: m.PerformanceHistoryModal })));
+const MockTestView = lazy(() => import('./components/tasks/MockTestView').then(m => ({ default: m.MockTestView })));
 
 export type TaskTypeId =
   | 'complete-words'
@@ -164,6 +165,11 @@ export default function App() {
     localStorage.setItem('toefl_dark_mode', darkMode ? 'true' : 'false');
   }, [darkMode]);
 
+  // Exam mode timer (optional simulation clock)
+  const [isExamMode, setIsExamMode] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
+
   // Keyboard shortcuts: 'N' for next task, 'Space' to pause/resume exam timer
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -184,11 +190,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExamMode, currentTaskType]);
-
-  // Exam mode timer (optional simulation clock)
-  const [isExamMode, setIsExamMode] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
 
   useEffect(() => {
     const history = getPracticeHistory();
@@ -589,7 +590,9 @@ export default function App() {
         {/* Interactive Task Stage */}
         <section aria-label="Interactive Task Workspace" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
           {isMockTest ? (
-            <MockTestView />
+            <Suspense fallback={null}>
+              <MockTestView />
+            </Suspense>
           ) : (
             <>
               {currentTaskType === 'complete-words' && (
@@ -682,13 +685,15 @@ export default function App() {
 
       {/* Modals */}
       <RubricGuideModal isOpen={isRubricsOpen} onClose={() => setIsRubricsOpen(false)} />
-      <PerformanceHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
-      <DashboardModal 
-        isOpen={isDashboardOpen} 
-        onClose={() => setIsDashboardOpen(false)} 
-        openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
-        openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
-      />
+      <Suspense fallback={null}>
+        <PerformanceHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+        <DashboardModal 
+          isOpen={isDashboardOpen} 
+          onClose={() => setIsDashboardOpen(false)} 
+          openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
+          openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
+        />
+      </Suspense>
     </div>
   );
 }
