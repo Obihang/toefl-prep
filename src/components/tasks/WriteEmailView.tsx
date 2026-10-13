@@ -5,6 +5,7 @@ import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { getApiHeaders } from '../../utils/apiKey';
 
 interface Props {
   task: WriteEmailTask;
@@ -33,7 +34,7 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask }) => {
     try {
       const res = await fetch('/api/evaluate-response', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: 'write-email',
           promptData: {

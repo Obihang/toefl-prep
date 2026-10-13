@@ -3,6 +3,7 @@ import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curated
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2 } from 'lucide-react';
 import { speakScriptLine, createVoiceSession, VoiceSession, playChime } from '../../utils/audioSpeech';
 import { savePracticeRecord } from '../../utils/scoreTracker';
+import { getApiHeaders } from '../../utils/apiKey';
 
 interface Props {
   task: SpeakingInterviewTask;
@@ -242,7 +243,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     try {
       const res = await fetch('/api/evaluate-response', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: 'speaking-interview',
           promptData: {

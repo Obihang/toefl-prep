@@ -55,8 +55,8 @@ const Schemas = {
 };
 
 
-function getAiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+function getAiClient(customApiKey?: string) {
+  const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return null;
   }
@@ -70,8 +70,8 @@ function getAiClient() {
   });
 }
 
-export async function handleGenerateTask(taskType: string, level: string, topic: string) {
-  const ai = getAiClient();
+export async function handleGenerateTask(taskType: string, level: string, topic: string, customApiKey?: string) {
+  const ai = getAiClient(customApiKey);
   
   const taskMap: Record<string, string> = {
     'complete-words': 'completeWords',
@@ -155,9 +155,10 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
 export async function handleEvaluateResponse(
   taskType: string,
   promptData: any,
-  studentResponse: any
+  studentResponse: any,
+  customApiKey?: string
 ) {
-  const ai = getAiClient();
+  const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('GEMINI_API_KEY is not configured on the server');
   }
@@ -254,9 +255,10 @@ Return JSON in this exact structure:
 
 export async function handleSynthesizeSpeech(
   text: string,
-  voiceName: 'Kore' | 'Puck' | 'Fenrir' | 'Zephyr' | 'Charon' = 'Kore'
+  voiceName: 'Kore' | 'Puck' | 'Fenrir' | 'Zephyr' | 'Charon' = 'Kore',
+  customApiKey?: string
 ) {
-  const ai = getAiClient();
+  const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('GEMINI_API_KEY is not configured on the server');
   }
@@ -289,9 +291,10 @@ export async function handleSynthesizeSpeech(
 
 export async function handleTranscribeAudio(
   audioBase64: string,
-  mimeType: string = 'audio/webm'
+  mimeType: string = 'audio/webm',
+  customApiKey?: string
 ): Promise<string> {
-  const ai = getAiClient();
+  const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('GEMINI_API_KEY is not configured on the server');
   }

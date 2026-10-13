@@ -28,7 +28,8 @@ app.use(express.json({ limit: '10mb' }));
 app.post('/api/generate-task', async (req, res) => {
   try {
     const { taskType, level, topic } = req.body;
-    const result = await handleGenerateTask(taskType, level, topic);
+    const customApiKey = req.headers['x-gemini-api-key'] as string;
+    const result = await handleGenerateTask(taskType, level, topic, customApiKey);
     res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || 'Generation failed' });
@@ -38,7 +39,8 @@ app.post('/api/generate-task', async (req, res) => {
 app.post('/api/evaluate-response', async (req, res) => {
   try {
     const { taskType, promptData, studentResponse } = req.body;
-    const result = await handleEvaluateResponse(taskType, promptData, studentResponse);
+    const customApiKey = req.headers['x-gemini-api-key'] as string;
+    const result = await handleEvaluateResponse(taskType, promptData, studentResponse, customApiKey);
     res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || 'Evaluation failed' });
@@ -48,7 +50,8 @@ app.post('/api/evaluate-response', async (req, res) => {
 app.post('/api/tts', async (req, res) => {
   try {
     const { text, voiceName } = req.body;
-    const audioBase64 = await handleSynthesizeSpeech(text, voiceName);
+    const customApiKey = req.headers['x-gemini-api-key'] as string;
+    const audioBase64 = await handleSynthesizeSpeech(text, voiceName, customApiKey);
     res.json({ success: true, audioBase64 });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || 'TTS synthesis failed' });
@@ -58,7 +61,8 @@ app.post('/api/tts', async (req, res) => {
 app.post('/api/transcribe', async (req, res) => {
   try {
     const { audioBase64, mimeType } = req.body;
-    const transcript = await handleTranscribeAudio(audioBase64, mimeType);
+    const customApiKey = req.headers['x-gemini-api-key'] as string;
+    const transcript = await handleTranscribeAudio(audioBase64, mimeType, customApiKey);
     res.json({ success: true, transcript });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message || 'Audio transcription failed' });

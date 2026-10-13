@@ -1,4 +1,5 @@
 // Web Speech API and Web Audio utilities for TOEFL audio tasks and speaking test simulation
+import { getApiHeaders } from './apiKey';
 
 export interface SpeechVoiceOption {
   name: string;
@@ -68,7 +69,7 @@ export async function fetchAudioDataUri(text: string, voiceName: string = 'Kore'
 
   const res = await fetch('/api/tts', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getApiHeaders(),
     body: JSON.stringify({ text, voiceName }),
   });
 
@@ -361,7 +362,7 @@ export async function transcribeAudioBlob(blob: Blob): Promise<string> {
 
   const res = await fetch('/api/transcribe', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getApiHeaders(),
     body: JSON.stringify({
       audioBase64: base64,
       mimeType: blob.type || 'audio/webm',

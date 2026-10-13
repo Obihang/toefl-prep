@@ -12,6 +12,7 @@ import {
   fetchRandomSharedQuestion,
   reportSharedQuestion,
 } from './utils/sharedQuestions';
+import { getApiHeaders } from './utils/apiKey';
 import {
   BookOpen,
   Headphones,
@@ -310,7 +311,7 @@ export default function App() {
     try {
       const res = await fetch('/api/generate-task', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: currentTaskType,
           level,
