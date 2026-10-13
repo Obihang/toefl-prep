@@ -73,7 +73,6 @@ import {
   savePrefetchQueueToStorage,
   getNextTaskToPrefetch,
   getPrefetchProgress,
-  getTotalReadyCount,
   hasReadyTask,
   popPrefetchedTask,
 } from './utils/prefetchManager';
@@ -400,7 +399,7 @@ export default function App() {
   const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
     const key = getStoredApiKey().trim();
     const currentCount = prefetchedQueue[type]?.length || 0;
-    if (!key || isPrefetchingRef.current[type] || isGenerating || currentCount >= 2) return;
+    if (!key || isPrefetchingRef.current[type] || isGenerating || currentCount >= 2 || inFlightLock.current) return;
     if (Date.now() < quotaExhaustedUntilRef.current) return;
 
     isPrefetchingRef.current[type] = true;
@@ -439,7 +438,7 @@ export default function App() {
           return nextQueue;
         });
       } else {
-        failedRecentlyRef.current[type] = Date.now();
+        failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
         // If quota was hit or fallback was used due to quota, pause background prefetching for 30 minutes
         const reason = String(json?.data?.fallbackReason || json?.error || '').toLowerCase();
         if (json?.data?.isQuotaExhausted || reason.includes('quota') || reason.includes('429') || reason.includes('resource_exhausted')) {
@@ -448,7 +447,7 @@ export default function App() {
       }
     } catch (e) {
       console.debug('Background prefetch notice:', e);
-      failedRecentlyRef.current[type] = Date.now();
+      failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
     } finally {
       isPrefetchingRef.current[type] = false;
       const anyStillFetching = Object.values(isPrefetchingRef.current).some(Boolean);
@@ -584,9 +583,6 @@ export default function App() {
         }
 
         // Immediately replenish the next question in the background
-        setTimeout(() => {
-          prefetchTaskInBackground(currentTaskType, level, topic);
-        }, 150);
         return;
       }
     }
@@ -669,11 +665,6 @@ export default function App() {
       setTimeout(() => setGenerationSuccess(false), 3000);
 
       // Immediately pre-fetch the next question into queue if quota is healthy
-      if (Date.now() >= quotaExhaustedUntilRef.current) {
-        setTimeout(() => {
-          prefetchTaskInBackground(currentTaskType, level, topic);
-        }, 500);
-      }
     } catch (err: any) {
       console.warn('AI generation notice:', err?.message || err);
       const rawMsg = err.message || 'unknown error';
