@@ -2,65 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
-
-function isKeyError(err: any): boolean {
-  const msg = (err?.message || '').toLowerCase();
-  const status = err?.status || err?.statusCode || 0;
-  if (status === 400 || status === 401 || status === 403) return true;
-  if (msg.includes('400') || msg.includes('401') || msg.includes('403') ||
-      msg.includes('invalid api key') || msg.includes('api_key_invalid') ||
-      msg.includes('permission denied') || msg.includes('unauthenticated') ||
-      msg.includes('api key not valid')) {
-    return true;
-  }
-  return false;
-}
-
-function isTransientError(err: any): boolean {
-  const msg = (err?.message || '').toLowerCase();
-  const status = err?.status || err?.statusCode || 0;
-  if (status === 503 || status === 429 || status === 404 || status === 500) return true;
-  if (msg.includes('503') || msg.includes('429') || msg.includes('404') ||
-      msg.includes('unavailable') || msg.includes('resource_exhausted') ||
-      msg.includes('quota') || msg.includes('overloaded') || msg.includes('not found')) {
-    return true;
-  }
-  return false;
-}
-
-async function generateWithFallback<T>(
-  ai: GoogleGenAI,
-  chain: string[],
-  requestFn: (model: string) => Promise<T>
-): Promise<{ result: T; modelUsed: string }> {
-  let lastError: any = null;
-
-  for (const model of chain) {
-    let attempts = 0;
-    while (attempts < 2) {
-      attempts++;
-      try {
-        const result = await requestFn(model);
-        return { result, modelUsed: model };
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`Model ${model} attempt ${attempts} failed:`, err?.message || err);
-
-        if (isKeyError(err)) {
-          throw err;
-        }
-
-        if (attempts === 1 && isTransientError(err)) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          continue;
-        }
-        break;
-      }
-    }
-  }
-
-  throw lastError || new Error('All models in fallback chain failed');
-}
+import { generateWithFallback } from './geminiUtils.ts';
+import { redactKey, isKeyError, isTransientError } from './geminiErrors.ts';
 
 const Schemas = {
   completeWords: z.object({ title: z.string(), text: z.string(), totalBlanks: z.number() }),
@@ -195,7 +138,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     return { ...result, isFallback: false, modelUsed };
   } catch (error: any) {
     console.error(`Failed to generate task ${taskType}, falling back:`, error);
-    let errMsg = error?.message || 'Unknown error';
+    let errMsg = redactKey(error?.message || 'Unknown error');
     if (errMsg.toLowerCase().includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
       errMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT). " + errMsg;
     }
@@ -313,7 +256,7 @@ Return JSON in this exact structure:
 
     return result;
   } catch (error: any) {
-    let errMsg = error?.message || 'Evaluation failed';
+    let errMsg = redactKey(error?.message || 'Evaluation failed');
     if (errMsg.toLowerCase().includes('429') || errMsg.toLowerCase().includes('quota') || errMsg.toLowerCase().includes('resource_exhausted')) {
       errMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT). " + errMsg;
     }
