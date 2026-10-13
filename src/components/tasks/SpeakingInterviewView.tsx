@@ -20,6 +20,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationResult, setEvaluationResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
@@ -122,12 +123,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
     if (voiceSessionRef.current) {
       setIsTranscribing(true);
       try {
-        const finalTranscript = await voiceSessionRef.current.stop();
-        if (finalTranscript) {
+        const result = await voiceSessionRef.current.stop();
+        if (result.transcript) {
           setAnswers((prev) => ({
             ...prev,
-            [currentQIndex]: finalTranscript,
+            [currentQIndex]: result.transcript,
           }));
+          if (result.audioBlob) {
+            setAudioBlobs((prev) => ({
+              ...prev,
+              [currentQIndex]: result.audioBlob!,
+            }));
+          }
         }
       } catch (err: any) {
         console.warn('Voice session stop error:', err);
@@ -147,12 +154,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
     if (isRecording && voiceSessionRef.current) {
       setIsTranscribing(true);
       try {
-        const finalTranscript = await voiceSessionRef.current.stop();
-        if (finalTranscript) {
+        const result = await voiceSessionRef.current.stop();
+        if (result.transcript) {
           setAnswers((prev) => ({
             ...prev,
-            [currentQIndex]: finalTranscript,
+            [currentQIndex]: result.transcript,
           }));
+          if (result.audioBlob) {
+            setAudioBlobs((prev) => ({
+              ...prev,
+              [currentQIndex]: result.audioBlob!,
+            }));
+          }
         }
       } catch (err: any) {
         setMicNotice(err.message || 'Failed to process voice recording');
@@ -207,10 +220,23 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
     setIsEvaluating(true);
     setEvalError(null);
 
-    const submissionData = task.questions.map((q, i) => ({
-      question: q.question,
-      studentResponse: answers[i] || '(No response recorded)',
-    }));
+    const submissionData = task.questions.map((q, i) => {
+      const response = answers[i] || '';
+      const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
+      const words = response.toLowerCase().match(/\b\w+\b/g) || [];
+      const fillerCount = words.filter(w => fillerWords.includes(w)).length;
+      const wordCount = words.length;
+      // Estimate WPM based on 45s default response time if specific question time not available
+      const timeInMinutes = (q.responseTimeSeconds || 45) / 60;
+      const wpm = timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0;
+      
+      return {
+        question: q.question,
+        studentResponse: response,
+        fillerCount,
+        wpm
+      };
+    });
 
     try {
       const res = await fetch('/api/evaluate-response', {
@@ -232,7 +258,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
         throw new Error(json.error || 'Evaluation service unavailable');
       }
 
-      setEvaluationResult(json.data);
+      setEvaluationResult({ ...json.data, submissionData });
 
       const scaled = json.data.scaledScore || 24;
       const band6 = json.data.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
@@ -390,6 +416,19 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Your Spoken Response (Transcript):</span>
             <div className="flex items-center gap-2">
+              {audioBlobs[currentQIndex] && (
+                <button
+                  onClick={() => {
+                    const url = URL.createObjectURL(audioBlobs[currentQIndex]);
+                    const audio = new Audio(url);
+                    audio.play();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 transition-colors"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  Play Answer
+                </button>
+              )}
               <button
                 onClick={handleManualMicToggle}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
@@ -450,6 +489,26 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
                 : 'bg-slate-50 border border-slate-300 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100'
             }`}
           />
+          
+          {/* Post-answer metrics */}
+          {currentAnswer.trim() && !isRecording && !isTranscribing && (
+            <div className="flex gap-4 text-xs bg-white border border-slate-200 p-3 rounded-lg text-slate-600">
+              {(() => {
+                const words = currentAnswer.toLowerCase().match(/\b\w+\b/g) || [];
+                const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
+                const fillerCount = words.filter(w => fillerWords.includes(w)).length;
+                const wordCount = words.length;
+                const timeInMinutes = (currentQ.responseTimeSeconds || 45) / 60;
+                const wpm = timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0;
+                return (
+                  <>
+                    <div>Fillers: <span className="font-mono font-bold text-amber-700">{fillerCount}</span></div>
+                    <div>WPM: <span className="font-mono font-bold text-teal-700">{wpm}</span></div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
 
@@ -530,6 +589,24 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask }) => 
                   <p className="text-xs text-slate-600 leading-snug">{crit.comment}</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Metrics per Question */}
+          {evaluationResult.submissionData && (
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">Speaking Analytics</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {evaluationResult.submissionData.map((sub: any, i: number) => (
+                  <div key={i} className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
+                    <div className="font-semibold text-slate-800 mb-1">Q{i+1}: {sub.question.substring(0, 30)}...</div>
+                    <div className="flex gap-4 text-slate-600">
+                      <div>Fillers: <span className="font-mono font-bold text-amber-700">{sub.fillerCount}</span></div>
+                      <div>WPM: <span className="font-mono font-bold text-teal-700">{sub.wpm}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

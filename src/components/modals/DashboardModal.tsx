@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { X, User, Settings, Clock, FileText, LayoutDashboard, Calendar, BookOpen } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { SettingsModal } from './SettingsModal';
-import { getPracticeHistory, getUserStats, getCompletedDays } from '../../utils/scoreTracker';
+import { getPracticeHistory, getUserStats, getCompletedDays, getWeakAreas } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
+import { MistakeNotebook } from '../tasks/MistakeNotebook';
 
 interface Props {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface Props {
 }
 
 export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, openRubrics }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings' | 'vocabulary'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings' | 'vocabulary' | 'mistakes'>('dashboard');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [completedDays, setCompletedDays] = useState<string[]>([]);
@@ -109,6 +110,15 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
                 <BookOpen className="w-4 h-4" />
                 Vocabulary Bank
               </button>
+              <button
+                onClick={() => setActiveTab('mistakes')}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                  activeTab === 'mistakes' ? 'bg-teal-50 text-teal-800' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <AlertCircle className="w-4 h-4" />
+                Mistake Notebook
+              </button>
             </div>
 
             {/* Content Area */}
@@ -141,6 +151,23 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
                         <Line type="monotone" dataKey="sessions" stroke="#0d9488" strokeWidth={2} />
                       </LineChart>
                     </ResponsiveContainer>
+                  </div>
+
+                  {/* Weak Areas */}
+                  <div className="bg-rose-50 rounded-xl border border-rose-100 p-4">
+                    <h3 className="font-semibold text-rose-900 text-sm mb-2">Weak Areas Detected</h3>
+                    {getWeakAreas(getPracticeHistory()).length > 0 ? (
+                      <div className="space-y-2">
+                        {getWeakAreas(getPracticeHistory()).map(area => (
+                          <div key={area.section} className="flex justify-between text-sm text-rose-800">
+                            <span>{area.section}</span>
+                            <span className="font-bold">{area.avgScore}/30</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-rose-600">No major weak areas detected yet!</p>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-1 gap-3">
@@ -204,6 +231,13 @@ export const DashboardModal: React.FC<Props> = ({ isOpen, onClose, openHistory, 
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {activeTab === 'mistakes' && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-slate-900">Mistake Notebook</h3>
+                  <MistakeNotebook />
                 </div>
               )}
             </div>

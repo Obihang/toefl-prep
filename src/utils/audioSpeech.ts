@@ -378,7 +378,7 @@ export async function transcribeAudioBlob(blob: Blob): Promise<string> {
 // Unified Voice Recording Session combining Web Speech (real-time) and MediaRecorder (reliable fallback)
 export interface VoiceSession {
   start: () => Promise<void>;
-  stop: () => Promise<string>;
+  stop: () => Promise<{ transcript: string; audioBlob: Blob | null }>;
   abort: () => void;
   isRecording: () => boolean;
 }
@@ -481,9 +481,9 @@ export function createVoiceSession(options: {
       }
     },
 
-    stop: async (): Promise<string> => {
+    stop: async (): Promise<{ transcript: string; audioBlob: Blob | null }> => {
       if (!isRecordingState) {
-        return accumulatedTranscript;
+        return { transcript: accumulatedTranscript, audioBlob: null };
       }
 
       isRecordingState = false;
@@ -531,7 +531,7 @@ export function createVoiceSession(options: {
       const liveTranscript = accumulatedTranscript.trim();
       if (liveTranscript.length > 0) {
         options.onStatusChange?.('idle');
-        return liveTranscript;
+        return { transcript: liveTranscript, audioBlob: finalAudioBlob };
       }
 
       // Fallback: If Web Speech produced no text, use fast Gemini transcription
@@ -542,7 +542,7 @@ export function createVoiceSession(options: {
           if (aiTranscribed.trim()) {
             options.onTranscriptUpdate?.(aiTranscribed.trim());
             options.onStatusChange?.('idle');
-            return aiTranscribed.trim();
+            return { transcript: aiTranscribed.trim(), audioBlob: finalAudioBlob };
           }
         } catch (err) {
           console.warn('AI speech transcription fallback failed:', err);
@@ -550,7 +550,7 @@ export function createVoiceSession(options: {
       }
 
       options.onStatusChange?.('idle');
-      return liveTranscript;
+      return { transcript: liveTranscript, audioBlob: finalAudioBlob };
     },
 
     abort: () => {

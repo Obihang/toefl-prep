@@ -1,4 +1,59 @@
 import { GoogleGenAI } from '@google/genai';
+import { z } from 'zod';
+import { MODELS } from '../constants/models';
+import * as CURATED from '../data/curatedQuestions';
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, backoff = 1000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries === 0) throw error;
+    await new Promise(resolve => setTimeout(resolve, backoff));
+    return withRetry(fn, retries - 1, backoff * 2);
+  }
+}
+
+const Schemas = {
+  completeWords: z.object({ title: z.string(), text: z.string(), totalBlanks: z.number() }),
+  readingPassage: z.object({
+    title: z.string(),
+    passage: z.string(),
+    questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
+  }),
+  listeningDialogue: z.object({
+    title: z.string(),
+    context: z.string(),
+    speakers: z.record(z.string()),
+    script: z.string(),
+    questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
+  }),
+  listenRepeat: z.object({ title: z.string(), sentences: z.array(z.string()) }),
+  speakingInterview: z.object({
+    title: z.string(),
+    context: z.string(),
+    questions: z.array(z.object({ question: z.string(), prepTimeSeconds: z.number(), responseTimeSeconds: z.number(), suggestedPoints: z.array(z.string()) })),
+  }),
+  buildSentence: z.object({
+    title: z.string(),
+    items: z.array(z.object({ context: z.string(), words: z.array(z.string()), answer: z.string(), explanation: z.string() })),
+  }),
+  writeEmail: z.object({
+    title: z.string(),
+    situation: z.string(),
+    recipient: z.string(),
+    goals: z.array(z.string()),
+    suggestedWordCount: z.string(),
+  }),
+  academicDiscussion: z.object({
+    title: z.string(),
+    professorName: z.string(),
+    professorPrompt: z.string(),
+    s1: z.object({ name: z.string(), text: z.string() }),
+    s2: z.object({ name: z.string(), text: z.string() }),
+    question: z.string(),
+  }),
+};
+
 
 function getAiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -17,221 +72,83 @@ function getAiClient() {
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string) {
   const ai = getAiClient();
-  if (!ai) {
-    throw new Error('GEMINI_API_KEY is not configured on the server');
-  }
+  
+  const taskMap: Record<string, string> = {
+    'complete-words': 'completeWords',
+    'reading-passage': 'readingPassage',
+    'listening-dialogue': 'listeningDialogue',
+    'listen-repeat': 'listenRepeat',
+    'speaking-interview': 'speakingInterview',
+    'build-sentence': 'buildSentence',
+    'write-email': 'writeEmail',
+    'academic-discussion': 'academicDiscussion',
+  };
+  const curatedMap: Record<string, string> = {
+    'complete-words': 'CURATED_COMPLETE_WORDS',
+    'reading-passage': 'CURATED_READING_PASSAGES',
+    'listening-dialogue': 'CURATED_LISTENING',
+    'listen-repeat': 'CURATED_LISTEN_REPEAT',
+    'speaking-interview': 'CURATED_SPEAKING_INTERVIEWS',
+    'build-sentence': 'CURATED_BUILD_SENTENCES',
+    'write-email': 'CURATED_WRITE_EMAILS',
+    'academic-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
+  };
 
-  const levelDesc =
-    level === 'advanced'
-      ? 'Advanced (C1 CEFR / TOEFL 100-120)'
-      : level === 'intermediate'
-      ? 'Intermediate (B1-B2 CEFR / TOEFL 60-80)'
-      : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
+  const schemaKey = taskMap[taskType];
+  const schema = Schemas[schemaKey as keyof typeof Schemas];
 
-  let prompt = '';
-
-  switch (taskType) {
-    case 'complete-words':
-      prompt = `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-1. Write an academic paragraph of 75-90 words.
-2. In the paragraph, select exactly 10 academic/content words (4 letters or more, starting from the second sentence, spaced out).
-3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside.
-Example format in paragraph: "The scien[[tists]] conduc[[ted]] an exper[[iment]] to anal[[yze]]..."
-4. Provide the list of words as: text with [[...]] and the solution words.
-
-Return JSON format:
-{
-  "title": "Short Academic Topic Title",
-  "text": "The full paragraph with [[...]] wrapping the missing letters only",
-  "totalBlanks": 10
-}`;
-      break;
-
-    case 'reading-passage':
-      prompt = `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-1. Academic passage between 160-200 words, formal academic tone with good sentence variety.
-2. Exactly 3 multiple-choice questions:
-   - Question 1: Main idea or primary purpose.
-   - Question 2: Detail or factual information.
-   - Question 3: Vocabulary in context or negative factual inference.
-3. Each question must have 4 plausible options, exact 0-indexed answer key, and an explanation explaining why the answer is correct and others are incorrect.
-
-Return JSON format:
-{
-  "title": "Passage Title",
-  "passage": "Passage text...",
-  "questions": [
-    {
-      "q": "Question prompt?",
-      "options": ["A", "B", "C", "D"],
-      "answer": 0,
-      "why": "Explanation..."
+  const getPrompt = (taskType: string, level: string, topic: string) => {
+    const levelDesc =
+      level === 'advanced'
+        ? 'Advanced (C1 CEFR / TOEFL 100-120)'
+        : level === 'intermediate'
+        ? 'Intermediate (B1-B2 CEFR / TOEFL 60-80)'
+        : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
+    switch (taskType) {
+      case 'complete-words':
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${topic}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select exactly 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
+      case 'reading-passage':
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${topic}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+      case 'listening-dialogue':
+        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${topic}. Requirements: 1. A campus conversation OR a short classroom lecture. 2. Script must be 120-150 words. 3. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Role of Speaker A", "B": "Role of Speaker B"}, "script": "Speaker A: ...\\nSpeaker B: ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+      case 'listen-repeat':
+        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Listen & Repeat Exercise", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
+      case 'speaking-interview':
+        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
+      case 'build-sentence':
+        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
+      case 'write-email':
+        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
+      case 'academic-discussion':
+      default:
+        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${topic}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
     }
-  ]
-}`;
-      break;
+  };
 
-    case 'listening-dialogue':
-      prompt = `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-1. A campus conversation between two people (e.g., Student and Professor, Academic Advisor, or Campus Librarian) OR a short classroom lecture.
-2. Script must be 120-150 words. If dialogue, label lines as "Speaker A: ..." and "Speaker B: ...".
-3. Provide a brief context note (e.g. "A conversation between a biology undergraduate and her lab instructor regarding research assignments.").
-4. Exactly 3 multiple-choice comprehension questions with 4 options each, correct answer index (0-3), and explanation.
-
-Return JSON format:
-{
-  "title": "Listening Context Title",
-  "context": "Brief 1-sentence situation description",
-  "speakers": {"A": "Role of Speaker A", "B": "Role of Speaker B"},
-  "script": "Speaker A: ...\\nSpeaker B: ...",
-  "questions": [
-    {
-      "q": "Question prompt?",
-      "options": ["A", "B", "C", "D"],
-      "answer": 0,
-      "why": "Explanation..."
-    }
-  ]
-}`;
-      break;
-
-    case 'listen-repeat':
-      prompt = `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-Provide exactly 5 sentences of increasing length and syntactic complexity (sentence 1: 6-8 words, sentence 2: 9-11 words, sentence 3: 12-14 words, sentence 4: 15-17 words, sentence 5: 18-20 words).
-All sentences should sound natural in an academic or university campus context.
-
-Return JSON format:
-{
-  "title": "Listen & Repeat Exercise",
-  "sentences": [
-    "Sentence 1",
-    "Sentence 2",
-    "Sentence 3",
-    "Sentence 4",
-    "Sentence 5"
-  ]
-}`;
-      break;
-
-    case 'speaking-interview':
-      prompt = `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-Create 4 progressive interview questions in a university context:
-- Question 1: Familiar campus/personal preference question (simple).
-- Question 2: Academic experience or campus resource situation (moderate).
-- Question 3: Problem-solving or hypothetical university scenario (challenging).
-- Question 4: Complex opinion / policy debate in higher education (advanced).
-
-Return JSON format:
-{
-  "title": "University Interview Simulation",
-  "context": "Context description",
-  "questions": [
-    {
-      "question": "Question text...",
-      "prepTimeSeconds": 20,
-      "responseTimeSeconds": 45,
-      "suggestedPoints": ["Point 1 to mention", "Point 2 to mention"]
-    }
-  ]
-}`;
-      break;
-
-    case 'build-sentence':
-      prompt = `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-Provide 5 items. Each has:
-- context: A conversational or academic question or setup statement.
-- words: 5 to 8 scrambled tiles/phrases that together form one grammatically correct response.
-- answer: The exact complete target sentence.
-- explanation: A short note on the grammatical rule (e.g., inversion, participle clause, relative clause).
-
-Return JSON format:
-{
-  "title": "Build a Sentence Practice",
-  "items": [
-    {
-      "context": "Context setup line...",
-      "words": ["word1", "word2", "word3", "word4", "word5"],
-      "answer": "The complete correct sentence.",
-      "explanation": "Grammar rule explanation."
-    }
-  ]
-}`;
-      break;
-
-    case 'write-email':
-      prompt = `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-1. situation: A realistic university academic or administrative scenario (100-140 words).
-2. recipient: e.g. "Dr. Vance, Academic Department Chair" or "Campus Housing Office".
-3. goals: Exactly 3 specific bullet goals the student must achieve in their email (e.g. explain the scheduling conflict, propose an alternative deadline, request confirmation).
-4. suggestedWordCount: "80-120 words".
-
-Return JSON format:
-{
-  "title": "Email Task Title",
-  "situation": "Situation description...",
-  "recipient": "Recipient name/office",
-  "goals": ["Goal 1", "Goal 2", "Goal 3"],
-  "suggestedWordCount": "80-120 words"
-}`;
-      break;
-
-    case 'academic-discussion':
-    default:
-      prompt = `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}.
-Topic: ${topic}.
-Requirements:
-1. professorName: Name of professor (e.g. "Professor Diaz").
-2. professorPrompt: An engaging prompt discussing a current academic or societal debate, asking for students' opinions (70-90 words).
-3. s1: Student 1 name and a short thoughtful response (35-45 words) taking one stance.
-4. s2: Student 2 name and a short thoughtful response (35-45 words) taking an opposing or nuanced stance.
-5. question: The specific instruction (e.g. "In your response, express and support your personal opinion, contribute to the discussion, and address points raised by your classmates.").
-
-Return JSON format:
-{
-  "title": "Academic Discussion Board",
-  "professorName": "Professor Name",
-  "professorPrompt": "Prompt text...",
-  "s1": {"name": "Student A", "text": "Post text..."},
-  "s2": {"name": "Student B", "text": "Post text..."},
-  "question": "Instruction text..."
-}`;
-      break;
-  }
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3.8-flash',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      systemInstruction:
-        'You are an expert ETS TOEFL test design specialist. You strictly generate accurate, valid JSON matching the exact schema requested without markdown delimiters or superfluous commentary.',
-      temperature: 0.7,
-    },
-  });
-
-  const text = response.text || '';
   try {
-    return JSON.parse(text);
-  } catch {
-    const jsonMatch = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    throw new Error('Failed to parse JSON from AI model response');
+    return await withRetry(async () => {
+      if (!ai) throw new Error('AI client not initialized');
+      
+      const prompt = getPrompt(taskType, level, topic);
+      const response = await ai.models.generateContent({
+        model: MODELS.GENERATION,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          systemInstruction: 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema.',
+          temperature: 0.7,
+        },
+      });
+
+      const parsed = JSON.parse(response.text!);
+      return { ...schema.parse(parsed), isFallback: false };
+    });
+  } catch (error) {
+    console.error(`Failed to generate task ${taskType}, falling back:`, error);
+    const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
+    const curatedTasks = CURATED[curatedKey] as any[];
+    const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
+    return { ...item, isFallback: true };
   }
 }
 
@@ -313,7 +230,7 @@ Return JSON in this exact structure:
 }`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.8-flash',
+    model: MODELS.EVALUATION,
     contents: evaluationPrompt,
     config: {
       responseMimeType: 'application/json',
@@ -345,7 +262,7 @@ export async function handleSynthesizeSpeech(
   }
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.8-flash-lite-tts',
+    model: MODELS.TTS,
     contents: [
       {
         role: 'user',
@@ -386,7 +303,7 @@ export async function handleTranscribeAudio(
   // 1. Try low-latency dedicated transcription model gemini-3.5-transcribe
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-transcribe',
+      model: MODELS.TRANSCRIBE_PRIMARY,
       contents: [
         {
           role: 'user',
@@ -418,7 +335,7 @@ export async function handleTranscribeAudio(
   // 2. High-speed multimodal fallback: gemini-2.5-flash
   try {
     const fallbackResponse = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: MODELS.TRANSCRIBE_FALLBACK,
       contents: [
         {
           role: 'user',
@@ -449,7 +366,7 @@ export async function handleTranscribeAudio(
 
   // 3. Last-resort fallback: gemini-3.8-flash
   const lastResort = await ai.models.generateContent({
-    model: 'gemini-3.8-flash',
+    model: MODELS.TRANSCRIBE_LAST_RESORT,
     contents: [
       {
         role: 'user',

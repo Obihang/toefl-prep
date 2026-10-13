@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { AcademicDiscussionTask } from '../../data/curatedQuestions';
 import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
+import { FeedbackComparison } from '../shared/FeedbackComparison';
+import { auth } from '../../firebase';
+import { saveMistake } from '../../utils/mistakes';
 
 interface Props {
   task: AcademicDiscussionTask;
@@ -52,6 +55,18 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask }) =>
       }
 
       setEvalResult(json.data);
+
+      if (json.data.corrections && auth.currentUser) {
+        for (const correction of json.data.corrections) {
+          await saveMistake(
+            task.id,
+            'academic-discussion',
+            correction.original,
+            correction.corrected,
+            correction.explanation
+          );
+        }
+      }
 
       const scaled = json.data.scaledScore || 26;
       const band6 = json.data.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
@@ -259,36 +274,13 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask }) =>
             </div>
           )}
 
-          {/* Language Corrections */}
-          {evalResult.corrections && evalResult.corrections.length > 0 && (
-            <div className="space-y-2.5">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                Grammar & Academic Synthesis Refinements
-              </h4>
-              <div className="space-y-2">
-                {evalResult.corrections.map((corr: any, i: number) => (
-                  <div key={i} className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-lg text-xs space-y-1">
-                    <div className="text-slate-700">
-                      <span className="text-rose-700 line-through mr-2">"{corr.original}"</span>
-                      <strong className="text-emerald-800">→ "{corr.corrected}"</strong>
-                    </div>
-                    <div className="text-slate-500 italic">{corr.explanation}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* High-Scoring Exemplar */}
-          {evalResult.exemplar && (
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800">
-                High-Scoring Exemplar Contribution (Band 5.0)
-              </h4>
-              <div className="bg-teal-50/50 border border-teal-200/70 p-4 rounded-lg text-xs sm:text-sm text-teal-950 leading-relaxed font-normal whitespace-pre-line">
-                {evalResult.exemplar}
-              </div>
-            </div>
+          {/* Feedback Comparison */}
+          {evalResult && (
+            <FeedbackComparison
+              userResponse={response}
+              exemplarResponse={evalResult.exemplar}
+              corrections={evalResult.corrections || []}
+            />
           )}
         </div>
       )}

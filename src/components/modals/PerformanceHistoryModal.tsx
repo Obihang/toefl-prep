@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Award, BarChart3, TrendingUp, Calendar } from 'lucide-react';
+import { X, Trash2, Award, BarChart3, TrendingUp, Calendar, Download, Upload, Target } from 'lucide-react';
 import {
   getPracticeHistory,
   clearPracticeHistory,
@@ -14,16 +14,33 @@ interface Props {
 
 export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [history, setHistory] = useState<PracticeRecord[]>([]);
+  const [activeSectionTab, setActiveSectionTab] = useState<'All' | 'Reading' | 'Listening' | 'Speaking' | 'Writing'>('All');
+  const [targetScore, setTargetScore] = useState(100);
+  const [testDate, setTestDate] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
       setHistory(getPracticeHistory());
+      const storedTarget = localStorage.getItem('toefl_target_score');
+      if (storedTarget) setTargetScore(Number(storedTarget));
+      const storedDate = localStorage.getItem('toefl_test_date');
+      if (storedDate) {
+        setTestDate(storedDate);
+      } else {
+        const defaultDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+        setTestDate(defaultDate);
+      }
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const stats = calculateToeflEstimate(history);
+
+  // Countdown days
+  const daysToTest = testDate ? Math.ceil((new Date(testDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30;
+  const scoreDiff = targetScore - stats.overallScore;
+  const dailyWorkload = daysToTest > 0 ? Math.max(1, Math.ceil(Math.abs(scoreDiff) / (daysToTest * 0.5))) : 2;
 
   const handleClear = () => {
     if (confirm('Are you sure you want to clear your TOEFL practice history?')) {
@@ -32,17 +49,96 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
     }
   };
 
+  // Export JSON
+  const handleExportJson = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(history, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `toefl_practice_history_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  // Export CSV
+  const handleExportCsv = () => {
+    if (history.length === 0) {
+      alert('No history to export.');
+      return;
+    }
+    const headers = ['ID', 'Date', 'Section', 'TaskType', 'TaskTitle', 'ScaledScore30', 'BandScore6', 'TimeSpentSeconds'];
+    const rows = history.map(r => [
+      r.id,
+      r.date,
+      r.section,
+      r.taskType,
+      `"${(r.taskTitle || '').replace(/"/g, '""')}"`,
+      r.scaledScore30,
+      r.bandScore6 || '',
+      r.timeSpentSeconds
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `toefl_practice_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  // Import JSON
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files[0]) {
+      fileReader.readAsText(e.target.files[0], "UTF-8");
+      fileReader.onload = (event) => {
+        try {
+          const parsed = JSON.parse(event.target?.result as string);
+          if (Array.isArray(parsed)) {
+            localStorage.setItem('toefl_prep_history_v1', JSON.stringify(parsed));
+            setHistory(parsed);
+            alert('History imported successfully!');
+          } else {
+            alert('Invalid JSON format.');
+          }
+        } catch {
+          alert('Failed to parse JSON file.');
+        }
+      };
+    }
+  };
+
+  // Filtered history for chart & table
+  const filteredHistory = activeSectionTab === 'All' 
+    ? [...history].reverse() 
+    : [...history].filter(h => h.section === activeSectionTab).reverse();
+
+  // SVG Trend Chart generation
+  const chartWidth = 600;
+  const chartHeight = 160;
+  const padding = 25;
+  const points = filteredHistory.map((h, i, arr) => {
+    const x = arr.length === 1 ? chartWidth / 2 : padding + (i / (arr.length - 1)) * (chartWidth - padding * 2);
+    const y = chartHeight - padding - ((h.scaledScore30 / 30) * (chartHeight - padding * 2));
+    return { x, y, score: h.scaledScore30, date: h.date, title: h.taskTitle };
+  });
+
+  const pathData = points.length > 1 
+    ? points.reduce((acc, p, idx) => idx === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`, '')
+    : points.length === 1 ? `M ${points[0].x - 10} ${points[0].y} L ${points[0].x + 10} ${points[0].y}` : '';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
         <div className="flex items-center justify-between border-b border-slate-200 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center">
               <BarChart3 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">TOEFL Practice History & Analytics</h2>
-              <p className="text-xs text-slate-500">Track your diagnostic scaled scores and section progress</p>
+              <h2 className="text-lg font-bold text-slate-900">TOEFL Analytics & Study Projection</h2>
+              <p className="text-xs text-slate-500">Track score trends, countdown, and manage backup data</p>
             </div>
           </div>
           <button
@@ -53,19 +149,34 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </button>
         </div>
 
-        {/* Score Scale Header & Info */}
-        <div className="bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200/80 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-teal-800 text-white">
-              ETS 1.0 – 6.0 Scale
-            </span>
-            <span className="text-xs text-slate-700">
-              Official section scores reported in <strong>0.5-band increments (1.0 to 6.0)</strong>, directly mapped to CEFR levels.
-            </span>
+        {/* Goal & Countdown Banner */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-center gap-3">
+            <Target className="w-8 h-8 text-teal-700 shrink-0" />
+            <div>
+              <div className="text-xs text-teal-700 font-semibold uppercase tracking-wider">Target Score</div>
+              <div className="text-xl font-bold font-mono text-teal-950">{targetScore} / 120</div>
+              <div className="text-[11px] text-teal-600">Current: {stats.overallScore} / 120</div>
+            </div>
           </div>
-          <span className="text-[11px] text-slate-500 font-mono whitespace-nowrap">
-            Dual Reporting: Band 1.0–6.0 & 0–120
-          </span>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+            <Calendar className="w-8 h-8 text-blue-700 shrink-0" />
+            <div>
+              <div className="text-xs text-blue-700 font-semibold uppercase tracking-wider">Test Countdown</div>
+              <div className="text-xl font-bold font-mono text-blue-950">{daysToTest > 0 ? `${daysToTest} Days` : 'Test Day!'}</div>
+              <div className="text-[11px] text-blue-600">{testDate || 'No date set'}</div>
+            </div>
+          </div>
+
+          <div className="bg-slate-900 text-white rounded-xl p-4 flex items-center gap-3">
+            <TrendingUp className="w-8 h-8 text-teal-400 shrink-0" />
+            <div>
+              <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Daily Workload</div>
+              <div className="text-xl font-bold font-mono text-teal-400">{dailyWorkload} tasks/day</div>
+              <div className="text-[11px] text-slate-300">Suggested pacing to reach target</div>
+            </div>
+          </div>
         </div>
 
         {/* Scaled Score Overview Grid */}
@@ -101,17 +212,88 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </div>
         </div>
 
-        {/* CEFR Level Banner */}
-        <div className="flex items-center justify-between bg-teal-50 border border-teal-200 rounded-xl px-4 py-3 text-xs">
-          <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-teal-700" />
-            <span className="text-teal-900">
-              Current CEFR Assessment: <strong className="font-semibold">{stats.cefrLevel}</strong>
-            </span>
+        {/* Score Trend Chart Section */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Score Trend Over Time ({activeSectionTab})
+            </h3>
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-medium">
+              {(['All', 'Reading', 'Listening', 'Speaking', 'Writing'] as const).map(sec => (
+                <button
+                  key={sec}
+                  onClick={() => setActiveSectionTab(sec)}
+                  className={`px-2.5 py-1 rounded-md transition-colors ${
+                    activeSectionTab === sec ? 'bg-white text-teal-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {sec}
+                </button>
+              ))}
+            </div>
           </div>
-          <span className="text-teal-700 font-mono">
-            {stats.totalCompleted} exercises completed
-          </span>
+
+          {points.length === 0 ? (
+            <div className="h-40 flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
+              No practice records available for trend analysis.
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-40 overflow-visible">
+                {/* Grid lines */}
+                {[0, 10, 20, 30].map((score) => {
+                  const y = chartHeight - padding - ((score / 30) * (chartHeight - padding * 2));
+                  return (
+                    <g key={score}>
+                      <line x1={padding} y1={y} x2={chartWidth - padding} y2={y} stroke="#e2e8f0" strokeDasharray="4 4" />
+                      <text x={padding - 8} y={y + 3} fontSize="10" fill="#94a3b8" textAnchor="end">{score}</text>
+                    </g>
+                  );
+                })}
+
+                {/* Trend Line */}
+                {pathData && (
+                  <path d={pathData} fill="none" stroke="#0d9488" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                )}
+
+                {/* Data Points */}
+                {points.map((p, idx) => (
+                  <g key={idx} className="group cursor-pointer">
+                    <circle cx={p.x} cy={p.y} r="4" className="fill-teal-700 hover:fill-teal-900 transition-all" />
+                    <title>{`${p.title}\nScore: ${p.score}/30\nDate: ${new Date(p.date).toLocaleDateString()}`}</title>
+                  </g>
+                ))}
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Data Backup & Export Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div className="text-xs text-slate-600 font-medium">
+            Data Management: Backup or restore your history & stats.
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleExportJson}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 text-teal-700" />
+              <span>Export JSON</span>
+            </button>
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 text-teal-700" />
+              <span>Export CSV</span>
+            </button>
+            <label className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+              <Upload className="w-3.5 h-3.5 text-teal-700" />
+              <span>Import JSON</span>
+              <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
+            </label>
+          </div>
         </div>
 
         {/* History Table */}
@@ -136,7 +318,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
               No completed exercises yet. Select a task above and complete it to see your score analysis here!
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
+            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
                   <tr>

@@ -54,9 +54,26 @@
         "word": { "type": "string" },
         "definition": { "type": "string" },
         "context": { "type": "string" },
+        "leitnerBox": { "type": "number" },
+        "nextReviewDate": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["userId", "word", "definition", "createdAt"]
+      "required": ["userId", "word", "definition", "leitnerBox", "nextReviewDate", "createdAt"]
+    },
+    "Mistake": {
+      "title": "Mistake",
+      "description": "A recorded mistake from a practice session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "questionId": { "type": "string" },
+        "taskType": { "type": "string" },
+        "correctAnswer": { "type": "string" },
+        "userAnswer": { "type": "string" },
+        "explanation": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "questionId", "taskType", "correctAnswer", "userAnswer", "createdAt"]
     }
   },
   "firestore": {
@@ -79,6 +96,10 @@
     "/vocabulary/{wordId}": {
       "schema": "VocabularyWord",
       "description": "Saved vocabulary words for a user."
+    },
+    "/mistakes/{mistakeId}": {
+      "schema": "Mistake",
+      "description": "Saved mistakes for a user."
     }
   }
 }

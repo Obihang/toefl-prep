@@ -4,6 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { getPracticeHistory } from './utils/scoreTracker';
+import { getRecommendedLevel } from './utils/difficulty';
 import { DashboardModal } from './components/modals/DashboardModal';
 import { db, auth } from './firebase';
 import { addDoc, collection } from 'firebase/firestore';
@@ -22,6 +24,8 @@ import {
   HelpCircle,
   ChevronRight,
   Settings,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 import {
@@ -54,6 +58,7 @@ import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionVie
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
 import { PerformanceHistoryModal } from './components/modals/PerformanceHistoryModal';
 import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
+import { MockTestView } from './components/tasks/MockTestView';
 
 export type TaskTypeId =
   | 'complete-words'
@@ -130,6 +135,7 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccess, setGenerationSuccess] = useState(false);
+  const [isMockTest, setIsMockTest] = useState(false);
 
   // Active task payload per type
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});
@@ -149,10 +155,51 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
 
+  // Dark Mode
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('toefl_dark_mode') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('toefl_dark_mode', darkMode ? 'true' : 'false');
+  }, [darkMode]);
+
+  // Keyboard shortcuts: 'N' for next task, 'Space' to pause/resume exam timer
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        handleNextCurated(currentTaskType);
+      }
+      if (e.key === ' ') {
+        if (isExamMode) {
+          e.preventDefault();
+          setIsPaused((prev) => !prev);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExamMode, currentTaskType]);
+
   // Exam mode timer (optional simulation clock)
   const [isExamMode, setIsExamMode] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
+
+  useEffect(() => {
+    const history = getPracticeHistory();
+    const recommended = getRecommendedLevel(history);
+    const map: Record<string, string> = {
+      'beginner': 'intermediate',
+      'intermediate': 'upper-intermediate',
+      'advanced': 'advanced'
+    };
+    setLevel(map[recommended]);
+  }, []);
 
   useEffect(() => {
     let interval: any = null;
@@ -253,7 +300,7 @@ export default function App() {
     } catch (err: any) {
       console.error('AI generation error:', err);
       setGenerationError(
-        'Server generation encountered an issue. Loaded next curated item from official question bank.'
+        'The AI is taking a moment to catch up. Here is a curated question from our bank while we work on your custom task.'
       );
       handleNextCurated(currentTaskType);
     } finally {
@@ -293,7 +340,7 @@ export default function App() {
   const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
 
   return (
-    <div className="min-h-screen bg-[#fafaf8] text-slate-900 font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col">
+    <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
       {/* Top Bar Contract: 3 Zones (Wordmark - 4 Nav Links - 1 Action CTA) */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
@@ -362,10 +409,18 @@ export default function App() {
             </button>
             <button
               onClick={() => setIsDashboardOpen(true)}
+              aria-label="Open Dashboard"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
             >
               <Settings className="w-3.5 h-3.5" />
               <span>Dashboard</span>
+            </button>
+            <button
+              onClick={() => setDarkMode(prev => !prev)}
+              aria-label="Toggle Dark Mode"
+              className="p-2 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
             </button>
 
             <div className="flex items-center gap-1.5">
@@ -417,12 +472,26 @@ export default function App() {
 
           {/* Segmented Task Selector Buttons */}
           <div className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none">
+            <button
+              onClick={() => {
+                setIsMockTest(true);
+                setCurrentTaskType('academic-discussion'); // Default
+              }}
+              className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                isMockTest
+                  ? 'bg-rose-100 text-rose-900 font-bold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              Full Mock Test
+            </button>
             {TASK_DEFINITIONS.map((td) => {
-              const isActive = currentTaskType === td.id;
+              const isActive = currentTaskType === td.id && !isMockTest;
               return (
                 <button
                   key={td.id}
                   onClick={() => {
+                    setIsMockTest(false);
                     setCurrentTaskType(td.id);
                     setGenerationError(null);
                   }}
@@ -519,60 +588,66 @@ export default function App() {
 
         {/* Interactive Task Stage */}
         <section aria-label="Interactive Task Workspace" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
-          {currentTaskType === 'complete-words' && (
-            <CompleteWordsView
-              task={activeTask as CompleteWordsTask}
-              onNextTask={() => handleNextCurated('complete-words')}
-            />
-          )}
+          {isMockTest ? (
+            <MockTestView />
+          ) : (
+            <>
+              {currentTaskType === 'complete-words' && (
+                <CompleteWordsView
+                  task={activeTask as CompleteWordsTask}
+                  onNextTask={() => handleNextCurated('complete-words')}
+                />
+              )}
 
-          {currentTaskType === 'reading-passage' && (
-            <ReadingPassageView
-              task={activeTask as ReadingPassageTask}
-              onNextTask={() => handleNextCurated('reading-passage')}
-            />
-          )}
+              {currentTaskType === 'reading-passage' && (
+                <ReadingPassageView
+                  task={activeTask as ReadingPassageTask}
+                  onNextTask={() => handleNextCurated('reading-passage')}
+                />
+              )}
 
-          {currentTaskType === 'listening-dialogue' && (
-            <ListeningDialogueView
-              task={activeTask as ListeningTask}
-              onNextTask={() => handleNextCurated('listening-dialogue')}
-            />
-          )}
+              {currentTaskType === 'listening-dialogue' && (
+                <ListeningDialogueView
+                  task={activeTask as ListeningTask}
+                  onNextTask={() => handleNextCurated('listening-dialogue')}
+                />
+              )}
 
-          {currentTaskType === 'listen-repeat' && (
-            <ListenRepeatView
-              task={activeTask as ListenRepeatTask}
-              onNextTask={() => handleNextCurated('listen-repeat')}
-            />
-          )}
+              {currentTaskType === 'listen-repeat' && (
+                <ListenRepeatView
+                  task={activeTask as ListenRepeatTask}
+                  onNextTask={() => handleNextCurated('listen-repeat')}
+                />
+              )}
 
-          {currentTaskType === 'speaking-interview' && (
-            <SpeakingInterviewView
-              task={activeTask as SpeakingInterviewTask}
-              onNextTask={() => handleNextCurated('speaking-interview')}
-            />
-          )}
+              {currentTaskType === 'speaking-interview' && (
+                <SpeakingInterviewView
+                  task={activeTask as SpeakingInterviewTask}
+                  onNextTask={() => handleNextCurated('speaking-interview')}
+                />
+              )}
 
-          {currentTaskType === 'build-sentence' && (
-            <BuildSentenceView
-              task={activeTask as BuildSentenceTask}
-              onNextTask={() => handleNextCurated('build-sentence')}
-            />
-          )}
+              {currentTaskType === 'build-sentence' && (
+                <BuildSentenceView
+                  task={activeTask as BuildSentenceTask}
+                  onNextTask={() => handleNextCurated('build-sentence')}
+                />
+              )}
 
-          {currentTaskType === 'write-email' && (
-            <WriteEmailView
-              task={activeTask as WriteEmailTask}
-              onNextTask={() => handleNextCurated('write-email')}
-            />
-          )}
+              {currentTaskType === 'write-email' && (
+                <WriteEmailView
+                  task={activeTask as WriteEmailTask}
+                  onNextTask={() => handleNextCurated('write-email')}
+                />
+              )}
 
-          {currentTaskType === 'academic-discussion' && (
-            <AcademicDiscussionView
-              task={activeTask as AcademicDiscussionTask}
-              onNextTask={() => handleNextCurated('academic-discussion')}
-            />
+              {currentTaskType === 'academic-discussion' && (
+                <AcademicDiscussionView
+                  task={activeTask as AcademicDiscussionTask}
+                  onNextTask={() => handleNextCurated('academic-discussion')}
+                />
+              )}
+            </>
           )}
         </section>
       </main>

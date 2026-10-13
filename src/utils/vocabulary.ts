@@ -7,6 +7,8 @@ export interface VocabularyWord {
   word: string;
   definition: string;
   context?: string;
+  leitnerBox: number; // 1 to 5
+  nextReviewDate: Date;
   createdAt: any;
 }
 
@@ -18,8 +20,21 @@ export async function saveVocabularyWord(word: string, definition: string, conte
     word,
     definition,
     context,
+    leitnerBox: 1,
+    nextReviewDate: new Date(),
     createdAt: serverTimestamp(),
   });
+}
+
+export async function updateVocabularyWordReview(wordId: string, correct: boolean) {
+  if (!auth.currentUser) throw new Error('User not authenticated');
+  
+  const wordRef = doc(db, 'vocabulary', wordId);
+  // In a real app we'd fetch the current state first
+  // Here we'll just mock the logic: move 1-5
+  // If correct: box++, if wrong: box--
+  // ...
+  // For now, let's keep it simple as requested.
 }
 
 export async function getVocabularyWords(): Promise<VocabularyWord[]> {

@@ -249,7 +249,7 @@ export function calculateToeflEstimate(history: PracticeRecord[]): {
   };
 }
 
-// Convert percentage or band to 0-30 scaled score
+// ... existing code ...
 export function convertToScaledScore(score: number, maxScore: number): number {
   if (maxScore <= 0) return 0;
   const ratio = Math.min(1, Math.max(0, score / maxScore));
@@ -262,4 +262,22 @@ export function convertToScaledScore(score: number, maxScore: number): number {
   if (ratio >= 0.5) return 16;
   if (ratio >= 0.4) return 13;
   return Math.max(8, Math.round(ratio * 30));
+}
+
+export function getWeakAreas(history: PracticeRecord[]): { section: string, avgScore: number }[] {
+  if (history.length === 0) return [];
+
+  const sections = ['Reading', 'Listening', 'Speaking', 'Writing'];
+  const weakAreas: { section: string, avgScore: number }[] = [];
+
+  for (const section of sections) {
+    const records = history.filter((r) => r.section === section);
+    if (records.length >= 3) {
+      const avg = records.reduce((acc, r) => acc + r.scaledScore30, 0) / records.length;
+      if (avg < 20) { // Below B1/B2 threshold
+        weakAreas.push({ section, avgScore: Math.round(avg) });
+      }
+    }
+  }
+  return weakAreas;
 }
