@@ -20,6 +20,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [selectedMicId, setSelectedMicId] = useState<string>('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [randomizeVoices, setRandomizeVoices] = useState(true);
 
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [testSecondsLeft, setTestSecondsLeft] = useState(3);
@@ -62,6 +63,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setTestDate(storedDate);
     setCursorStyleState(getCursorPreference());
     setSelectedMicId(getStoredMicDeviceId() || '');
+    setRandomizeVoices(localStorage.getItem('toefl_randomize_voices') !== 'false');
     getAudioInputDevices().then(setMicDevices).catch(() => {});
     setNameError(null);
     setSavedSuccess(false);
@@ -495,6 +497,31 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Randomize Voices Toggle */}
+          <div className="space-y-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+            <div>
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Mic className="w-4 h-4 text-teal-700" />
+                Randomize Voices
+              </label>
+              <p className="text-xs text-slate-500">
+                Randomize gender-matched TTS voices per task or use default (Kore / Puck).
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={randomizeVoices}
+                onChange={(e) => {
+                  setRandomizeVoices(e.target.checked);
+                  localStorage.setItem('toefl_randomize_voices', String(e.target.checked));
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-600"></div>
+            </label>
           </div>
         </div>
 

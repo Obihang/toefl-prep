@@ -631,13 +631,19 @@ Return JSON in this exact structure:
 
 export async function handleSynthesizeSpeech(
   text: string,
-  voiceName: 'Kore' | 'Puck' | 'Fenrir' | 'Zephyr' | 'Charon' = 'Kore',
+  voiceName: string = 'Kore',
   customApiKey?: string
 ): Promise<{ audioBase64: string; modelUsed: string }> {
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
   }
+
+  const validVoices = new Set<string>([
+    'Achernar', 'Aoede', 'Autonoe', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Kore', 'Laomedeia', 'Leda', 'Pulcherrima', 'Sulafat', 'Vindemiatrix', 'Zephyr',
+    'Achird', 'Algenib', 'Algieba', 'Alnilam', 'Charon', 'Enceladus', 'Fenrir', 'Iapetus', 'Orus', 'Puck', 'Rasalgethi', 'Sadachbia', 'Sadaltager', 'Schedar', 'Umbriel', 'Zubenelgenubi'
+  ]);
+  const safeVoiceName = validVoices.has(voiceName) ? voiceName : 'Kore';
 
   try {
     const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
@@ -653,7 +659,7 @@ export async function handleSynthesizeSpeech(
           responseModalities: ['AUDIO'],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName },
+              prebuiltVoiceConfig: { voiceName: safeVoiceName },
             },
           },
         },
