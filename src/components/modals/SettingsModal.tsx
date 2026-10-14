@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices } from '../../utils/audioSpeech';
 
@@ -21,6 +21,39 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [nameError, setNameError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  const [isTestingMic, setIsTestingMic] = useState(false);
+  const [testSecondsLeft, setTestSecondsLeft] = useState(3);
+  const [testAudioLevel, setTestAudioLevel] = useState(0);
+  const [testResult, setTestResult] = useState<{
+    status: 'works' | 'silent' | 'error';
+    message: string;
+    audioContextState: string;
+    deviceName: string;
+  } | null>(null);
+
+  const testAudioNodesRef = useRef<{
+    stream?: MediaStream;
+    ctx?: AudioContext;
+    interval?: any;
+    timer?: any;
+  }>({});
+
+  const stopMicTest = () => {
+    if (testAudioNodesRef.current.interval) clearInterval(testAudioNodesRef.current.interval);
+    if (testAudioNodesRef.current.timer) clearInterval(testAudioNodesRef.current.timer);
+    if (testAudioNodesRef.current.stream) {
+      testAudioNodesRef.current.stream.getTracks().forEach((t) => t.stop());
+    }
+    if (testAudioNodesRef.current.ctx && testAudioNodesRef.current.ctx.state !== 'closed') {
+      try {
+        testAudioNodesRef.current.ctx.close();
+      } catch {}
+    }
+    testAudioNodesRef.current = {};
+    setIsTestingMic(false);
+    setTestAudioLevel(0);
+  };
+
   useEffect(() => {
     setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
     const storedTarget = localStorage.getItem('toefl_target_score') || '100';
@@ -39,6 +72,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     navigator?.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
     return () => {
       navigator?.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
+      stopMicTest();
     };
   }, [isOpen, displayName]);
 
@@ -48,6 +82,133 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const handleCursorChange = (style: CursorObjectStyle) => {
     setCursorStyleState(style);
     setCursorPreference(style);
+  };
+
+  const handleTestMicrophone = async () => {
+    stopMicTest();
+    setIsTestingMic(true);
+    setTestSecondsLeft(3);
+    setTestAudioLevel(0);
+    setTestResult(null);
+
+    // Resolve selected device name
+    let deviceName = 'Default Audio Input (System Default)';
+    if (selectedMicId) {
+      const match = micDevices.find((d) => d.deviceId === selectedMicId);
+      if (match?.label) {
+        deviceName = match.label;
+      } else {
+        deviceName = `Device (${selectedMicId.slice(0, 8)}...)`;
+      }
+    } else if (micDevices.length > 0 && micDevices[0].label) {
+      deviceName = `${micDevices[0].label} (Default)`;
+    }
+
+    let audioContextState = 'unknown';
+
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+          ...(selectedMicId ? { deviceId: { exact: selectedMicId } } : {}),
+        },
+      };
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      const activeTrack = stream.getAudioTracks()[0];
+      if (activeTrack?.label && (!selectedMicId || deviceName.includes('Default'))) {
+        deviceName = activeTrack.label;
+      }
+
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) {
+        throw new Error('Web Audio API is not supported in this browser.');
+      }
+
+      const audioContext = new AudioCtx();
+      if (audioContext.state === 'suspended') {
+        try {
+          await audioContext.resume();
+        } catch {}
+      }
+      audioContextState = audioContext.state;
+
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      testAudioNodesRef.current = { stream, ctx: audioContext };
+
+      let maxVol = 0;
+      let totalVol = 0;
+      let sampleCount = 0;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      const interval = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        const lvl = Math.min(100, Math.round((avg / 120) * 100));
+        setTestAudioLevel(lvl);
+
+        sampleCount++;
+        totalVol += lvl;
+        if (lvl > maxVol) maxVol = lvl;
+      }, 50);
+      testAudioNodesRef.current.interval = interval;
+
+      let remaining = 3;
+      const timer = setInterval(() => {
+        remaining--;
+        setTestSecondsLeft(remaining);
+        if (remaining <= 0) {
+          clearInterval(timer);
+          clearInterval(interval);
+
+          audioContextState = audioContext.state;
+
+          stream.getTracks().forEach((t) => t.stop());
+          try {
+            source.disconnect();
+            analyser.disconnect();
+            audioContext.close();
+          } catch {}
+
+          setIsTestingMic(false);
+          setTestAudioLevel(0);
+
+          const avgVol = sampleCount > 0 ? totalVol / sampleCount : 0;
+          const micWorks = maxVol >= 4 || avgVol >= 2;
+
+          setTestResult({
+            status: micWorks ? 'works' : 'silent',
+            message: micWorks ? 'Mic works' : 'No sound detected',
+            audioContextState,
+            deviceName,
+          });
+        }
+      }, 1000);
+      testAudioNodesRef.current.timer = timer;
+    } catch (err: any) {
+      stopMicTest();
+      setTestResult({
+        status: 'error',
+        message: err?.message || 'Could not access microphone',
+        audioContextState,
+        deviceName,
+      });
+    }
   };
 
   const handleSave = () => {
@@ -258,6 +419,82 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <p className="text-xs text-slate-500">
               Select which microphone to use for Speaking Interview and Listen &amp; Repeat tasks.
             </p>
+
+            {/* Test Microphone Button & Real-time Live Meter */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleTestMicrophone}
+                disabled={isTestingMic}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isTestingMic
+                    ? 'bg-rose-600 text-white border-rose-600 animate-pulse'
+                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <Mic className={`w-3.5 h-3.5 ${isTestingMic ? 'text-white' : 'text-teal-700'}`} />
+                <span>{isTestingMic ? `Recording test... ${testSecondsLeft}s` : 'Test microphone'}</span>
+              </button>
+
+              {/* Live meter while testing */}
+              {isTestingMic && (
+                <div className="mt-2.5 p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between text-xs text-rose-800">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+                      Testing microphone (Speak now)...
+                    </span>
+                    <span className="font-mono font-bold text-rose-700">{testSecondsLeft}s left</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-600 rounded-full transition-all duration-75"
+                        style={{ width: `${Math.max(4, testAudioLevel)}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-600 w-8 text-right">{testAudioLevel}%</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Test Result Display */}
+              {testResult && !isTestingMic && (
+                <div
+                  className={`mt-2.5 p-3 rounded-lg border text-xs space-y-1.5 animate-in fade-in ${
+                    testResult.status === 'works'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : testResult.status === 'silent'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : 'bg-rose-50 border-rose-200 text-rose-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    {testResult.status === 'works' ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{testResult.message}</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{testResult.message}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="text-[11px] space-y-0.5 opacity-90">
+                    <div>
+                      <span className="font-medium text-slate-600">Selected device: </span>
+                      <strong className="text-slate-900">{testResult.deviceName}</strong>
+                    </div>
+                    <div>
+                      <span className="font-medium text-slate-600">AudioContext state: </span>
+                      <strong className="font-mono text-slate-900">{testResult.audioContextState}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

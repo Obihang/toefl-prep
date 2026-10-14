@@ -7,6 +7,56 @@ import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
+// Module-level Map of models that rejected the thinking parameter with a 400
+export const rejectedThinkingModels = new Map<string, boolean>();
+
+export interface ModelThinkingConfig {
+  transcribe?: { thinkingLevel: 'minimal' } | { thinkingBudget: number };
+  evaluation?: { thinkingLevel: 'low' } | { thinkingBudget: number };
+}
+
+// Verified model thinking specifications chosen per model instead of string matching
+export const VERIFIED_MODEL_THINKING_CONFIGS: Record<string, ModelThinkingConfig> = {
+  'gemini-3.1-flash-lite': {
+    transcribe: { thinkingLevel: 'minimal' },
+    evaluation: { thinkingLevel: 'low' },
+  },
+  'gemini-flash-latest': {
+    transcribe: { thinkingLevel: 'minimal' },
+    evaluation: { thinkingLevel: 'low' },
+  },
+  'gemini-3.8-flash': {
+    transcribe: { thinkingLevel: 'minimal' },
+    evaluation: { thinkingLevel: 'low' },
+  },
+  'gemini-3.1-pro-preview': {
+    transcribe: { thinkingLevel: 'minimal' },
+    evaluation: { thinkingLevel: 'low' },
+  },
+  'gemini-2.5-flash': {
+    transcribe: { thinkingBudget: 0 },
+    evaluation: { thinkingBudget: 256 },
+  },
+  'gemini-2.5-flash-lite': {
+    transcribe: { thinkingBudget: 0 },
+    evaluation: { thinkingBudget: 256 },
+  },
+};
+
+export function getModelThinkingConfig(
+  model: string,
+  mode: 'transcribe' | 'evaluation'
+): { thinkingLevel: string } | { thinkingBudget: number } | null {
+  if (rejectedThinkingModels.get(model)) {
+    return null;
+  }
+  const config = VERIFIED_MODEL_THINKING_CONFIGS[model];
+  if (config) {
+    return mode === 'transcribe' ? (config.transcribe || null) : (config.evaluation || null);
+  }
+  return null;
+}
+
 const Schemas = {
   completeWords: z.object({ title: z.string(), text: z.string(), totalBlanks: z.number() }),
   readingPassage: z.object({
@@ -518,13 +568,13 @@ Return JSON in this exact structure:
   try {
     const { result } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
       const executeEvaluation = async (withThinking: boolean) => {
-        const isGemini3 = model.includes('3.') || model.includes('3-') || model.startsWith('gemini-3');
         const config: any = {
           responseMimeType: 'application/json',
           temperature: 0.3,
         };
-        if (withThinking) {
-          config.thinkingConfig = isGemini3 ? { thinkingLevel: 'low' } : { thinkingBudget: 256 };
+        const thinking = withThinking ? getModelThinkingConfig(model, 'evaluation') : null;
+        if (thinking) {
+          config.thinkingConfig = thinking;
         }
 
         try {
@@ -537,16 +587,24 @@ Return JSON in this exact structure:
           if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
             throw firstErr;
           }
-          const is400 = getStatus(firstErr) === 400 || String(firstErr?.message || '').includes('400') || String(firstErr?.message || '').includes('INVALID_ARGUMENT');
+          const is400 =
+            getStatus(firstErr) === 400 ||
+            firstErr?.status === 'INVALID_ARGUMENT' ||
+            firstErr?.error?.status === 'INVALID_ARGUMENT';
+
           if (withThinking && is400) {
-            console.warn(`Model ${model} evaluation rejected thinking config (400), retrying without thinking.`);
+            rejectedThinkingModels.set(model, true);
+            console.warn(`Model ${model} evaluation rejected thinking config (400 / INVALID_ARGUMENT), skipping thinking on retry and subsequent calls.`);
             return executeEvaluation(false);
           }
 
           console.warn(`Model ${model} evaluation JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
           const fallbackConfig: any = { temperature: 0.3 };
           if (withThinking && !is400) {
-            fallbackConfig.thinkingConfig = isGemini3 ? { thinkingLevel: 'low' } : { thinkingBudget: 256 };
+            const fallbackThinking = getModelThinkingConfig(model, 'evaluation');
+            if (fallbackThinking) {
+              fallbackConfig.thinkingConfig = fallbackThinking;
+            }
           }
           return await ai.models.generateContent({
             model,
@@ -633,14 +691,14 @@ export async function handleTranscribeAudio(
   try {
     const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
       const executeTranscription = async (withThinking: boolean): Promise<string> => {
-        const isGemini3 = model.includes('3.') || model.includes('3-') || model.startsWith('gemini-3');
         const config: any = {
           temperature: 0.0,
           maxOutputTokens: 2048,
         };
 
-        if (withThinking) {
-          config.thinkingConfig = isGemini3 ? { thinkingLevel: 'minimal' } : { thinkingBudget: 0 };
+        const thinking = withThinking ? getModelThinkingConfig(model, 'transcribe') : null;
+        if (thinking) {
+          config.thinkingConfig = thinking;
         }
 
         try {
@@ -674,9 +732,14 @@ export async function handleTranscribeAudio(
           if (isKeyError(err) || isQuotaExhaustedError(err)) {
             throw err;
           }
-          const is400 = getStatus(err) === 400 || String(err?.message || '').includes('400') || String(err?.message || '').includes('INVALID_ARGUMENT');
+          const is400 =
+            getStatus(err) === 400 ||
+            err?.status === 'INVALID_ARGUMENT' ||
+            err?.error?.status === 'INVALID_ARGUMENT';
+
           if (withThinking && is400) {
-            console.warn(`Model ${model} transcription rejected thinking config (400), retrying without thinking.`);
+            rejectedThinkingModels.set(model, true);
+            console.warn(`Model ${model} transcription rejected thinking config (400 / INVALID_ARGUMENT), skipping thinking on retry and subsequent calls.`);
             return executeTranscription(false);
           }
           throw err;

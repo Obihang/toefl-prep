@@ -18,9 +18,9 @@ export const TTS_CHAIN = [
 ];
 
 export const TRANSCRIBE_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-flash-latest',
   'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3.8-flash',
 ];
 
 export const MODELS = {
