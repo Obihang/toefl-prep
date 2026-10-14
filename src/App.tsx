@@ -86,6 +86,11 @@ export default function App() {
   const [currentTaskType, setCurrentTaskType] = useState<TaskTypeId>('academic-discussion');
   const [level, setLevel] = useState<string>('upper-intermediate');
   const [topic, setTopic] = useState('science-tech');
+
+  const levelRef = React.useRef(level);
+  levelRef.current = level;
+  const topicRef = React.useRef(topic);
+  topicRef.current = topic;
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationSuccess, setGenerationSuccess] = useState(false);
@@ -419,6 +424,10 @@ export default function App() {
 
       const json = await res.json();
       if (res.ok && json.success && !json.data.isFallback) {
+        if (lvl !== levelRef.current || top !== topicRef.current) {
+          return;
+        }
+
         const prefetchedItem: PrefetchedItem = {
           ...json.data,
           level: lvl,
@@ -551,8 +560,8 @@ export default function App() {
   // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {
     // 1. Instant delivery if pre-fetched question is ready in the queue!
-    if (hasReadyTask(prefetchedQueue, currentTaskType)) {
-      const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType);
+    if (hasReadyTask(prefetchedQueue, currentTaskType, level, topic)) {
+      const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType, level, topic);
       if (readyTask) {
         setPrefetchedQueue(updatedQueue);
 
@@ -897,7 +906,7 @@ export default function App() {
               </button>
               {TASK_DEFINITIONS.map((td) => {
                 const isActive = currentTaskType === td.id && !isMockTest;
-                const readyCount = prefetchedQueue[td.id]?.length || 0;
+                const readyCount = (prefetchedQueue[td.id] || []).filter(item => item.level === level && item.topic === topic).length;
                 const isReady = readyCount > 0;
                 return (
                   <button
@@ -1012,12 +1021,12 @@ export default function App() {
                 onClick={handleGenerateNewAiTask}
                 disabled={isGenerating}
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 rounded-lg shadow-xs transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                  hasReadyTask(prefetchedQueue, currentTaskType)
+                  hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
                     ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-500/20'
                     : 'bg-teal-800 hover:bg-teal-900'
                 }`}
                 title={
-                  hasReadyTask(prefetchedQueue, currentTaskType)
+                  hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
                     ? 'Instant generation from background cache'
                     : 'Generate customized TOEFL item with Gemini'
                 }
@@ -1026,7 +1035,7 @@ export default function App() {
                 <span>
                   {isGenerating
                     ? 'Generating Question...'
-                    : hasReadyTask(prefetchedQueue, currentTaskType)
+                    : hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
                     ? 'Generate New (Instant ⚡)'
                     : 'Generate New with AI'}
                 </span>

@@ -95,20 +95,38 @@ export function getNextTaskToPrefetch(
   return null;
 }
 
-export function hasReadyTask(queue: PrefetchQueue, taskType: string): boolean {
-  return (queue[taskType]?.length || 0) > 0;
+export function hasReadyTask(queue: PrefetchQueue, taskType: string, level?: string, topic?: string): boolean {
+  const items = queue[taskType] || [];
+  if (level && topic) {
+    return items.some((item) => item.level === level && item.topic === topic);
+  }
+  return items.length > 0;
 }
 
 export function popPrefetchedTask(
   queue: PrefetchQueue,
-  taskType: string
+  taskType: string,
+  level: string,
+  topic: string
 ): { item: PrefetchedItem | null; updatedQueue: PrefetchQueue } {
   const items = queue[taskType] || [];
   if (items.length === 0) return { item: null, updatedQueue: queue };
-  const [item, ...remaining] = items;
+
+  const matching = items.filter((item) => item.level === level && item.topic === topic);
   const updatedQueue = { ...queue };
-  if (remaining.length > 0) updatedQueue[taskType] = remaining;
-  else delete updatedQueue[taskType];
+
+  if (matching.length === 0) {
+    delete updatedQueue[taskType];
+    savePrefetchQueueToStorage(updatedQueue);
+    return { item: null, updatedQueue };
+  }
+
+  const [item, ...remaining] = matching;
+  if (remaining.length > 0) {
+    updatedQueue[taskType] = remaining;
+  } else {
+    delete updatedQueue[taskType];
+  }
   savePrefetchQueueToStorage(updatedQueue);
   return { item, updatedQueue };
 }

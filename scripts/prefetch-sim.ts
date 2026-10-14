@@ -1,4 +1,4 @@
-import { getNextTaskToPrefetch } from '../src/utils/prefetchManager';
+import { getNextTaskToPrefetch, popPrefetchedTask } from '../src/utils/prefetchManager';
 import { TaskTypeId, TASK_DEFINITIONS } from '../src/types/taskTypes';
 
 const MOCK_TASKS = TASK_DEFINITIONS;
@@ -88,6 +88,42 @@ async function simulate() {
   }
   if (requestsMade !== 5) throw new Error('Scenario F failed: Incorrect requests made');
   console.log('Scenario F passed');
+
+  console.log('Scenario G: popPrefetchedTask filters matching and purges stale items');
+  queue = {
+    'academic-discussion': [
+      { id: 'stale-1', level: 'beginner', topic: 'campus-life', createdAt: Date.now() },
+      { id: 'fresh-1', level: 'intermediate', topic: 'science', createdAt: Date.now() },
+      { id: 'stale-2', level: 'advanced', topic: 'business-economics', createdAt: Date.now() },
+      { id: 'fresh-2', level: 'intermediate', topic: 'science', createdAt: Date.now() },
+    ],
+  };
+  const popResult1 = popPrefetchedTask(queue, 'academic-discussion', 'intermediate', 'science');
+  if (!popResult1.item || popResult1.item.id !== 'fresh-1') {
+    throw new Error(`Scenario G failed: expected fresh-1, got ${popResult1.item?.id}`);
+  }
+  // The queue should now only have fresh-2, and all stale items should be removed
+  const remainingInQueue = popResult1.updatedQueue['academic-discussion'] || [];
+  if (remainingInQueue.length !== 1 || remainingInQueue[0].id !== 'fresh-2') {
+    throw new Error(`Scenario G failed: non-matching items were not purged correctly. Left: ${JSON.stringify(remainingInQueue)}`);
+  }
+  console.log('Scenario G passed');
+
+  console.log('Scenario H: popPrefetchedTask returns null and purges when only stale items exist');
+  queue = {
+    'academic-discussion': [
+      { id: 'stale-1', level: 'beginner', topic: 'campus-life', createdAt: Date.now() },
+      { id: 'stale-2', level: 'advanced', topic: 'business-economics', createdAt: Date.now() },
+    ],
+  };
+  const popResult2 = popPrefetchedTask(queue, 'academic-discussion', 'intermediate', 'science');
+  if (popResult2.item !== null) {
+    throw new Error('Scenario H failed: expected null item for non-matching queue');
+  }
+  if (popResult2.updatedQueue['academic-discussion'] !== undefined) {
+    throw new Error('Scenario H failed: expected task queue to be purged');
+  }
+  console.log('Scenario H passed');
 
   console.log('All scenarios passed!');
 }
