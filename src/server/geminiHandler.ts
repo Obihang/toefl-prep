@@ -1,10 +1,10 @@
-import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
+import { getAiClient } from './aiClient.ts';
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
@@ -191,11 +191,11 @@ function normalizeAcademicDiscussion(data: any) {
 
   const s1Norm = {
     name: String((typeof s1 === 'object' ? (s1?.name || s1?.student || s1?.studentName) : null) || 'Student A'),
-    text: String((typeof s1 === 'object' ? (s1?.text || s1?.post || s1?.response || s1?.content) : (typeof s1 === 'string' ? s1 : '')) || 'I agree with the professor on this point, but we should also consider alternative perspectives.'),
+    text: String((typeof s1 === 'object' ? (s1?.text || s1?.post || s1?.response || s1?.content) : (typeof s1 === 'string' ? s1 : '')) || 'I agree with the professor on this point, but we should [...]'
   };
   const s2Norm = {
     name: String((typeof s2 === 'object' ? (s2?.name || s2?.student || s2?.studentName) : null) || 'Student B'),
-    text: String((typeof s2 === 'object' ? (s2?.text || s2?.post || s2?.response || s2?.content) : (typeof s2 === 'string' ? s2 : '')) || 'I take a somewhat different view. From my experience, there are several key factors to weigh.'),
+    text: String((typeof s2 === 'object' ? (s2?.text || s2?.post || s2?.response || s2?.content) : (typeof s2 === 'string' ? s2 : '')) || 'I take a somewhat different view. From my experience, th[...]'
   };
 
   const question = String(data.question || data.instruction || 'Participate in the discussion by responding to the professor and explaining your position.');
@@ -364,44 +364,20 @@ function normalizeTask(taskType: string, data: any): any {
   }
 }
 
-function getAiClient(customApiKey?: string) {
-  const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    return null;
-  }
-  return new GoogleGenAI({
-    apiKey: apiKey.trim(),
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-}
-
 export async function handleTestApiKey(customApiKey?: string): Promise<{ success: true; message: string; model: string }> {
-  const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+  const ai = getAiClient(customApiKey);
+  if (!ai) {
+    throw new Error('No API key provided.');
   }
 
-  const ai = new GoogleGenAI({
-    apiKey: apiKey.trim(),
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-
-  const { modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+  const { modelUsed } = await generateWithFallback(ai as any, GENERATION_CHAIN, async (model) => {
     await ai.models.generateContent({
       model,
       contents: 'Reply with the single word OK',
       config: {
         temperature: 0.1,
       },
-    });
+    } as any);
     return true;
   });
 
@@ -444,31 +420,31 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
     switch (tType) {
       case 'complete-words':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select exactly 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requi[...]`;
       case 'reading-passage':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Req[...]`;
       case 'listening-dialogue':
-        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classroom lecture with real first names and roles for speakers A and B (e.g. {"A": "Sarah (student)", "B": "Professor Lee"}) and speakerGenders: {"A": "female", "B": "male"}. 2. Script must be 120-150 words. 3. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Sarah (student)", "B": "Professor Lee"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Sarah (student): ...\\nProfessor Lee: ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classro[...]`;
       case 'listen-repeat':
-        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Listen & Repeat Exercise", "speakerName": "Sarah (student)", "speakerGender": "female", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
+        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Listen [...]`;
       case 'speaking-interview':
-        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "interviewerName": "Professor Lee", "interviewerGender": "male", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
+        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"titl[...]`;
       case 'build-sentence':
-        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
+        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title[...]`;
       case 'write-email':
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
+        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Ta[...]`;
       case 'academic-discussion':
       default:
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
+        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format:[...]`;
     }
   };
 
   try {
     if (!ai) {
-      throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+      throw new Error('No API key provided.');
     }
 
-    const { result, modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+    const { result, modelUsed } = await generateWithFallback(ai as any, GENERATION_CHAIN, async (model) => {
       const prompt = getPrompt(taskType, level, topic);
       const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
       const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
@@ -482,7 +458,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
             responseMimeType: 'application/json',
             temperature: 0.7,
           },
-        });
+        } as any);
       } catch (firstErr: any) {
         if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
           throw firstErr;
@@ -494,7 +470,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
           config: {
             temperature: 0.7,
           },
-        });
+        } as any);
       }
 
       const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
@@ -533,7 +509,7 @@ export async function handleEvaluateResponse(
 ) {
   const ai = getAiClient(customApiKey);
   if (!ai) {
-    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+    throw new Error('No API key provided.');
   }
 
   const evaluationPrompt = `You are an official certified ETS TOEFL iBT scoring rater.
@@ -570,7 +546,7 @@ Return valid JSON format:
   "tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
 
-  const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
+  const { result, modelUsed } = await generateWithFallback(ai as any, EVALUATION_CHAIN, async (model) => {
     const thinkingConfig = getModelThinkingConfig(model, 'evaluation');
     const response = await ai.models.generateContent({
       model,
@@ -615,7 +591,11 @@ export async function handleSynthesizeSpeech(
 
   const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
 
-  const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
+  const { result, modelUsed } = await generateWithFallback(ai as any, TTS_CHAIN, async (model) => {
+    if (!ai.interactions || !ai.interactions.create) {
+      throw new Error('SPEECH_UNAVAILABLE');
+    }
+
     const interaction = await ai.interactions.create({
       model,
       input: [
@@ -661,7 +641,7 @@ export async function handleTranscribeAudio(
   }
 
   const startTime = Date.now();
-  const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
+  const { result, modelUsed } = await generateWithFallback(ai as any, TRANSCRIBE_CHAIN, async (model) => {
     const thinkingConfig = getModelThinkingConfig(model, 'transcribe');
     const response = await ai.models.generateContent({
       model,
