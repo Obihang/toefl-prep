@@ -1,3 +1,4 @@
+import { pickDialogueVoices, inferGender } from '../../utils/voices';
 import React, { useState, useEffect } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
@@ -22,6 +23,11 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const lines = task.script.split(/\n+/).filter(Boolean);
 
+  const seedStr = `${task.title}-${task.script?.slice(0, 40) || ''}`;
+  const gA = (task as any).speakerGenders?.A || inferGender(task.speakers?.A || 'A');
+  const gB = (task as any).speakerGenders?.B || inferGender(task.speakers?.B || 'B');
+  const voices = pickDialogueVoices(seedStr, gA, gB);
+
   useEffect(() => {
     return () => {
       stopSpeaking();
@@ -42,7 +48,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     try {
       await playDialogue(
         lines,
-        task.speakerVoices || { A: 'Puck', B: 'Kore' },
+        voices,
         (idx) => {
           setActiveLine(idx);
         }
@@ -150,6 +156,9 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
             <div className="text-sm text-slate-300">
               Speakers: <strong className="text-slate-100">{task.speakers.A}</strong> & <strong className="text-slate-100">{task.speakers.B}</strong>
+            </div>
+            <div className="text-xs text-slate-400 mt-1.5 font-mono">
+              {task.speakers.A}: {voices.A} ({gA}) · {task.speakers.B}: {voices.B} ({gB})
             </div>
           </div>
 

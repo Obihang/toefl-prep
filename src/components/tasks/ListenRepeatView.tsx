@@ -1,3 +1,4 @@
+import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
 import React, { useState, useRef, useEffect } from 'react';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones } from 'lucide-react';
@@ -36,6 +37,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
 
+  const speakerName = (task as any).speakerName || 'Sarah (student)';
+  const speakerGender = (task as any).speakerGender || inferGender(speakerName);
+  const speakerVoice = pickSingleVoice(`${task.title}-label`, speakerGender);
+
   useEffect(() => {
     return () => {
       if (voiceSessionRef.current) {
@@ -58,8 +63,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const handlePlay = async (index: number) => {
     setActiveAudioIdx(index);
+    const voiceName = pickSingleVoice(`${task.title}-${index}`, speakerGender);
+    const browserVoice = pickBrowserVoiceForGender(speakerGender);
     await speakScriptLine(task.sentences[index], {
       rate: 0.9,
+      voiceName,
+      browserVoice,
       onEnd: () => setActiveAudioIdx(null),
       onError: () => setActiveAudioIdx(null),
     });
@@ -262,6 +271,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
             <span>{task.sentences.length} Sentences</span>
             <span aria-hidden="true">·</span>
             <span className="capitalize">{task.level}</span>
+          </div>
+          <div className="text-xs text-slate-500 mt-1.5 font-mono">
+            Speaker: {speakerName} · Voice: {speakerVoice} ({speakerGender})
           </div>
         </div>
 

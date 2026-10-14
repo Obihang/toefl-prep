@@ -15,6 +15,41 @@ export type PrefetchQueue = Record<string, PrefetchedItem[]>;
 const STORAGE_KEY = 'toefl_prefetched_queue_v3';
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
+export const PREFETCH_GAP_MS = 12000;
+
+export interface RateLimitPauseState {
+  kind: 'per-minute' | 'per-day' | 'unknown';
+  resumeAt: number;
+  retryAfterSeconds: number;
+}
+
+export function evaluateRateLimitPause(
+  errorOrResponse: any,
+  now: number
+): RateLimitPauseState {
+  const errStr = JSON.stringify(errorOrResponse || '');
+  const lower = errStr.toLowerCase();
+  let kind: 'per-minute' | 'per-day' | 'unknown' = 'per-minute';
+  let retryAfterSeconds = 60;
+
+  if (lower.includes('perday') || lower.includes('daily') || lower.includes('day')) {
+    kind = 'per-day';
+    retryAfterSeconds = 3600;
+  }
+
+  const match = errStr.match(/(\d+)\s*s/);
+  if (match) {
+    retryAfterSeconds = Math.max(retryAfterSeconds, parseInt(match[1], 10));
+  }
+
+  const durationMs = kind === 'per-day' ? 3600 * 1000 : Math.max(60, retryAfterSeconds + 5) * 1000;
+  return {
+    kind,
+    resumeAt: now + durationMs,
+    retryAfterSeconds,
+  };
+}
+
 export function loadPrefetchQueueFromStorage(): PrefetchQueue {
   if (typeof window === 'undefined') return {};
   try {
@@ -83,11 +118,9 @@ export function getNextTaskToPrefetch(
     ...tasks.filter(t => t.id !== currentTaskType)
   ];
 
-  // Round 1: Need 0
   for (const task of orderedTasks) {
     if (isEligible(task.id) && getCount(task.id) === 0) return task.id;
   }
-  // Round 2: Need 1
   for (const task of orderedTasks) {
     if (isEligible(task.id) && getCount(task.id) === 1) return task.id;
   }

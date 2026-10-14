@@ -4,8 +4,44 @@ import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from 
 import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
+import { inferGender } from '../utils/voices.ts';
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
+
+export function parseRateLimitFromError(error: any) {
+  let kind: 'per-minute' | 'per-day' | 'unknown' = 'per-minute';
+  let retryAfterSeconds = 60;
+
+  const errStr = JSON.stringify(error?.details || error?.message || error || '');
+  const lower = errStr.toLowerCase();
+  if (lower.includes('perday') || lower.includes('daily') || lower.includes('day')) {
+    kind = 'per-day';
+    retryAfterSeconds = 3600;
+  }
+
+  if (error?.details && Array.isArray(error.details)) {
+    for (const detail of error.details) {
+      if (detail['@type']?.includes('RetryInfo') && detail.retryDelay) {
+        const match = String(detail.retryDelay).match(/([\d.]+)s/);
+        if (match) retryAfterSeconds = Math.ceil(parseFloat(match[1]));
+      }
+      if (detail['@type']?.includes('QuotaFailure')) {
+        const violations = detail.violations || [];
+        for (const v of violations) {
+          const qId = String(v.quotaId || '').toLowerCase();
+          if (qId.includes('perday') || qId.includes('daily')) {
+            kind = 'per-day';
+            retryAfterSeconds = 3600;
+          } else if (qId.includes('perminute') || qId.includes('minute')) {
+            kind = 'per-minute';
+          }
+        }
+      }
+    }
+  }
+
+  return { kind, retryAfterSeconds };
+}
 
 // Module-level Map of models that rejected the thinking parameter with a 400
 export const rejectedThinkingModels = new Map<string, boolean>();
@@ -68,13 +104,21 @@ const Schemas = {
     title: z.string(),
     context: z.string(),
     speakers: z.record(z.string(), z.string()),
+    speakerGenders: z.record(z.string(), z.string()).default({ A: 'female', B: 'male' }),
     script: z.string(),
     questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
   }),
-  listenRepeat: z.object({ title: z.string(), sentences: z.array(z.string()) }),
+  listenRepeat: z.object({
+    title: z.string(),
+    speakerName: z.string().default('Sarah (student)'),
+    speakerGender: z.string().default('female'),
+    sentences: z.array(z.string()),
+  }),
   speakingInterview: z.object({
     title: z.string(),
     context: z.string(),
+    interviewerName: z.string().default('Professor Lee'),
+    interviewerGender: z.string().default('male'),
     questions: z.array(z.object({ question: z.string(), prepTimeSeconds: z.number(), responseTimeSeconds: z.number(), suggestedPoints: z.array(z.string()) })),
   }),
   buildSentence: z.object({
@@ -103,12 +147,10 @@ function cleanAndExtractJson(text: string): any {
     throw new Error('Model returned an empty response');
   }
 
-  // 1. Direct parse
   try {
     return JSON.parse(text.trim());
   } catch {}
 
-  // 2. Strip markdown code fence
   let unmarkdown = text.trim();
   if (unmarkdown.includes('```')) {
     unmarkdown = unmarkdown.replace(/```(?:json)?\s*/gi, '').replace(/\s*```/g, '').trim();
@@ -117,7 +159,6 @@ function cleanAndExtractJson(text: string): any {
     } catch {}
   }
 
-  // 3. Extract JSON object with regex
   const objMatch = text.match(/\{[\s\S]*\}/);
   if (objMatch) {
     try {
@@ -130,7 +171,6 @@ function cleanAndExtractJson(text: string): any {
     }
   }
 
-  // 4. Extract JSON array with regex
   const arrMatch = text.match(/\[[\s\S]*\]/);
   if (arrMatch) {
     try {
@@ -158,32 +198,20 @@ function normalizeAcademicDiscussion(data: any) {
     text: String((typeof s2 === 'object' ? (s2?.text || s2?.post || s2?.response || s2?.content) : (typeof s2 === 'string' ? s2 : '')) || 'I take a somewhat different view. From my experience, there are several key factors to weigh.'),
   };
 
-  const question = String(data.question || data.instructions || data.instruction || 'Your professor is teaching a class on this topic. Write a post responding to the professor\'s question.');
-
-  return {
-    title,
-    professorName: profName,
-    professorPrompt: profPrompt,
-    s1: s1Norm,
-    s2: s2Norm,
-    question,
-  };
+  const question = String(data.question || data.instruction || 'Participate in the discussion by responding to the professor and explaining your position.');
+  return { title, professorName: profName, professorPrompt: profPrompt, s1: s1Norm, s2: s2Norm, question };
 }
 
 function normalizeCompleteWords(data: any) {
   const title = String(data.title || 'Complete the Words');
-  const text = String(data.text || data.passage || data.paragraph || '');
-  let totalBlanks = Number(data.totalBlanks || data.total_blanks || 0);
-  const matchCount = (text.match(/\[\[/g) || []).length;
-  if (totalBlanks <= 0 || isNaN(totalBlanks)) {
-    totalBlanks = matchCount > 0 ? matchCount : 10;
-  }
+  const text = String(data.text || data.passage || 'The development of [[modern]] science requires rigorous empirical observation and [[careful]] documentation.');
+  const totalBlanks = Number(data.totalBlanks || 10);
   return { title, text, totalBlanks };
 }
 
 function normalizeReadingPassage(data: any) {
-  const title = String(data.title || 'Academic Reading Passage');
-  const passage = String(data.passage || data.text || '');
+  const title = String(data.title || 'Reading Comprehension Passage');
+  const passage = String(data.passage || 'Academic reading text explaining complex phenomena.');
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
   const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}]).slice(0, 3).map((q: any, idx: number) => {
     let answer = q.answer;
@@ -193,9 +221,9 @@ function normalizeReadingPassage(data: any) {
       answer = mapped !== -1 ? mapped : parseInt(char, 10);
     }
     const finalAnswer = (typeof answer === 'number' && !isNaN(answer) && answer >= 0 && answer <= 3) ? answer : 0;
-    const options = Array.isArray(q.options) && q.options.length >= 2 
-      ? q.options.map(String) 
-      : ['First primary explanation', 'Alternative theoretical model', 'Empirical observation', 'Contrasting hypothesis'];
+    const options = Array.isArray(q.options) && q.options.length >= 2
+      ? q.options.map(String)
+      : ['Option A', 'Option B', 'Option C', 'Option D'];
     return {
       q: String(q.q || q.question || `According to the passage, which statement best explains the central point? (${idx + 1})`),
       options,
@@ -209,15 +237,20 @@ function normalizeReadingPassage(data: any) {
 function normalizeListeningDialogue(data: any) {
   const title = String(data.title || 'Campus Conversation');
   const context = String(data.context || data.situation || 'A discussion between a professor and student.');
-  let speakers: Record<string, string> = { A: 'Professor', B: 'Student' };
+  let speakers: Record<string, string> = { A: 'Sarah (student)', B: 'Professor Lee' };
   if (data.speakers && typeof data.speakers === 'object' && !Array.isArray(data.speakers)) {
     speakers = {
-      A: String(data.speakers.A || data.speakers['Speaker A'] || 'Professor'),
-      B: String(data.speakers.B || data.speakers['Speaker B'] || 'Student'),
+      A: String(data.speakers.A || data.speakers['Speaker A'] || 'Sarah (student)'),
+      B: String(data.speakers.B || data.speakers['Speaker B'] || 'Professor Lee'),
     };
   } else if (Array.isArray(data.speakers) && data.speakers.length >= 2) {
     speakers = { A: String(data.speakers[0]), B: String(data.speakers[1]) };
   }
+
+  const speakerGenders = data.speakerGenders || {
+    A: inferGender(speakers.A || ''),
+    B: inferGender(speakers.B || ''),
+  };
 
   const script = String(data.script || data.dialogue || data.text || '');
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
@@ -240,11 +273,13 @@ function normalizeListeningDialogue(data: any) {
     };
   });
 
-  return { title, context, speakers, script, questions };
+  return { title, context, speakers, speakerGenders, script, questions };
 }
 
 function normalizeListenRepeat(data: any) {
   const title = String(data.title || 'Listen & Repeat Practice');
+  const speakerName = String(data.speakerName || 'Sarah (student)');
+  const speakerGender = String(data.speakerGender || inferGender(speakerName));
   let sentences = Array.isArray(data.sentences) ? data.sentences.map(String).filter(Boolean) : [];
   if (sentences.length === 0 && Array.isArray(data.items)) {
     sentences = data.items.map((it: any) => String(typeof it === 'string' ? it : it.sentence || it.text || '')).filter(Boolean);
@@ -258,12 +293,14 @@ function normalizeListenRepeat(data: any) {
       'The university library will extend its hours during final examination week.',
     ];
   }
-  return { title, sentences };
+  return { title, speakerName, speakerGender, sentences };
 }
 
 function normalizeSpeakingInterview(data: any) {
   const title = String(data.title || 'Speaking Interview Practice');
   const context = String(data.context || 'University interview simulation.');
+  const interviewerName = String(data.interviewerName || 'Professor Lee');
+  const interviewerGender = String(data.interviewerGender || inferGender(interviewerName));
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
   const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}, {}]).slice(0, 4).map((q: any, idx: number) => ({
     question: String(typeof q === 'string' ? q : (q.question || q.prompt || `Can you describe an academic experience that significantly shaped your interests? (${idx + 1})`)),
@@ -273,7 +310,7 @@ function normalizeSpeakingInterview(data: any) {
       ? q.suggestedPoints.map(String)
       : ['State your main viewpoint clearly', 'Provide a concrete personal or academic example', 'Summarize the significance'],
   }));
-  return { title, context, questions };
+  return { title, context, interviewerName, interviewerGender, questions };
 }
 
 function normalizeBuildSentence(data: any) {
@@ -411,11 +448,11 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       case 'reading-passage':
         return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
       case 'listening-dialogue':
-        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classroom lecture. 2. Script must be 120-150 words. 3. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Role of Speaker A", "B": "Role of Speaker B"}, "script": "Speaker A: ...\\nSpeaker B: ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classroom lecture with real first names and roles for speakers A and B (e.g. {"A": "Sarah (student)", "B": "Professor Lee"}) and speakerGenders: {"A": "female", "B": "male"}. 2. Script must be 120-150 words. 3. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Sarah (student)", "B": "Professor Lee"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Sarah (student): ...\\nProfessor Lee: ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
       case 'listen-repeat':
-        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Listen & Repeat Exercise", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
+        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Listen & Repeat Exercise", "speakerName": "Sarah (student)", "speakerGender": "female", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
       case 'speaking-interview':
-        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
+        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "interviewerName": "Professor Lee", "interviewerGender": "male", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
       case 'build-sentence':
         return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
       case 'write-email':
@@ -468,7 +505,8 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
 
     return { ...result, isFallback: false, modelUsed };
   } catch (error: any) {
-    const isQuota = isQuotaExhaustedError(error);
+    const isQuota = isQuotaExhaustedError(error) || getStatus(error) === 429;
+    const rateLimit = isQuota ? parseRateLimitFromError(error) : undefined;
     const errMsg = extractErrorMessage(error);
     if (!isQuota) {
       console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
@@ -480,6 +518,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       ...item,
       isFallback: true,
       isQuotaExhausted: isQuota,
+      rateLimit,
       fallbackReason: errMsg,
       modelUsed: 'Curated ETS TOEFL Question Bank',
     };
@@ -518,248 +557,134 @@ Scoring Guidelines:
 - Provide a high-scoring exemplar response demonstrating how a native or C1+ level candidate would address the exact same prompt.
 - Suggest 3 concrete, actionable improvement tips.
 
-Return JSON in this exact structure:
+Return valid JSON format:
 {
-  "bandScore6": 5.5,
-  "bandScore": 4.5,
-  "rawRubricScore": 4.5,
-  "rawRubricMax": 5.0,
+  "bandScore6": 5.0,
+  "rawRubricScore": 4.0,
   "scaledScore": 27,
-  "performanceLevel": "C1 Advanced (High Fluency)",
-  "summary": "Overall diagnostic assessment in 2-3 sentences.",
-  "criteria": [
-    {
-      "name": "Task Completion & Relevance",
-      "score": "4.5 / 5.0",
-      "comment": "Specific feedback..."
-    },
-    {
-      "name": "Coherence & Organization",
-      "score": "4.0 / 5.0",
-      "comment": "Specific feedback..."
-    },
-    {
-      "name": "Grammar & Syntax",
-      "score": "4.5 / 5.0",
-      "comment": "Specific feedback..."
-    },
-    {
-      "name": "Lexical Sophistication",
-      "score": "4.0 / 5.0",
-      "comment": "Specific feedback..."
-    }
+  "feedbackSummary": "Detailed qualitative feedback paragraph...",
+  "errors": [
+    {"original": "...", "corrected": "...", "explanation": "..."}
   ],
-  "corrections": [
-    {
-      "original": "exact student phrase",
-      "corrected": "improved/corrected phrase",
-      "explanation": "why this correction improves the score"
-    }
-  ],
-  "suggestions": [
-    "Tip 1...",
-    "Tip 2...",
-    "Tip 3..."
-  ],
-  "exemplar": "A model high-scoring C1/C2 response demonstrating target structure and vocabulary."
+  "exemplarResponse": "Model high-scoring response...",
+  "tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
 
-  const startTime = Date.now();
-  try {
-    const { result } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
-      const executeEvaluation = async (withThinking: boolean) => {
-        const config: any = {
-          responseMimeType: 'application/json',
-          temperature: 0.3,
-        };
-        const thinking = withThinking ? getModelThinkingConfig(model, 'evaluation') : null;
-        if (thinking) {
-          config.thinkingConfig = thinking;
-        }
-
-        try {
-          return await ai.models.generateContent({
-            model,
-            contents: evaluationPrompt,
-            config,
-          });
-        } catch (firstErr: any) {
-          if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
-            throw firstErr;
-          }
-          const is400 =
-            getStatus(firstErr) === 400 ||
-            firstErr?.status === 'INVALID_ARGUMENT' ||
-            firstErr?.error?.status === 'INVALID_ARGUMENT';
-
-          if (withThinking && is400) {
-            rejectedThinkingModels.set(model, true);
-            console.warn(`Model ${model} evaluation rejected thinking config (400 / INVALID_ARGUMENT), skipping thinking on retry and subsequent calls.`);
-            return executeEvaluation(false);
-          }
-
-          console.warn(`Model ${model} evaluation JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
-          const fallbackConfig: any = { temperature: 0.3 };
-          if (withThinking && !is400) {
-            const fallbackThinking = getModelThinkingConfig(model, 'evaluation');
-            if (fallbackThinking) {
-              fallbackConfig.thinkingConfig = fallbackThinking;
-            }
-          }
-          return await ai.models.generateContent({
-            model,
-            contents: `${evaluationPrompt}\n\nIMPORTANT: Return ONLY valid JSON matching the structure. Do not include markdown fences.`,
-            config: fallbackConfig,
-          });
-        }
-      };
-
-      const response = await executeEvaluation(true);
-      const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
-      const parsed = cleanAndExtractJson(rawText);
-      return { ...parsed, modelUsed: model };
+  const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
+    const thinkingConfig = getModelThinkingConfig(model, 'evaluation');
+    const response = await ai.models.generateContent({
+      model,
+      contents: evaluationPrompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+        ...(thinkingConfig ? { thinkingConfig } : {}),
+      } as any,
     });
 
-    const durationMs = Date.now() - startTime;
-    return { ...result, durationMs };
-  } catch (error: any) {
-    const errMsg = extractErrorMessage(error);
-    throw new Error(errMsg);
-  }
-}
+    const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+    const parsed = cleanAndExtractJson(rawText);
+    return z.object({
+      bandScore6: z.number(),
+      rawRubricScore: z.number(),
+      scaledScore: z.number(),
+      feedbackSummary: z.string(),
+      errors: z.array(z.object({ original: z.string(), corrected: z.string(), explanation: z.string() })),
+      exemplarResponse: z.string(),
+      tips: z.array(z.string()),
+    }).parse(parsed);
+  });
 
+  return { ...result, modelUsed };
+}
 
 export async function handleSynthesizeSpeech(
   text: string,
   voiceName: string = 'Kore',
   customApiKey?: string
-): Promise<{ audioBase64: string; modelUsed: string }> {
+) {
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
   }
 
-  const validVoices = new Set<string>([
+  const validVoices = [
     'Achernar', 'Aoede', 'Autonoe', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Kore', 'Laomedeia', 'Leda', 'Pulcherrima', 'Sulafat', 'Vindemiatrix', 'Zephyr',
     'Achird', 'Algenib', 'Algieba', 'Alnilam', 'Charon', 'Enceladus', 'Fenrir', 'Iapetus', 'Orus', 'Puck', 'Rasalgethi', 'Sadachbia', 'Sadaltager', 'Schedar', 'Umbriel', 'Zubenelgenubi'
-  ]);
-  const safeVoiceName = validVoices.has(voiceName) ? voiceName : 'Kore';
+  ];
 
-  try {
-    const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text }],
-          },
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: safeVoiceName },
+  const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
+
+  const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: `Please read the following text aloud naturally:\n${text}` }],
+        },
+      ],
+      config: {
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: resolvedVoice,
             },
           },
         },
-      });
-
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (!base64Audio) {
-        throw new Error('Failed to generate audio from speech model');
-      }
-      return base64Audio;
+        responseMimeType: 'audio/wav',
+      },
     });
 
-    return { audioBase64: result, modelUsed };
-  } catch (error: any) {
-    console.error('TTS error:', error);
-    throw new Error('SPEECH_UNAVAILABLE');
-  }
+    const candidate = response.candidates?.[0];
+    const part = candidate?.content?.parts?.[0];
+    const audioBytes = part?.inlineData?.data || (response as any).audio?.data;
+    if (!audioBytes) {
+      throw new Error('No audio data returned from model');
+    }
+    return { audioBase64: audioBytes };
+  });
+
+  return { audioBase64: result.audioBase64, modelUsed };
 }
 
 export async function handleTranscribeAudio(
   audioBase64: string,
   mimeType: string = 'audio/webm',
   customApiKey?: string
-): Promise<{ transcript: string; modelUsed: string; durationMs: number }> {
-  const startTime = Date.now();
+) {
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
   }
 
-  const cleanMime = mimeType.split(';')[0].trim() || 'audio/webm';
-  const promptText =
-    'Transcribe the spoken English speech in this audio accurately. Write out spoken times and numbers as standard words where appropriate to match natural speech (e.g. transcribe "10:00" as "ten o\'clock", "2" as "two", "50%" as "fifty percent"). Return only the exact transcription without introductory phrases or commentary.';
-
-  try {
-    const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
-      const executeTranscription = async (withThinking: boolean): Promise<string> => {
-        const config: any = {
-          temperature: 0.0,
-          maxOutputTokens: 2048,
-        };
-
-        const thinking = withThinking ? getModelThinkingConfig(model, 'transcribe') : null;
-        if (thinking) {
-          config.thinkingConfig = thinking;
-        }
-
-        try {
-          const response = await ai.models.generateContent({
-            model,
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: cleanMime,
-                      data: audioBase64,
-                    },
-                  },
-                  {
-                    text: promptText,
-                  },
-                ],
-              },
-            ],
-            config,
-          });
-
-          const text = (response.text || '').trim();
-          if (!text) {
-            throw new Error('Empty transcription returned');
-          }
-          return text;
-        } catch (err: any) {
-          if (isKeyError(err) || isQuotaExhaustedError(err)) {
-            throw err;
-          }
-          const is400 =
-            getStatus(err) === 400 ||
-            err?.status === 'INVALID_ARGUMENT' ||
-            err?.error?.status === 'INVALID_ARGUMENT';
-
-          if (withThinking && is400) {
-            rejectedThinkingModels.set(model, true);
-            console.warn(`Model ${model} transcription rejected thinking config (400 / INVALID_ARGUMENT), skipping thinking on retry and subsequent calls.`);
-            return executeTranscription(false);
-          }
-          throw err;
-        }
-      };
-
-      return await executeTranscription(true);
+  const startTime = Date.now();
+  const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
+    const thinkingConfig = getModelThinkingConfig(model, 'transcribe');
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        {
+          inlineData: {
+            mimeType: mimeType || 'audio/webm',
+            data: audioBase64,
+          },
+        },
+        {
+          text: 'Transcribe the spoken speech in this audio accurately. Return only the exact transcribed transcript text with no extra commentary, quotation marks, or notes.',
+        },
+      ],
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 2048,
+        ...(thinkingConfig ? { thinkingConfig } : {}),
+      } as any,
     });
 
-    const durationMs = Date.now() - startTime;
-    return { transcript: result, modelUsed, durationMs };
-  } catch (error: any) {
-    console.error('Transcription error:', error?.message || error);
-    throw new Error('SPEECH_UNAVAILABLE');
-  }
-}
+    const transcript = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+    return { transcript: transcript.trim() };
+  });
 
+  const durationMs = Date.now() - startTime;
+  return { transcript: result.transcript, modelUsed, durationMs };
+}

@@ -1,3 +1,4 @@
+import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw } from 'lucide-react';
@@ -37,6 +38,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const currentQ: InterviewQuestionItem = task.questions[currentQIndex];
 
+  const interviewerName = (task as any).interviewerName || 'Professor Lee';
+  const interviewerGender = (task as any).interviewerGender || inferGender(interviewerName);
+  const interviewerVoice = pickSingleVoice(`${task.title}-${currentQIndex}`, interviewerGender);
+
   // Stop audio/timers/voice session on unmount
   useEffect(() => {
     return () => {
@@ -72,7 +77,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   }, [isEvaluating]);
 
   const handleHearQuestion = () => {
-    speakScriptLine(currentQ.question, { rate: 0.95 });
+    const voiceName = pickSingleVoice(`${task.title}-${currentQIndex}`, interviewerGender);
+    const browserVoice = pickBrowserVoiceForGender(interviewerGender);
+    speakScriptLine(currentQ.question, { rate: 0.95, voiceName, browserVoice });
   };
 
   // Background transcription per question
@@ -496,6 +503,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug">
               {currentQ.question}
             </h3>
+            <div className="text-xs text-slate-500 font-mono">
+              Interviewer: {interviewerName} · Voice: {interviewerVoice} ({interviewerGender})
+            </div>
           </div>
 
           <button

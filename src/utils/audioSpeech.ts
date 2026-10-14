@@ -113,7 +113,7 @@ export function playAudioDataUri(dataUri: string): Promise<void> {
 }
 
 // Browser fallback speech synthesis
-function speakScriptLineFallback(text: string, pitch = 1.0): Promise<void> {
+function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: SpeechSynthesisVoice): Promise<void> {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     return Promise.resolve();
   }
@@ -129,6 +129,9 @@ function speakScriptLineFallback(text: string, pitch = 1.0): Promise<void> {
       utt.lang = 'en-US';
       utt.rate = 0.95;
       utt.pitch = pitch;
+      if (browserVoice) {
+        utt.voice = browserVoice;
+      }
 
       utt.onend = () => {
         activeUtterances.delete(utt);
@@ -153,6 +156,7 @@ export async function speakScriptLine(
     rate?: number;
     pitch?: number;
     voiceName?: string;
+    browserVoice?: SpeechSynthesisVoice;
     onEnd?: () => void;
     onError?: (err: any) => void;
   } = {}
@@ -172,7 +176,7 @@ export async function speakScriptLine(
   } catch (err) {
     // Fall back to browser speech synthesis
     console.warn('AI voice failed, falling back to browser voice:', err);
-    await speakScriptLineFallback(text, options.pitch ?? 1.0);
+    await speakScriptLineFallback(text, options.pitch ?? 1.0, options.browserVoice);
     isAudioPlayingState = false;
     options.onEnd?.();
   }

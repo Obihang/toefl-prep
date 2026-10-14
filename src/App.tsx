@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { getPracticeHistory } from './utils/scoreTracker';
 import { getRecommendedLevel, DifficultyLevel } from './utils/difficulty';
 import { useAuth } from './context/AuthContext';
@@ -75,6 +75,8 @@ import {
   getPrefetchProgress,
   hasReadyTask,
   popPrefetchedTask,
+  evaluateRateLimitPause,
+  PREFETCH_GAP_MS,
 } from './utils/prefetchManager';
 
 const DashboardModal = lazy(() => import('./components/modals/DashboardModal').then(m => ({ default: m.DashboardModal })));
@@ -118,6 +120,10 @@ export default function App() {
   const failedRecentlyRef = React.useRef<Record<string, number>>({});
   const quotaExhaustedUntilRef = React.useRef<number>(0);
   const [lastGenerationWasInstant, setLastGenerationWasInstant] = useState(false);
+  const [rateLimitPauseState, setRateLimitPauseState] = useState<{ kind: 'per-minute' | 'per-day' | 'unknown'; resumeAt: number; retryAfterSeconds: number } | null>(null);
+  const lastPrefetchTimeRef = useRef(0);
+  const lastUserAiRequestTimeRef = useRef(0);
+  const lastDebugLogTimeRef = useRef<Record<string, number>>({});
 
   // Modals
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
@@ -400,16 +406,32 @@ export default function App() {
     setTimeout(checkSectionScrollState, 350);
   };
 
+  const logEarlyExit = (reason: string) => {
+    const now = Date.now();
+    const last = lastDebugLogTimeRef.current[reason] || 0;
+    if (now - last > 30000) {
+      lastDebugLogTimeRef.current[reason] = now;
+      console.debug(`Prefetch loop exited early: ${reason}`);
+    }
+  };
+
   // Background question pre-fetch worker for any task type
   const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
     const key = getStoredApiKey().trim();
     const currentCount = prefetchedQueue[type]?.length || 0;
-    if (!key || isPrefetchingRef.current[type] || isGenerating || currentCount >= 2) return;
-    if (Date.now() < quotaExhaustedUntilRef.current) return;
-    inFlightLock.current = true;
+    if (!key) { logEarlyExit('no key'); return; }
+    if (document.visibilityState !== 'visible') { logEarlyExit('tab hidden'); return; }
+    if (inFlightLock.current || isPrefetchingRef.current[type]) { logEarlyExit('lock held'); return; }
+    if (isGenerating) { logEarlyExit('cooldown'); return; }
+    if (currentCount >= 2) { logEarlyExit('queue full'); return; }
+    if (rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt) { logEarlyExit('quota pause'); return; }
+    if (Date.now() < quotaExhaustedUntilRef.current) { logEarlyExit('quota pause'); return; }
+    if (Date.now() - lastUserAiRequestTimeRef.current < 20000 || Date.now() - lastPrefetchTimeRef.current < PREFETCH_GAP_MS) { logEarlyExit('cooldown'); return; }
 
+    inFlightLock.current = true;
     isPrefetchingRef.current[type] = true;
     setIsPrefetching(true);
+    lastPrefetchTimeRef.current = Date.now();
 
     try {
       const res = await fetch('/api/generate-task', {
@@ -448,16 +470,27 @@ export default function App() {
           return nextQueue;
         });
       } else {
-        failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
-        // If quota was hit or fallback was used due to quota, pause background prefetching for 30 minutes
+        const status = res.status;
+        const errObj = json?.rateLimit || json?.data || json;
         const reason = String(json?.data?.fallbackReason || json?.error || '').toLowerCase();
-        if (json?.data?.isQuotaExhausted || reason.includes('quota') || reason.includes('429') || reason.includes('resource_exhausted')) {
-          quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+        
+        if (status === 429 || json?.data?.isQuotaExhausted || reason.includes('429') || reason.includes('quota') || reason.includes('resource_exhausted')) {
+          const pause = evaluateRateLimitPause(errObj, Date.now());
+          setRateLimitPauseState(pause);
+          if (pause.kind === 'per-day') {
+            quotaExhaustedUntilRef.current = Date.now() + 3600 * 1000;
+          } else {
+            quotaExhaustedUntilRef.current = pause.resumeAt;
+          }
+        } else if (status === 503) {
+          quotaExhaustedUntilRef.current = Date.now() + 60000;
+        } else {
+          failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
         }
       }
     } catch (e) {
       console.debug('Background prefetch notice:', e);
-      failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
+      quotaExhaustedUntilRef.current = Date.now() + 60000;
     } finally {
       isPrefetchingRef.current[type] = false;
       inFlightLock.current = false;
@@ -559,6 +592,7 @@ export default function App() {
 
   // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {
+    lastUserAiRequestTimeRef.current = Date.now();
     // 1. Instant delivery if pre-fetched question is ready in the queue!
     if (hasReadyTask(prefetchedQueue, currentTaskType, level, topic)) {
       const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType, level, topic);
@@ -1052,6 +1086,21 @@ export default function App() {
               )}
             </div>
           </div>
+          {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (
+            <div className="text-xs text-amber-600 flex items-center gap-1.5 mt-2">
+              <span>
+                {rateLimitPauseState.kind === 'per-day'
+                  ? 'Prefetch paused: daily limit reached'
+                  : `Prefetch paused: rate limit, resumes in ${Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000)}s`}
+              </span>
+              <button
+                onClick={() => setRateLimitPauseState(null)}
+                className="underline font-medium hover:text-amber-800 cursor-pointer"
+              >
+                Resume now
+              </button>
+            </div>
+          )}
         </section>
 
         {generationError && (

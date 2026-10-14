@@ -39,7 +39,6 @@ export type FemaleVoice = typeof FEMALE_VOICES[number];
 export type MaleVoice = typeof MALE_VOICES[number];
 export type VoiceName = FemaleVoice | MaleVoice;
 
-// Common names lists for gender inference (~150 each)
 const COMMON_FEMALE_NAMES = new Set([
   'sarah', 'emily', 'jessica', 'ashley', 'amanda', 'emma', 'olivia', 'sophia', 'isabella', 'ava',
   'mia', 'charlotte', 'amelia', 'harper', 'evelyn', 'abigail', 'elizabeth', 'sofia', 'avery',
@@ -53,7 +52,7 @@ const COMMON_FEMALE_NAMES = new Set([
   'delilah', 'arianna', 'vivian', 'kaylee', 'sophie', 'brielle', 'madeline', 'peyton', 'rylee', 'clara',
   'hadley', 'melanie', 'mackenzie', 'reagan', 'adalynn', 'liliana', 'aubree', 'jade', 'katherine', 'isabelle',
   'natalia', 'raelynn', 'maria', 'athena', 'ximena', 'arya', 'leilani', 'taylor', 'faith', 'rose',
-  'kylie', 'alexandra', 'mary', 'margaret', 'lyra', 'freya', 'johanna', 'professor', 'dr', 'ms', 'mrs', 'miss'
+  'kylie', 'alexandra', 'mary', 'margaret', 'lyra', 'freya', 'johanna'
 ]);
 
 const COMMON_MALE_NAMES = new Set([
@@ -66,50 +65,55 @@ const COMMON_MALE_NAMES = new Set([
   'noah', 'ethan', 'jeremy', 'christian', 'keith', 'roger', 'terry', 'gerald', 'harold', 'sean',
   'austin', 'carl', 'arthur', 'lawrence', 'dylan', 'jesse', 'bryan', 'joe', 'jordan', 'billy',
   'bruce', 'albert', 'willie', 'gabriel', 'logan', 'alan', 'juan', 'wayne', 'roy', 'ralph',
-  'randy', 'eugene', 'vincent', 'russell', 'louis', 'bobby', 'philip', 'johnny', 'bradley', 'prof',
-  'mr', 'sir', 'madam', 'henderson', 'smith', 'chen', 'garcia', 'miller', 'davis', 'rodriguez'
+  'randy', 'eugene', 'vincent', 'russell', 'louis', 'bobby', 'philip', 'johnny', 'bradley'
 ]);
 
 export function inferGender(nameStr: string): 'female' | 'male' | 'unknown' {
   if (!nameStr) return 'unknown';
 
-  let cleaned = nameStr.trim();
-  // Strip roles in parentheses e.g. "Sarah (student)" -> "Sarah"
-  cleaned = cleaned.replace(/\s*\([^)]*\)/g, '').trim();
+  const trimmed = nameStr.trim();
+  const parenMatch = trimmed.match(/\(([^)]+)\)/);
+  const insideParen = parenMatch ? parenMatch[1].trim() : '';
+  const outsideParen = trimmed.replace(/\([^)]*\)/g, '').trim();
 
-  const lower = cleaned.toLowerCase();
-  const tokens = lower.split(/[^a-z0-9]+/);
+  const testPart = (part: string): 'female' | 'male' | 'unknown' => {
+    if (!part) return 'unknown';
+    const lower = part.toLowerCase();
 
-  // Check titles first
-  if (lower.startsWith('mr.') || lower.startsWith('mr ') || lower.startsWith('sir ')) {
-    return 'male';
-  }
-  if (lower.startsWith('ms.') || lower.startsWith('ms ') || lower.startsWith('mrs.') || lower.startsWith('mrs ') || lower.startsWith('miss ')) {
-    return 'female';
-  }
-
-  for (const token of tokens) {
-    if (COMMON_FEMALE_NAMES.has(token) && !COMMON_MALE_NAMES.has(token)) {
-      return 'female';
-    }
-    if (COMMON_MALE_NAMES.has(token) && !COMMON_FEMALE_NAMES.has(token)) {
+    if (lower.startsWith('mr.') || lower.startsWith('mr ') || lower.startsWith('sir ')) {
       return 'male';
     }
+    if (lower.startsWith('ms.') || lower.startsWith('ms ') || lower.startsWith('mrs.') || lower.startsWith('mrs ') || lower.startsWith('miss ') || lower.startsWith('madam ')) {
+      return 'female';
+    }
+
+    const cleaned = lower.replace(/\b(student|professor|prof|dr|doctor|advisor|lecturer|instructor|academic|assistant)\b/g, '').trim();
+    const tokens = cleaned.split(/[^a-z0-9]+/).filter(Boolean);
+
+    for (const token of tokens) {
+      if (COMMON_FEMALE_NAMES.has(token) && !COMMON_MALE_NAMES.has(token)) {
+        return 'female';
+      }
+      if (COMMON_MALE_NAMES.has(token) && !COMMON_FEMALE_NAMES.has(token)) {
+        return 'male';
+      }
+    }
+    return 'unknown';
+  };
+
+  if (insideParen) {
+    const res = testPart(insideParen);
+    if (res !== 'unknown') return res;
   }
 
-  // Heuristic based on ending
-  const firstName = tokens[0] || '';
-  if (firstName.endsWith('a') || firstName.endsWith('i') || firstName.endsWith('ine') || firstName.endsWith('elle') || firstName.endsWith('ette')) {
-    return 'female';
-  }
-  if (firstName.endsWith('os') || firstName.endsWith('o') || firstName.endsWith('us') || firstName.endsWith('er') || firstName.endsWith('en')) {
-    return 'male';
+  if (outsideParen) {
+    const res = testPart(outsideParen);
+    if (res !== 'unknown') return res;
   }
 
   return 'unknown';
 }
 
-// Simple deterministic hash for seeded RNG
 function hashCode(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -120,7 +124,6 @@ function hashCode(str: string): number {
   return Math.abs(hash);
 }
 
-// Seeded PRNG (Mulberry32)
 function seededRandom(seed: number): () => number {
   let t = seed += 0x6D2B79F5;
   return function() {
@@ -130,7 +133,10 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+const dialogueCache = new Map<string, { A: VoiceName; B: VoiceName }>();
+const singleCache = new Map<string, VoiceName>();
 let lastUsedVoice: string | null = null;
+const resolvedSeeds = new Set<string>();
 
 export function pickDialogueVoices(
   seedStr: string,
@@ -142,10 +148,13 @@ export function pickDialogueVoices(
     return { A: 'Kore', B: 'Puck' };
   }
 
+  if (dialogueCache.has(seedStr)) {
+    return dialogueCache.get(seedStr)!;
+  }
+
   const seed = hashCode(seedStr);
   const rng = seededRandom(seed);
 
-  // Resolve genders
   let gA = genderA;
   let gB = genderB;
 
@@ -158,30 +167,35 @@ export function pickDialogueVoices(
     gB = gA === 'female' ? 'male' : 'female';
   }
 
-  // Pick pool A
   const poolA = gA === 'female' ? [...FEMALE_VOICES] : [...MALE_VOICES];
-  // Filter out last used voice if possible
   const filteredA = poolA.filter((v) => v !== lastUsedVoice);
   const finalPoolA = filteredA.length > 0 ? filteredA : poolA;
   const choiceA = finalPoolA[Math.floor(rng() * finalPoolA.length)];
 
-  // Pick pool B (opposite gender pool)
   const poolB = gB === 'female' ? [...FEMALE_VOICES] : [...MALE_VOICES];
-  // Filter out choiceA and lastUsedVoice
   const filteredB = poolB.filter((v) => v !== choiceA && v !== lastUsedVoice);
   const finalPoolB = filteredB.length > 0 ? filteredB : poolB.filter((v) => v !== choiceA);
   const backupPoolB = finalPoolB.length > 0 ? finalPoolB : poolB;
   const choiceB = backupPoolB[Math.floor(rng() * backupPoolB.length)];
 
-  lastUsedVoice = choiceB;
+  if (!resolvedSeeds.has(seedStr)) {
+    resolvedSeeds.add(seedStr);
+    lastUsedVoice = choiceB;
+  }
 
-  return { A: choiceA, B: choiceB };
+  const result = { A: choiceA, B: choiceB };
+  dialogueCache.set(seedStr, result);
+  return result;
 }
 
 export function pickSingleVoice(seedStr: string, gender: 'female' | 'male' | 'unknown'): VoiceName {
   const isRandomizeEnabled = typeof localStorage === 'undefined' || localStorage.getItem('toefl_randomize_voices') !== 'false';
   if (!isRandomizeEnabled) {
     return gender === 'male' ? 'Puck' : 'Kore';
+  }
+
+  if (singleCache.has(seedStr)) {
+    return singleCache.get(seedStr)!;
   }
 
   const seed = hashCode(seedStr);
@@ -193,7 +207,12 @@ export function pickSingleVoice(seedStr: string, gender: 'female' | 'male' | 'un
   const finalPool = filtered.length > 0 ? filtered : pool;
   const choice = finalPool[Math.floor(rng() * finalPool.length)];
 
-  lastUsedVoice = choice;
+  if (!resolvedSeeds.has(seedStr)) {
+    resolvedSeeds.add(seedStr);
+    lastUsedVoice = choice;
+  }
+
+  singleCache.set(seedStr, choice);
   return choice;
 }
 

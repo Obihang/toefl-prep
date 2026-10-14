@@ -31,6 +31,7 @@ export interface ListeningTask {
   context: string;
   speakers: { A: string; B: string };
   speakerVoices?: { A: 'Puck' | 'Kore' | 'Fenrir' | 'Zephyr'; B: 'Puck' | 'Kore' | 'Fenrir' | 'Zephyr' };
+  speakerGenders?: { A: string; B: string };
   script: string;
   questions: ReadingQuestion[];
 }
@@ -273,9 +274,9 @@ export const CURATED_LISTENING: ListeningTask[] = [
       A: 'Student (Marcus)',
       B: 'Professor Alvarez',
     },
-    speakerVoices: {
-      A: 'Puck', // Male undergraduate student
-      B: 'Kore', // Female university professor
+    speakerGenders: {
+      A: 'male',
+      B: 'female',
     },
     script: `Speaker A: Good afternoon, Professor Alvarez. Do you have a few minutes? I saw the flyer posted outside the department office regarding the undergraduate research position in your biochemistry lab.
 Speaker B: Hello Marcus! Yes, certainly, take a seat. We are expanding our investigations into enzyme kinetics this term, specifically isolating recombinant alkaline phosphatase from bacterial cultures.
@@ -357,9 +358,9 @@ Speaker B: Great. Please email me your unofficial transcript, a brief summary of
       A: 'Professor Vance (Lecturer)',
       B: 'Student Question',
     },
-    speakerVoices: {
-      A: 'Fenrir', // Male professor
-      B: 'Zephyr', // Female student
+    speakerGenders: {
+      A: 'male',
+      B: 'female',
     },
     script: `Speaker A: Today we will distinguish volcanic craters from calderas. While a crater is created by the explosive excavation of rock during an eruption, a caldera forms by structural collapse.
 Speaker B: Professor, does that mean a caldera is basically a crater that has caved in?
@@ -406,9 +407,9 @@ Speaker A: Consequently, the entire summit collapses inward along ring-shaped fr
       A: 'Student (Chloe)',
       B: 'Academic Advisor (Dr. Campbell)',
     },
-    speakerVoices: {
-      A: 'Zephyr', // Female student
-      B: 'Fenrir', // Male academic advisor
+    speakerGenders: {
+      A: 'female',
+      B: 'male',
     },
     script: `Speaker A: Dr. Campbell, thank you for meeting with me. The registration portal blocked me from enrolling in Advanced Molecular Genetics 410 because I haven't taken Organic Chemistry Lab II.
 Speaker B: Yes, Chloe, that lab is listed as a mandatory prerequisite to ensure students are familiar with chromatography techniques before working with recombinant DNA.
