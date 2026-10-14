@@ -1086,21 +1086,27 @@ export default function App() {
               )}
             </div>
           </div>
-          {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (
-            <div className="text-xs text-amber-600 flex items-center gap-1.5 mt-2">
-              <span>
-                {rateLimitPauseState.kind === 'per-day'
-                  ? 'Prefetch paused: daily limit reached'
-                  : `Prefetch paused: rate limit, resumes in ${Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000)}s`}
-              </span>
-              <button
-                onClick={() => setRateLimitPauseState(null)}
-                className="underline font-medium hover:text-amber-800 cursor-pointer"
-              >
-                Resume now
-              </button>
-            </div>
-          )}
+          {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (() => {
+            const remainingSec = Math.max(1, Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000));
+            const remainingMin = Math.ceil(remainingSec / 60);
+            const msg = rateLimitPauseState.kind === 'per-day'
+              ? `Prefetch paused: daily quota reached, retrying in ${remainingMin}m`
+              : `Prefetch paused: rate limited, retrying in ${remainingSec}s`;
+            return (
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-2 mt-2 w-full md:w-auto">
+                <span>{msg}</span>
+                <button
+                  onClick={() => {
+                    setRateLimitPauseState(null);
+                    quotaExhaustedUntilRef.current = 0;
+                  }}
+                  className="font-semibold text-teal-800 hover:text-teal-950 underline cursor-pointer"
+                >
+                  Resume prefetch now
+                </button>
+              </div>
+            );
+          })()}
         </section>
 
         {generationError && (

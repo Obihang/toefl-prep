@@ -23,7 +23,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const lines = task.script.split(/\n+/).filter(Boolean);
 
-  const seedStr = `${task.title}-${task.script?.slice(0, 40) || ''}`;
+  const seedStr = `${task.title}-${task.script || ''}`;
   const gA = (task as any).speakerGenders?.A || inferGender(task.speakers?.A || 'A');
   const gB = (task as any).speakerGenders?.B || inferGender(task.speakers?.B || 'B');
   const voices = pickDialogueVoices(seedStr, gA, gB);
@@ -209,6 +209,11 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               />
             ))}
           </div>
+        </div>
+
+        {/* Voice matching info label */}
+        <div className="mt-2 text-[11px] font-mono text-slate-400">
+          {task.speakers.A}: {voices.A} ({gA === 'female' ? 'female' : 'male'}) · {task.speakers.B}: {voices.B} ({gB === 'female' ? 'female' : 'male'})
         </div>
 
         {/* Optional Transcript */}

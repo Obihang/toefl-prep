@@ -113,7 +113,7 @@ export function playAudioDataUri(dataUri: string): Promise<void> {
 }
 
 // Browser fallback speech synthesis
-function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: SpeechSynthesisVoice): Promise<void> {
+function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: SpeechSynthesisVoice | null): Promise<void> {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     return Promise.resolve();
   }
@@ -156,7 +156,7 @@ export async function speakScriptLine(
     rate?: number;
     pitch?: number;
     voiceName?: string;
-    browserVoice?: SpeechSynthesisVoice;
+    browserVoice?: SpeechSynthesisVoice | null;
     onEnd?: () => void;
     onError?: (err: any) => void;
   } = {}
