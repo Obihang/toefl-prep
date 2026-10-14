@@ -657,7 +657,7 @@ export default function App() {
         const reason = json.data.fallbackReason || 'model unavailable';
         const isQuota = Boolean(json.data.isQuotaExhausted) || reason.toLowerCase().includes('quota') || reason.toLowerCase().includes('429');
         if (isQuota) {
-          quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+          const pause = evaluateRateLimitPause(json.data.rateLimit, Date.now()); setRateLimitPauseState(pause); quotaExhaustedUntilRef.current = pause.resumeAt;
         }
         setGenerationError(
           isQuota
@@ -713,7 +713,7 @@ export default function App() {
       const rawMsg = err.message || 'unknown error';
       const isQuota = rawMsg.toLowerCase().includes('quota') || rawMsg.toLowerCase().includes('429');
       if (isQuota) {
-        quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+        const pause = evaluateRateLimitPause(err, Date.now()); setRateLimitPauseState(pause); quotaExhaustedUntilRef.current = pause.resumeAt;
       }
       setGenerationError(
         isQuota

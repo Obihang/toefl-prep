@@ -39,7 +39,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const speakerName = (task as any).speakerName || 'Sarah (student)';
   const speakerGender = (task as any).speakerGender || inferGender(speakerName);
-  const speakerVoice = pickSingleVoice(`${task.title}-label`, speakerGender);
+  const speakerVoice = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
 
   useEffect(() => {
     return () => {
@@ -63,7 +63,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const handlePlay = async (index: number) => {
     setActiveAudioIdx(index);
-    const voiceName = pickSingleVoice(`${task.title}-${index}`, speakerGender);
+    const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
     await speakScriptLine(task.sentences[index], {
       rate: 0.9,
@@ -76,6 +76,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const handleToggleMic = async (index: number) => {
     setMicError(null);
+    // @ts-ignore
+    window.lastUserAiRequestTimeRef.current = Date.now();
 
     // If currently recording this item, stop and finalize transcript
     if (activeMicIdx === index && voiceSessionRef.current) {

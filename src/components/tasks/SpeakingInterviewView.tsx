@@ -40,7 +40,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const interviewerName = (task as any).interviewerName || 'Professor Lee';
   const interviewerGender = (task as any).interviewerGender || inferGender(interviewerName);
-  const interviewerVoice = pickSingleVoice(`${task.title}-${currentQIndex}`, interviewerGender);
+  const interviewerVoice = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
 
   // Stop audio/timers/voice session on unmount
   useEffect(() => {
@@ -77,7 +77,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   }, [isEvaluating]);
 
   const handleHearQuestion = () => {
-    const voiceName = pickSingleVoice(`${task.title}-${currentQIndex}`, interviewerGender);
+    const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
     const browserVoice = pickBrowserVoiceForGender(interviewerGender);
     speakScriptLine(currentQ.question, { rate: 0.95, voiceName, browserVoice });
   };
@@ -85,6 +85,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   // Background transcription per question
   const startBackgroundTranscriptionIfNeeded = (qIndex: number, blob: Blob | null, existingTranscript: string) => {
     if (existingTranscript.trim() || !blob) return;
+    // @ts-ignore
+    window.lastUserAiRequestTimeRef.current = Date.now();
 
     setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: true }));
     console.log(`[Audio Timing] Starting background transcription for question ${qIndex + 1}...`);
@@ -340,6 +342,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   };
 
   const handleEvaluateAI = async () => {
+    // @ts-ignore
+    window.lastUserAiRequestTimeRef.current = Date.now();
     // Wait for any running background transcriptions to finish first
     const pending = Object.values(pendingTranscriptionsRef.current);
     if (pending.length > 0) {

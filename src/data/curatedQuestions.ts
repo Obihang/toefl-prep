@@ -42,6 +42,8 @@ export interface ListenRepeatTask {
   level: string;
   topic: string;
   sentences: string[];
+  speakerName: string;
+  speakerGender: 'male' | 'female' | 'unknown';
 }
 
 export interface InterviewQuestionItem {
@@ -58,6 +60,8 @@ export interface SpeakingInterviewTask {
   topic: string;
   context: string;
   questions: InterviewQuestionItem[];
+  interviewerName: string;
+  interviewerGender: 'male' | 'female' | 'unknown';
 }
 
 export interface BuildSentenceItem {
@@ -461,6 +465,8 @@ export const CURATED_LISTEN_REPEAT: ListenRepeatTask[] = [
     title: 'Academic Life & Campus Communication',
     level: 'intermediate',
     topic: 'campus-life',
+    speakerName: 'Sarah',
+    speakerGender: 'female',
     sentences: [
       "The seminar begins at ten o'clock tomorrow.",
       'Students must submit their laboratory reports before Friday afternoon.',
@@ -474,6 +480,8 @@ export const CURATED_LISTEN_REPEAT: ListenRepeatTask[] = [
     title: 'Scientific Research & Technology',
     level: 'upper-intermediate',
     topic: 'science-tech',
+    speakerName: 'Marcus',
+    speakerGender: 'male',
     sentences: [
       'Solar panels convert sunlight directly into clean electricity.',
       'Recent clinical trials demonstrated remarkable improvements in cognitive memory retention.',
@@ -490,6 +498,8 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
     title: 'University Life & Study Habits',
     level: 'intermediate',
     topic: 'campus-life',
+    interviewerName: 'Professor Lee',
+    interviewerGender: 'female',
     context: 'You are participating in an academic interview regarding university study environments and campus choices.',
     questions: [
       {

@@ -632,7 +632,6 @@ export async function handleSynthesizeSpeech(
             },
           },
         },
-        responseMimeType: 'audio/wav',
       },
     });
 
