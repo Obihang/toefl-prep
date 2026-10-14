@@ -78,7 +78,7 @@ export async function fetchAudioDataUri(text: string, voiceName: string = 'Kore'
     throw new Error(json.error || 'TTS service failed');
   }
 
-  const dataUri = `data:audio/wav;base64,${json.audioBase64}`;
+  const dataUri = `data:${json.mimeType || 'audio/wav'};base64,${json.audioBase64}`;
   ttsAudioCache.set(cacheKey, dataUri);
   return dataUri;
 }
@@ -454,11 +454,12 @@ export async function transcribeAudioBlob(blob: Blob): Promise<{ transcript: str
 // Unified Voice Recording Session combining Web Speech (real-time) and MediaRecorder (reliable fallback)
 export interface VoiceSessionOptions {
   onTranscriptUpdate?: (text: string) => void;
-  onStatusChange?: (status: 'idle' | 'listening' | 'processing' | 'error', errorMsg?: string) => void;
+  onStatusChange?: (status: 'idle' | 'listening' | 'waiting_for_voice' | 'processing' | 'error', errorMsg?: string) => void;
   onAudioLevel?: (level: number) => void; // 0 to 100 for live meter
   onQuietWarning?: (warning: string) => void; // "We can't hear you..."
   onDeviceDisconnected?: (msg: string) => void;
   onNotice?: (notice: string) => void; // e.g. Brave Web Speech notice or headphones echo notice
+  autoStartThreshold?: number; // Level (0-100) to trigger auto-start
 }
 
 export interface VoiceSessionResult {
@@ -662,6 +663,11 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
               const lvl = Math.min(100, Math.round((avg / 120) * 100));
               options.onAudioLevel?.(lvl);
 
+              if (waitingForVoice && lvl > (options.autoStartThreshold || 0)) {
+                waitingForVoice = false;
+                startRecording();
+              }
+
               volumeSamples++;
               totalVolume += lvl;
               if (lvl > maxVolume) maxVolume = lvl;
@@ -704,49 +710,63 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
               audioChunks.push(e.data);
             }
           };
-
-          // Start MediaRecorder BEFORE showing "Recording" or starting the timer
-          // and use timeslice of 250ms so no audio is lost when stopping
-          mediaRecorder.start(250);
         } catch {
           mediaRecorder = null;
         }
 
-        recordingStartTime = Date.now();
-        isRecordingState = true;
-        options.onStatusChange?.('listening');
+        const autoStartEnabled = options.autoStartThreshold !== undefined;
+        let waitingForVoice = autoStartEnabled;
 
-        // Setup SpeechRecognition for real-time live typing if not blocked in session
-        if (!isWebSpeechBlocked()) {
-          recognitionInstance = createSpeechRecognizer(
-            (text) => {
-              accumulatedTranscript = text;
-              options.onTranscriptUpdate?.(text);
-            },
-            (status, errorMsg) => {
-              if (status === 'error' && isRecordingState) {
-                if (errorMsg === 'network' || errorMsg === 'service-not-allowed') {
-                  markWebSpeechBlocked();
-                  if (!hasShownWebSpeechHintThisSession) {
-                    hasShownWebSpeechHintThisSession = true;
-                    options.onNotice?.(WEB_SPEECH_UNAVAILABLE_HINT);
-                  }
-                } else if (errorMsg === 'not-allowed') {
-                  options.onStatusChange?.('error', 'Microphone permission denied.');
-                }
-              }
-            }
-          );
-
-          if (recognitionInstance) {
+        const startRecording = () => {
+          if (mediaRecorder && mediaRecorder.state === 'inactive') {
             try {
-              recognitionInstance.start();
+              mediaRecorder.start(250);
             } catch {}
           }
-        } else if (!hasShownWebSpeechHintThisSession) {
-          hasShownWebSpeechHintThisSession = true;
-          options.onNotice?.(WEB_SPEECH_UNAVAILABLE_HINT);
+          recordingStartTime = Date.now();
+          isRecordingState = true;
+          options.onStatusChange?.('listening');
+
+          // Setup SpeechRecognition for real-time live typing if not blocked in session
+          if (!isWebSpeechBlocked() && !recognitionInstance) {
+            recognitionInstance = createSpeechRecognizer(
+              (text) => {
+                accumulatedTranscript = text;
+                options.onTranscriptUpdate?.(text);
+              },
+              (status, errorMsg) => {
+                if (status === 'error' && isRecordingState) {
+                  if (errorMsg === 'network' || errorMsg === 'service-not-allowed') {
+                    markWebSpeechBlocked();
+                    if (!hasShownWebSpeechHintThisSession) {
+                      hasShownWebSpeechHintThisSession = true;
+                      options.onNotice?.(WEB_SPEECH_UNAVAILABLE_HINT);
+                    }
+                  } else if (errorMsg === 'not-allowed') {
+                    options.onStatusChange?.('error', 'Microphone permission denied.');
+                  }
+                }
+              }
+            );
+
+            if (recognitionInstance) {
+              try {
+                recognitionInstance.start();
+              } catch {}
+            }
+          } else if (!hasShownWebSpeechHintThisSession && isWebSpeechBlocked()) {
+            hasShownWebSpeechHintThisSession = true;
+            options.onNotice?.(WEB_SPEECH_UNAVAILABLE_HINT);
+          }
+        };
+
+        if (waitingForVoice) {
+          isRecordingState = true;
+          options.onStatusChange?.('waiting_for_voice');
+        } else {
+          startRecording();
         }
+
       } catch (err: any) {
         cleanupAll();
         options.onStatusChange?.('error', err.message || 'Could not start recording');

@@ -616,35 +616,38 @@ export async function handleSynthesizeSpeech(
   const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
 
   const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
-    const response = await ai.models.generateContent({
+    const interaction = await ai.interactions.create({
       model,
-      contents: [
+      input: [
         {
-          role: 'user',
-          parts: [{ text: `Please read the following text aloud naturally:\n${text}` }],
+          type: "text",
+          text: `Please read the following text aloud naturally:\n${text}`,
         },
       ],
-      config: {
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: resolvedVoice,
-            },
+      response_format: { type: "audio" },
+      generation_config: {
+        speech_config: [
+          {
+            language: "en-US",
+            voice: resolvedVoice,
           },
-        },
+        ],
       },
     });
 
-    const candidate = response.candidates?.[0];
-    const part = candidate?.content?.parts?.[0];
-    const audioBytes = part?.inlineData?.data || (response as any).audio?.data;
-    if (!audioBytes) {
+    const audio = interaction.output_audio;
+    console.log('[TTS] Audio interaction output:', { 
+        hasData: !!audio?.data, 
+        mimeType: audio?.mime_type,
+        dataLength: audio?.data?.length 
+    });
+    if (!audio?.data) {
       throw new Error('No audio data returned from model');
     }
-    return { audioBase64: audioBytes };
+    return { audioBase64: audio.data, mimeType: audio.mime_type || 'audio/wav' };
   });
 
-  return { audioBase64: result.audioBase64, modelUsed };
+  return { audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed };
 }
 
 export async function handleTranscribeAudio(

@@ -72,7 +72,7 @@ export async function createServer() {
       const { text, voiceName } = req.body || {};
       const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
       const result = await handleSynthesizeSpeech(text, voiceName, customApiKey);
-      res.json({ success: true, audioBase64: result.audioBase64, modelUsed: result.modelUsed });
+      res.json({ success: true, audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed: result.modelUsed });
     } catch (error: any) {
       const msg = error?.message || 'TTS synthesis failed';
       const status = msg === 'SPEECH_UNAVAILABLE' ? 503 : 500;

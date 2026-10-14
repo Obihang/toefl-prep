@@ -23,6 +23,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [autoStart, setAutoStart] = useState(false);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalSeconds, setEvalSeconds] = useState(0);
@@ -187,7 +188,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       onDeviceDisconnected: (msg) => setMicNotice(msg),
       onNotice: (notice) => setMicNotice(notice),
       onStatusChange: (status, errorMsg) => {
-        if (status === 'listening') setIsRecording(true);
+        if (status === 'listening' || status === 'waiting_for_voice') setIsRecording(true);
         if (status === 'processing') setIsTranscribing(true);
         if (status === 'idle') {
           setIsRecording(false);
@@ -201,6 +202,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           if (errorMsg) setMicNotice(errorMsg);
         }
       },
+      autoStartThreshold: autoStart ? 5 : undefined,
     });
 
     voiceSessionRef.current = session;
@@ -313,7 +315,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       onDeviceDisconnected: (msg) => setMicNotice(msg),
       onNotice: (notice) => setMicNotice(notice),
       onStatusChange: (status, errorMsg) => {
-        if (status === 'listening') setIsRecording(true);
+        if (status === 'listening' || status === 'waiting_for_voice') setIsRecording(true);
         if (status === 'processing') setIsTranscribing(true);
         if (status === 'idle') {
           setIsRecording(false);
@@ -327,6 +329,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           if (errorMsg) setMicNotice(errorMsg);
         }
       },
+      autoStartThreshold: autoStart ? 5 : undefined,
     });
 
     voiceSessionRef.current = session;
@@ -635,6 +638,17 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                   </>
                 )}
               </button>
+              
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg px-2 py-1 bg-white">
+                <input
+                  type="checkbox"
+                  id="autostart"
+                  checked={autoStart}
+                  onChange={(e) => setAutoStart(e.target.checked)}
+                  className="rounded text-teal-600 focus:ring-teal-500"
+                />
+                <label htmlFor="autostart">Auto-start on sound</label>
+              </div>
             </div>
           </div>
 

@@ -30,6 +30,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
+  const [autoStart, setAutoStart] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
@@ -130,7 +131,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       onDeviceDisconnected: (msg) => setMicError(msg),
       onNotice: (notice) => setMicError(notice),
       onStatusChange: (status, errorMsg) => {
-        if (status === 'listening') {
+        if (status === 'listening' || status === 'waiting_for_voice') {
           setMicStatus('listening');
         } else if (status === 'processing') {
           setMicStatus('transcribing');
@@ -146,6 +147,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           }
         }
       },
+      autoStartThreshold: autoStart ? 5 : undefined,
     });
 
     voiceSessionRef.current = session;
@@ -410,6 +412,17 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                           : 'bg-slate-50 border border-slate-300 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100'
                       }`}
                     />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <input
+                      type="checkbox"
+                      id={`autostart-${idx}`}
+                      checked={autoStart}
+                      onChange={(e) => setAutoStart(e.target.checked)}
+                      className="rounded text-teal-600 focus:ring-teal-500"
+                    />
+                    <label htmlFor={`autostart-${idx}`}>Auto-start on sound</label>
                   </div>
 
                   <button
