@@ -1,200 +1,257 @@
-import fetch from 'node-fetch';
-import { ZodSchema } from 'zod';
+import type { ZodType } from 'zod';
 
-export type Provider = 'nvidia' | 'groq' | 'openrouter' | 'openai';
+// Free-tier only providers. All three expose an OpenAI-compatible API.
+export type Provider = 'nvidia' | 'groq' | 'openrouter';
+
+export const PROVIDER_BASE_URLS: Record<Provider, string> = {
+  nvidia: 'https://integrate.api.nvidia.com/v1',
+  groq: 'https://api.groq.com/openai/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+};
 
 export interface LLMOptions {
-  baseUrl?: string; // override default base URL
   apiKey?: string;
   model?: string;
   responseFormat?: 'text' | 'json_object';
   temperature?: number;
-  maxRetries?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
 }
 
-function stripCodeFences(text: string) {
-  if (!text) return text;
-  // Remove fences like ```json ... ``` or ``` ... ``` and inline backticks
-  return text
-    .replace(/```(?:json)?\s*/gi, '')
-    .replace(/\s*```/g, '')
-    .replace(/`([^`]+)`/g, '$1')
-    .trim();
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
 }
 
-function defaultBaseUrlFor(provider: Provider) {
-  switch (provider) {
-    case 'nvidia':
-      return 'https://integrate.api.nvidia.com/v1';
-    case 'groq':
-      return 'https://api.groq.com/openai/v1';
-    case 'openrouter':
-      return 'https://openrouter.ai/api/v1';
-    case 'openai':
-    default:
-      return 'https://api.openai.com/v1';
+export class LLMError extends Error {
+  status: number;
+  retryAfterSeconds?: number;
+  constructor(message: string, status: number, retryAfterSeconds?: number) {
+    super(message);
+    this.name = 'LLMError';
+    this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
-async function safeFetch(url: string, init: any) {
-  // node-fetch already throws on network errors. Return response object.
-  return fetch(url, init);
+const DEFAULT_TIMEOUT_MS = 25000;
+
+export function redact(text: string, apiKey?: string): string {
+  let out = String(text || '');
+  if (apiKey && apiKey.length > 6) {
+    out = out.split(apiKey).join('[REDACTED]');
+  }
+  return out
+    .replace(/nvapi-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
+    .replace(/gsk_[A-Za-z0-9]{10,}/g, '[REDACTED]')
+    .replace(/sk-or-[A-Za-z0-9_-]{10,}/g, '[REDACTED]');
 }
 
-export async function listModels(provider: Provider, opts: { apiKey?: string; baseUrl?: string } = {}) {
-  const baseUrl = opts.baseUrl || defaultBaseUrlFor(provider);
-  const url = `${baseUrl.replace(/\/$/, '')}/models`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+// Parses "Retry-After: 30" or text such as "try again in 2m3.5s" / "in 7.66s" / "in 11h52m4s".
+export function parseRetryAfterSeconds(headerValue: string | null | undefined, bodyText: string): number | undefined {
+  if (headerValue) {
+    const n = Number(headerValue);
+    if (Number.isFinite(n) && n >= 0) return Math.ceil(n);
+    const when = Date.parse(headerValue);
+    if (Number.isFinite(when)) return Math.max(0, Math.ceil((when - Date.now()) / 1000));
+  }
+  const m = /in\s+((?:\d+(?:\.\d+)?\s*(?:ms|h|m|s)\s*)+)/i.exec(bodyText || '');
+  if (!m) return undefined;
+  let total = 0;
+  const part = /(\d+(?:\.\d+)?)\s*(ms|h|m|s)/gi;
+  let p: RegExpExecArray | null;
+  while ((p = part.exec(m[1])) !== null) {
+    const v = parseFloat(p[1]);
+    const unit = p[2].toLowerCase();
+    total += unit === 'h' ? v * 3600 : unit === 'm' ? v * 60 : unit === 's' ? v : v / 1000;
+  }
+  return total > 0 ? Math.ceil(total) : undefined;
+}
+
+// OpenRouter charges for most models. Only ':free' models are allowed, so a paid model can never be called.
+export function assertFreeModel(provider: Provider, model?: string): void {
+  if (provider === 'openrouter' && !(model && model.endsWith(':free'))) {
+    throw new LLMError('Only free OpenRouter models (ids ending in ":free") are allowed.', 400);
+  }
+}
+
+function isZeroPrice(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  const n = Number(value);
+  return Number.isFinite(n) && n === 0;
+}
+
+export async function listModels(provider: Provider, opts: { apiKey?: string; timeoutMs?: number } = {}) {
+  const url = `${PROVIDER_BASE_URLS[provider]}/models`;
+  const headers: Record<string, string> = {};
   if (opts.apiKey) headers['Authorization'] = `Bearer ${opts.apiKey}`;
 
-  const res = await safeFetch(url, { method: 'GET', headers });
-  if (!res.ok) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { method: 'GET', headers, signal: controller.signal });
     const text = await res.text();
-    // For billing errors (402) or provider-specific billing messages, throw with status
-    const err: any = new Error(`Model listing failed: ${res.status} ${text}`);
-    err.status = res.status;
+    if (!res.ok) {
+      throw new LLMError(`Model listing failed (${res.status}): ${redact(text.slice(0, 300), opts.apiKey)}`, res.status);
+    }
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new LLMError('Model listing returned invalid JSON.', 502);
+    }
+    const list: any[] = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : [];
+    let models = list
+      .map((m: any) => ({ id: String(m?.id || m?.name || ''), name: m?.name ? String(m.name) : undefined, pricing: m?.pricing }))
+      .filter((m) => m.id);
+    if (provider === 'openrouter') {
+      models = models.filter((m) => m.id.endsWith(':free') && isZeroPrice(m.pricing?.prompt) && isZeroPrice(m.pricing?.completion));
+    }
+    return models.map((m) => ({ id: m.id, name: m.name }));
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new LLMError('Model listing timed out.', 504);
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const json = await res.json();
-
-  // Normalize shapes: many providers return { data: [...] } or { models: [...] }
-  const candidates = json?.data || json?.models || json || [];
-
-  // For OpenRouter, only return free models (IDs ending with :free)
-  if (provider === 'openrouter') {
-    return Array.isArray(candidates) ? candidates.filter((m: any) => String(m.id || m.name || '').endsWith(':free')) : [];
-  }
-
-  return candidates;
 }
 
-export async function chat(
-  provider: Provider,
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> ,
-  schema?: ZodSchema<any>,
-  opts: LLMOptions = {}
-) {
-  const baseUrl = (opts.baseUrl || defaultBaseUrlFor(provider)).replace(/\/$/, '');
-  const apiKey = opts.apiKey;
-  const model = opts.model;
-  const responseFormat = opts.responseFormat || 'text';
-  const temperature = typeof opts.temperature === 'number' ? opts.temperature : 0.2;
-  const maxRetries = typeof opts.maxRetries === 'number' ? opts.maxRetries : 1;
+function stripCodeFences(text: string): string {
+  return String(text || '').replace(/```(?:json)?\s*/gi, '').replace(/\s*```/g, '').trim();
+}
 
-  const payload: any = {
-    model: model,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    temperature,
-  };
+function extractJson(text: string): any {
+  const cleaned = stripCodeFences(text);
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+  const obj = cleaned.match(/\{[\s\S]*\}/);
+  if (obj) {
+    try {
+      return JSON.parse(obj[0]);
+    } catch {}
+  }
+  const arr = cleaned.match(/\[[\s\S]*\]/);
+  if (arr) {
+    try {
+      return JSON.parse(arr[0]);
+    } catch {}
+  }
+  throw new LLMError('The model did not return valid JSON.', 422);
+}
 
-  if (responseFormat === 'json_object') {
-    // Add a hint field; not all providers support this. Providers that do should accept it.
-    payload.response_format = { type: 'json_object' };
+function contentToText(content: any): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((p: any) => (typeof p === 'string' ? p : p?.text || '')).join('');
+  }
+  return '';
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function postOnce(url: string, apiKey: string, payload: any, timeoutMs: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    return { res, text };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') throw new LLMError('The provider timed out.', 504);
+    throw new LLMError(`Network error: ${redact(String(err?.message || err), apiKey)}`, 503);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function chat(provider: Provider, messages: ChatMessage[], schema?: ZodType<any>, opts: LLMOptions = {}) {
+  const apiKey = (opts.apiKey || '').trim();
+  const model = (opts.model || '').trim();
+  if (!apiKey) throw new LLMError('No API key provided for this provider.', 401);
+  if (!model) throw new LLMError('No model selected for this provider.', 400);
+  assertFreeModel(provider, model);
+
+  const wantJson = opts.responseFormat === 'json_object';
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const url = `${PROVIDER_BASE_URLS[provider]}/chat/completions`;
+
+  const outMessages = messages.map((m) => ({ role: m.role, content: m.content }));
+  if (wantJson) {
+    outMessages.push({ role: 'system', content: 'Return only valid JSON. Do not wrap it in markdown fences.' });
   }
 
-  const url = `${baseUrl}/chat/completions`;
+  const payload: any = { model, messages: outMessages, temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.2 };
+  if (typeof opts.maxTokens === 'number') payload.max_tokens = opts.maxTokens;
+  if (wantJson) payload.response_format = { type: 'json_object' };
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  let retried = false;
+  let droppedResponseFormat = false;
 
-  let attempt = 0;
-  let lastErr: any = null;
-  while (attempt <= maxRetries) {
+  // At most one retry in total, and only for server-side or parse problems (never for 4xx).
+  for (;;) {
+    let outcome: { res: Response; text: string };
     try {
-      const res = await safeFetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
-      const text = await res.text();
-      if (!res.ok) {
-        // If billing required or 402, surface as special error
-        const err: any = new Error(`Provider error ${res.status}: ${text}`);
-        err.status = res.status;
-        err.body = text;
-        throw err;
-      }
-
-      // Try to parse JSON response
-      let json: any;
-      try {
-        json = JSON.parse(text);
-      } catch (e) {
-        // Some providers return plain text
-        json = null;
-      }
-
-      // Extract content from common shapes
-      let content = '';
-      if (json) {
-        if (Array.isArray(json.choices) && json.choices.length > 0) {
-          const choice = json.choices[0];
-          content = (choice?.message?.content) ?? (choice?.text) ?? '';
-        } else if (json?.output?.[0]?.content?.text) {
-          content = json.output[0].content.text;
-        } else if (typeof json?.text === 'string') {
-          content = json.text;
-        } else if (json?.choices?.[0]?.message?.content?.parts) {
-          // Some Google-like shapes
-          content = json.choices[0].message.content.parts.map((p: any) => p.text || '').join('');
-        } else {
-          // Fallback: stringify entire response
-          content = JSON.stringify(json);
-        }
-      } else {
-        content = text;
-      }
-
-      content = stripCodeFences(String(content || ''));
-
-      // If responseFormat asked for json_object, try to parse JSON out of content
-      let parsed: any = null;
-      if (responseFormat === 'json_object') {
-        try {
-          parsed = JSON.parse(content);
-        } catch (e) {
-          // try to extract first JSON-looking substring
-          const m = content.match(/\{[\s\S]*\}/);
-          if (m) {
-            try {
-              parsed = JSON.parse(m[0]);
-            } catch {}
-          }
-        }
-      }
-
-      const result = parsed ?? content;
-
-      // If schema provided, validate
-      if (schema) {
-        try {
-          const validated = schema.parse(result);
-          return { success: true, result: validated, raw: json ?? text };
-        } catch (valErr) {
-          const err: any = new Error('Schema validation failed');
-          err.validation = valErr;
-          throw err;
-        }
-      }
-
-      return { success: true, result, raw: json ?? text };
+      outcome = await postOnce(url, apiKey, payload, timeoutMs);
     } catch (err: any) {
-      lastErr = err;
-      // If billing error (402) or contains 'billing' or 'payment_required' stop retrying and surface
-      const status = err?.status || 0;
-      const body = err?.body || String(err?.message || err || '');
-      if (status === 402 || /billing|payment_required|payment required/i.test(body)) {
-        const e: any = new Error('BILLING_REQUIRED');
-        e.status = 402;
-        throw e;
-      }
-
-      // retry once for transient network or parse errors
-      if (attempt < maxRetries) {
-        attempt++;
+      if (!retried && err instanceof LLMError && (err.status === 503 || err.status === 504)) {
+        retried = true;
+        await sleep(1000);
         continue;
       }
+      throw err;
+    }
+    const { res, text } = outcome;
 
-      throw lastErr;
+    if (!res.ok) {
+      const status = res.status;
+      const safeBody = redact(text.slice(0, 300), apiKey);
+      if (status === 402 || /billing|payment[_ ]required/i.test(text)) {
+        throw new LLMError('BILLING_REQUIRED', 402);
+      }
+      if (status === 429) {
+        throw new LLMError(`Rate limited (429): ${safeBody}`, 429, parseRetryAfterSeconds(res.headers.get('retry-after'), text));
+      }
+      if (status === 400 && payload.response_format && !droppedResponseFormat) {
+        // Some models reject response_format. Retry once without it.
+        delete payload.response_format;
+        droppedResponseFormat = true;
+        continue;
+      }
+      if (status >= 500 && !retried) {
+        retried = true;
+        await sleep(1000);
+        continue;
+      }
+      throw new LLMError(`Provider error (${status}): ${safeBody}`, status);
+    }
+
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {}
+    const content = json ? contentToText(json?.choices?.[0]?.message?.content ?? json?.choices?.[0]?.text) : text;
+
+    try {
+      const result = wantJson ? extractJson(content) : stripCodeFences(content);
+      if (schema) {
+        const validated = schema.parse(result);
+        return { success: true as const, result: validated, modelUsed: model };
+      }
+      return { success: true as const, result, modelUsed: model };
+    } catch (err: any) {
+      if (!retried) {
+        retried = true;
+        await sleep(500);
+        continue;
+      }
+      if (err instanceof LLMError) throw err;
+      throw new LLMError('The model response did not match the expected format.', 422);
     }
   }
-
-  throw lastErr || new Error('Chat failed');
 }
