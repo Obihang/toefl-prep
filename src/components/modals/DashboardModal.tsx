@@ -746,7 +746,7 @@ export const DashboardModal: React.FC<Props> = ({
                   onClick={() => setIsSettingsOpen(true)}
                   className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors cursor-pointer"
                 >
-                  <span className="text-sm font-medium text-teal-900">Configure Display Name &amp; Cursor Style</span>
+                  <span className="text-sm font-medium text-teal-900">Configure Display Name, Microphone &amp; Cursor Style</span>
                   <Settings className="w-4 h-4 text-teal-600" />
                 </button>
               </div>

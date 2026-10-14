@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer } from 'lucide-react';
+import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices } from '../../utils/audioSpeech';
 
 interface Props {
   isOpen: boolean;
@@ -15,6 +16,8 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [targetScore, setTargetScore] = useState('100');
   const [testDate, setTestDate] = useState('');
   const [cursorStyle, setCursorStyleState] = useState<CursorObjectStyle>('pen');
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -25,9 +28,20 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setTargetScore(storedTarget);
     setTestDate(storedDate);
     setCursorStyleState(getCursorPreference());
+    setSelectedMicId(getStoredMicDeviceId() || '');
+    getAudioInputDevices().then(setMicDevices).catch(() => {});
     setNameError(null);
     setSavedSuccess(false);
+
+    const handleDeviceChange = () => {
+      getAudioInputDevices().then(setMicDevices).catch(() => {});
+    };
+    navigator?.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
+    return () => {
+      navigator?.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
+    };
   }, [isOpen, displayName]);
+
 
   if (!isOpen) return null;
 
@@ -48,11 +62,13 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     localStorage.setItem('toefl_target_score', targetScore);
     localStorage.setItem('toefl_test_date', testDate);
     setCursorPreference(cursorStyle);
+    setStoredMicDeviceId(selectedMicId);
     setSavedSuccess(true);
     setTimeout(() => {
       onClose();
     }, 800);
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -211,6 +227,37 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
               </button>
             </div>
+          </div>
+
+          {/* Microphone Audio Input Selector */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Mic className="w-4 h-4 text-teal-700" />
+                Audio Input (Microphone)
+              </span>
+              <span className="text-[11px] text-teal-800 font-medium bg-teal-50 px-2 py-0.5 rounded-full">
+                Voice Capture
+              </span>
+            </label>
+            <select
+              value={selectedMicId}
+              onChange={(e) => {
+                setSelectedMicId(e.target.value);
+                setStoredMicDeviceId(e.target.value);
+              }}
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden bg-white text-slate-900"
+            >
+              <option value="">Default Audio Input (System Default)</option>
+              {micDevices.map((device, idx) => (
+                <option key={device.deviceId || idx} value={device.deviceId}>
+                  {device.label || `Microphone ${idx + 1}`}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-500">
+              Select which microphone to use for Speaking Interview and Listen &amp; Repeat tasks.
+            </p>
           </div>
         </div>
 

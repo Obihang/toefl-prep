@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2 } from 'lucide-react';
-import { speakScriptLine, createVoiceSession, VoiceSession, playChime } from '../../utils/audioSpeech';
+import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones } from 'lucide-react';
+import { speakScriptLine, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
 
@@ -12,21 +12,27 @@ interface Props {
   onOpenApiKeySettings?: () => void;
 }
 
+
 export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onComplete, onOpenApiKeySettings }) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timerMode, setTimerMode] = useState<'idle' | 'prep' | 'speaking'>('idle');
   const [timeLeft, setTimeLeft] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [micNotice, setMicNotice] = useState<string | null>(null);
+  const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalSeconds, setEvalSeconds] = useState(0);
+  const [micNotice, setMicNotice] = useState<string | null>(null);
   const [evaluationResult, setEvaluationResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
+  const [transcribingQuestionIds, setTranscribingQuestionIds] = useState<Record<number, boolean>>({});
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
+  const pendingTranscriptionsRef = useRef<Record<number, Promise<void>>>({});
 
   const currentQ: InterviewQuestionItem = task.questions[currentQIndex];
 
@@ -40,8 +46,59 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     };
   }, []);
 
+  // Live timer for transcription duration
+  useEffect(() => {
+    let interval: any = null;
+    if (isTranscribing) {
+      setTranscribeSeconds(0);
+      interval = setInterval(() => setTranscribeSeconds((s) => s + 1), 1000);
+    } else {
+      setTranscribeSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isTranscribing]);
+
+  // Live timer for evaluation duration
+  useEffect(() => {
+    let interval: any = null;
+    if (isEvaluating) {
+      setEvalSeconds(0);
+      interval = setInterval(() => setEvalSeconds((s) => s + 1), 1000);
+    } else {
+      setEvalSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isEvaluating]);
+
   const handleHearQuestion = () => {
     speakScriptLine(currentQ.question, { rate: 0.95 });
+  };
+
+  // Background transcription per question
+  const startBackgroundTranscriptionIfNeeded = (qIndex: number, blob: Blob | null, existingTranscript: string) => {
+    if (existingTranscript.trim() || !blob) return;
+
+    setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: true }));
+    console.log(`[Audio Timing] Starting background transcription for question ${qIndex + 1}...`);
+    const p = transcribeAudioBlob(blob)
+      .then(({ transcript, durationMs }) => {
+        if (transcript.trim()) {
+          setAnswers((prev) => ({
+            ...prev,
+            [qIndex]: transcript.trim(),
+          }));
+        }
+        console.log(`[Audio Timing] Background transcription finished for question ${qIndex + 1} in ${durationMs || 'N/A'}ms`);
+      })
+      .catch((err) => {
+        console.warn(`[Audio] Background transcription failed for question ${qIndex + 1}:`, err);
+      })
+      .finally(() => {
+        setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: false }));
+        delete pendingTranscriptionsRef.current[qIndex];
+      });
+
+    pendingTranscriptionsRef.current[qIndex] = p;
   };
 
   // Start Official TOEFL Test Simulation for current question
@@ -52,6 +109,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       voiceSessionRef.current = null;
     }
     setIsRecording(false);
+    setAudioLevel(0);
     setMicNotice(null);
 
     // 1. Preparation Phase
@@ -67,7 +125,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
       if (currentSeconds <= 0) {
         clearInterval(timerIntervalRef.current);
-        // Transition to Speaking phase
         startSpeakingPhase();
       }
     }, 1000);
@@ -76,7 +133,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const startSpeakingPhase = async () => {
     setTimerMode('speaking');
     setTimeLeft(currentQ.responseTimeSeconds);
-    playChime(880, 400); // Higher tone starts recording
+    playChime(880, 400);
 
     const session = createVoiceSession({
       onTranscriptUpdate: (transcript) => {
@@ -85,16 +142,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           [currentQIndex]: transcript,
         }));
       },
+      onAudioLevel: (lvl) => setAudioLevel(lvl),
+      onQuietWarning: (warning) => setMicNotice(warning),
+      onDeviceDisconnected: (msg) => setMicNotice(msg),
+      onNotice: (notice) => setMicNotice(notice),
       onStatusChange: (status, errorMsg) => {
         if (status === 'listening') setIsRecording(true);
         if (status === 'processing') setIsTranscribing(true);
         if (status === 'idle') {
           setIsRecording(false);
           setIsTranscribing(false);
+          setAudioLevel(0);
         }
         if (status === 'error') {
           setIsRecording(false);
           setIsTranscribing(false);
+          setAudioLevel(0);
           if (errorMsg) setMicNotice(errorMsg);
         }
       },
@@ -106,6 +169,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       await session.start();
     } catch (err: any) {
       setIsRecording(false);
+      setAudioLevel(0);
       setMicNotice(err.message || 'Could not start microphone');
     }
 
@@ -132,23 +196,26 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             ...prev,
             [currentQIndex]: result.transcript,
           }));
-          if (result.audioBlob) {
-            setAudioBlobs((prev) => ({
-              ...prev,
-              [currentQIndex]: result.audioBlob!,
-            }));
-          }
+        }
+        if (result.audioBlob) {
+          setAudioBlobs((prev) => ({
+            ...prev,
+            [currentQIndex]: result.audioBlob!,
+          }));
+          startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
         }
       } catch (err: any) {
         console.warn('Voice session stop error:', err);
       } finally {
         voiceSessionRef.current = null;
         setIsTranscribing(false);
+        setAudioLevel(0);
       }
     }
     setIsRecording(false);
+    setAudioLevel(0);
     setTimerMode('idle');
-    playChime(440, 500); // Beep ends
+    playChime(440, 500);
   };
 
   const handleManualMicToggle = async () => {
@@ -163,12 +230,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             ...prev,
             [currentQIndex]: result.transcript,
           }));
-          if (result.audioBlob) {
-            setAudioBlobs((prev) => ({
-              ...prev,
-              [currentQIndex]: result.audioBlob!,
-            }));
-          }
+        }
+        if (result.audioBlob) {
+          setAudioBlobs((prev) => ({
+            ...prev,
+            [currentQIndex]: result.audioBlob!,
+          }));
+          startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
         }
       } catch (err: any) {
         setMicNotice(err.message || 'Failed to process voice recording');
@@ -176,6 +244,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         voiceSessionRef.current = null;
         setIsRecording(false);
         setIsTranscribing(false);
+        setAudioLevel(0);
       }
       return;
     }
@@ -187,16 +256,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           [currentQIndex]: transcript,
         }));
       },
+      onAudioLevel: (lvl) => setAudioLevel(lvl),
+      onQuietWarning: (warning) => setMicNotice(warning),
+      onDeviceDisconnected: (msg) => setMicNotice(msg),
+      onNotice: (notice) => setMicNotice(notice),
       onStatusChange: (status, errorMsg) => {
         if (status === 'listening') setIsRecording(true);
         if (status === 'processing') setIsTranscribing(true);
         if (status === 'idle') {
           setIsRecording(false);
           setIsTranscribing(false);
+          setAudioLevel(0);
         }
         if (status === 'error') {
           setIsRecording(false);
           setIsTranscribing(false);
+          setAudioLevel(0);
           if (errorMsg) setMicNotice(errorMsg);
         }
       },
@@ -209,11 +284,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     } catch (err: any) {
       voiceSessionRef.current = null;
       setIsRecording(false);
+      setAudioLevel(0);
       setMicNotice(err.message || 'Microphone could not be accessed. You can type your response.');
     }
   };
 
   const handleEvaluateAI = async () => {
+    // Wait for any running background transcriptions to finish first
+    const pending = Object.values(pendingTranscriptionsRef.current);
+    if (pending.length > 0) {
+      setIsTranscribing(true);
+      try {
+        await Promise.all(pending);
+      } catch {}
+      setIsTranscribing(false);
+    }
+
     const hasAnyAnswer = Object.values(answers).some((a) => a.trim().length > 0);
     if (!hasAnyAnswer) {
       setEvalError('Please provide a spoken or typed response to at least one question before requesting AI evaluation.');
@@ -229,7 +315,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       const words = response.toLowerCase().match(/\b\w+\b/g) || [];
       const fillerCount = words.filter(w => fillerWords.includes(w)).length;
       const wordCount = words.length;
-      // Estimate WPM based on 45s default response time if specific question time not available
       const timeInMinutes = (q.responseTimeSeconds || 45) / 60;
       const wpm = timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0;
       
@@ -240,6 +325,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         wpm
       };
     });
+
+    const evalStart = Date.now();
+    console.log('[Audio Timing] Starting evaluation at', new Date().toISOString());
 
     try {
       const res = await fetch('/api/evaluate-response', {
@@ -260,6 +348,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       if (!res.ok || !json.success) {
         throw new Error(json.error || 'Evaluation service unavailable');
       }
+
+      console.log(`[Audio Timing] transcript -> evaluation: ${Date.now() - evalStart}ms (server duration: ${json.data.durationMs || 'N/A'}ms)`);
 
       setEvaluationResult({ ...json.data, submissionData });
 
@@ -285,6 +375,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       setIsEvaluating(false);
     }
   };
+
 
   const currentAnswer = answers[currentQIndex] || '';
 
@@ -313,17 +404,27 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                 stopSimulation();
                 setCurrentQIndex(i);
               }}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 ${
+              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                 currentQIndex === i
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Q{i + 1}
-              {answers[i]?.trim() && <span className="ml-1 text-teal-600">✓</span>}
+              <span>Q{i + 1}</span>
+              {transcribingQuestionIds[i] ? (
+                <Loader2 className="w-3 h-3 animate-spin text-teal-600 shrink-0" />
+              ) : answers[i]?.trim() ? (
+                <span className="text-teal-600">✓</span>
+              ) : null}
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Headphone echo prevention hint */}
+      <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 flex items-center gap-2">
+        <Headphones className="w-4 h-4 text-teal-700 shrink-0" />
+        <span>Tip: Use headphones or a headset to prevent microphone echo and avoid picking up system audio.</span>
       </div>
 
       {micNotice && (
@@ -452,7 +553,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                 ) : isTranscribing ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" />
-                    <span>Transcribing audio...</span>
+                    <span>Transcribing... {transcribeSeconds}s</span>
                   </>
                 ) : (
                   <>
@@ -464,10 +565,25 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
           </div>
 
+          {/* Live input-level meter using AnalyserNode */}
           {isRecording && (
-            <div className="flex items-center gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg">
-              <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
-              <span>Microphone active · Speak now. Transcript updates live below.</span>
+            <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg flex-wrap animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping shrink-0" />
+                <span className="font-semibold">Recording Active</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-600">Speak clearly. Transcript updates below.</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[11px] font-semibold text-slate-600">Input Level:</span>
+                <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all duration-75"
+                    style={{ width: `${Math.max(4, audioLevel)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-mono text-slate-500 w-7">{audioLevel}%</span>
+              </div>
             </div>
           )}
 
@@ -485,7 +601,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
               isRecording
                 ? 'Listening to your speech...'
                 : isTranscribing
-                ? 'Processing & transcribing voice recording...'
+                ? `Processing & transcribing voice recording... ${transcribeSeconds}s`
                 : 'Your spoken response will appear here as you speak. You can also edit or type manually...'
             }
             className={`w-full p-3.5 text-sm rounded-lg text-slate-900 outline-hidden leading-relaxed transition-colors ${
@@ -529,12 +645,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         <button
           onClick={handleEvaluateAI}
           disabled={isEvaluating}
-          className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0"
+          className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
         >
-          <Sparkles className="w-4 h-4" />
-          {isEvaluating ? 'Evaluating with AI Rater...' : 'Get AI Rater Feedback'}
+          {isEvaluating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Scoring your answer... {evalSeconds}s</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              <span>Get AI Rater Feedback</span>
+            </>
+          )}
         </button>
       </div>
+
 
       {evalError && (
         evalError.startsWith('No Gemini API key') ? (

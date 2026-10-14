@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones } from 'lucide-react';
 import { speakScriptLine, createVoiceSession, VoiceSession, calculateSentenceMatch } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
@@ -28,6 +28,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
@@ -39,6 +41,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       }
     };
   }, []);
+
+  // Live timer for transcription duration
+  useEffect(() => {
+    let interval: any = null;
+    if (micStatus === 'transcribing') {
+      setTranscribeSeconds(0);
+      interval = setInterval(() => setTranscribeSeconds((s) => s + 1), 1000);
+    } else {
+      setTranscribeSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [micStatus]);
 
   const handlePlay = async (index: number) => {
     setActiveAudioIdx(index);
@@ -70,6 +84,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       } finally {
         setActiveMicIdx(null);
         setMicStatus('idle');
+        setAudioLevel(0);
         voiceSessionRef.current = null;
       }
       return;
@@ -81,6 +96,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         await voiceSessionRef.current.stop();
       } catch {}
       voiceSessionRef.current = null;
+      setAudioLevel(0);
     }
 
     const session = createVoiceSession({
@@ -91,6 +107,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           return next;
         });
       },
+      onAudioLevel: (lvl) => setAudioLevel(lvl),
+      onQuietWarning: (warning) => setMicError(warning),
+      onDeviceDisconnected: (msg) => setMicError(msg),
+      onNotice: (notice) => setMicError(notice),
       onStatusChange: (status, errorMsg) => {
         if (status === 'listening') {
           setMicStatus('listening');
@@ -98,9 +118,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           setMicStatus('transcribing');
         } else if (status === 'idle') {
           setMicStatus('idle');
+          setAudioLevel(0);
         } else if (status === 'error') {
           setMicStatus('idle');
           setActiveMicIdx(null);
+          setAudioLevel(0);
           if (errorMsg) {
             setMicError(errorMsg);
           }
@@ -116,10 +138,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     } catch (err: any) {
       setActiveMicIdx(null);
       setMicStatus('idle');
+      setAudioLevel(0);
       setMicError(err.message || 'Could not start microphone');
       voiceSessionRef.current = null;
     }
   };
+
 
   const handleCheck = (index: number) => {
     // If mic is running, stop it first
@@ -221,6 +245,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         </span>
       </div>
 
+      {/* Headphone echo prevention hint */}
+      <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 flex items-center gap-2">
+        <Headphones className="w-4 h-4 text-teal-700 shrink-0" />
+        <span>Tip: Use headphones or a headset to prevent microphone echo and ensure clean acoustic scoring.</span>
+      </div>
+
       {micError && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-900 animate-in fade-in">
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
@@ -280,6 +310,28 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
               {/* Input / Dictation Area */}
               <div className="space-y-3">
+                {/* Live input-level meter using AnalyserNode */}
+                {isRecordingThis && (
+                  <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-lg animate-in fade-in flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
+                      <span className="font-semibold">Recording Active</span>
+                      <span className="text-slate-400">·</span>
+                      <span className="text-slate-600">Speak the sentence aloud</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-semibold text-slate-600">Mic Level:</span>
+                      <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-600 rounded-full transition-all duration-75"
+                          style={{ width: `${Math.max(4, audioLevel)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono text-slate-500 w-7">{audioLevel}%</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <input
@@ -297,7 +349,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                         isRecordingThis
                           ? 'Listening... speak clearly into your mic...'
                           : isTranscribingThis
-                          ? 'Processing voice...'
+                          ? `Processing voice... ${transcribeSeconds}s`
                           : 'Click mic to speak, or type your repetition...'
                       }
                       className={`w-full px-3.5 py-2 text-sm rounded-lg text-slate-900 outline-hidden transition-colors ${
@@ -328,7 +380,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                     ) : isTranscribingThis ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
-                        <span>Transcribing...</span>
+                        <span>Transcribing... {transcribeSeconds}s</span>
                       </>
                     ) : (
                       <>
@@ -337,6 +389,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       </>
                     )}
                   </button>
+
 
                   {!state.checked ? (
                     <button

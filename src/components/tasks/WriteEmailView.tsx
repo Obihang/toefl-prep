@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WriteEmailTask } from '../../data/curatedQuestions';
 import { Send, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
@@ -17,8 +17,21 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isEvaluating) {
+      setEvalSeconds(0);
+      interval = setInterval(() => setEvalSeconds((s) => s + 1), 1000);
+    } else {
+      setEvalSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isEvaluating]);
+
 
   React.useEffect(() => {
     setSubject('');
@@ -206,13 +219,14 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
             >
               {isEvaluating ? (
                 <>
-                  <Sparkles className="w-4 h-4 animate-spin" /> Evaluating...
+                  <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" /> Evaluate with AI Rater
                 </>
               )}
+
             </button>
           </div>
         </div>

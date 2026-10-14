@@ -514,43 +514,62 @@ Return JSON in this exact structure:
   "exemplar": "A model high-scoring C1/C2 response demonstrating target structure and vocabulary."
 }`;
 
+  const startTime = Date.now();
   try {
-    const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
-      let response;
-      try {
-        response = await ai.models.generateContent({
-          model,
-          contents: evaluationPrompt,
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.3,
-          },
-        });
-      } catch (firstErr: any) {
-        if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
-          throw firstErr;
+    const { result } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
+      const executeEvaluation = async (withThinking: boolean) => {
+        const isGemini3 = model.includes('3.') || model.includes('3-') || model.startsWith('gemini-3');
+        const config: any = {
+          responseMimeType: 'application/json',
+          temperature: 0.3,
+        };
+        if (withThinking) {
+          config.thinkingConfig = isGemini3 ? { thinkingLevel: 'low' } : { thinkingBudget: 256 };
         }
-        console.warn(`Model ${model} evaluation JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
-        response = await ai.models.generateContent({
-          model,
-          contents: `${evaluationPrompt}\n\nIMPORTANT: Return ONLY valid JSON matching the structure. Do not include markdown fences.`,
-          config: {
-            temperature: 0.3,
-          },
-        });
-      }
 
+        try {
+          return await ai.models.generateContent({
+            model,
+            contents: evaluationPrompt,
+            config,
+          });
+        } catch (firstErr: any) {
+          if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
+            throw firstErr;
+          }
+          const is400 = getStatus(firstErr) === 400 || String(firstErr?.message || '').includes('400') || String(firstErr?.message || '').includes('INVALID_ARGUMENT');
+          if (withThinking && is400) {
+            console.warn(`Model ${model} evaluation rejected thinking config (400), retrying without thinking.`);
+            return executeEvaluation(false);
+          }
+
+          console.warn(`Model ${model} evaluation JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
+          const fallbackConfig: any = { temperature: 0.3 };
+          if (withThinking && !is400) {
+            fallbackConfig.thinkingConfig = isGemini3 ? { thinkingLevel: 'low' } : { thinkingBudget: 256 };
+          }
+          return await ai.models.generateContent({
+            model,
+            contents: `${evaluationPrompt}\n\nIMPORTANT: Return ONLY valid JSON matching the structure. Do not include markdown fences.`,
+            config: fallbackConfig,
+          });
+        }
+      };
+
+      const response = await executeEvaluation(true);
       const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
       const parsed = cleanAndExtractJson(rawText);
       return { ...parsed, modelUsed: model };
     });
 
-    return result;
+    const durationMs = Date.now() - startTime;
+    return { ...result, durationMs };
   } catch (error: any) {
     const errMsg = extractErrorMessage(error);
     throw new Error(errMsg);
   }
 }
+
 
 export async function handleSynthesizeSpeech(
   text: string,
@@ -600,7 +619,8 @@ export async function handleTranscribeAudio(
   audioBase64: string,
   mimeType: string = 'audio/webm',
   customApiKey?: string
-): Promise<{ transcript: string; modelUsed: string }> {
+): Promise<{ transcript: string; modelUsed: string; durationMs: number }> {
+  const startTime = Date.now();
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
@@ -612,40 +632,65 @@ export async function handleTranscribeAudio(
 
   try {
     const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
-      const response = await ai.models.generateContent({
-        model,
-        contents: [
-          {
-            role: 'user',
-            parts: [
+      const executeTranscription = async (withThinking: boolean): Promise<string> => {
+        const isGemini3 = model.includes('3.') || model.includes('3-') || model.startsWith('gemini-3');
+        const config: any = {
+          temperature: 0.0,
+          maxOutputTokens: 2048,
+        };
+
+        if (withThinking) {
+          config.thinkingConfig = isGemini3 ? { thinkingLevel: 'minimal' } : { thinkingBudget: 0 };
+        }
+
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: [
               {
-                inlineData: {
-                  mimeType: cleanMime,
-                  data: audioBase64,
-                },
-              },
-              {
-                text: promptText,
+                role: 'user',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: cleanMime,
+                      data: audioBase64,
+                    },
+                  },
+                  {
+                    text: promptText,
+                  },
+                ],
               },
             ],
-          },
-        ],
-        config: {
-          temperature: 0.0,
-          maxOutputTokens: 120,
-        },
-      });
+            config,
+          });
 
-      const text = (response.text || '').trim();
-      if (!text) {
-        throw new Error('Empty transcription returned');
-      }
-      return text;
+          const text = (response.text || '').trim();
+          if (!text) {
+            throw new Error('Empty transcription returned');
+          }
+          return text;
+        } catch (err: any) {
+          if (isKeyError(err) || isQuotaExhaustedError(err)) {
+            throw err;
+          }
+          const is400 = getStatus(err) === 400 || String(err?.message || '').includes('400') || String(err?.message || '').includes('INVALID_ARGUMENT');
+          if (withThinking && is400) {
+            console.warn(`Model ${model} transcription rejected thinking config (400), retrying without thinking.`);
+            return executeTranscription(false);
+          }
+          throw err;
+        }
+      };
+
+      return await executeTranscription(true);
     });
 
-    return { transcript: result, modelUsed };
+    const durationMs = Date.now() - startTime;
+    return { transcript: result, modelUsed, durationMs };
   } catch (error: any) {
-    console.error('Transcription error:', error);
+    console.error('Transcription error:', error?.message || error);
     throw new Error('SPEECH_UNAVAILABLE');
   }
 }
+

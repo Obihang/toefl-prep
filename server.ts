@@ -95,9 +95,12 @@ app.post('/api/tts', async (req, res) => {
 app.post('/api/transcribe', async (req, res) => {
   try {
     const { audioBase64, mimeType } = req.body || {};
+
     const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
     const result = await handleTranscribeAudio(audioBase64, mimeType, customApiKey);
-    res.json({ success: true, transcript: result.transcript, modelUsed: result.modelUsed });
+
+
+    res.json({ success: true, transcript: result.transcript, modelUsed: result.modelUsed, durationMs: result.durationMs });
   } catch (error: any) {
     const msg = error?.message || 'Audio transcription failed';
     const status = msg === 'SPEECH_UNAVAILABLE' ? 503 : 500;
