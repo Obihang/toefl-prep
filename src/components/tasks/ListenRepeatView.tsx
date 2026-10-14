@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones } from 'lucide-react';
-import { speakScriptLine, createVoiceSession, VoiceSession, calculateSentenceMatch } from '../../utils/audioSpeech';
+import { speakScriptLine, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
 interface Props {
@@ -31,6 +31,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [audioLevel, setAudioLevel] = useState(0);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
+  const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
+  const [transcribeErrors, setTranscribeErrors] = useState<Record<number, string | null>>({});
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
 
@@ -71,11 +73,16 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       setMicStatus('transcribing');
       try {
         const result = await voiceSessionRef.current.stop();
-        const finalTranscript = typeof result === 'string' ? result : result?.transcript || '';
-        if (finalTranscript) {
+        if (result.audioBlob) {
+          setAudioBlobs((prev) => ({ ...prev, [index]: result.audioBlob! }));
+        }
+        if (result.error) {
+          setTranscribeErrors((prev) => ({ ...prev, [index]: result.error! }));
+        } else if (result.transcript) {
+          setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
           setStates((prev) => {
             const next = [...prev];
-            next[index] = { ...next[index], userInput: finalTranscript };
+            next[index] = { ...next[index], userInput: result.transcript };
             return next;
           });
         }
@@ -199,6 +206,37 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       next[index] = { userInput: '', isRecording: false, checked: false };
       return next;
     });
+    setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
+  };
+
+  const handleRetryTranscription = async (index: number) => {
+    const blob = audioBlobs[index];
+    if (!blob) return;
+    setActiveMicIdx(index);
+    setMicStatus('transcribing');
+    setMicError(null);
+    try {
+      const { transcript } = await transcribeAudioBlob(blob);
+      if (transcript.trim()) {
+        setStates((prev) => {
+          const next = [...prev];
+          next[index] = { ...next[index], userInput: transcript.trim() };
+          return next;
+        });
+        setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
+      }
+    } catch (err: any) {
+      const errCode = err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
+      setTranscribeErrors((prev) => ({ ...prev, [index]: errCode }));
+      setMicError(
+        errCode === 'TRANSCRIPTION_TIMEOUT'
+          ? 'Transcription timed out (20s). Audio is preserved. Click Retry transcription or type your repetition.'
+          : 'Audio transcription failed. Audio is preserved. Click Retry transcription or type your repetition.'
+      );
+    } finally {
+      setActiveMicIdx(null);
+      setMicStatus('idle');
+    }
   };
 
   const completedCount = states.filter((s) => s.checked).length;
@@ -389,6 +427,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       </>
                     )}
                   </button>
+
+                  {audioBlobs[idx] && !state.checked && (
+                    <button
+                      type="button"
+                      onClick={() => handleRetryTranscription(idx)}
+                      disabled={isRecordingThis || isTranscribingThis}
+                      className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                        transcribeErrors[idx]
+                          ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                      title="Retry transcription from saved recording"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
+                      <span>Retry transcription</span>
+                    </button>
+                  )}
 
 
                   {!state.checked ? (

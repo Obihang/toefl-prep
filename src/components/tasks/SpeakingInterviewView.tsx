@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones } from 'lucide-react';
+import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw } from 'lucide-react';
 import { speakScriptLine, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
@@ -29,6 +29,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [evalError, setEvalError] = useState<string | null>(null);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
   const [transcribingQuestionIds, setTranscribingQuestionIds] = useState<Record<number, boolean>>({});
+  const [transcriptionErrors, setTranscriptionErrors] = useState<Record<number, string | null>>({});
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
@@ -87,11 +88,14 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             ...prev,
             [qIndex]: transcript.trim(),
           }));
+          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
         }
         console.log(`[Audio Timing] Background transcription finished for question ${qIndex + 1} in ${durationMs || 'N/A'}ms`);
       })
       .catch((err) => {
         console.warn(`[Audio] Background transcription failed for question ${qIndex + 1}:`, err);
+        const errCode = err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
+        setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: errCode }));
       })
       .finally(() => {
         setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: false }));
@@ -99,6 +103,33 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       });
 
     pendingTranscriptionsRef.current[qIndex] = p;
+  };
+
+  const handleRetryTranscription = async (qIndex: number) => {
+    const blob = audioBlobs[qIndex];
+    if (!blob) return;
+    setIsTranscribing(true);
+    setMicNotice(null);
+    try {
+      const { transcript } = await transcribeAudioBlob(blob);
+      if (transcript.trim()) {
+        setAnswers((prev) => ({
+          ...prev,
+          [qIndex]: transcript.trim(),
+        }));
+        setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
+      }
+    } catch (err: any) {
+      const errCode = err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
+      setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: errCode }));
+      setMicNotice(
+        errCode === 'TRANSCRIPTION_TIMEOUT'
+          ? 'Transcription timed out (20s). Audio is preserved. Click "Retry transcription" to try again.'
+          : 'Audio transcription failed. Audio is preserved. Click "Retry transcription" to try again.'
+      );
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
   // Start Official TOEFL Test Simulation for current question
@@ -196,13 +227,19 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             ...prev,
             [currentQIndex]: result.transcript,
           }));
+          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: null }));
+        }
+        if (result.error) {
+          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: result.error! }));
         }
         if (result.audioBlob) {
           setAudioBlobs((prev) => ({
             ...prev,
             [currentQIndex]: result.audioBlob!,
           }));
-          startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
+          if (!result.error && !result.transcript) {
+            startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
+          }
         }
       } catch (err: any) {
         console.warn('Voice session stop error:', err);
@@ -230,13 +267,19 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             ...prev,
             [currentQIndex]: result.transcript,
           }));
+          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: null }));
+        }
+        if (result.error) {
+          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: result.error! }));
         }
         if (result.audioBlob) {
           setAudioBlobs((prev) => ({
             ...prev,
             [currentQIndex]: result.audioBlob!,
           }));
-          startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
+          if (!result.error && !result.transcript) {
+            startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
+          }
         }
       } catch (err: any) {
         setMicNotice(err.message || 'Failed to process voice recording');
@@ -523,17 +566,34 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             <span>Your Spoken Response (Transcript):</span>
             <div className="flex items-center gap-2">
               {audioBlobs[currentQIndex] && (
-                <button
-                  onClick={() => {
-                    const url = URL.createObjectURL(audioBlobs[currentQIndex]);
-                    const audio = new Audio(url);
-                    audio.play();
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 transition-colors"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  Play Answer
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = URL.createObjectURL(audioBlobs[currentQIndex]);
+                      const audio = new Audio(url);
+                      audio.play();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 transition-colors"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Play Answer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRetryTranscription(currentQIndex)}
+                    disabled={isTranscribing || isRecording}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      transcriptionErrors[currentQIndex]
+                        ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold shadow-xs'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                    title="Retry transcribing this recorded answer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTranscribing ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
+                    <span>Retry transcription</span>
+                  </button>
+                </>
               )}
               <button
                 onClick={handleManualMicToggle}

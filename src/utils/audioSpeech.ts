@@ -369,7 +369,21 @@ export function markWebSpeechBlocked(): void {
 export const WEB_SPEECH_UNAVAILABLE_HINT =
   "Instant transcription isn't available in this browser (Brave blocks it). Use Chrome or Edge for instant results; otherwise transcription takes a few seconds.";
 
-// Request and verify microphone access with helpful error messages
+export function mapMicrophoneError(err: any): string {
+  const name = err?.name || '';
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return 'Microphone permission was denied. Click the lock/site settings icon in your browser address bar to allow microphone access, then refresh.';
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return 'No microphone was found on your device. Please plug in or connect a microphone or headset and try again.';
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError') {
+    return 'Microphone is currently in use by another app or browser tab. Please close other voice apps (Zoom, Teams, Discord, etc.) and try again.';
+  }
+  return `Could not access microphone: ${err?.message || name}. You can type your response instead.`;
+}
+
+// Request and verify microphone access without opening throwaway streams
 export async function requestMicrophoneAccess(): Promise<{ granted: boolean; error?: string }> {
   if (typeof window === 'undefined' || !navigator?.mediaDevices?.getUserMedia) {
     return {
@@ -378,56 +392,23 @@ export async function requestMicrophoneAccess(): Promise<{ granted: boolean; err
     };
   }
 
-  const selectedDeviceId = getStoredMicDeviceId();
-  const primaryConstraints: MediaStreamConstraints = {
-    audio: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
-      ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
-    },
-  };
-
+  // Pre-check permission state without opening an audio stream
   try {
-    const testStream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
-    testStream.getTracks().forEach((t) => t.stop());
-    return { granted: true };
-  } catch (err: any) {
-    // Retry with basic audio constraint
-    try {
-      const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      fallbackStream.getTracks().forEach((t) => t.stop());
-      return { granted: true };
-    } catch (fallbackErr: any) {
-      const e = fallbackErr || err;
-      const name = e?.name || '';
-      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    if (navigator?.permissions?.query) {
+      const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      if (status.state === 'denied') {
         return {
           granted: false,
           error:
             'Microphone permission was denied. Click the lock/site settings icon in your browser address bar to allow microphone access, then refresh.',
         };
       }
-      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        return {
-          granted: false,
-          error: 'No microphone was found on your device. Please plug in or connect a microphone or headset and try again.',
-        };
-      }
-      if (name === 'NotReadableError' || name === 'TrackStartError') {
-        return {
-          granted: false,
-          error:
-            'Microphone is currently in use by another app or browser tab. Please close other voice apps (Zoom, Teams, Discord, etc.) and try again.',
-        };
-      }
-      return {
-        granted: false,
-        error: `Could not access microphone: ${e?.message || name}. You can type your response instead.`,
-      };
     }
+  } catch {
+    // navigator.permissions.query('microphone') not supported in some browsers (e.g. Firefox/Safari) - proceed safely
   }
+
+  return { granted: true };
 }
 
 // Send recorded audio to Gemini /api/transcribe fallback with fast base64 and 20s timeout
@@ -476,9 +457,17 @@ export interface VoiceSessionOptions {
   onNotice?: (notice: string) => void; // e.g. Brave Web Speech notice or headphones echo notice
 }
 
+export interface VoiceSessionResult {
+  transcript: string;
+  audioBlob: Blob | null;
+  durationMs?: number;
+  isSilent?: boolean;
+  error?: 'TRANSCRIPTION_TIMEOUT' | 'TRANSCRIPTION_FAILED';
+}
+
 export interface VoiceSession {
   start: () => Promise<void>;
-  stop: () => Promise<{ transcript: string; audioBlob: Blob | null; durationMs?: number; isSilent?: boolean }>;
+  stop: () => Promise<VoiceSessionResult>;
   abort: () => void;
   isRecording: () => boolean;
 }
@@ -495,6 +484,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
   let analyserNode: AnalyserNode | null = null;
   let mediaStreamSource: MediaStreamAudioSourceNode | null = null;
   let meterInterval: any = null;
+  let audioContextAlwaysRunning = false;
 
   let maxVolume = 0;
   let totalVolume = 0;
@@ -503,7 +493,17 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
   let recordingStartTime = 0;
   let isDeviceUnplugged = false;
 
+  const tryResumeContext = () => {
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().catch(() => {});
+    }
+  };
+
   const cleanupAudioNodes = () => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('click', tryResumeContext);
+      window.removeEventListener('keydown', tryResumeContext);
+    }
     if (meterInterval) {
       clearInterval(meterInterval);
       meterInterval = null;
@@ -565,7 +565,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
         await new Promise((r) => setTimeout(r, 120));
       }
 
-      // Check mic access first
+      // Check mic access first without opening a throwaway stream
       const permCheck = await requestMicrophoneAccess();
       if (!permCheck.granted) {
         options.onStatusChange?.('error', permCheck.error);
@@ -584,12 +584,19 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           },
         };
 
+        // Open microphone once directly in session start
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia(speechConstraints);
-        } catch {
-          // If browser rejects constraints, retry with { audio: true }
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (firstErr: any) {
+          // If browser rejects constraints or device changed, retry with { audio: true }
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (secondErr: any) {
+            const errorMsg = mapMicrophoneError(secondErr || firstErr);
+            options.onStatusChange?.('error', errorMsg);
+            throw new Error(errorMsg);
+          }
         }
 
         activeStream = stream;
@@ -611,6 +618,26 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
           if (AudioCtx) {
             audioContext = new AudioCtx();
+            // Resume immediately after creating AudioContext
+            if (audioContext.state === 'suspended') {
+              try {
+                await audioContext.resume();
+              } catch {}
+            }
+
+            // Also attach interaction resume handler if still suspended
+            if (typeof window !== 'undefined') {
+              window.addEventListener('click', tryResumeContext, { once: true });
+              window.addEventListener('keydown', tryResumeContext, { once: true });
+            }
+
+            audioContextAlwaysRunning = audioContext.state === 'running';
+            audioContext.onstatechange = () => {
+              if (!audioContext || audioContext.state !== 'running') {
+                audioContextAlwaysRunning = false;
+              }
+            };
+
             analyserNode = audioContext.createAnalyser();
             analyserNode.fftSize = 256;
             mediaStreamSource = audioContext.createMediaStreamSource(stream);
@@ -619,6 +646,11 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
             const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
             meterInterval = setInterval(() => {
               if (!isRecordingState || !analyserNode) return;
+
+              if (!audioContext || audioContext.state !== 'running') {
+                audioContextAlwaysRunning = false;
+              }
+
               analyserNode.getByteFrequencyData(dataArray);
               let sum = 0;
               for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
@@ -630,18 +662,21 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
               totalVolume += lvl;
               if (lvl > maxVolume) maxVolume = lvl;
 
-              // Check if average level stays near zero for first 3 seconds
+              // Only trust analyser for "We can't hear you" if audioContext was running the whole time
               const elapsed = Date.now() - recordingStartTime;
               if (elapsed >= 3000 && elapsed <= 3800 && !quietWarningFired) {
-                quietWarningFired = true;
-                const avgFirst3 = totalVolume / Math.max(1, volumeSamples);
-                if (avgFirst3 < 3 && maxVolume < 5) {
-                  options.onQuietWarning?.("We can't hear you. Check your microphone or speak closer to it.");
+                if (audioContextAlwaysRunning && audioContext?.state === 'running') {
+                  quietWarningFired = true;
+                  const avgFirst3 = totalVolume / Math.max(1, volumeSamples);
+                  if (avgFirst3 < 3 && maxVolume < 5) {
+                    options.onQuietWarning?.("We can't hear you. Check your microphone or speak closer to it.");
+                  }
                 }
               }
             }, 60);
           }
         } catch (e) {
+          audioContextAlwaysRunning = false;
           console.warn('[Audio] AnalyserNode setup notice:', e);
         }
 
@@ -715,7 +750,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       }
     },
 
-    stop: async (): Promise<{ transcript: string; audioBlob: Blob | null; durationMs?: number; isSilent?: boolean }> => {
+    stop: async (): Promise<VoiceSessionResult> => {
       if (!isRecordingState && audioChunks.length === 0) {
         return { transcript: accumulatedTranscript, audioBlob: null };
       }
@@ -760,12 +795,32 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       // Release audio nodes & stream tracks immediately
       cleanupAudioNodes();
 
-      // Check if clip is silent or near zero volume throughout
-      const avgVol = volumeSamples > 0 ? totalVolume / volumeSamples : 0;
-      const isSilentClip = (maxVolume < 4 && avgVol < 2) || (finalAudioBlob && finalAudioBlob.size < 600);
+      // Decide "silent" mainly from recorded blob size and duration
+      // A blob under ~1 KB per second of recording is likely silent.
+      // Never treat clip as silent because of analyser readings if AudioContext was suspended.
+      const recordingDurationSec = Math.max(0.2, (Date.now() - recordingStartTime) / 1000);
+      const blobSize = finalAudioBlob ? finalAudioBlob.size : 0;
+      const bytesPerSec = blobSize / recordingDurationSec;
+
+      let isSilentClip = false;
+      if (!accumulatedTranscript.trim()) {
+        if (!finalAudioBlob || blobSize < 150) {
+          isSilentClip = true;
+        } else if (recordingDurationSec >= 1.5 && bytesPerSec < 850) {
+          if (audioContextAlwaysRunning && audioContext?.state === 'running') {
+            const avgVol = volumeSamples > 0 ? totalVolume / volumeSamples : 0;
+            if (maxVolume < 3 && avgVol < 1.5) {
+              isSilentClip = true;
+            }
+          } else if (bytesPerSec < 350) {
+            // When analyser was suspended or not running, transcribe anyway unless data is nearly empty
+            isSilentClip = true;
+          }
+        }
+      }
 
       if (isSilentClip && !accumulatedTranscript.trim()) {
-        console.warn(`[Audio Timing] Silent clip detected (maxVol: ${maxVolume}, avgVol: ${avgVol.toFixed(1)}). Skipping transcription.`);
+        console.warn(`[Audio Timing] Silent clip detected (size: ${blobSize}B, duration: ${recordingDurationSec.toFixed(1)}s, ${Math.round(bytesPerSec)} B/s, ctxRunning: ${audioContextAlwaysRunning}). Skipping transcription.`);
         options.onStatusChange?.('error', 'No sound was detected in your recording. Please check your microphone or speak closer to it, then try again.');
         return { transcript: '', audioBlob: finalAudioBlob, isSilent: true };
       }
@@ -779,7 +834,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       }
 
       // Fallback: If Web Speech produced no text, use fast Gemini transcription with 20s timeout
-      if (finalAudioBlob && (finalAudioBlob as Blob).size > 600) {
+      if (finalAudioBlob && (finalAudioBlob as Blob).size > 150) {
         options.onStatusChange?.('processing');
         try {
           const { transcript: aiTranscribed, durationMs } = await transcribeAudioBlob(finalAudioBlob);
@@ -792,12 +847,17 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           return { transcript: cleaned, audioBlob: finalAudioBlob, durationMs };
         } catch (err: any) {
           console.warn('[Audio] AI speech transcription fallback error:', err);
-          if (err.message === 'TRANSCRIPTION_TIMEOUT') {
-            options.onStatusChange?.('error', 'Transcription timed out (20s). Please retry or type your answer.');
+          const errCode: 'TRANSCRIPTION_TIMEOUT' | 'TRANSCRIPTION_FAILED' =
+            err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
+
+          if (errCode === 'TRANSCRIPTION_TIMEOUT') {
+            options.onStatusChange?.('error', 'Transcription timed out (20s). Audio saved. Click "Retry transcription" or type your answer.');
           } else {
-            options.onStatusChange?.('error', 'Audio transcription failed. You can type your answer.');
+            options.onStatusChange?.('error', 'Audio transcription failed. Audio saved. Click "Retry transcription" or type your answer.');
           }
-          throw err;
+
+          // Return failure status with retained audioBlob instead of throwing
+          return { transcript: '', audioBlob: finalAudioBlob, error: errCode };
         }
       }
 
