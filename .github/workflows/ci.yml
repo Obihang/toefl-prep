@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm install --legacy-peer-deps
+
+      - name: Block truncated code (a string cut short with [...])
+        run: |
+          if grep -RnE "[^[]\[\.\.\.\][\`'\"]" src api server.ts scripts; then
+            echo "Found a string ending in [...], which means code was truncated."
+            exit 1
+          fi
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Simulations
+        run: |
+          npx tsx scripts/prefetch-sim.ts
+          npx tsx scripts/voices-sim.ts
+          npx tsx scripts/llm-sim.ts
