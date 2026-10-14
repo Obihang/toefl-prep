@@ -1,5 +1,6 @@
 import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
 import React, { useState, useEffect, useRef } from 'react';
+import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw } from 'lucide-react';
 import { speakScriptLine, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
@@ -85,8 +86,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   // Background transcription per question
   const startBackgroundTranscriptionIfNeeded = (qIndex: number, blob: Blob | null, existingTranscript: string) => {
     if (existingTranscript.trim() || !blob) return;
-    // @ts-ignore
-    window.lastUserAiRequestTimeRef.current = Date.now();
+    markUserAiRequest();
 
     setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: true }));
     console.log(`[Audio Timing] Starting background transcription for question ${qIndex + 1}...`);
@@ -342,8 +342,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   };
 
   const handleEvaluateAI = async () => {
-    // @ts-ignore
-    window.lastUserAiRequestTimeRef.current = Date.now();
+    markUserAiRequest();
     // Wait for any running background transcriptions to finish first
     const pending = Object.values(pendingTranscriptionsRef.current);
     if (pending.length > 0) {

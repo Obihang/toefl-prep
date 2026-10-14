@@ -78,6 +78,7 @@ import {
   evaluateRateLimitPause,
   PREFETCH_GAP_MS,
 } from './utils/prefetchManager';
+import { markUserAiRequest, getLastUserAiRequestTime } from './utils/userActivity';
 
 const DashboardModal = lazy(() => import('./components/modals/DashboardModal').then(m => ({ default: m.DashboardModal })));
 const PerformanceHistoryModal = lazy(() => import('./components/modals/PerformanceHistoryModal').then(m => ({ default: m.PerformanceHistoryModal })));
@@ -122,7 +123,6 @@ export default function App() {
   const [lastGenerationWasInstant, setLastGenerationWasInstant] = useState(false);
   const [rateLimitPauseState, setRateLimitPauseState] = useState<{ kind: 'per-minute' | 'per-day' | 'unknown'; resumeAt: number; retryAfterSeconds: number } | null>(null);
   const lastPrefetchTimeRef = useRef(0);
-  const lastUserAiRequestTimeRef = useRef(0);
   const lastDebugLogTimeRef = useRef<Record<string, number>>({});
 
   // Modals
@@ -426,7 +426,7 @@ export default function App() {
     if (currentCount >= 2) { logEarlyExit('queue full'); return; }
     if (rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt) { logEarlyExit('quota pause'); return; }
     if (Date.now() < quotaExhaustedUntilRef.current) { logEarlyExit('quota pause'); return; }
-    if (Date.now() - lastUserAiRequestTimeRef.current < 20000 || Date.now() - lastPrefetchTimeRef.current < PREFETCH_GAP_MS) { logEarlyExit('cooldown'); return; }
+    if (Date.now() - getLastUserAiRequestTime() < 20000 || Date.now() - lastPrefetchTimeRef.current < PREFETCH_GAP_MS) { logEarlyExit('cooldown'); return; }
 
     inFlightLock.current = true;
     isPrefetchingRef.current[type] = true;
@@ -592,7 +592,7 @@ export default function App() {
 
   // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {
-    lastUserAiRequestTimeRef.current = Date.now();
+    markUserAiRequest();
     // 1. Instant delivery if pre-fetched question is ready in the queue!
     if (hasReadyTask(prefetchedQueue, currentTaskType, level, topic)) {
       const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType, level, topic);

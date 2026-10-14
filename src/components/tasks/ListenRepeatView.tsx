@@ -1,5 +1,6 @@
 import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
 import React, { useState, useRef, useEffect } from 'react';
+import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones } from 'lucide-react';
 import { speakScriptLine, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob } from '../../utils/audioSpeech';
@@ -76,8 +77,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const handleToggleMic = async (index: number) => {
     setMicError(null);
-    // @ts-ignore
-    window.lastUserAiRequestTimeRef.current = Date.now();
+    markUserAiRequest();
 
     // If currently recording this item, stop and finalize transcript
     if (activeMicIdx === index && voiceSessionRef.current) {

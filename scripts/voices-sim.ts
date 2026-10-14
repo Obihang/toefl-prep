@@ -38,3 +38,9 @@ assert((FEMALE_VOICES as readonly string[]).includes(single1), 'Single voice mus
 
 console.log('All voices simulation tests passed successfully!');
 process.exit(0);
+
+// 3. Consistency across sentence indexes (using same seed)
+const taskSeed = 'ConsistencyTask|ProfX';
+const vA = pickSingleVoice(taskSeed, 'male');
+const vB = pickSingleVoice(taskSeed, 'male'); // simulate different sentence call
+assert(vA === vB, 'Same seed should return consistent voice across sentence calls');

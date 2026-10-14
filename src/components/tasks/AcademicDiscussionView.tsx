@@ -6,6 +6,7 @@ import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders } from '../../utils/apiKey';
+import { markUserAiRequest } from '../../utils/userActivity';
 
 interface Props {
   task: AcademicDiscussionTask;
@@ -44,6 +45,7 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
   const isTargetMet = wordCount >= 100 && wordCount <= 150;
 
   const handleEvaluate = async () => {
+    markUserAiRequest();
     if (wordCount < 40) {
       setEvalError('Please write at least 40 words before submitting for official TOEFL evaluation.');
       return;
