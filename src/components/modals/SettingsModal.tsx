@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices } from '../../utils/audioSpeech';
+import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, getVoices, getTtsUsageCount } from '../../utils/audioSpeech';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +21,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [nameError, setNameError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [randomizeVoices, setRandomizeVoices] = useState(true);
+  const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>('device');
 
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [testSecondsLeft, setTestSecondsLeft] = useState(3);
@@ -64,6 +65,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setCursorStyleState(getCursorPreference());
     setSelectedMicId(getStoredMicDeviceId() || '');
     setRandomizeVoices(localStorage.getItem('toefl_randomize_voices') !== 'false');
+    setVoiceEngineState(getVoiceEngine());
     getAudioInputDevices().then(setMicDevices).catch(() => {});
     setNameError(null);
     setSavedSuccess(false);
@@ -390,6 +392,47 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
               </button>
             </div>
+          </div>
+
+          {/* Voice Engine Selector */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Mic className="w-4 h-4 text-teal-700" />
+                Voice Engine
+              </span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { setVoiceEngineState('device'); setVoiceEngine('device'); }}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'device' ? 'bg-teal-50 border-teal-600 text-teal-900' : 'bg-white border-slate-300 text-slate-700'}`}
+              >
+                Device voice (recommended)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setVoiceEngineState('gemini'); setVoiceEngine('gemini'); }}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'gemini' ? 'bg-teal-50 border-teal-600 text-teal-900' : 'bg-white border-slate-300 text-slate-700'}`}
+              >
+                Gemini voice ({getTtsUsageCount()} used today)
+              </button>
+            </div>
+            {voiceEngine === 'device' && getVoices().filter(v => v.lang.startsWith('en')).length === 0 && (
+              <p className="text-xs text-rose-600">No English speech voices found. Try Chrome/Edge or install espeak-ng.</p>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                await speakScriptLine("This is a test of the selected voice engine.");
+              }}
+              className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
+            >
+              Test voice
+            </button>
+            <p className="text-xs text-slate-500">
+              Gemini voice is limited to 10 requests per day per model.
+            </p>
           </div>
 
           {/* Microphone Audio Input Selector */}

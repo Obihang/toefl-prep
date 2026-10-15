@@ -11,7 +11,17 @@ let cachedVoices: SpeechSynthesisVoice[] = [];
 const activeUtterances = new Set<SpeechSynthesisUtterance>();
 let activeHtmlAudio: HTMLAudioElement | null = null;
 let isAudioPlayingState = false;
-const ttsAudioCache = new Map<string, string>();
+import { openDB } from 'idb';
+
+const DB_NAME = 'toefl_tts_cache';
+const DB_VERSION = 1;
+const STORE_NAME = 'audio_blobs';
+
+const dbPromise = openDB(DB_NAME, DB_VERSION, {
+  upgrade(db) {
+    db.createObjectStore(STORE_NAME);
+  },
+});
 
 // Pre-cache available browser voices synchronously
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -49,6 +59,9 @@ export function stopSpeaking() {
     try {
       activeHtmlAudio.pause();
       activeHtmlAudio.currentTime = 0;
+      if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
+        URL.revokeObjectURL(activeHtmlAudio.src);
+      }
       activeHtmlAudio = null;
     } catch {
       // Ignored
@@ -60,11 +73,47 @@ export function isAudioPlaying(): boolean {
   return isAudioPlayingState;
 }
 
-// Fetch Cloud Audio from /api/tts via Gemini with in-memory caching
-export async function fetchAudioDataUri(text: string, voiceName: string = 'Kore'): Promise<string> {
+// TTS Daily Limit Tracker & Circuit Breaker
+const TTS_SUCCESS_COUNT_KEY = 'toefl_tts_success_count';
+const TTS_DATE_KEY = 'toefl_tts_date';
+const TTS_BLOCKED_UNTIL_KEY = 'toefl_tts_blocked_until';
+
+function getTtsQuotaData() {
+  const today = new Date().toDateString();
+  const storedDate = localStorage.getItem(TTS_DATE_KEY);
+  if (storedDate !== today) {
+    localStorage.setItem(TTS_DATE_KEY, today);
+    localStorage.setItem(TTS_SUCCESS_COUNT_KEY, '0');
+    return { count: 0, blockedUntil: 0 };
+  }
+  const count = parseInt(localStorage.getItem(TTS_SUCCESS_COUNT_KEY) || '0', 10);
+  const blockedUntil = parseInt(localStorage.getItem(TTS_BLOCKED_UNTIL_KEY) || '0', 10);
+  return { count, blockedUntil };
+}
+
+function incrementTtsQuota() {
+  const count = parseInt(localStorage.getItem(TTS_SUCCESS_COUNT_KEY) || '0', 10);
+  localStorage.setItem(TTS_SUCCESS_COUNT_KEY, (count + 1).toString());
+}
+
+export function getTtsUsageCount(): number {
+  return parseInt(localStorage.getItem(TTS_SUCCESS_COUNT_KEY) || '0', 10);
+}
+
+// Fetch Cloud Audio from /api/tts via Gemini with in-memory & IndexedDB caching
+export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): Promise<Blob> {
   const cacheKey = `${voiceName}:::${text}`;
-  if (ttsAudioCache.has(cacheKey)) {
-    return ttsAudioCache.get(cacheKey)!;
+  const db = await dbPromise;
+  
+  // Check cache
+  const cachedBlob = await db.get(STORE_NAME, cacheKey);
+  if (cachedBlob) {
+    return cachedBlob;
+  }
+
+  const { blockedUntil } = getTtsQuotaData();
+  if (Date.now() < blockedUntil) {
+    throw new Error('GEMINI_TTS_BLOCKED');
   }
 
   const res = await fetch('/api/tts', {
@@ -74,38 +123,91 @@ export async function fetchAudioDataUri(text: string, voiceName: string = 'Kore'
   });
 
   const json = await res.json();
+  
+  if (res.status === 429) {
+    const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
+    const blockDuration = json.rateLimit?.kind === 'per-day' ? 24 * 60 * 60 * 1000 : retryAfter + 5000;
+    localStorage.setItem(TTS_BLOCKED_UNTIL_KEY, (Date.now() + blockDuration).toString());
+    throw new Error('GEMINI_TTS_BLOCKED');
+  }
+
   if (!res.ok || !json.success || !json.audioBase64) {
     throw new Error(json.error || 'TTS service failed');
   }
 
-  const dataUri = `data:${json.mimeType || 'audio/wav'};base64,${json.audioBase64}`;
-  ttsAudioCache.set(cacheKey, dataUri);
-  return dataUri;
+  incrementTtsQuota();
+
+  // Decode base64 to Blob
+  const byteCharacters = atob(json.audioBase64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: json.mimeType || 'audio/wav' });
+
+  // Store in cache
+  await db.put(STORE_NAME, blob, cacheKey);
+
+  // Simple cache eviction (50MB cap, though checking size is complex, just limit keys)
+  const keys = await db.getAllKeys(STORE_NAME);
+  if (keys.length > 50) {
+    await db.delete(STORE_NAME, keys[0]);
+  }
+
+  return blob;
 }
 
-// Play HTML Audio Data URI with promise resolution
-export function playAudioDataUri(dataUri: string): Promise<void> {
+// Play HTML Audio Data URI (or Blob URL) with promise resolution
+// Now just a wrapper for playAudioBlob
+export async function fetchAudioDataUri(text: string, voiceName: string = 'Kore'): Promise<string> {
+  const blob = await fetchAudioBlob(text, voiceName);
+  return URL.createObjectURL(blob);
+}
+
+// Play Blob with object URL and cleanup
+export function playAudioBlob(blob: Blob): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  return playAudioDataUri(url, true);
+}
+
+// Play HTML Audio Data URI (or Blob URL) with promise resolution
+export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): Promise<void> {
   if (activeHtmlAudio) {
     try {
       activeHtmlAudio.pause();
     } catch {}
+    // Revoke previous blob URL if it was a blob URL
+    if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
+      URL.revokeObjectURL(activeHtmlAudio.src);
+    }
     activeHtmlAudio = null;
   }
 
   isAudioPlayingState = true;
   const audio = new Audio(dataUri);
+  audio.dataset.isBlobUrl = isBlobUrl ? 'true' : 'false';
   activeHtmlAudio = audio;
 
   return new Promise((resolve) => {
     audio.onended = () => {
+      if (audio.dataset.isBlobUrl === 'true') {
+        URL.revokeObjectURL(audio.src);
+      }
       activeHtmlAudio = null;
       resolve();
     };
     audio.onerror = () => {
+      if (audio.dataset.isBlobUrl === 'true') {
+        URL.revokeObjectURL(audio.src);
+      }
       activeHtmlAudio = null;
       resolve();
     };
     audio.play().catch(() => {
+      if (audio.dataset.isBlobUrl === 'true') {
+        URL.revokeObjectURL(audio.src);
+      }
       activeHtmlAudio = null;
       resolve();
     });
@@ -149,6 +251,32 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
   });
 }
 
+export type VoiceEngine = 'gemini' | 'device';
+
+export function getVoiceEngine(): VoiceEngine {
+  return (localStorage.getItem('toefl_voice_engine') as VoiceEngine) || 'device';
+}
+
+export function setVoiceEngine(engine: VoiceEngine) {
+  localStorage.setItem('toefl_voice_engine', engine);
+}
+
+export function pickBrowserVoiceForGender(gender: 'male' | 'female', lang: string = 'en-US'): SpeechSynthesisVoice | null {
+  const voices = getVoices();
+  
+  // Scoring function for voice quality
+  const getScore = (v: SpeechSynthesisVoice) => {
+    let score = 0;
+    if (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Online')) score += 10;
+    if (v.lang.startsWith(lang.substring(0, 2))) score += 5;
+    if (gender === 'male' && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man'))) score += 5;
+    if (gender === 'female' && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman'))) score += 5;
+    return score;
+  };
+
+  return voices.sort((a, b) => getScore(b) - getScore(a))[0] || null;
+}
+
 // Speak single line with Studio AI voice primary and browser fallback
 export async function speakScriptLine(
   text: string,
@@ -164,19 +292,31 @@ export async function speakScriptLine(
   stopSpeaking();
   isAudioPlayingState = true;
 
+  const engine = getVoiceEngine();
+  const gender = options.voiceName === 'Puck' ? 'male' : 'female'; // Simplified gender mapping based on previous logic
+
+  if (engine === 'device') {
+    const voice = options.browserVoice || pickBrowserVoiceForGender(gender);
+    await speakScriptLineFallback(text, options.pitch ?? 1.0, voice);
+    isAudioPlayingState = false;
+    options.onEnd?.();
+    return;
+  }
+
   const defaultVoice = options.pitch && options.pitch < 0.95 ? 'Puck' : 'Kore';
   const voice = options.voiceName || defaultVoice;
 
   try {
-    const dataUri = await fetchAudioDataUri(text, voice);
+    const blob = await fetchAudioBlob(text, voice);
     if (!isAudioPlayingState) return;
-    await playAudioDataUri(dataUri);
+    await playAudioBlob(blob);
     isAudioPlayingState = false;
     options.onEnd?.();
   } catch (err) {
     // Fall back to browser speech synthesis
     console.warn('AI voice failed, falling back to browser voice:', err);
-    await speakScriptLineFallback(text, options.pitch ?? 1.0, options.browserVoice);
+    const voice = options.browserVoice || pickBrowserVoiceForGender(gender);
+    await speakScriptLineFallback(text, options.pitch ?? 1.0, voice);
     isAudioPlayingState = false;
     options.onEnd?.();
   }

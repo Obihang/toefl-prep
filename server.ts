@@ -31,12 +31,20 @@ export async function createServer() {
     next();
   });
 
+  function extractApiConfig(req: express.Request) {
+    const provider = (req.headers['x-api-provider'] as string)?.trim() || req.body?.provider || 'gemini';
+    const apiKey = (req.headers['x-api-key'] as string)?.trim() || (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
+    const baseUrl = (req.headers['x-api-base-url'] as string)?.trim() || req.body?.baseUrl?.trim();
+    const model = (req.headers['x-api-model'] as string)?.trim() || req.body?.model?.trim();
+    return { provider, apiKey, baseUrl, model };
+  }
+
   // API endpoints
   app.post('/api/generate-task', async (req, res) => {
     try {
       const { taskType, level, topic } = req.body || {};
-      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
-      const result = await handleGenerateTask(taskType, level, topic, customApiKey);
+      const apiConfig = extractApiConfig(req);
+      const result = await handleGenerateTask(taskType, level, topic, apiConfig);
       res.json({ success: true, data: result, rateLimit: result.rateLimit });
     } catch (error: any) {
       const msg = extractErrorMessage(error);
@@ -49,8 +57,8 @@ export async function createServer() {
   app.post('/api/evaluate-response', async (req, res) => {
     try {
       const { taskType, promptData, studentResponse } = req.body || {};
-      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
-      const result = await handleEvaluateResponse(taskType, promptData, studentResponse, customApiKey);
+      const apiConfig = extractApiConfig(req);
+      const result = await handleEvaluateResponse(taskType, promptData, studentResponse, apiConfig);
       res.json({ success: true, data: result });
     } catch (error: any) {
       const msg = extractErrorMessage(error);
@@ -70,13 +78,19 @@ export async function createServer() {
   app.post('/api/tts', async (req, res) => {
     try {
       const { text, voiceName } = req.body || {};
-      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
+      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.headers['x-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
       const result = await handleSynthesizeSpeech(text, voiceName, customApiKey);
       res.json({ success: true, audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed: result.modelUsed });
     } catch (error: any) {
-      const msg = error?.message || 'TTS synthesis failed';
-      const status = msg === 'SPEECH_UNAVAILABLE' ? 503 : 500;
-      res.status(status).json({ success: false, error: msg });
+      const msg = extractErrorMessage(error);
+      const status = getStatus(error);
+      const rateLimit = (status === 429 || isQuotaExhaustedError(error)) ? parseRateLimitFromError(error) : undefined;
+      if (status === 429 || isQuotaExhaustedError(error)) {
+        res.status(429).json({ success: false, error: msg, rateLimit });
+      } else {
+        const httpStatus = msg === 'SPEECH_UNAVAILABLE' ? 503 : 500;
+        res.status(httpStatus).json({ success: false, error: msg });
+      }
     }
   });
 
@@ -84,7 +98,7 @@ export async function createServer() {
     try {
       const { audioBase64, mimeType } = req.body || {};
 
-      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
+      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.headers['x-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
       const result = await handleTranscribeAudio(audioBase64, mimeType, customApiKey);
 
 
@@ -97,14 +111,14 @@ export async function createServer() {
   });
 
   app.post('/api/test-key', async (req, res) => {
-    const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
-    const apiKey = customApiKey || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(400).json({ success: false, error: 'No Gemini API key provided.' });
+    const apiConfig = extractApiConfig(req);
+    const effectiveKey = apiConfig.apiKey || (apiConfig.provider === 'gemini' ? process.env.GEMINI_API_KEY : '');
+    if (!effectiveKey && apiConfig.provider !== 'custom') {
+      return res.status(400).json({ success: false, error: `No API key provided for ${apiConfig.provider}.` });
     }
 
     try {
-      const result = await handleTestApiKey(apiKey);
+      const result = await handleTestApiKey(apiConfig);
       res.json(result);
     } catch (error: any) {
       console.error('Test key error:', error);

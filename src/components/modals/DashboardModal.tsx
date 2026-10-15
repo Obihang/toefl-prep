@@ -34,7 +34,18 @@ import {
 } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
 import { MistakeNotebook } from '../tasks/MistakeNotebook';
-import { getStoredApiKey, setStoredApiKey } from '../../utils/apiKey';
+import {
+  getStoredApiKey,
+  setStoredApiKey,
+  getStoredProvider,
+  setStoredProvider,
+  getStoredBaseUrl,
+  setStoredBaseUrl,
+  getStoredModel,
+  setStoredModel,
+  PROVIDERS,
+  ApiProvider,
+} from '../../utils/apiKey';
 
 interface Props {
   isOpen: boolean;
@@ -56,7 +67,10 @@ export const DashboardModal: React.FC<Props> = ({
   const [stats, setStats] = useState<any>(null);
   const [completedDays, setCompletedDays] = useState<string[]>([]);
   const [vocab, setVocab] = useState<VocabularyWord[]>([]);
+  const [provider, setProvider] = useState<ApiProvider>('gemini');
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [baseUrlInput, setBaseUrlInput] = useState('');
+  const [modelInput, setModelInput] = useState('');
   const [apiKeySaved, setApiKeySaved] = useState(false);
 
   // Dedicated Goals State
@@ -83,7 +97,11 @@ export const DashboardModal: React.FC<Props> = ({
       setStats(getUserStats());
       getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
       getVocabularyWords().then(setVocab).catch(() => setVocab([]));
+      const currentProvider = getStoredProvider();
+      setProvider(currentProvider);
       setApiKeyInput(getStoredApiKey() || '');
+      setBaseUrlInput(getStoredBaseUrl());
+      setModelInput(getStoredModel());
       setApiKeySaved(false);
       setTestKeyResult(null);
 
@@ -98,21 +116,46 @@ export const DashboardModal: React.FC<Props> = ({
     }
   }, [isOpen]);
 
+  const handleProviderSelect = (newProvider: ApiProvider) => {
+    setProvider(newProvider);
+    setStoredProvider(newProvider);
+    const defBase = PROVIDERS[newProvider].defaultBaseUrl;
+    const defModel = PROVIDERS[newProvider].defaultModel;
+    setBaseUrlInput(defBase);
+    setStoredBaseUrl(defBase);
+    setModelInput(defModel);
+    setStoredModel(defModel);
+    setTestKeyResult(null);
+  };
+
   const handleTestKey = async () => {
     setIsTestingKey(true);
     setTestKeyResult(null);
     try {
       const trimmedKey = apiKeyInput.trim();
-      if (!trimmedKey) {
-        throw new Error('Please enter a Gemini API key first.');
+      const trimmedBaseUrl = baseUrlInput.trim();
+      const trimmedModel = modelInput.trim();
+
+      if (!trimmedKey && provider !== 'custom') {
+        throw new Error(`Please enter your ${PROVIDERS[provider]?.name || 'API'} key first.`);
       }
+
       const res = await fetch('/api/test-key', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-provider': provider,
+          'x-api-key': trimmedKey,
+          'x-api-base-url': trimmedBaseUrl,
+          'x-api-model': trimmedModel,
           'x-gemini-api-key': trimmedKey,
         },
-        body: JSON.stringify({ apiKey: trimmedKey }),
+        body: JSON.stringify({
+          provider,
+          apiKey: trimmedKey,
+          baseUrl: trimmedBaseUrl,
+          model: trimmedModel,
+        }),
       });
 
       if (res.status === 404) {
@@ -128,12 +171,16 @@ export const DashboardModal: React.FC<Props> = ({
       if (!res.ok || !json.success) {
         throw new Error(json.error || json.message || 'Key test failed');
       }
+
+      setStoredProvider(provider);
       setStoredApiKey(trimmedKey);
+      setStoredBaseUrl(trimmedBaseUrl);
+      setStoredModel(trimmedModel);
       setApiKeySaved(true);
       window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
-      setTestKeyResult({ success: true, message: json.message || `Key works (${json.model || 'Gemini'})` });
+      setTestKeyResult({ success: true, message: json.message || `Connected successfully to ${PROVIDERS[provider].name}` });
     } catch (err: any) {
-      setTestKeyResult({ success: false, message: err.message || 'Invalid API key or connection error' });
+      setTestKeyResult({ success: false, message: err.message || 'Connection error. Check key, URL, and model name.' });
     } finally {
       setIsTestingKey(false);
     }
@@ -746,50 +793,112 @@ export const DashboardModal: React.FC<Props> = ({
                   onClick={() => setIsSettingsOpen(true)}
                   className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors cursor-pointer"
                 >
-                  <span className="text-sm font-medium text-teal-900">Configure Display Name, Microphone &amp; Cursor Style</span>
+                  <span className="text-sm font-medium text-teal-900">Configure Display Name, Voice Engine, Microphone &amp; Cursor Style</span>
                   <Settings className="w-4 h-4 text-teal-600" />
                 </button>
               </div>
 
-              <div className="space-y-3 pt-4 border-t border-slate-200">
-                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                  <Key className="w-4 h-4 text-teal-700" />
-                  Gemini API Key
-                </h3>
-                <div className="space-y-2">
+              <div className="space-y-4 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                    <Key className="w-4 h-4 text-teal-700" />
+                    AI Provider &amp; API Key
+                  </h3>
+                  <span className="text-[11px] font-medium text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
+                    Works with Any API
+                  </span>
+                </div>
+
+                {/* Provider Selector Buttons */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">Choose AI Provider</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(Object.keys(PROVIDERS) as ApiProvider[]).map((pKey) => {
+                      const p = PROVIDERS[pKey];
+                      const isSelected = provider === pKey;
+                      return (
+                        <button
+                          key={pKey}
+                          type="button"
+                          onClick={() => handleProviderSelect(pKey)}
+                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-teal-600 bg-teal-50/80 text-teal-950 font-bold ring-2 ring-teal-600/20 shadow-xs'
+                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="text-xs font-semibold leading-tight">{p.name}</div>
+                          <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{p.defaultModel}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-slate-500 pt-0.5">
+                    {PROVIDERS[provider]?.helpText}
+                  </p>
+                </div>
+
+                {/* API Key Input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700">
+                      {PROVIDERS[provider]?.name} API Key
+                    </label>
+                    {PROVIDERS[provider]?.keyHelpUrl && (
+                      <a
+                        href={PROVIDERS[provider].keyHelpUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-teal-700 hover:text-teal-900 underline font-semibold"
+                      >
+                        Get Key &rarr;
+                      </a>
+                    )}
+                  </div>
                   <input
-                    type="text"
+                    type="password"
                     value={apiKeyInput}
                     onChange={(e) => {
                       setApiKeyInput(e.target.value);
                       setApiKeySaved(false);
                       setTestKeyResult(null);
                     }}
-                    placeholder="AIzaSy..."
+                    placeholder={PROVIDERS[provider]?.placeholderKey || 'Paste API Key'}
                     className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
                   />
-                  <div className="p-3 bg-teal-50/60 border border-teal-200 rounded-xl space-y-1.5 text-xs text-teal-900">
-                    <p className="font-semibold">Quick setup guide:</p>
-                    <ol className="list-decimal pl-4 space-y-0.5 text-slate-700">
-                      <li>
-                        Get a free key at{' '}
-                        <a
-                          href="https://aistudio.google.com/apikey"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-teal-700 underline font-semibold hover:text-teal-900"
-                        >
-                          https://aistudio.google.com/apikey
-                        </a>
-                      </li>
-                      <li>Paste it into the box above and click "Test &amp; Save Key"</li>
-                      <li>Generate authentic, unlimited AI TOEFL tasks on demand!</li>
-                    </ol>
-                    <p className="text-[11px] text-slate-500 pt-1">
-                      Your key is securely stored in your browser's local storage and used directly for ETS-standard TOEFL generations.
-                    </p>
-                  </div>
                 </div>
+
+                {/* Base URL (editable for non-gemini or custom) */}
+                {provider !== 'gemini' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700">API Base URL</label>
+                      <input
+                        type="text"
+                        value={baseUrlInput}
+                        onChange={(e) => {
+                          setBaseUrlInput(e.target.value);
+                          setApiKeySaved(false);
+                        }}
+                        placeholder="https://api.openai.com/v1"
+                        className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700">Model Name</label>
+                      <input
+                        type="text"
+                        value={modelInput}
+                        onChange={(e) => {
+                          setModelInput(e.target.value);
+                          setApiKeySaved(false);
+                        }}
+                        placeholder={PROVIDERS[provider]?.defaultModel || 'gpt-4o-mini'}
+                        className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {testKeyResult && (
                   <div
@@ -808,14 +917,14 @@ export const DashboardModal: React.FC<Props> = ({
                   </div>
                 )}
 
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end pt-1">
                   <button
                     onClick={handleTestKey}
-                    disabled={isTestingKey || !apiKeyInput.trim()}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer"
+                    disabled={isTestingKey || (!apiKeyInput.trim() && provider !== 'custom')}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
                   >
                     {isTestingKey && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>{isTestingKey ? 'Verifying...' : 'Test & Save Key'}</span>
+                    <span>{isTestingKey ? 'Verifying...' : `Test & Save ${PROVIDERS[provider]?.name || 'Provider'}`}</span>
                   </button>
                 </div>
               </div>

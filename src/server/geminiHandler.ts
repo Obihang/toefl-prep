@@ -5,6 +5,9 @@ import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
+import { callOpenAiCompatibleChat, testOpenAiCompatible } from './llmClient.ts';
+
+export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string };
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
@@ -379,8 +382,20 @@ function getAiClient(customApiKey?: string) {
   });
 }
 
-export async function handleTestApiKey(customApiKey?: string): Promise<{ success: true; message: string; model: string }> {
-  const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
+export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ success: true; message: string; model: string }> {
+  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
+  const provider = opts.provider || 'gemini';
+
+  if (provider !== 'gemini') {
+    return testOpenAiCompatible({
+      provider,
+      apiKey: opts.apiKey,
+      baseUrl: opts.baseUrl,
+      model: opts.model,
+    });
+  }
+
+  const apiKey = (opts.apiKey && opts.apiKey.trim()) || process.env.GEMINI_API_KEY;
   if (!apiKey || !apiKey.trim()) {
     throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
   }
@@ -405,10 +420,13 @@ export async function handleTestApiKey(customApiKey?: string): Promise<{ success
     return true;
   });
 
-  return { success: true, message: `Key works (${modelUsed})`, model: modelUsed };
+  return { success: true, message: `Connected to Gemini (${modelUsed})`, model: modelUsed };
 }
 
-export async function handleGenerateTask(taskType: string, level: string, topic: string, customApiKey?: string) {
+export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions) {
+  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
+  const provider = opts.provider || 'gemini';
+  const customApiKey = opts.apiKey;
   const ai = getAiClient(customApiKey);
   
   const taskMap: Record<string, string> = {
@@ -462,6 +480,40 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
     }
   };
+
+  // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
+  if (provider !== 'gemini') {
+    try {
+      const prompt = getPrompt(taskType, level, topic);
+      const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
+      const { text, modelUsed } = await callOpenAiCompatibleChat({
+        provider,
+        apiKey: opts.apiKey,
+        baseUrl: opts.baseUrl,
+        model: opts.model,
+        prompt: `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`,
+        systemInstruction,
+        responseJson: true,
+      });
+
+      const parsed = cleanAndExtractJson(text);
+      const normalized = normalizeTask(taskType, parsed);
+      const result = schema.parse(normalized);
+      return { ...result, isFallback: false, modelUsed };
+    } catch (error: any) {
+      const errMsg = extractErrorMessage(error);
+      console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
+      const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
+      const curatedTasks = CURATED[curatedKey] as any[];
+      const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
+      return {
+        ...item,
+        isFallback: true,
+        fallbackReason: errMsg,
+        modelUsed: `Curated ETS (${provider} fallback)`,
+      };
+    }
+  }
 
   try {
     if (!ai) {
@@ -529,12 +581,11 @@ export async function handleEvaluateResponse(
   taskType: string,
   promptData: any,
   studentResponse: any,
-  customApiKey?: string
+  options?: ApiCallOptions
 ) {
-  const ai = getAiClient(customApiKey);
-  if (!ai) {
-    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
-  }
+  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
+  const provider = opts.provider || 'gemini';
+  const customApiKey = opts.apiKey;
 
   const evaluationPrompt = `You are an official certified ETS TOEFL iBT scoring rater.
 Evaluate the student's submission for the following TOEFL task type: "${taskType}".
@@ -569,6 +620,38 @@ Return valid JSON format:
   "exemplarResponse": "Model high-scoring response...",
   "tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
+
+  // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
+  if (provider !== 'gemini') {
+    const { text, modelUsed } = await callOpenAiCompatibleChat({
+      provider,
+      apiKey: opts.apiKey,
+      baseUrl: opts.baseUrl,
+      model: opts.model,
+      prompt: evaluationPrompt,
+      systemInstruction: 'You are an official certified ETS TOEFL iBT scoring rater. Return valid JSON only.',
+      responseJson: true,
+      temperature: 0.3,
+    });
+
+    const parsed = cleanAndExtractJson(text);
+    const result = z.object({
+      bandScore6: z.number(),
+      rawRubricScore: z.number(),
+      scaledScore: z.number(),
+      feedbackSummary: z.string(),
+      errors: z.array(z.object({ original: z.string(), corrected: z.string(), explanation: z.string() })),
+      exemplarResponse: z.string(),
+      tips: z.array(z.string()),
+    }).parse(parsed);
+
+    return { ...result, modelUsed };
+  }
+
+  const ai = getAiClient(customApiKey);
+  if (!ai) {
+    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+  }
 
   const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
     const thinkingConfig = getModelThinkingConfig(model, 'evaluation');
