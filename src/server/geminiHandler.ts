@@ -708,6 +708,32 @@ Return valid JSON format:
   return { ...result, modelUsed };
 }
 
+function addWavHeader(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
+  if (pcmBuffer.length >= 12 && pcmBuffer.toString('utf8', 0, 4) === 'RIFF') {
+    return pcmBuffer;
+  }
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const dataSize = pcmBuffer.length;
+  const header = Buffer.alloc(44);
+
+  header.write('RIFF', 0);
+  header.writeUInt32LE(header.length + dataSize - 8, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(numChannels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitsPerSample, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(dataSize, 40);
+
+  return Buffer.concat([header, pcmBuffer]) as unknown as Buffer;
+}
+
 export async function handleSynthesizeSpeech(
   text: string,
   voiceName: string = 'Kore',
@@ -803,6 +829,15 @@ export async function handleSynthesizeSpeech(
     if (!audioData) {
       throw new Error('No audio data returned from model');
     }
+
+    // Ensure audio contains a valid RIFF WAV header for universal browser compatibility (Firefox, Safari, Chrome, Edge)
+    let pcmBuf = Buffer.from(audioData, 'base64');
+    if (pcmBuf.length < 12 || pcmBuf.toString('utf8', 0, 4) !== 'RIFF') {
+      pcmBuf = addWavHeader(pcmBuf, 24000, 1, 16) as any;
+      audioData = pcmBuf.toString('base64');
+      mimeType = 'audio/wav';
+    }
+
     return { audioBase64: audioData, mimeType };
   });
 
