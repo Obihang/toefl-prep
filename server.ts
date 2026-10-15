@@ -173,12 +173,18 @@ export async function createServer() {
     res.json({ status: 'ok', hasGeminiKey: !!process.env.GEMINI_API_KEY });
   });
 
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-
-  app.use(vite.middlewares);
+  if (process.env.NODE_ENV === 'production') {
+    app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.get('*', (req, res) => {
+      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+    });
+  } else {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  }
 
   app.listen(3000, '0.0.0.0', () => {
     console.log('Server running on http://localhost:3000');
