@@ -22,6 +22,7 @@ import {
   Sparkles,
   Zap,
   Mic,
+  Volume2,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { SettingsModal } from './SettingsModal';
@@ -960,7 +961,7 @@ export const DashboardModal: React.FC<Props> = ({
                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
                       Purpose-Based Model Routing (Automatic)
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                       
                       {/* 1. Question Generation */}
                       <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
@@ -968,37 +969,58 @@ export const DashboardModal: React.FC<Props> = ({
                           <BookOpen className="w-3.5 h-3.5 text-teal-700" />
                           <span>Question Generator</span>
                         </div>
-                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate">
+                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate" title={activePurposeModels?.generation || (detected?.purposeModels?.generation || 'Auto-Optimized')}>
                           {activePurposeModels?.generation || (detected?.purposeModels?.generation || 'Auto-Optimized (70B/Flash)')}
                         </div>
-                        <p className="text-[10px] text-slate-400">Authentic ETS schemas &amp; prompt passages</p>
+                        <p className="text-[10px] text-slate-400">Authentic ETS passage generation</p>
                       </div>
 
                       {/* 2. Score & Answers Checking */}
                       <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                           <Target className="w-3.5 h-3.5 text-indigo-700" />
-                          <span>Answer &amp; Rubric Scoring</span>
+                          <span>Rubric Scoring</span>
                         </div>
-                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate">
+                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate" title={activePurposeModels?.evaluation || (detected?.purposeModels?.evaluation || 'High-Precision Evaluator')}>
                           {activePurposeModels?.evaluation || (detected?.purposeModels?.evaluation || 'High-Precision Evaluator')}
                         </div>
                         <p className="text-[10px] text-slate-400">ETS 1.0–6.0 Bands &amp; CEFR diagnosis</p>
                       </div>
 
-                      {/* 3. Voice TTS & STT */}
+                      {/* 3. Speech-to-Text (STT) */}
                       <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                           <Mic className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>Voice TTS &amp; Audio</span>
+                          <span>Speech-to-Text</span>
                         </div>
-                        <div className="text-[11px] font-mono text-emerald-900 font-semibold truncate">
-                          {activePurposeModels?.transcription || (detected?.purposeModels?.transcription || 'Native Speech & Whisper')}
+                        <div className="text-[11px] font-mono text-emerald-900 font-semibold truncate" title={activePurposeModels?.transcription || (detected?.purposeModels?.transcription || 'Native Speech & Whisper')}>
+                          {activePurposeModels?.transcription || (detected?.purposeModels?.transcription || 'Whisper / Multimodal Audio')}
                         </div>
-                        <p className="text-[10px] text-slate-400">Whisper STT / TTS-1 / Gemini Audio</p>
+                        <p className="text-[10px] text-slate-400">Mic speech transcription</p>
+                      </div>
+
+                      {/* 4. Text-to-Speech (TTS Audio Playback) */}
+                      <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <Volume2 className="w-3.5 h-3.5 text-sky-700" />
+                          <span>Audio Playback (TTS)</span>
+                        </div>
+                        <div className="text-[11px] font-mono text-sky-900 font-semibold truncate" title={activePurposeModels?.tts || (detected?.purposeModels?.tts || 'Studio Cloud / Browser Speech')}>
+                          {activePurposeModels?.tts || (detected?.purposeModels?.tts || 'Studio Cloud / Browser Speech')}
+                        </div>
+                        <p className="text-[10px] text-slate-400">Dialogues &amp; sentence listening audio</p>
                       </div>
 
                     </div>
+                    {/* Note about Groq / Non-Gemini TTS */}
+                    {['groq', 'nvidia', 'deepseek', 'openrouter'].includes(detected?.provider || provider) && (
+                      <div className="mt-2 text-[11px] text-slate-500 bg-sky-50/60 border border-sky-100 rounded-lg p-2 flex items-start gap-1.5">
+                        <span className="font-semibold text-sky-800 shrink-0">Audio Note:</span>
+                        <span>
+                          {detected?.label || 'This provider'} provides high-speed text generation and Whisper speech recognition. Listening audio playback is seamlessly handled by the app's built-in Studio Cloud Voice (server environment) or your browser device voice.
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {testKeyResult && (

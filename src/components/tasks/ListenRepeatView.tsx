@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones } from 'lucide-react';
-import { speakScriptLine, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
 interface Props {
@@ -64,16 +64,25 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, [micStatus]);
 
   const handlePlay = async (index: number) => {
+    if (activeAudioIdx === index) {
+      stopSpeaking();
+      setActiveAudioIdx(null);
+      return;
+    }
     setActiveAudioIdx(index);
     const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
-    await speakScriptLine(task.sentences[index], {
-      rate: 0.9,
-      voiceName,
-      browserVoice,
-      onEnd: () => setActiveAudioIdx(null),
-      onError: () => setActiveAudioIdx(null),
-    });
+    try {
+      await speakScriptLine(task.sentences[index], {
+        rate: 0.9,
+        voiceName,
+        browserVoice,
+        onEnd: () => setActiveAudioIdx(null),
+        onError: () => setActiveAudioIdx(null),
+      });
+    } catch {
+      setActiveAudioIdx(null);
+    }
   };
 
   const handleToggleMic = async (index: number) => {
@@ -275,9 +284,6 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
             <span>{task.sentences.length} Sentences</span>
             <span aria-hidden="true">·</span>
             <span className="capitalize">{task.level}</span>
-          </div>
-          <div className="text-xs text-slate-500 mt-1.5 font-mono">
-            Speaker: {speakerName} · Voice: {speakerVoice} ({speakerGender})
           </div>
         </div>
 

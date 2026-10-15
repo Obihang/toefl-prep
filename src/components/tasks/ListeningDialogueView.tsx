@@ -157,9 +157,6 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             <div className="text-sm text-slate-300">
               Speakers: <strong className="text-slate-100">{task.speakers.A}</strong> & <strong className="text-slate-100">{task.speakers.B}</strong>
             </div>
-            <div className="text-xs text-slate-400 mt-1.5 font-mono">
-              {task.speakers.A}: {voices.A} ({gA}) · {task.speakers.B}: {voices.B} ({gB})
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -191,7 +188,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           <div className="flex items-center gap-1.5">
             <Volume2 className={`w-4 h-4 ${isPlaying ? 'text-teal-400' : 'text-slate-500'}`} />
             <span className="text-xs font-mono text-slate-400">
-              {isPlaying ? 'Playing Audio (Dual Speaker)...' : 'Audio Ready'}
+              {isPlaying ? 'Playing Audio...' : 'Audio Ready'}
             </span>
           </div>
 
@@ -209,11 +206,6 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               />
             ))}
           </div>
-        </div>
-
-        {/* Voice matching info label */}
-        <div className="mt-2 text-[11px] font-mono text-slate-400">
-          {task.speakers.A}: {voices.A} ({gA === 'female' ? 'female' : 'male'}) · {task.speakers.B}: {voices.B} ({gB === 'female' ? 'female' : 'male'})
         </div>
 
         {/* Optional Transcript */}

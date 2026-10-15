@@ -113,7 +113,11 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
 
   const { blockedUntil } = getTtsQuotaData();
   if (Date.now() < blockedUntil) {
-    throw new Error('GEMINI_TTS_BLOCKED');
+    if (blockedUntil - Date.now() > 2 * 60 * 1000) {
+      localStorage.removeItem(TTS_BLOCKED_UNTIL_KEY);
+    } else {
+      throw new Error('GEMINI_TTS_BLOCKED');
+    }
   }
 
   const res = await fetch('/api/tts', {
@@ -126,7 +130,7 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
   
   if (res.status === 429) {
     const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
-    const blockDuration = json.rateLimit?.kind === 'per-day' ? 24 * 60 * 60 * 1000 : retryAfter + 5000;
+    const blockDuration = Math.min(retryAfter + 5000, 60000);
     localStorage.setItem(TTS_BLOCKED_UNTIL_KEY, (Date.now() + blockDuration).toString());
     throw new Error('GEMINI_TTS_BLOCKED');
   }
@@ -147,13 +151,17 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
   const blob = new Blob([byteArray], { type: json.mimeType || 'audio/wav' });
 
   // Store in cache
-  await db.put(STORE_NAME, blob, cacheKey);
+  try {
+    await db.put(STORE_NAME, blob, cacheKey);
+  } catch {}
 
-  // Simple cache eviction (50MB cap, though checking size is complex, just limit keys)
-  const keys = await db.getAllKeys(STORE_NAME);
-  if (keys.length > 50) {
-    await db.delete(STORE_NAME, keys[0]);
-  }
+  // Simple cache eviction (limit keys)
+  try {
+    const keys = await db.getAllKeys(STORE_NAME);
+    if (keys.length > 50) {
+      await db.delete(STORE_NAME, keys[0]);
+    }
+  } catch {}
 
   return blob;
 }
@@ -190,26 +198,25 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
   activeHtmlAudio = audio;
 
   return new Promise((resolve) => {
-    audio.onended = () => {
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
       if (audio.dataset.isBlobUrl === 'true') {
         URL.revokeObjectURL(audio.src);
       }
-      activeHtmlAudio = null;
+      if (activeHtmlAudio === audio) {
+        activeHtmlAudio = null;
+      }
       resolve();
     };
-    audio.onerror = () => {
-      if (audio.dataset.isBlobUrl === 'true') {
-        URL.revokeObjectURL(audio.src);
-      }
-      activeHtmlAudio = null;
-      resolve();
-    };
-    audio.play().catch(() => {
-      if (audio.dataset.isBlobUrl === 'true') {
-        URL.revokeObjectURL(audio.src);
-      }
-      activeHtmlAudio = null;
-      resolve();
+
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+
+    audio.play().catch((err) => {
+      console.warn('Audio play() failed:', err);
+      cleanup();
     });
   });
 }
@@ -254,7 +261,9 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
 export type VoiceEngine = 'gemini' | 'device';
 
 export function getVoiceEngine(): VoiceEngine {
-  return (localStorage.getItem('toefl_voice_engine') as VoiceEngine) || 'device';
+  const stored = localStorage.getItem('toefl_voice_engine');
+  if (!stored) return 'gemini';
+  return stored as VoiceEngine;
 }
 
 export function setVoiceEngine(engine: VoiceEngine) {
@@ -292,31 +301,37 @@ export async function speakScriptLine(
   stopSpeaking();
   isAudioPlayingState = true;
 
-  const engine = getVoiceEngine();
-  const gender = options.voiceName === 'Puck' ? 'male' : 'female'; // Simplified gender mapping based on previous logic
-
-  if (engine === 'device') {
-    const voice = options.browserVoice || pickBrowserVoiceForGender(gender);
-    await speakScriptLineFallback(text, options.pitch ?? 1.0, voice);
-    isAudioPlayingState = false;
-    options.onEnd?.();
-    return;
-  }
-
   const defaultVoice = options.pitch && options.pitch < 0.95 ? 'Puck' : 'Kore';
   const voice = options.voiceName || defaultVoice;
+  const gender = voice === 'Puck' ? 'male' : 'female';
 
+  // Clean any speaker prefix (e.g. "Sarah (student): " or "Interviewer: ") so it is not spoken aloud
+  let cleanText = text.trim();
+  const colonIdx = cleanText.indexOf(':');
+  if (colonIdx > 0 && colonIdx < 35) {
+    cleanText = cleanText.substring(colonIdx + 1).trim();
+  }
+
+  // 1. Try high-fidelity Studio Cloud Voice first (crisp, natural, works in iframe)
   try {
-    const blob = await fetchAudioBlob(text, voice);
+    const blob = await fetchAudioBlob(cleanText, voice);
     if (!isAudioPlayingState) return;
     await playAudioBlob(blob);
     isAudioPlayingState = false;
     options.onEnd?.();
+    return;
   } catch (err) {
-    // Fall back to browser speech synthesis
-    console.warn('AI voice failed, falling back to browser voice:', err);
-    const voice = options.browserVoice || pickBrowserVoiceForGender(gender);
-    await speakScriptLineFallback(text, options.pitch ?? 1.0, voice);
+    console.warn('Studio AI voice failed or unavailable, falling back to browser voice:', err);
+  }
+
+  // 2. Fall back to browser speech synthesis
+  try {
+    const voiceObj = options.browserVoice || pickBrowserVoiceForGender(gender);
+    await speakScriptLineFallback(cleanText, options.pitch ?? 1.0, voiceObj);
+  } catch (browserErr) {
+    console.warn('Browser speech fallback failed:', browserErr);
+    options.onError?.(browserErr);
+  } finally {
     isAudioPlayingState = false;
     options.onEnd?.();
   }
@@ -339,24 +354,48 @@ export async function playDialogue(
 
     onLineChange?.(i);
 
-    const isSpeakerB =
-      rawLine.startsWith('Speaker B:') ||
-      rawLine.startsWith('B:') ||
-      rawLine.toLowerCase().startsWith('professor:') ||
-      rawLine.toLowerCase().startsWith('advisor:');
+    // Clean speaker prefix so it doesn't speak "Speaker A:" or "Professor Lee:"
+    let cleanText = rawLine;
+    let speakerLabel = '';
+    const colonIdx = rawLine.indexOf(':');
+    if (colonIdx > 0 && colonIdx < 35) {
+      speakerLabel = rawLine.substring(0, colonIdx).trim().toLowerCase();
+      cleanText = rawLine.substring(colonIdx + 1).trim();
+    } else {
+      cleanText = rawLine.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
+    }
 
-    const cleanText = rawLine.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
+    const isSpeakerB =
+      speakerLabel.includes('b') ||
+      speakerLabel.includes('professor') ||
+      speakerLabel.includes('advisor') ||
+      speakerLabel.includes('dr.') ||
+      speakerLabel.includes('doctor') ||
+      speakerLabel.includes('faculty') ||
+      (!speakerLabel && i % 2 === 1);
+
     const voiceToUse = isSpeakerB ? voiceMapping.B : voiceMapping.A;
 
     // Asynchronously pre-fetch the next line while current line is about to play
     if (i + 1 < lines.length) {
       const nextRaw = lines[i + 1].trim();
+      let nextClean = nextRaw;
+      let nextLabel = '';
+      const nextColon = nextRaw.indexOf(':');
+      if (nextColon > 0 && nextColon < 35) {
+        nextLabel = nextRaw.substring(0, nextColon).trim().toLowerCase();
+        nextClean = nextRaw.substring(nextColon + 1).trim();
+      } else {
+        nextClean = nextRaw.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
+      }
       const nextIsB =
-        nextRaw.startsWith('Speaker B:') ||
-        nextRaw.startsWith('B:') ||
-        nextRaw.toLowerCase().startsWith('professor:') ||
-        nextRaw.toLowerCase().startsWith('advisor:');
-      const nextClean = nextRaw.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
+        nextLabel.includes('b') ||
+        nextLabel.includes('professor') ||
+        nextLabel.includes('advisor') ||
+        nextLabel.includes('dr.') ||
+        nextLabel.includes('doctor') ||
+        nextLabel.includes('faculty') ||
+        (!nextLabel && (i + 1) % 2 === 1);
       const nextVoice = nextIsB ? voiceMapping.B : voiceMapping.A;
       fetchAudioDataUri(nextClean, nextVoice).catch(() => {});
     }
@@ -366,12 +405,12 @@ export async function playDialogue(
       const dataUri = await fetchAudioDataUri(cleanText, voiceToUse);
       if (!isAudioPlayingState) break;
       await playAudioDataUri(dataUri);
-      await new Promise((r) => setTimeout(r, 350));
+      await new Promise((r) => setTimeout(r, 300));
     } catch {
       // 2. Fallback to Web Speech API
       const fallbackPitch = voiceToUse === 'Kore' || voiceToUse === 'Zephyr' ? 1.15 : 0.88;
       await speakScriptLineFallback(cleanText, fallbackPitch);
-      await new Promise((r) => setTimeout(r, 350));
+      await new Promise((r) => setTimeout(r, 300));
     }
   }
 

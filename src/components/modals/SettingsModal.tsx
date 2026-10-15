@@ -405,33 +405,33 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => { setVoiceEngineState('device'); setVoiceEngine('device'); }}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'device' ? 'bg-teal-50 border-teal-600 text-teal-900' : 'bg-white border-slate-300 text-slate-700'}`}
+                onClick={() => { setVoiceEngineState('gemini'); setVoiceEngine('gemini'); }}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'gemini' ? 'bg-teal-50 border-teal-600 text-teal-900 ring-2 ring-teal-600/20 font-bold' : 'bg-white border-slate-300 text-slate-700'}`}
               >
-                Device voice (recommended)
+                Studio AI Voice (Recommended)
               </button>
               <button
                 type="button"
-                onClick={() => { setVoiceEngineState('gemini'); setVoiceEngine('gemini'); }}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'gemini' ? 'bg-teal-50 border-teal-600 text-teal-900' : 'bg-white border-slate-300 text-slate-700'}`}
+                onClick={() => { setVoiceEngineState('device'); setVoiceEngine('device'); }}
+                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'device' ? 'bg-teal-50 border-teal-600 text-teal-900' : 'bg-white border-slate-300 text-slate-700'}`}
               >
-                Gemini voice ({getTtsUsageCount()} used today)
+                Browser Device Voice (Offline)
               </button>
             </div>
             {voiceEngine === 'device' && getVoices().filter(v => v.lang.startsWith('en')).length === 0 && (
-              <p className="text-xs text-rose-600">No English speech voices found. Try Chrome/Edge or install espeak-ng.</p>
+              <p className="text-xs text-rose-600">No English speech voices found on this device. Use Studio AI Voice for natural audio.</p>
             )}
             <button
               type="button"
               onClick={async () => {
-                await speakScriptLine("This is a test of the selected voice engine.");
+                await speakScriptLine("This is a test of the TOEFL Prep Studio voice engine.");
               }}
               className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
             >
-              Test voice
+              Test Voice Audio
             </button>
             <p className="text-xs text-slate-500">
-              Gemini voice is limited to 10 requests per day per model.
+              Studio AI Voice generates authentic TOEFL audio clips and caches them locally for instant replay.
             </p>
           </div>
 

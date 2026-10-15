@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw } from 'lucide-react';
-import { speakScriptLine, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
 
@@ -33,6 +33,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
   const [transcribingQuestionIds, setTranscribingQuestionIds] = useState<Record<number, boolean>>({});
   const [transcriptionErrors, setTranscriptionErrors] = useState<Record<number, string | null>>({});
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
@@ -78,10 +79,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-  const handleHearQuestion = () => {
+  const handleHearQuestion = async () => {
+    if (isPlayingAudio) {
+      stopSpeaking();
+      setIsPlayingAudio(false);
+      return;
+    }
+    setIsPlayingAudio(true);
     const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
     const browserVoice = pickBrowserVoiceForGender(interviewerGender);
-    speakScriptLine(currentQ.question, { rate: 0.95, voiceName, browserVoice });
+    await speakScriptLine(currentQ.question, {
+      rate: 0.95,
+      voiceName,
+      browserVoice,
+      onEnd: () => setIsPlayingAudio(false),
+      onError: () => setIsPlayingAudio(false),
+    });
   };
 
   // Background transcription per question
@@ -509,17 +522,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug">
               {currentQ.question}
             </h3>
-            <div className="text-xs text-slate-500 font-mono">
-              Interviewer: {interviewerName} · Voice: {interviewerVoice} ({interviewerGender})
-            </div>
           </div>
 
           <button
             onClick={handleHearQuestion}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors whitespace-nowrap shrink-0"
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
+              isPlayingAudio
+                ? 'bg-teal-600 text-white border-teal-600 animate-pulse'
+                : 'text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100'
+            }`}
           >
-            <Volume2 className="w-3.5 h-3.5 text-teal-700" />
-            Hear Audio
+            <Volume2 className={`w-3.5 h-3.5 ${isPlayingAudio ? 'text-white' : 'text-teal-700'}`} />
+            {isPlayingAudio ? 'Playing Audio...' : 'Hear Question'}
           </button>
         </div>
 

@@ -368,7 +368,21 @@ function normalizeTask(taskType: string, data: any): any {
 }
 
 function getAiClient(customApiKey?: string) {
-  const apiKey = (customApiKey && customApiKey.trim()) || process.env.GEMINI_API_KEY;
+  let apiKey = '';
+  if (customApiKey && customApiKey.trim()) {
+    const trimmed = customApiKey.trim();
+    if (/^AIza/i.test(trimmed)) {
+      apiKey = trimmed;
+    } else if (/^(gsk_|nvapi-|sk-or-|sk-proj-|sk-admin-|xai-|sk-ant-|ds-)/i.test(trimmed)) {
+      // Key belongs to a third-party provider (Groq, NVIDIA, OpenRouter, OpenAI, etc.)
+      apiKey = process.env.GEMINI_API_KEY || '';
+    } else {
+      apiKey = trimmed;
+    }
+  } else {
+    apiKey = process.env.GEMINI_API_KEY || '';
+  }
+
   if (!apiKey || !apiKey.trim()) {
     return null;
   }
@@ -728,7 +742,8 @@ export async function handleSynthesizeSpeech(
     }
   }
 
-  const ai = getAiClient(customApiKey);
+  const geminiKey = (customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || '');
+  const ai = getAiClient(geminiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
   }
@@ -741,30 +756,69 @@ export async function handleSynthesizeSpeech(
   const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
 
   const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
-    const interaction = await ai.interactions.create({
-      model,
-      input: [
-        {
-          type: "text",
-          text: `Please read the following text aloud naturally:\n${text}`,
-        },
-      ],
-      response_format: { type: "audio" },
-      generation_config: {
-        speech_config: [
+    let audioData: string | undefined;
+    let mimeType: string = 'audio/wav';
+
+    // 1. Try ai.interactions.create if available on model/SDK
+    try {
+      if ((ai as any).interactions?.create) {
+        const interaction = await (ai as any).interactions.create({
+          model,
+          input: [
+            {
+              type: "text",
+              text: text.trim(),
+            },
+          ],
+          response_format: { type: "audio" },
+          generation_config: {
+            speech_config: [
+              {
+                language: "en-US",
+                voice: resolvedVoice,
+              },
+            ],
+          },
+        });
+        audioData = interaction.output_audio?.data;
+        if (interaction.output_audio?.mime_type) {
+          mimeType = interaction.output_audio.mime_type;
+        }
+      }
+    } catch (intErr: any) {
+      if (isKeyError(intErr)) throw intErr;
+      console.warn(`ai.interactions.create notice on ${model}:`, intErr?.message || intErr);
+    }
+
+    // 2. Canonical fallback to ai.models.generateContent
+    if (!audioData) {
+      const resp = await ai.models.generateContent({
+        model: model.includes('tts') ? model : 'gemini-3.8-flash-lite-tts',
+        contents: [
           {
-            language: "en-US",
-            voice: resolvedVoice,
+            role: 'user',
+            parts: [{ text: text.trim() }],
           },
         ],
-      },
-    });
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: resolvedVoice },
+            },
+          },
+        },
+      });
+      audioData = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType) {
+        mimeType = resp.candidates[0].content.parts[0].inlineData.mimeType;
+      }
+    }
 
-    const audio = interaction.output_audio;
-    if (!audio?.data) {
+    if (!audioData) {
       throw new Error('No audio data returned from model');
     }
-    return { audioBase64: audio.data, mimeType: audio.mime_type || 'audio/wav' };
+    return { audioBase64: audioData, mimeType };
   });
 
   return { audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed };
@@ -795,7 +849,8 @@ export async function handleTranscribeAudio(
     }
   }
 
-  const ai = getAiClient(customApiKey);
+  const geminiKey = (customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || '');
+  const ai = getAiClient(geminiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
   }
