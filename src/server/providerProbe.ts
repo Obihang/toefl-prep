@@ -75,13 +75,14 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
   // Sort descending by score
   const sorted = [...filtered].sort((a, b) => getScore(b) - getScore(a));
 
-  // Put preferred first when present in the list
-  if (preferred) {
-    const prefIndex = sorted.indexOf(preferred);
+  // Put preferred first when present or add it to top
+  if (preferred && preferred.trim()) {
+    const trimmedPref = preferred.trim();
+    const prefIndex = sorted.indexOf(trimmedPref);
     if (prefIndex > -1) {
       sorted.splice(prefIndex, 1);
-      sorted.unshift(preferred);
     }
+    sorted.unshift(trimmedPref);
   }
 
   return sorted;
