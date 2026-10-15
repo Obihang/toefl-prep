@@ -235,11 +235,13 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
       </div>
 
       {evalError && (
-        evalError.startsWith('No Gemini API key') ? (
+        (evalError.toLowerCase().includes('no api key') ||
+         evalError.toLowerCase().includes('no gemini api key') ||
+         evalError.toLowerCase().includes('add yours in dashboard')) ? (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
             <div className="flex items-center gap-2 font-semibold text-sm">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Add your free Gemini API key to use AI features</span>
+              <span>Add your free API key to use AI features</span>
             </div>
             <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
               {onOpenApiKeySettings && (
@@ -250,14 +252,7 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
                   Configure API Key
                 </button>
               )}
-              <a
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-teal-700 underline hover:text-teal-900 font-medium"
-              >
-                https://aistudio.google.com/apikey
-              </a>
+              <span className="text-slate-500 font-medium">Supports Gemini, NVIDIA, Groq, OpenRouter, and custom keys</span>
             </div>
           </div>
         ) : (

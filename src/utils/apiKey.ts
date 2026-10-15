@@ -1,4 +1,4 @@
-export type ApiProvider = 'gemini' | 'openai' | 'groq' | 'deepseek' | 'openrouter' | 'custom';
+export type ApiProvider = 'gemini' | 'nvidia' | 'groq' | 'openrouter' | 'openai' | 'deepseek' | 'custom';
 
 export interface ProviderConfig {
   id: ApiProvider;
@@ -20,14 +20,14 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     keyHelpUrl: 'https://aistudio.google.com/apikey',
     helpText: 'Native multimodal models with built-in TTS and fast reasoning.',
   },
-  openai: {
-    id: 'openai',
-    name: 'OpenAI',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o-mini',
-    placeholderKey: 'sk-proj-...',
-    keyHelpUrl: 'https://platform.openai.com/api-keys',
-    helpText: 'High quality GPT-4o and GPT-4o-mini for TOEFL generation & evaluation.',
+  nvidia: {
+    id: 'nvidia',
+    name: 'NVIDIA (free tier)',
+    defaultBaseUrl: 'https://integrate.api.nvidia.com/v1',
+    defaultModel: 'meta/llama-3.3-70b-instruct',
+    placeholderKey: 'nvapi-...',
+    keyHelpUrl: 'https://build.nvidia.com',
+    helpText: 'Free tier NVIDIA NIM APIs with Llama 3.3 70B and Nemotron.',
   },
   groq: {
     id: 'groq',
@@ -38,6 +38,24 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     keyHelpUrl: 'https://console.groq.com/keys',
     helpText: 'Ultra-fast LPU inference (Llama 3.3 70B, Mixtral) with low latency.',
   },
+  openrouter: {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    defaultBaseUrl: 'https://openrouter.ai/api/v1',
+    defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
+    placeholderKey: 'sk-or-v1-...',
+    keyHelpUrl: 'https://openrouter.ai/keys',
+    helpText: 'Single key access to hundreds of models. Only free models ending in :free are used.',
+  },
+  openai: {
+    id: 'openai',
+    name: 'OpenAI',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o-mini',
+    placeholderKey: 'sk-proj-...',
+    keyHelpUrl: 'https://platform.openai.com/api-keys',
+    helpText: 'High quality GPT-4o and GPT-4o-mini for TOEFL generation & evaluation.',
+  },
   deepseek: {
     id: 'deepseek',
     name: 'DeepSeek',
@@ -46,15 +64,6 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     placeholderKey: 'sk-...',
     keyHelpUrl: 'https://platform.deepseek.com/api_keys',
     helpText: 'Affordable, powerful reasoning with deepseek-chat & deepseek-reasoner.',
-  },
-  openrouter: {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    defaultBaseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'google/gemini-2.5-flash',
-    placeholderKey: 'sk-or-v1-...',
-    keyHelpUrl: 'https://openrouter.ai/keys',
-    helpText: 'Single key access to hundreds of open-source and proprietary models.',
   },
   custom: {
     id: 'custom',
@@ -67,7 +76,17 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
 };
 
 export function getStoredProvider(): ApiProvider {
-  const p = (localStorage.getItem('toefl_api_provider') || 'gemini') as ApiProvider;
+  const p = (localStorage.getItem('toefl_api_provider') || '') as ApiProvider;
+  const key = (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
+
+  // If no provider set, or default gemini, but key clearly belongs to another provider
+  if ((!p || p === 'gemini') && key) {
+    if (/^nvapi-/i.test(key)) return 'nvidia';
+    if (/^gsk_/.test(key)) return 'groq';
+    if (/^sk-or-/i.test(key)) return 'openrouter';
+    if (/^sk-/.test(key)) return 'openai';
+  }
+
   return PROVIDERS[p] ? p : 'gemini';
 }
 
@@ -83,6 +102,18 @@ export function setStoredApiKey(key: string): void {
   const trimmed = key.trim();
   localStorage.setItem('toefl_gemini_api_key', trimmed);
   localStorage.setItem('toefl_custom_api_key', trimmed);
+
+  if (/^nvapi-/i.test(trimmed)) {
+    setStoredProvider('nvidia');
+  } else if (/^gsk_/.test(trimmed)) {
+    setStoredProvider('groq');
+  } else if (/^sk-or-/i.test(trimmed)) {
+    setStoredProvider('openrouter');
+  } else if (/^sk-/.test(trimmed)) {
+    setStoredProvider('openai');
+  } else if (/^AIza/.test(trimmed)) {
+    setStoredProvider('gemini');
+  }
 }
 
 export function getStoredBaseUrl(): string {
@@ -123,8 +154,10 @@ export function getApiHeaders(): Record<string, string> {
 
   if (key) {
     headers['x-api-key'] = key;
-    // Maintain backwards compatibility for existing Gemini calls
-    headers['x-gemini-api-key'] = key;
+    // Send x-gemini-api-key ONLY when provider is gemini
+    if (provider === 'gemini') {
+      headers['x-gemini-api-key'] = key;
+    }
   }
 
   if (baseUrl) {

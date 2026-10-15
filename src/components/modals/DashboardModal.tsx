@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X,
   User,
@@ -46,6 +46,7 @@ import {
   PROVIDERS,
   ApiProvider,
 } from '../../utils/apiKey';
+import { detectProviderFromKey, KeyDetectResult } from '../../utils/keyDetect';
 
 interface Props {
   isOpen: boolean;
@@ -72,6 +73,8 @@ export const DashboardModal: React.FC<Props> = ({
   const [baseUrlInput, setBaseUrlInput] = useState('');
   const [modelInput, setModelInput] = useState('');
   const [apiKeySaved, setApiKeySaved] = useState(false);
+  const [detected, setDetected] = useState<KeyDetectResult | null>(null);
+  const autoTestedKeyRef = useRef<string>('');
 
   // Dedicated Goals State
   const [targetScoreInput, setTargetScoreInput] = useState('100');
@@ -113,8 +116,33 @@ export const DashboardModal: React.FC<Props> = ({
       setTestDateInput(storedDate);
       setWeeklyGoalInput(isNaN(storedWeekly) ? 5 : storedWeekly);
       setGoalsSavedSuccess(false);
+      autoTestedKeyRef.current = getStoredApiKey() || '';
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const res = detectProviderFromKey(apiKeyInput);
+    setDetected(res);
+
+    if (res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
+      if (res.provider !== provider) {
+        setProvider(res.provider);
+        setStoredProvider(res.provider);
+        const defBase = PROVIDERS[res.provider]?.defaultBaseUrl || '';
+        const defModel = PROVIDERS[res.provider]?.defaultModel || '';
+        setBaseUrlInput(defBase);
+        setStoredBaseUrl(defBase);
+        setModelInput(defModel);
+        setStoredModel(defModel);
+      }
+      const timer = setTimeout(() => {
+        autoTestedKeyRef.current = apiKeyInput.trim();
+        handleTestKey(true);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [apiKeyInput, isOpen]);
 
   const handleProviderSelect = (newProvider: ApiProvider) => {
     setProvider(newProvider);
@@ -128,30 +156,41 @@ export const DashboardModal: React.FC<Props> = ({
     setTestKeyResult(null);
   };
 
-  const handleTestKey = async () => {
+  const handleTestKey = async (auto = false) => {
     setIsTestingKey(true);
     setTestKeyResult(null);
     try {
       const trimmedKey = apiKeyInput.trim();
-      const trimmedBaseUrl = baseUrlInput.trim();
-      const trimmedModel = modelInput.trim();
+      const trimmedBaseUrl = auto ? '' : baseUrlInput.trim();
+      const trimmedModel = auto ? '' : modelInput.trim();
+      let reqProvider = auto ? 'auto' : provider;
 
-      if (!trimmedKey && provider !== 'custom') {
+      // Auto-detect if provider was still gemini but user pasted another provider key
+      if (!auto && reqProvider === 'gemini' && trimmedKey) {
+        if (/^nvapi-/i.test(trimmedKey)) reqProvider = 'nvidia';
+        else if (/^gsk_/.test(trimmedKey)) reqProvider = 'groq';
+        else if (/^sk-or-/i.test(trimmedKey)) reqProvider = 'openrouter';
+        else if (/^sk-/.test(trimmedKey)) reqProvider = 'openai';
+      }
+
+      if (!trimmedKey && reqProvider !== 'custom') {
         throw new Error(`Please enter your ${PROVIDERS[provider]?.name || 'API'} key first.`);
       }
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-api-provider': reqProvider,
+        'x-api-key': trimmedKey,
+      };
+      if (trimmedBaseUrl) headers['x-api-base-url'] = trimmedBaseUrl;
+      if (trimmedModel) headers['x-api-model'] = trimmedModel;
+      if (reqProvider === 'gemini') headers['x-gemini-api-key'] = trimmedKey;
+
       const res = await fetch('/api/test-key', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-provider': provider,
-          'x-api-key': trimmedKey,
-          'x-api-base-url': trimmedBaseUrl,
-          'x-api-model': trimmedModel,
-          'x-gemini-api-key': trimmedKey,
-        },
+        headers,
         body: JSON.stringify({
-          provider,
+          provider: reqProvider,
           apiKey: trimmedKey,
           baseUrl: trimmedBaseUrl,
           model: trimmedModel,
@@ -172,13 +211,24 @@ export const DashboardModal: React.FC<Props> = ({
         throw new Error(json.error || json.message || 'Key test failed');
       }
 
-      setStoredProvider(provider);
+      const resolvedProvider = (json.provider || provider) as ApiProvider;
+      const resolvedModel = json.model || modelInput;
+      const defBase = PROVIDERS[resolvedProvider]?.defaultBaseUrl || '';
+
+      setProvider(resolvedProvider);
+      setStoredProvider(resolvedProvider);
       setStoredApiKey(trimmedKey);
-      setStoredBaseUrl(trimmedBaseUrl);
-      setStoredModel(trimmedModel);
+      setBaseUrlInput(defBase);
+      setStoredBaseUrl(defBase);
+      setModelInput(resolvedModel);
+      setStoredModel(resolvedModel);
       setApiKeySaved(true);
       window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
-      setTestKeyResult({ success: true, message: json.message || `Connected successfully to ${PROVIDERS[provider].name}` });
+
+      const msg = json.warning
+        ? `${json.message} (${json.warning})`
+        : json.message || `Connected to ${PROVIDERS[resolvedProvider]?.name || resolvedProvider}`;
+      setTestKeyResult({ success: true, message: msg });
     } catch (err: any) {
       setTestKeyResult({ success: false, message: err.message || 'Connection error. Check key, URL, and model name.' });
     } finally {
@@ -866,6 +916,20 @@ export const DashboardModal: React.FC<Props> = ({
                     placeholder={PROVIDERS[provider]?.placeholderKey || 'Paste API Key'}
                     className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
                   />
+                  {detected && apiKeyInput.trim().length > 0 && (
+                    <div className="pt-1">
+                      {detected.provider ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-teal-50 text-teal-800 border border-teal-200">
+                          <span>Detected: <strong>{detected.label}</strong> key{isTestingKey ? ' · Testing automatically...' : !detected.complete ? ' · Keep typing or paste the full key.' : ''}</span>
+                        </span>
+                      ) : (
+                        <div className="p-2 rounded-md text-xs bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="font-semibold">Detected: {detected.label}</span>
+                          {detected.note && <p className="text-[11px] mt-0.5 text-amber-700">{detected.note}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Base URL (editable for non-gemini or custom) */}
@@ -919,7 +983,7 @@ export const DashboardModal: React.FC<Props> = ({
 
                 <div className="flex gap-2 justify-end pt-1">
                   <button
-                    onClick={handleTestKey}
+                    onClick={() => handleTestKey(false)}
                     disabled={isTestingKey || (!apiKeyInput.trim() && provider !== 'custom')}
                     className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
                   >

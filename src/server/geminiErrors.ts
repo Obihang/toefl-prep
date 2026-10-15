@@ -140,15 +140,15 @@ export function extractErrorMessage(err: any): string {
 
   const lower = rawMsg.toLowerCase();
   if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key')) {
-    rawMsg = 'Invalid Gemini API key. Please check your key in Dashboard > Settings & API Key.';
+    rawMsg = 'Invalid API key. Please check your key in Dashboard > Settings & API Key.';
   } else if (lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted')) {
-    rawMsg = "Your key's free daily Gemini quota is used up. It usually resets at midnight Pacific time (PT).";
+    rawMsg = "Your key's free daily AI quota is used up. It usually resets at midnight Pacific time (PT).";
   } else if (lower.includes('503') || lower.includes('unavailable') || lower.includes('overloaded') || lower.includes('model busy')) {
-    rawMsg = 'Gemini models are temporarily busy. Please try again in a moment.';
+    rawMsg = 'AI models are temporarily busy. Please try again in a moment.';
   } else if (lower.includes('no longer available') || lower.includes('not supported') || lower.includes('not found')) {
-    rawMsg = 'Gemini model temporarily unavailable. Please try again in a moment.';
+    rawMsg = 'AI model temporarily unavailable. Please try again in a moment.';
   } else if (lower.includes('not enabled') || lower.includes('api has not been used')) {
-    rawMsg = 'Gemini API is not enabled for this key.';
+    rawMsg = 'AI API service is not enabled for this key.';
   }
 
   return redactKey(rawMsg);

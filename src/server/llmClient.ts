@@ -14,21 +14,25 @@ export function resolveProviderDefaults(provider: string = 'gemini', baseUrl?: s
   let resolvedModel = model?.trim();
 
   switch (provider) {
-    case 'openai':
-      resolvedBaseUrl = resolvedBaseUrl || 'https://api.openai.com/v1';
-      resolvedModel = resolvedModel || 'gpt-4o-mini';
+    case 'nvidia':
+      resolvedBaseUrl = resolvedBaseUrl || 'https://integrate.api.nvidia.com/v1';
+      resolvedModel = resolvedModel || 'meta/llama-3.3-70b-instruct';
       break;
     case 'groq':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.groq.com/openai/v1';
       resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
       break;
+    case 'openrouter':
+      resolvedBaseUrl = resolvedBaseUrl || 'https://openrouter.ai/api/v1';
+      resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
+      break;
+    case 'openai':
+      resolvedBaseUrl = resolvedBaseUrl || 'https://api.openai.com/v1';
+      resolvedModel = resolvedModel || 'gpt-4o-mini';
+      break;
     case 'deepseek':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.deepseek.com/v1';
       resolvedModel = resolvedModel || 'deepseek-chat';
-      break;
-    case 'openrouter':
-      resolvedBaseUrl = resolvedBaseUrl || 'https://openrouter.ai/api/v1';
-      resolvedModel = resolvedModel || 'google/gemini-2.5-flash';
       break;
     case 'custom':
       resolvedBaseUrl = resolvedBaseUrl || 'http://localhost:11434/v1';
@@ -47,6 +51,10 @@ export function resolveProviderDefaults(provider: string = 'gemini', baseUrl?: s
 export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise<{ text: string; modelUsed: string }> {
   const { provider = 'custom', apiKey, baseUrl, model, prompt, systemInstruction, temperature = 0.7, responseJson = true } = options;
   const resolved = resolveProviderDefaults(provider, baseUrl, model);
+
+  if (provider === 'openrouter' && !(resolved.model && resolved.model.endsWith(':free'))) {
+    throw new Error("Only free OpenRouter models (ids ending in ':free') are allowed.");
+  }
 
   if (!resolved.baseUrl) {
     throw new Error(`Base URL is missing for provider ${provider}`);
@@ -137,6 +145,10 @@ export async function testOpenAiCompatible(options: {
 }): Promise<{ success: true; message: string; model: string }> {
   const { provider, apiKey, baseUrl, model } = options;
   const resolved = resolveProviderDefaults(provider, baseUrl, model);
+
+  if (provider === 'openrouter' && !(resolved.model && resolved.model.endsWith(':free'))) {
+    throw new Error("Only free OpenRouter models (ids ending in ':free') are allowed.");
+  }
 
   const endpoint = `${resolved.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const headers: Record<string, string> = {

@@ -436,7 +436,7 @@ export default function App() {
     try {
       const res = await fetch('/api/generate-task', {
         method: 'POST',
-        headers: { ...getApiHeaders(), 'x-gemini-api-key': key },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: type,
           level: lvl,
@@ -640,7 +640,7 @@ export default function App() {
       const apiKey = getStoredApiKey().trim();
       const res = await fetch('/api/generate-task', {
         method: 'POST',
-        headers: { ...getApiHeaders(), 'x-gemini-api-key': apiKey },
+        headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: currentTaskType,
           level,
@@ -661,7 +661,7 @@ export default function App() {
         }
         setGenerationError(
           isQuota
-            ? "Your key's free daily Gemini quota is used up. Practicing with an authentic ETS TOEFL curated question."
+            ? "Your key's free daily AI quota is used up. Practicing with an authentic ETS TOEFL curated question."
             : `AI notice: ${reason}. Showing an authentic curated TOEFL question instead.`
         );
         handleNextCurated(currentTaskType);
@@ -717,7 +717,7 @@ export default function App() {
       }
       setGenerationError(
         isQuota
-          ? "Your key's free daily Gemini quota is used up. Practicing with an authentic ETS TOEFL curated question."
+          ? "Your key's free daily AI quota is used up. Practicing with an authentic ETS TOEFL curated question."
           : `AI notice: ${rawMsg.slice(0, 120)}. Showing an authentic curated question instead.`
       );
       handleNextCurated(currentTaskType);
@@ -1062,7 +1062,7 @@ export default function App() {
                 title={
                   hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
                     ? 'Instant generation from background cache'
-                    : 'Generate customized TOEFL item with Gemini'
+                    : 'Generate customized TOEFL item with AI'
                 }
               >
                 <Sparkles className="w-3.5 h-3.5 text-teal-300" />
@@ -1110,7 +1110,9 @@ export default function App() {
         </section>
 
         {generationError && (
-          generationError.startsWith('No Gemini API key') ? (
+          (generationError.toLowerCase().includes('no api key') ||
+           generationError.toLowerCase().includes('no gemini api key') ||
+           generationError.toLowerCase().includes('add yours in dashboard')) ? (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900 relative">
               <button
                 onClick={() => setGenerationError(null)}
@@ -1121,7 +1123,7 @@ export default function App() {
               </button>
               <div className="flex items-center gap-2 font-semibold text-sm pr-6">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Add your free Gemini API key to use AI features</span>
+                <span>Add your free API key to use AI features</span>
               </div>
               <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                 <button
@@ -1133,14 +1135,7 @@ export default function App() {
                 >
                   Configure API Key
                 </button>
-                <a
-                  href="https://aistudio.google.com/apikey"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-teal-700 underline hover:text-teal-900 font-medium"
-                >
-                  https://aistudio.google.com/apikey
-                </a>
+                <span className="text-slate-500 font-medium">Supports Gemini, NVIDIA, Groq, OpenRouter, and custom keys</span>
               </div>
             </div>
           ) : (

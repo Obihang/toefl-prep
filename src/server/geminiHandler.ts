@@ -384,7 +384,16 @@ function getAiClient(customApiKey?: string) {
 
 export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ success: true; message: string; model: string }> {
   const opts = typeof options === 'string' ? { apiKey: options } : options || {};
-  const provider = opts.provider || 'gemini';
+  let provider = opts.provider || 'gemini';
+  const rawKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
+
+  // If provider is gemini or auto, but key clearly belongs to another provider
+  if ((provider === 'gemini' || provider === 'auto') && rawKey) {
+    if (/^nvapi-/i.test(rawKey)) provider = 'nvidia';
+    else if (/^gsk_/.test(rawKey)) provider = 'groq';
+    else if (/^sk-or-/i.test(rawKey)) provider = 'openrouter';
+    else if (/^sk-/.test(rawKey)) provider = 'openai';
+  }
 
   if (provider !== 'gemini') {
     return testOpenAiCompatible({
@@ -397,7 +406,7 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
 
   const apiKey = (opts.apiKey && opts.apiKey.trim()) || process.env.GEMINI_API_KEY;
   if (!apiKey || !apiKey.trim()) {
-    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+    throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
   }
 
   const ai = new GoogleGenAI({
@@ -425,9 +434,18 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions) {
   const opts = typeof options === 'string' ? { apiKey: options } : options || {};
-  const provider = opts.provider || 'gemini';
-  const customApiKey = opts.apiKey;
-  const ai = getAiClient(customApiKey);
+  let provider = opts.provider || 'gemini';
+  const customApiKey = (opts.apiKey || '').trim();
+
+  // If provider is gemini or auto, but key clearly belongs to another provider
+  if ((provider === 'gemini' || provider === 'auto') && customApiKey) {
+    if (/^nvapi-/i.test(customApiKey)) provider = 'nvidia';
+    else if (/^gsk_/.test(customApiKey)) provider = 'groq';
+    else if (/^sk-or-/i.test(customApiKey)) provider = 'openrouter';
+    else if (/^sk-/.test(customApiKey)) provider = 'openai';
+  }
+
+  const ai = provider === 'gemini' ? getAiClient(customApiKey) : null;
   
   const taskMap: Record<string, string> = {
     'complete-words': 'completeWords',
@@ -517,7 +535,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
 
   try {
     if (!ai) {
-      throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+      throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
     }
 
     const { result, modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
@@ -584,8 +602,16 @@ export async function handleEvaluateResponse(
   options?: ApiCallOptions
 ) {
   const opts = typeof options === 'string' ? { apiKey: options } : options || {};
-  const provider = opts.provider || 'gemini';
-  const customApiKey = opts.apiKey;
+  let provider = opts.provider || 'gemini';
+  const customApiKey = (opts.apiKey || '').trim();
+
+  // If provider is gemini or auto, but key clearly belongs to another provider
+  if ((provider === 'gemini' || provider === 'auto') && customApiKey) {
+    if (/^nvapi-/i.test(customApiKey)) provider = 'nvidia';
+    else if (/^gsk_/.test(customApiKey)) provider = 'groq';
+    else if (/^sk-or-/i.test(customApiKey)) provider = 'openrouter';
+    else if (/^sk-/.test(customApiKey)) provider = 'openai';
+  }
 
   const evaluationPrompt = `You are an official certified ETS TOEFL iBT scoring rater.
 Evaluate the student's submission for the following TOEFL task type: "${taskType}".
@@ -650,7 +676,7 @@ Return valid JSON format:
 
   const ai = getAiClient(customApiKey);
   if (!ai) {
-    throw new Error('No Gemini API key provided. Add yours in Dashboard > Settings & API Key');
+    throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
   }
 
   const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {

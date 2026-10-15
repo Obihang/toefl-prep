@@ -15,6 +15,9 @@ import {
   isTransientError,
   isQuotaExhaustedError,
 } from './src/server/geminiHandler.ts';
+import { getApiConfig } from './src/server/apiConfig.ts';
+import { detectProviderFromKey } from './src/utils/keyDetect.ts';
+import { probeProvider } from './src/server/providerProbe.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,25 +28,18 @@ export async function createServer() {
 
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) {
-      const key = req.headers['x-gemini-api-key'];
-      console.log(`API Request: ${req.method} ${req.path}, x-gemini-api-key: ${key ? `PRESENT (starts with ${key.toString().slice(0, 6)})` : 'MISSING'}`);
+      const provider = req.headers['x-api-provider'] || 'gemini';
+      const key = (req.headers['x-api-key'] || req.headers['x-gemini-api-key']) as string | undefined;
+      console.log(`API Request: ${req.method} ${req.path}, provider: ${provider}, key: ${key ? `PRESENT (starts with ${key.toString().slice(0, 6)})` : 'MISSING'}`);
     }
     next();
   });
-
-  function extractApiConfig(req: express.Request) {
-    const provider = (req.headers['x-api-provider'] as string)?.trim() || req.body?.provider || 'gemini';
-    const apiKey = (req.headers['x-api-key'] as string)?.trim() || (req.headers['x-gemini-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
-    const baseUrl = (req.headers['x-api-base-url'] as string)?.trim() || req.body?.baseUrl?.trim();
-    const model = (req.headers['x-api-model'] as string)?.trim() || req.body?.model?.trim();
-    return { provider, apiKey, baseUrl, model };
-  }
 
   // API endpoints
   app.post('/api/generate-task', async (req, res) => {
     try {
       const { taskType, level, topic } = req.body || {};
-      const apiConfig = extractApiConfig(req);
+      const apiConfig = getApiConfig(req.headers, req.body);
       const result = await handleGenerateTask(taskType, level, topic, apiConfig);
       res.json({ success: true, data: result, rateLimit: result.rateLimit });
     } catch (error: any) {
@@ -57,7 +53,7 @@ export async function createServer() {
   app.post('/api/evaluate-response', async (req, res) => {
     try {
       const { taskType, promptData, studentResponse } = req.body || {};
-      const apiConfig = extractApiConfig(req);
+      const apiConfig = getApiConfig(req.headers, req.body);
       const result = await handleEvaluateResponse(taskType, promptData, studentResponse, apiConfig);
       res.json({ success: true, data: result });
     } catch (error: any) {
@@ -111,26 +107,62 @@ export async function createServer() {
   });
 
   app.post('/api/test-key', async (req, res) => {
-    const apiConfig = extractApiConfig(req);
-    const effectiveKey = apiConfig.apiKey || (apiConfig.provider === 'gemini' ? process.env.GEMINI_API_KEY : '');
-    if (!effectiveKey && apiConfig.provider !== 'custom') {
-      return res.status(400).json({ success: false, error: `No API key provided for ${apiConfig.provider}.` });
-    }
-
     try {
-      const result = await handleTestApiKey(apiConfig);
-      res.json(result);
+      const config = getApiConfig(req.headers, req.body);
+
+      if (config.provider === 'auto') {
+        const detected = detectProviderFromKey(config.apiKey);
+        if (!detected.provider) {
+          return res.status(400).json({
+            success: false,
+            error: detected.note || 'Unsupported or incomplete key format.',
+            detected,
+          });
+        }
+        config.provider = detected.provider;
+      }
+
+      if (config.provider === 'gemini' && config.apiKey) {
+        const detected = detectProviderFromKey(config.apiKey);
+        if (detected.provider && detected.provider !== 'gemini') {
+          config.provider = detected.provider;
+        } else if (/^sk-/.test(config.apiKey)) {
+          config.provider = 'openai';
+        }
+      }
+
+      if (config.provider === 'nvidia' || config.provider === 'groq' || config.provider === 'openrouter') {
+        const probeResult = await probeProvider(config.provider, config.apiKey, config.model);
+        return res.json(probeResult);
+      }
+
+      if (config.provider === 'gemini') {
+        const apiKey = config.apiKey || process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          return res.status(400).json({
+            success: false,
+            error: 'No API key provided. Add yours in Dashboard > Settings & API Key',
+          });
+        }
+        const result = await handleTestApiKey(apiKey);
+        return res.json({
+          ...result,
+          provider: 'gemini',
+          providerName: 'Google Gemini',
+        });
+      }
+
+      const result = await handleTestApiKey(config);
+      return res.json(result);
     } catch (error: any) {
       console.error('Test key error:', error);
       const errMsg = extractErrorMessage(error);
-      const status = getStatus(error);
+      const rawStatus = typeof error?.status === 'number' ? error.status : getStatus(error);
       let httpStatus = 400;
-      if (isKeyError(error)) {
-        httpStatus = 401;
-      } else if (isTransientError(error)) {
-        httpStatus = 429;
-      } else if (status === 500) {
-        httpStatus = 500;
+      if (rawStatus === 401 || rawStatus === 402 || rawStatus === 429) {
+        httpStatus = rawStatus;
+      } else if (rawStatus >= 500 && rawStatus <= 599) {
+        httpStatus = 502;
       }
 
       res.status(httpStatus).json({ success: false, error: errMsg });
