@@ -533,7 +533,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             }`}
           >
             <Volume2 className={`w-3.5 h-3.5 ${isPlayingAudio ? 'text-white' : 'text-teal-700'}`} />
-            {isPlayingAudio ? 'Playing Audio...' : 'Hear Question'}
+            {isPlayingAudio ? 'Pause Audio' : 'Hear Question'}
           </button>
         </div>
 

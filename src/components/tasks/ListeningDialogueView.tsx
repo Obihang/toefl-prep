@@ -44,6 +44,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
 
     setIsPlaying(true);
     setPlayCount((prev) => prev + 1);
+    setActiveLine(0);
 
     try {
       await playDialogue(
@@ -59,6 +60,15 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
       setIsPlaying(false);
       setActiveLine(null);
     }
+  };
+
+  const handleRestartAudio = () => {
+    stopSpeaking();
+    setIsPlaying(false);
+    setActiveLine(null);
+    setTimeout(() => {
+      handlePlayAudio();
+    }, 60);
   };
 
   const handleSelectOption = (qIdx: number, optIdx: number) => {
@@ -159,7 +169,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={handlePlayAudio}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-xs whitespace-nowrap shrink-0 ${
@@ -169,8 +179,19 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               }`}
             >
               {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-              {isPlaying ? 'Pause Audio' : playCount > 0 ? 'Replay Audio' : 'Play Audio'}
+              {isPlaying ? 'Pause Audio' : playCount > 0 ? 'Play from Beginning' : 'Play Audio'}
             </button>
+
+            {isPlaying && (
+              <button
+                onClick={handleRestartAudio}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 border border-slate-700"
+                title="Restart audio from the beginning"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Restart
+              </button>
+            )}
 
             <button
               onClick={() => setShowTranscript(!showTranscript)}

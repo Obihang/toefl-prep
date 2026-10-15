@@ -50,34 +50,16 @@ export function parseRateLimitFromError(error: any) {
 export const rejectedThinkingModels = new Map<string, boolean>();
 
 export interface ModelThinkingConfig {
-  transcribe?: { thinkingLevel: 'minimal' } | { thinkingBudget: number };
-  evaluation?: { thinkingLevel: 'low' } | { thinkingBudget: number };
+  transcribe?: { thinkingBudget: number };
+  evaluation?: { thinkingLevel?: string; thinkingBudget?: number };
 }
 
-// Verified model thinking specifications chosen per model instead of string matching
+// Verified model thinking specifications chosen per model
 export const VERIFIED_MODEL_THINKING_CONFIGS: Record<string, ModelThinkingConfig> = {
-  'gemini-3.1-flash-lite': {
-    transcribe: { thinkingLevel: 'minimal' },
-    evaluation: { thinkingLevel: 'low' },
-  },
-  'gemini-flash-latest': {
-    transcribe: { thinkingLevel: 'minimal' },
-    evaluation: { thinkingLevel: 'low' },
-  },
-  'gemini-3.8-flash': {
-    transcribe: { thinkingLevel: 'minimal' },
-    evaluation: { thinkingLevel: 'low' },
-  },
-  'gemini-3.1-pro-preview': {
-    transcribe: { thinkingLevel: 'minimal' },
-    evaluation: { thinkingLevel: 'low' },
-  },
   'gemini-2.5-flash': {
-    transcribe: { thinkingBudget: 0 },
     evaluation: { thinkingBudget: 256 },
   },
   'gemini-2.5-flash-lite': {
-    transcribe: { thinkingBudget: 0 },
     evaluation: { thinkingBudget: 256 },
   },
 };
@@ -85,13 +67,16 @@ export const VERIFIED_MODEL_THINKING_CONFIGS: Record<string, ModelThinkingConfig
 export function getModelThinkingConfig(
   model: string,
   mode: 'transcribe' | 'evaluation'
-): { thinkingLevel: string } | { thinkingBudget: number } | null {
+): { thinkingLevel?: string; thinkingBudget?: number } | null {
+  if (mode === 'transcribe') {
+    return null; // Transcription does not need thinking tokens
+  }
   if (rejectedThinkingModels.get(model)) {
     return null;
   }
   const config = VERIFIED_MODEL_THINKING_CONFIGS[model];
   if (config) {
-    return mode === 'transcribe' ? (config.transcribe || null) : (config.evaluation || null);
+    return config.evaluation || null;
   }
   return null;
 }

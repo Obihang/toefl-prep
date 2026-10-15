@@ -363,7 +363,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                     }`}
                   >
                     <Volume2 className="w-3.5 h-3.5" />
-                    {isAudioPlaying ? 'Playing Audio...' : 'Hear Sentence'}
+                    {isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
                   </button>
                 </div>
               </div>

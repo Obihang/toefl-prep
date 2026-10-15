@@ -10,12 +10,24 @@ export interface SpeechVoiceOption {
 let cachedVoices: SpeechSynthesisVoice[] = [];
 const activeUtterances = new Set<SpeechSynthesisUtterance>();
 let activeHtmlAudio: HTMLAudioElement | null = null;
+let activeAudioCancel: (() => void) | null = null;
+let currentDialogueSessionId = 0;
 let isAudioPlayingState = false;
 import { openDB } from 'idb';
 
-const DB_NAME = 'toefl_tts_cache';
+const DB_NAME = 'toefl_tts_cache_v4';
 const DB_VERSION = 1;
 const STORE_NAME = 'audio_blobs';
+
+// Immediately purge any stale cached audio blobs containing preambles
+if (typeof window !== 'undefined' && 'indexedDB' in window) {
+  try {
+    indexedDB.deleteDatabase('toefl_tts_cache');
+    indexedDB.deleteDatabase('toefl_tts_cache_v1');
+    indexedDB.deleteDatabase('toefl_tts_cache_v2');
+    indexedDB.deleteDatabase('toefl_tts_cache_v3');
+  } catch {}
+}
 
 const dbPromise = openDB(DB_NAME, DB_VERSION, {
   upgrade(db) {
@@ -43,6 +55,15 @@ export function getVoices(): SpeechSynthesisVoice[] {
 
 export function stopSpeaking() {
   isAudioPlayingState = false;
+
+  // Immediately unblock any awaiting audio playback promise
+  if (activeAudioCancel) {
+    const cancel = activeAudioCancel;
+    activeAudioCancel = null;
+    try {
+      cancel();
+    } catch {}
+  }
 
   // Stop Web Speech
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -197,11 +218,12 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
   audio.dataset.isBlobUrl = isBlobUrl ? 'true' : 'false';
   activeHtmlAudio = audio;
 
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
     let finished = false;
     const cleanup = () => {
       if (finished) return;
       finished = true;
+      activeAudioCancel = null;
       if (audio.dataset.isBlobUrl === 'true') {
         URL.revokeObjectURL(audio.src);
       }
@@ -211,6 +233,7 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
       resolve();
     };
 
+    activeAudioCancel = cleanup;
     audio.onended = cleanup;
     audio.onerror = cleanup;
 
@@ -345,9 +368,10 @@ export async function playDialogue(
 ): Promise<void> {
   stopSpeaking();
   isAudioPlayingState = true;
+  const currentSession = ++currentDialogueSessionId;
 
   for (let i = 0; i < lines.length; i++) {
-    if (!isAudioPlayingState) break; // User stopped playback
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break; // User stopped/restarted playback
 
     const rawLine = lines[i].trim();
     if (!rawLine) continue;
@@ -403,18 +427,30 @@ export async function playDialogue(
     try {
       // 1. Studio Quality AI Voice (Puck for Male, Kore for Female)
       const dataUri = await fetchAudioDataUri(cleanText, voiceToUse);
-      if (!isAudioPlayingState) break;
+      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
       await playAudioDataUri(dataUri);
-      await new Promise((r) => setTimeout(r, 300));
+      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
+      await new Promise((r) => setTimeout(r, 200));
     } catch {
       // 2. Fallback to Web Speech API
+      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
       const fallbackPitch = voiceToUse === 'Kore' || voiceToUse === 'Zephyr' ? 1.15 : 0.88;
       await speakScriptLineFallback(cleanText, fallbackPitch);
-      await new Promise((r) => setTimeout(r, 300));
+      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
+      await new Promise((r) => setTimeout(r, 200));
     }
   }
 
-  isAudioPlayingState = false;
+  if (currentDialogueSessionId === currentSession) {
+    isAudioPlayingState = false;
+  }
+}
+
+export async function clearAudioCache(): Promise<void> {
+  try {
+    const db = await dbPromise;
+    await db.clear(STORE_NAME);
+  } catch {}
 }
 
 // Tone synthesizer using Web Audio API for TOEFL test countdown beeps
