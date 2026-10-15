@@ -33,13 +33,14 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   const xGeminiKey = getHeader(headers, 'x-gemini-api-key')?.trim();
   const bodyKey = typeof b.apiKey === 'string' ? b.apiKey.trim() : '';
   const apiKey = xApiKey || xGeminiKey || bodyKey;
+  let effectiveApiKey = apiKey;
 
   // Provider resolution
   let rawProvider = (getHeader(headers, 'x-api-provider') || b.provider || 'auto').trim().toLowerCase();
   let provider = KNOWN_PROVIDERS.has(rawProvider) ? rawProvider : 'auto';
 
-  // If provider is auto or gemini, but key clearly indicates a specific provider:
-  if (apiKey) {
+  // If provider is auto, infer from key
+  if (provider === 'auto' && apiKey) {
     if (/^gsk_/i.test(apiKey)) {
       provider = 'groq';
     } else if (/^nvapi-/i.test(apiKey)) {
@@ -54,9 +55,16 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
       provider = 'deepseek';
     } else if (/^AIza/i.test(apiKey)) {
       provider = 'gemini';
-    } else if (provider === 'auto' && /^sk-/.test(apiKey)) {
+    } else if (/^sk-/.test(apiKey)) {
       const detected = detectProviderFromKey(apiKey);
       provider = detected.provider || 'openai';
+    }
+  }
+
+  // If user explicitly chose gemini, ensure non-Gemini keys don't break Gemini API calls
+  if (provider === 'gemini' && apiKey && !/^AIza/i.test(apiKey)) {
+    if (/^gsk_|^nvapi-|^sk-or-|^sk-proj-/i.test(apiKey)) {
+      effectiveApiKey = '';
     }
   }
 
@@ -83,7 +91,7 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
 
   return {
     provider,
-    apiKey,
+    apiKey: effectiveApiKey,
     baseUrl,
     model,
   };

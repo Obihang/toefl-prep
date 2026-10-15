@@ -1,4 +1,5 @@
-import { DEFAULT_PURPOSE_MODELS, PurposeModels } from '../utils/keyDetect.ts';
+import { DEFAULT_PURPOSE_MODELS } from '../utils/keyDetect.ts';
+import type { PurposeModels } from '../utils/keyDetect.ts';
 
 export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Google Gemini',
@@ -77,7 +78,7 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
 
     // Top choice: llama-3.3-70b
     if (lower.includes('llama-3.3-70b')) {
-      return 100;
+      return 120;
     }
 
     // Provider-specific second choices
@@ -90,9 +91,10 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
         return 80;
       }
     } else if (provider === 'openrouter') {
-      if (lower.includes('gpt-oss') || lower.includes('qwen') || lower.includes('gemma') || lower.includes('mistral')) {
-        return 80;
-      }
+      if (lower.includes('llama-3.1-70b')) return 110;
+      if (lower.includes('qwen-2.5')) return 100;
+      if (lower.includes('deepseek')) return 90;
+      if (lower.includes('mistral') || lower.includes('gemma')) return 50;
     }
 
     // General 70b or large instruct models
@@ -214,9 +216,10 @@ export async function probeProvider(
     throw Object.assign(new Error(`${providerName} has no available chat models.`), { status: 502 });
   }
 
-  // 2. Test up to top 2 models
-  const topCandidates = ranked.slice(0, 2);
+  // 2. Test top candidate models (up to 5)
+  const topCandidates = ranked.slice(0, 5);
   let lastTestError: any = null;
+  let has429QuotaError = false;
 
   for (const modelToTest of topCandidates) {
     const chatUrl = `${baseUrl}/chat/completions`;
@@ -245,17 +248,9 @@ export async function probeProvider(
       }
 
       if (res.status === 429) {
-        const pModels = DEFAULT_PURPOSE_MODELS[provider];
-        return {
-          success: true,
-          provider,
-          providerName,
-          model: modelToTest,
-          models: ranked.slice(0, 30),
-          purposeModels: pModels,
-          message: `Connected to ${providerName}. Assigned model: ${modelToTest}.`,
-          warning: 'Key is valid, but the free rate limit was reached. It will be usable once your quota resets.',
-        };
+        has429QuotaError = true;
+        lastTestError = Object.assign(new Error(`Rate limit reached on ${modelToTest}. Trying next model.`), { status: 429 });
+        continue;
       }
 
       if (!res.ok) {
@@ -281,6 +276,20 @@ export async function probeProvider(
     } finally {
       clearTimeout(chatTimer);
     }
+  }
+
+  if (has429QuotaError) {
+    const pModels = DEFAULT_PURPOSE_MODELS[provider];
+    return {
+      success: true,
+      provider,
+      providerName,
+      model: topCandidates[0] || 'meta-llama/llama-3.3-70b-instruct:free',
+      models: ranked.slice(0, 30),
+      purposeModels: pModels,
+      message: `Connected to ${providerName}. Assigned model: ${topCandidates[0] || 'meta-llama/llama-3.3-70b-instruct:free'}.`,
+      warning: 'Key is valid, but free rate limits were hit on tested models. It will be usable once your quota resets.',
+    };
   }
 
   if (lastTestError?.status === 401) {

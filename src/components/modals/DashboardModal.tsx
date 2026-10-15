@@ -48,7 +48,14 @@ import {
   PROVIDERS,
   ApiProvider,
 } from '../../utils/apiKey';
-import { detectProviderFromKey, KeyDetectResult } from '../../utils/keyDetect';
+import { detectProviderFromKey, KeyDetectResult, DEFAULT_PURPOSE_MODELS } from '../../utils/keyDetect';
+import {
+  getVoices,
+  getSavedBrowserVoiceName,
+  setSavedBrowserVoiceName,
+  previewBrowserVoice,
+  pickBrowserVoiceForGender,
+} from '../../utils/audioSpeech';
 
 interface Props {
   isOpen: boolean;
@@ -87,7 +94,12 @@ export const DashboardModal: React.FC<Props> = ({
   const [goalsSavedSuccess, setGoalsSavedSuccess] = useState(false);
 
   const [isTestingKey, setIsTestingKey] = useState(false);
-  const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string; model?: string } | null>(null);
+
+  // Device Browser Voices State
+  const [availableBrowserVoices, setAvailableBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [deviceFemaleVoice, setDeviceFemaleVoice] = useState('');
+  const [deviceMaleVoice, setDeviceMaleVoice] = useState('');
 
   // New Word Form
   const [newWord, setNewWord] = useState('');
@@ -112,6 +124,14 @@ export const DashboardModal: React.FC<Props> = ({
       setApiKeySaved(false);
       setTestKeyResult(null);
 
+      // Load installed device browser voices
+      const allVoices = getVoices();
+      setAvailableBrowserVoices(allVoices);
+      const femName = getSavedBrowserVoiceName('female') || pickBrowserVoiceForGender('female')?.name || '';
+      const maleName = getSavedBrowserVoiceName('male') || pickBrowserVoiceForGender('male')?.name || '';
+      setDeviceFemaleVoice(femName);
+      setDeviceMaleVoice(maleName);
+
       // Load study goals from storage
       const storedTarget = localStorage.getItem('toefl_target_score') || '100';
       const storedDate = localStorage.getItem('toefl_test_date') || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -124,13 +144,27 @@ export const DashboardModal: React.FC<Props> = ({
     }
   }, [isOpen]);
 
+  const handleSelectDeviceVoice = (gender: 'female' | 'male', voiceName: string) => {
+    if (gender === 'female') {
+      setDeviceFemaleVoice(voiceName);
+      setSavedBrowserVoiceName('female', voiceName);
+      previewBrowserVoice('Hello, I am your selected female speaker for TOEFL dialogues.', voiceName, 1.1);
+    } else {
+      setDeviceMaleVoice(voiceName);
+      setSavedBrowserVoiceName('male', voiceName);
+      previewBrowserVoice('Hello class, I am your selected male professor for TOEFL dialogues.', voiceName, 0.9);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
     const res = detectProviderFromKey(apiKeyInput);
     setDetected(res);
-    if (res.purposeModels) {
-      setActivePurposeModels(res.purposeModels);
-    }
+
+    // Resolve purpose models for detected provider OR selected provider
+    const activeKey = res.provider || provider || 'gemini';
+    const models = DEFAULT_PURPOSE_MODELS[activeKey] || DEFAULT_PURPOSE_MODELS.gemini;
+    setActivePurposeModels(models);
 
     if (res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
       if (res.provider !== provider) {
@@ -149,7 +183,7 @@ export const DashboardModal: React.FC<Props> = ({
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [apiKeyInput, isOpen]);
+  }, [apiKeyInput, provider, isOpen]);
 
   const handleProviderSelect = (newProvider: ApiProvider) => {
     setProvider(newProvider);
@@ -161,6 +195,8 @@ export const DashboardModal: React.FC<Props> = ({
     setModelInput(defModel);
     setStoredModel(defModel);
     setTestKeyResult(null);
+    const models = DEFAULT_PURPOSE_MODELS[newProvider] || DEFAULT_PURPOSE_MODELS.gemini;
+    setActivePurposeModels(models);
   };
 
   const handleTestKey = async (auto = false) => {
@@ -238,7 +274,7 @@ export const DashboardModal: React.FC<Props> = ({
       const msg = json.warning
         ? `${json.message} (${json.warning})`
         : json.message || `Connected to ${PROVIDERS[resolvedProvider]?.name || resolvedProvider}`;
-      setTestKeyResult({ success: true, message: msg });
+      setTestKeyResult({ success: true, message: msg, model: resolvedModel });
     } catch (err: any) {
       setTestKeyResult({ success: false, message: err.message || 'Connection error. Check key, URL, and model name.' });
     } finally {
@@ -969,8 +1005,8 @@ export const DashboardModal: React.FC<Props> = ({
                           <BookOpen className="w-3.5 h-3.5 text-teal-700" />
                           <span>Question Generator</span>
                         </div>
-                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate" title={activePurposeModels?.generation || (detected?.purposeModels?.generation || 'Auto-Optimized')}>
-                          {activePurposeModels?.generation || (detected?.purposeModels?.generation || 'Auto-Optimized (70B/Flash)')}
+                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate" title={testKeyResult?.model || (modelInput.trim() || activePurposeModels?.generation)}>
+                          {testKeyResult?.model || (modelInput.trim() || activePurposeModels?.generation || 'Auto-Optimized')}
                         </div>
                         <p className="text-[10px] text-slate-400">Authentic ETS passage generation</p>
                       </div>
@@ -981,8 +1017,8 @@ export const DashboardModal: React.FC<Props> = ({
                           <Target className="w-3.5 h-3.5 text-indigo-700" />
                           <span>Rubric Scoring</span>
                         </div>
-                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate" title={activePurposeModels?.evaluation || (detected?.purposeModels?.evaluation || 'High-Precision Evaluator')}>
-                          {activePurposeModels?.evaluation || (detected?.purposeModels?.evaluation || 'High-Precision Evaluator')}
+                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate" title={testKeyResult?.model || (modelInput.trim() || activePurposeModels?.evaluation)}>
+                          {testKeyResult?.model || (modelInput.trim() || activePurposeModels?.evaluation || 'High-Precision Evaluator')}
                         </div>
                         <p className="text-[10px] text-slate-400">ETS 1.0–6.0 Bands &amp; CEFR diagnosis</p>
                       </div>
@@ -993,8 +1029,8 @@ export const DashboardModal: React.FC<Props> = ({
                           <Mic className="w-3.5 h-3.5 text-emerald-700" />
                           <span>Speech-to-Text</span>
                         </div>
-                        <div className="text-[11px] font-mono text-emerald-900 font-semibold truncate" title={activePurposeModels?.transcription || (detected?.purposeModels?.transcription || 'Native Speech & Whisper')}>
-                          {activePurposeModels?.transcription || (detected?.purposeModels?.transcription || 'Whisper / Multimodal Audio')}
+                        <div className="text-[11px] font-mono text-emerald-900 font-semibold truncate" title={activePurposeModels?.transcription || 'Whisper / Web Mic'}>
+                          {activePurposeModels?.transcription || 'Whisper / Web Mic'}
                         </div>
                         <p className="text-[10px] text-slate-400">Mic speech transcription</p>
                       </div>
@@ -1005,22 +1041,101 @@ export const DashboardModal: React.FC<Props> = ({
                           <Volume2 className="w-3.5 h-3.5 text-sky-700" />
                           <span>Audio Playback (TTS)</span>
                         </div>
-                        <div className="text-[11px] font-mono text-sky-900 font-semibold truncate" title={activePurposeModels?.tts || (detected?.purposeModels?.tts || 'Studio Cloud / Browser Speech')}>
-                          {activePurposeModels?.tts || (detected?.purposeModels?.tts || 'Studio Cloud / Browser Speech')}
+                        <div className="text-[11px] font-mono text-sky-900 font-semibold truncate" title={activePurposeModels?.tts || 'Studio Voice / Web Speech'}>
+                          {activePurposeModels?.tts || 'Studio Voice / Web Speech'}
                         </div>
                         <p className="text-[10px] text-slate-400">Dialogues &amp; sentence listening audio</p>
                       </div>
 
                     </div>
-                    {/* Note about Groq / Non-Gemini TTS */}
-                    {['groq', 'nvidia', 'deepseek', 'openrouter'].includes(detected?.provider || provider) && (
-                      <div className="mt-2 text-[11px] text-slate-500 bg-sky-50/60 border border-sky-100 rounded-lg p-2 flex items-start gap-1.5">
-                        <span className="font-semibold text-sky-800 shrink-0">Audio Note:</span>
-                        <span>
-                          {detected?.label || 'This provider'} provides high-speed text generation and Whisper speech recognition. Listening audio playback is seamlessly handled by the app's built-in Studio Cloud Voice (server environment) or your browser device voice.
+                    {/* Note about Audio Playback */}
+                    <div className="mt-2 text-[11px] text-slate-500 bg-sky-50/60 border border-sky-100 rounded-lg p-2 flex items-start gap-1.5">
+                      <span className="font-semibold text-sky-800 shrink-0">Audio Note:</span>
+                      <span>
+                        {detected?.label || 'Your active provider'} powers text generation and evaluation. Listening audio playback is seamlessly handled by your active API connection or your device's native high-fidelity browser voice engine.
+                      </span>
+                    </div>
+
+                    {/* Browser & Device Voice Customizer */}
+                    <div className="mt-3 pt-3 border-t border-slate-200/80">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <Volume2 className="w-4 h-4 text-teal-700" />
+                          <span>Device &amp; Browser Voice Customizer</span>
+                        </div>
+                        <span className="text-[10px] text-teal-800 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5 font-semibold">
+                          100% Free • Works Everywhere
                         </span>
                       </div>
-                    )}
+
+                      <p className="text-[11px] text-slate-500 mb-2.5">
+                        Select and preview your preferred built-in voices from your browser or operating system for listening dialogues and sentence speech playback.
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 border border-slate-200/80 p-3 rounded-xl">
+                        {/* Female Speaker Voice */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-700">Female Speaker Voice (Student / A)</span>
+                            <button
+                              type="button"
+                              onClick={() => previewBrowserVoice('Hello, this is a test of your female speaker voice.', deviceFemaleVoice, 1.1)}
+                              className="text-[10px] font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer"
+                            >
+                              ▶ Test Voice
+                            </button>
+                          </div>
+                          <select
+                            value={deviceFemaleVoice}
+                            onChange={(e) => handleSelectDeviceVoice('female', e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 outline-hidden"
+                          >
+                            {availableBrowserVoices.length === 0 ? (
+                              <option value="">Default System Voice</option>
+                            ) : (
+                              availableBrowserVoices
+                                .filter((v) => !v.lang || v.lang.startsWith('en'))
+                                .map((v) => (
+                                  <option key={v.name} value={v.name}>
+                                    {v.name} ({v.lang})
+                                  </option>
+                                ))
+                            )}
+                          </select>
+                        </div>
+
+                        {/* Male Speaker Voice */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-700">Male Speaker Voice (Professor / B)</span>
+                            <button
+                              type="button"
+                              onClick={() => previewBrowserVoice('Hello class, this is a test of your professor male voice.', deviceMaleVoice, 0.9)}
+                              className="text-[10px] font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer"
+                            >
+                              ▶ Test Voice
+                            </button>
+                          </div>
+                          <select
+                            value={deviceMaleVoice}
+                            onChange={(e) => handleSelectDeviceVoice('male', e.target.value)}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 outline-hidden"
+                          >
+                            {availableBrowserVoices.length === 0 ? (
+                              <option value="">Default System Voice</option>
+                            ) : (
+                              availableBrowserVoices
+                                .filter((v) => !v.lang || v.lang.startsWith('en'))
+                                .map((v) => (
+                                  <option key={v.name} value={v.name}>
+                                    {v.name} ({v.lang})
+                                  </option>
+                                ))
+                            )}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {testKeyResult && (

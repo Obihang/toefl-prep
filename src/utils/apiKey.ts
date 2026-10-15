@@ -103,65 +103,93 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
 
 export function getStoredProvider(): ApiProvider {
   const p = (localStorage.getItem('toefl_api_provider') || '') as ApiProvider;
-  const key = (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
 
-  // If no provider set, default to auto if key exists or auto
-  if (!p || p === 'auto') {
-    if (key) {
-      if (/^nvapi-/i.test(key)) return 'nvidia';
-      if (/^gsk_/.test(key)) return 'groq';
-      if (/^sk-or-/i.test(key)) return 'openrouter';
-      if (/^sk-proj-/i.test(key) || /^sk-admin-/i.test(key)) return 'openai';
-      if (/^xai-/i.test(key)) return 'xai';
-      if (/^ds-/i.test(key)) return 'deepseek';
-      if (/^AIza/i.test(key)) return 'gemini';
-      if (/^sk-/.test(key)) return 'auto';
-    }
-    return 'auto';
+  if (p && PROVIDERS[p]) {
+    return p;
   }
 
-  // If default gemini, but key clearly belongs to another provider
-  if (p === 'gemini' && key) {
+  const key = (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
+
+  // If auto or unset, infer from key signature
+  if (key) {
     if (/^nvapi-/i.test(key)) return 'nvidia';
     if (/^gsk_/.test(key)) return 'groq';
     if (/^sk-or-/i.test(key)) return 'openrouter';
-    if (/^sk-proj-/i.test(key)) return 'openai';
+    if (/^sk-proj-/i.test(key) || /^sk-admin-/i.test(key)) return 'openai';
     if (/^xai-/i.test(key)) return 'xai';
+    if (/^ds-/i.test(key)) return 'deepseek';
+    if (/^AIza/i.test(key)) return 'gemini';
   }
 
-  return PROVIDERS[p] ? p : 'auto';
+  return 'gemini';
 }
+
+import { resetTtsQuotaBlock } from './audioSpeech';
 
 export function setStoredProvider(provider: ApiProvider): void {
   localStorage.setItem('toefl_api_provider', provider);
+  resetTtsQuotaBlock();
 }
 
 export function getStoredApiKey(): string {
-  return (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
+  const provider = getStoredProvider();
+  
+  if (provider === 'gemini') {
+    const geminiKey = (localStorage.getItem('toefl_key_gemini') || localStorage.getItem('toefl_gemini_api_key') || '').trim();
+    // Do not leak Groq/NVIDIA keys into Gemini requests
+    if (/^gsk_|^nvapi-|^sk-or-|^sk-proj-/i.test(geminiKey)) {
+      return '';
+    }
+    return geminiKey;
+  }
+
+  const perProviderKey = localStorage.getItem(`toefl_key_${provider}`);
+  if (perProviderKey !== null && perProviderKey.trim()) {
+    return perProviderKey.trim();
+  }
+
+  const legacyKey = (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
+  return legacyKey;
 }
 
 export function setStoredApiKey(key: string): void {
   const trimmed = key.trim();
-  localStorage.setItem('toefl_gemini_api_key', trimmed);
-  localStorage.setItem('toefl_custom_api_key', trimmed);
+  let providerToSet: ApiProvider | null = null;
 
   if (/^nvapi-/i.test(trimmed)) {
-    setStoredProvider('nvidia');
+    providerToSet = 'nvidia';
   } else if (/^gsk_/.test(trimmed)) {
-    setStoredProvider('groq');
+    providerToSet = 'groq';
   } else if (/^sk-or-/i.test(trimmed)) {
-    setStoredProvider('openrouter');
+    providerToSet = 'openrouter';
   } else if (/^sk-proj-/i.test(trimmed) || /^sk-admin-/i.test(trimmed)) {
-    setStoredProvider('openai');
+    providerToSet = 'openai';
   } else if (/^xai-/i.test(trimmed)) {
-    setStoredProvider('xai');
+    providerToSet = 'xai';
   } else if (/^ds-/i.test(trimmed)) {
-    setStoredProvider('deepseek');
+    providerToSet = 'deepseek';
   } else if (/^AIza/i.test(trimmed)) {
-    setStoredProvider('gemini');
-  } else if (/^sk-/.test(trimmed)) {
-    setStoredProvider('auto');
+    providerToSet = 'gemini';
   }
+
+  if (providerToSet) {
+    localStorage.setItem(`toefl_key_${providerToSet}`, trimmed);
+    setStoredProvider(providerToSet);
+  } else {
+    const currentP = (localStorage.getItem('toefl_api_provider') || 'gemini') as ApiProvider;
+    localStorage.setItem(`toefl_key_${currentP}`, trimmed);
+  }
+
+  if (trimmed) {
+    if (providerToSet === 'gemini' || /^AIza/i.test(trimmed)) {
+      localStorage.setItem('toefl_gemini_api_key', trimmed);
+    } else if (providerToSet === 'groq') {
+      localStorage.setItem('toefl_key_groq', trimmed);
+    }
+    localStorage.setItem('toefl_custom_api_key', trimmed);
+  }
+
+  resetTtsQuotaBlock();
 }
 
 export function getStoredBaseUrl(): string {

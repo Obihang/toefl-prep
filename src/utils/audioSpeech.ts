@@ -12,6 +12,7 @@ const activeUtterances = new Set<SpeechSynthesisUtterance>();
 let activeHtmlAudio: HTMLAudioElement | null = null;
 let activeAudioCancel: (() => void) | null = null;
 let activeFallbackCancel: (() => void) | null = null;
+let activeFetchController: AbortController | null = null;
 let currentDialogueSessionId = 0;
 let isAudioPlayingState = false;
 import { openDB } from 'idb';
@@ -57,6 +58,14 @@ export function getVoices(): SpeechSynthesisVoice[] {
 export function stopSpeaking() {
   isAudioPlayingState = false;
   currentDialogueSessionId++; // Immediately invalidates any playing dialogue or async loops
+
+  // 0. Abort any in-flight TTS API network fetch immediately
+  if (activeFetchController) {
+    try {
+      activeFetchController.abort();
+    } catch {}
+    activeFetchController = null;
+  }
 
   // 1. Immediately pause and silence HTML Audio element
   if (activeHtmlAudio) {
@@ -143,6 +152,12 @@ function incrementTtsQuota() {
   localStorage.setItem(TTS_SUCCESS_COUNT_KEY, (count + 1).toString());
 }
 
+export function resetTtsQuotaBlock(): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(TTS_BLOCKED_UNTIL_KEY);
+  }
+}
+
 export function getTtsUsageCount(): number {
   return parseInt(localStorage.getItem(TTS_SUCCESS_COUNT_KEY) || '0', 10);
 }
@@ -167,13 +182,24 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
     }
   }
 
-  const res = await fetch('/api/tts', {
-    method: 'POST',
-    headers: getApiHeaders(),
-    body: JSON.stringify({ text, voiceName }),
-  });
+  const controller = new AbortController();
+  activeFetchController = controller;
 
-  const json = await res.json();
+  let res: Response;
+  let json: any;
+  try {
+    res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify({ text, voiceName }),
+      signal: controller.signal,
+    });
+    json = await res.json();
+  } finally {
+    if (activeFetchController === controller) {
+      activeFetchController = null;
+    }
+  }
   
   if (res.status === 429) {
     const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
@@ -286,9 +312,12 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
   return new Promise((resolve) => {
     let finished = false;
     let currentUtt: SpeechSynthesisUtterance | null = null;
+    let safetyTimer: any = null;
+
     const cleanup = () => {
       if (finished) return;
       finished = true;
+      if (safetyTimer) clearTimeout(safetyTimer);
       activeFallbackCancel = null;
       if (currentUtt) {
         activeUtterances.delete(currentUtt);
@@ -297,6 +326,10 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
     };
 
     activeFallbackCancel = cleanup;
+
+    // Safety timeout in case browser speech synthesis hangs
+    const maxDuration = Math.max(3500, text.length * 100);
+    safetyTimer = setTimeout(cleanup, maxDuration);
 
     try {
       if (window.speechSynthesis.paused) {
@@ -309,14 +342,33 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
       utt.lang = 'en-US';
       utt.rate = 0.95;
       utt.pitch = pitch;
+
       if (browserVoice) {
-        utt.voice = browserVoice;
+        const availableVoices = window.speechSynthesis.getVoices();
+        const matched = availableVoices.find((v) => v.name === browserVoice.name || v.voiceURI === browserVoice.voiceURI);
+        if (matched) {
+          utt.voice = matched;
+        }
       }
 
       utt.onend = cleanup;
       utt.onerror = cleanup;
 
-      window.speechSynthesis.speak(utt);
+      // Handle Chrome speech engine state cleanly
+      window.speechSynthesis.resume();
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        setTimeout(() => {
+          try {
+            window.speechSynthesis.resume();
+            window.speechSynthesis.speak(utt);
+          } catch {
+            cleanup();
+          }
+        }, 60);
+      } else {
+        window.speechSynthesis.speak(utt);
+      }
     } catch {
       cleanup();
     }
@@ -335,20 +387,46 @@ export function setVoiceEngine(engine: VoiceEngine) {
   localStorage.setItem('toefl_voice_engine', engine);
 }
 
+export function getSavedBrowserVoiceName(gender: 'male' | 'female'): string {
+  if (typeof localStorage === 'undefined') return '';
+  return localStorage.getItem(`toefl_browser_voice_${gender}`) || '';
+}
+
+export function setSavedBrowserVoiceName(gender: 'male' | 'female', voiceName: string): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`toefl_browser_voice_${gender}`, voiceName.trim());
+  }
+}
+
 export function pickBrowserVoiceForGender(gender: 'male' | 'female', lang: string = 'en-US'): SpeechSynthesisVoice | null {
   const voices = getVoices();
+  if (voices.length === 0) return null;
+
+  const savedName = getSavedBrowserVoiceName(gender);
+  if (savedName) {
+    const matched = voices.find((v) => v.name === savedName);
+    if (matched) return matched;
+  }
   
   // Scoring function for voice quality
   const getScore = (v: SpeechSynthesisVoice) => {
     let score = 0;
     if (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Online')) score += 10;
     if (v.lang.startsWith(lang.substring(0, 2))) score += 5;
-    if (gender === 'male' && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man'))) score += 5;
-    if (gender === 'female' && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman'))) score += 5;
+    if (gender === 'male' && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('guy'))) score += 5;
+    if (gender === 'female' && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('jenny'))) score += 5;
     return score;
   };
 
-  return voices.sort((a, b) => getScore(b) - getScore(a))[0] || null;
+  return voices.sort((a, b) => getScore(b) - getScore(a))[0] || voices[0] || null;
+}
+
+export async function previewBrowserVoice(text: string, voiceName?: string, pitch: number = 1.0): Promise<void> {
+  stopSpeaking();
+  isAudioPlayingState = true;
+  const voices = getVoices();
+  const matchedVoice = voiceName ? voices.find((v) => v.name === voiceName) : null;
+  await speakScriptLineFallback(text, pitch, matchedVoice);
 }
 
 // Speak single line with Studio AI voice primary and browser fallback
@@ -437,16 +515,17 @@ export async function playDialogue(
       cleanText = rawLine.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
     }
 
-    const isSpeakerB =
-      speakerLabel.includes('b') ||
+    const isSpeakerA =
+      speakerLabel.includes('a') ||
       speakerLabel.includes('professor') ||
       speakerLabel.includes('advisor') ||
       speakerLabel.includes('dr.') ||
       speakerLabel.includes('doctor') ||
       speakerLabel.includes('faculty') ||
-      (!speakerLabel && i % 2 === 1);
+      speakerLabel.includes('interviewer') ||
+      (!speakerLabel && i % 2 === 0);
 
-    const voiceToUse = isSpeakerB ? voiceMapping.B : voiceMapping.A;
+    const voiceToUse = isSpeakerA ? voiceMapping.A : voiceMapping.B;
 
     // Asynchronously pre-fetch the next line while current line is about to play
     if (i + 1 < lines.length) {
@@ -460,15 +539,16 @@ export async function playDialogue(
       } else {
         nextClean = nextRaw.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
       }
-      const nextIsB =
-        nextLabel.includes('b') ||
+      const nextIsA =
+        nextLabel.includes('a') ||
         nextLabel.includes('professor') ||
         nextLabel.includes('advisor') ||
         nextLabel.includes('dr.') ||
         nextLabel.includes('doctor') ||
         nextLabel.includes('faculty') ||
-        (!nextLabel && (i + 1) % 2 === 1);
-      const nextVoice = nextIsB ? voiceMapping.B : voiceMapping.A;
+        nextLabel.includes('interviewer') ||
+        (!nextLabel && (i + 1) % 2 === 0);
+      const nextVoice = nextIsA ? voiceMapping.A : voiceMapping.B;
       fetchAudioDataUri(nextClean, nextVoice).catch(() => {});
     }
 

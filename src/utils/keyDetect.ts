@@ -47,19 +47,19 @@ export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
     generation: 'llama-3.3-70b-versatile',
     evaluation: 'llama-3.3-70b-versatile',
     transcription: 'whisper-large-v3 (ultra-fast LPU)',
-    tts: 'Server Gemini / Browser Speech',
+    tts: 'Studio Voice / Web Speech',
   },
   nvidia: {
     generation: 'meta/llama-3.3-70b-instruct',
     evaluation: 'meta/llama-3.3-70b-instruct',
-    transcription: 'Server Gemini / Browser STT',
-    tts: 'Server Gemini / Browser Speech',
+    transcription: 'Whisper STT / Web Mic',
+    tts: 'Studio Voice / Web Speech',
   },
   openrouter: {
     generation: 'meta-llama/llama-3.3-70b-instruct:free',
     evaluation: 'meta-llama/llama-3.3-70b-instruct:free',
-    transcription: 'Server Gemini / Browser STT',
-    tts: 'Server Gemini / Browser Speech',
+    transcription: 'Whisper STT / Web Mic',
+    tts: 'Studio Voice / Web Speech',
   },
   openai: {
     generation: 'gpt-4o-mini (fast & structured)',
@@ -70,20 +70,20 @@ export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
   deepseek: {
     generation: 'deepseek-chat (DeepSeek-V3)',
     evaluation: 'deepseek-chat (DeepSeek-V3 reasoning)',
-    transcription: 'Server Gemini / Browser STT',
-    tts: 'Server Gemini / Browser Speech',
+    transcription: 'Whisper STT / Web Mic',
+    tts: 'Studio Voice / Web Speech',
   },
   xai: {
     generation: 'grok-2-latest',
     evaluation: 'grok-2-latest',
-    transcription: 'Server Gemini / Browser STT',
-    tts: 'Server Gemini / Browser Speech',
+    transcription: 'Whisper STT / Web Mic',
+    tts: 'Studio Voice / Web Speech',
   },
   anthropic: {
     generation: 'claude-3-5-haiku-latest',
     evaluation: 'claude-3-5-sonnet-latest',
-    transcription: 'Server Gemini / Browser STT',
-    tts: 'Server Gemini / Browser Speech',
+    transcription: 'Whisper STT / Web Mic',
+    tts: 'Studio Voice / Web Speech',
   },
 };
 

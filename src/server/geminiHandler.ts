@@ -778,7 +778,7 @@ export async function handleSynthesizeSpeech(
     // 2. Canonical fallback to ai.models.generateContent
     if (!audioData) {
       const resp = await ai.models.generateContent({
-        model: model.includes('tts') ? model : 'gemini-3.8-flash-lite-tts',
+        model: model,
         contents: [
           {
             role: 'user',
