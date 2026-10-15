@@ -11,6 +11,7 @@ let cachedVoices: SpeechSynthesisVoice[] = [];
 const activeUtterances = new Set<SpeechSynthesisUtterance>();
 let activeHtmlAudio: HTMLAudioElement | null = null;
 let activeAudioCancel: (() => void) | null = null;
+let activeFallbackCancel: (() => void) | null = null;
 let currentDialogueSessionId = 0;
 let isAudioPlayingState = false;
 import { openDB } from 'idb';
@@ -55,8 +56,37 @@ export function getVoices(): SpeechSynthesisVoice[] {
 
 export function stopSpeaking() {
   isAudioPlayingState = false;
+  currentDialogueSessionId++; // Immediately invalidates any playing dialogue or async loops
 
-  // Immediately unblock any awaiting audio playback promise
+  // 1. Immediately pause and silence HTML Audio element
+  if (activeHtmlAudio) {
+    try {
+      activeHtmlAudio.pause();
+      activeHtmlAudio.currentTime = 0;
+      activeHtmlAudio.src = '';
+      if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
+        URL.revokeObjectURL(activeHtmlAudio.src);
+      }
+    } catch {
+      // Ignored
+    }
+    activeHtmlAudio = null;
+  }
+
+  // 2. Safety measure: ensure any other audio tags in DOM are paused
+  if (typeof document !== 'undefined') {
+    try {
+      const audioElements = document.querySelectorAll('audio');
+      audioElements.forEach((el) => {
+        try {
+          el.pause();
+          el.currentTime = 0;
+        } catch {}
+      });
+    } catch {}
+  }
+
+  // 3. Immediately unblock any awaiting audio playback promise
   if (activeAudioCancel) {
     const cancel = activeAudioCancel;
     activeAudioCancel = null;
@@ -65,25 +95,21 @@ export function stopSpeaking() {
     } catch {}
   }
 
-  // Stop Web Speech
-  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  // 4. Immediately cancel any fallback browser synthesis promise
+  if (activeFallbackCancel) {
+    const cancel = activeFallbackCancel;
+    activeFallbackCancel = null;
     try {
-      window.speechSynthesis.cancel();
-      activeUtterances.clear();
-    } catch {
-      // Ignored
-    }
+      cancel();
+    } catch {}
   }
 
-  // Stop HTML Audio
-  if (activeHtmlAudio) {
+  // 5. Cancel Web Speech API
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
-      activeHtmlAudio.pause();
-      activeHtmlAudio.currentTime = 0;
-      if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
-        URL.revokeObjectURL(activeHtmlAudio.src);
-      }
-      activeHtmlAudio = null;
+      window.speechSynthesis.pause();
+      window.speechSynthesis.cancel();
+      activeUtterances.clear();
     } catch {
       // Ignored
     }
@@ -205,6 +231,8 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
   if (activeHtmlAudio) {
     try {
       activeHtmlAudio.pause();
+      activeHtmlAudio.currentTime = 0;
+      activeHtmlAudio.src = '';
     } catch {}
     // Revoke previous blob URL if it was a blob URL
     if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
@@ -224,6 +252,11 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
       if (finished) return;
       finished = true;
       activeAudioCancel = null;
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = '';
+      } catch {}
       if (audio.dataset.isBlobUrl === 'true') {
         URL.revokeObjectURL(audio.src);
       }
@@ -251,12 +284,27 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
   }
 
   return new Promise((resolve) => {
+    let finished = false;
+    let currentUtt: SpeechSynthesisUtterance | null = null;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      activeFallbackCancel = null;
+      if (currentUtt) {
+        activeUtterances.delete(currentUtt);
+      }
+      resolve();
+    };
+
+    activeFallbackCancel = cleanup;
+
     try {
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
 
       const utt = new SpeechSynthesisUtterance(text);
+      currentUtt = utt;
       activeUtterances.add(utt);
       utt.lang = 'en-US';
       utt.rate = 0.95;
@@ -265,18 +313,12 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
         utt.voice = browserVoice;
       }
 
-      utt.onend = () => {
-        activeUtterances.delete(utt);
-        resolve();
-      };
-      utt.onerror = () => {
-        activeUtterances.delete(utt);
-        resolve();
-      };
+      utt.onend = cleanup;
+      utt.onerror = cleanup;
 
       window.speechSynthesis.speak(utt);
     } catch {
-      resolve();
+      cleanup();
     }
   });
 }
@@ -323,6 +365,7 @@ export async function speakScriptLine(
 ): Promise<void> {
   stopSpeaking();
   isAudioPlayingState = true;
+  const currentSession = ++currentDialogueSessionId;
 
   const defaultVoice = options.pitch && options.pitch < 0.95 ? 'Puck' : 'Kore';
   const voice = options.voiceName || defaultVoice;
@@ -338,16 +381,19 @@ export async function speakScriptLine(
   // 1. Try high-fidelity Studio Cloud Voice first (crisp, natural, works in iframe)
   try {
     const blob = await fetchAudioBlob(cleanText, voice);
-    if (!isAudioPlayingState) return;
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
     await playAudioBlob(blob);
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
     isAudioPlayingState = false;
     options.onEnd?.();
     return;
   } catch (err) {
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
     console.warn('Studio AI voice failed or unavailable, falling back to browser voice:', err);
   }
 
   // 2. Fall back to browser speech synthesis
+  if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
   try {
     const voiceObj = options.browserVoice || pickBrowserVoiceForGender(gender);
     await speakScriptLineFallback(cleanText, options.pitch ?? 1.0, voiceObj);
@@ -355,8 +401,10 @@ export async function speakScriptLine(
     console.warn('Browser speech fallback failed:', browserErr);
     options.onError?.(browserErr);
   } finally {
-    isAudioPlayingState = false;
-    options.onEnd?.();
+    if (currentDialogueSessionId === currentSession) {
+      isAudioPlayingState = false;
+      options.onEnd?.();
+    }
   }
 }
 

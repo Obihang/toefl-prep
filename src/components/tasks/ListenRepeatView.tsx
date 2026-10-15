@@ -2,7 +2,7 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../u
 import React, { useState, useRef, useEffect } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones } from 'lucide-react';
+import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
@@ -83,6 +83,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     } catch {
       setActiveAudioIdx(null);
     }
+  };
+
+  const handleRestartSentence = async (index: number) => {
+    stopSpeaking();
+    setActiveAudioIdx(null);
+    handlePlay(index);
   };
 
   const handleToggleMic = async (index: number) => {
@@ -353,17 +359,26 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   Item {idx + 1} of {task.sentences.length} · {wordCount} Words
                 </span>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => handlePlay(idx)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
                       isAudioPlaying
-                        ? 'bg-teal-600 text-white border-teal-600 animate-pulse'
+                        ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
                         : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
                     }`}
                   >
-                    <Volume2 className="w-3.5 h-3.5" />
+                    {isAudioPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5" />}
                     {isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
+                  </button>
+
+                  <button
+                    onClick={() => handleRestartSentence(idx)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                    title="Restart sentence audio from beginning"
+                  >
+                    <RotateCcw className="w-3 h-3 text-slate-500" />
+                    <span>Restart</span>
                   </button>
                 </div>
               </div>

@@ -34,14 +34,8 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     };
   }, []);
 
-  const handlePlayAudio = async () => {
-    if (isPlaying) {
-      stopSpeaking();
-      setIsPlaying(false);
-      setActiveLine(null);
-      return;
-    }
-
+  const startPlayback = async () => {
+    stopSpeaking();
     setIsPlaying(true);
     setPlayCount((prev) => prev + 1);
     setActiveLine(0);
@@ -62,13 +56,17 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     }
   };
 
+  const handlePauseAudio = () => {
+    stopSpeaking();
+    setIsPlaying(false);
+    setActiveLine(null);
+  };
+
   const handleRestartAudio = () => {
     stopSpeaking();
     setIsPlaying(false);
     setActiveLine(null);
-    setTimeout(() => {
-      handlePlayAudio();
-    }, 60);
+    startPlayback();
   };
 
   const handleSelectOption = (qIdx: number, optIdx: number) => {
@@ -169,33 +167,34 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center flex-wrap gap-2.5">
+            {/* Primary Play / Pause Button */}
             <button
-              onClick={handlePlayAudio}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-xs whitespace-nowrap shrink-0 ${
+              onClick={isPlaying ? handlePauseAudio : startPlayback}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shadow-xs whitespace-nowrap shrink-0 ${
                 isPlaying
                   ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-300'
                   : 'bg-teal-500 hover:bg-teal-400 text-slate-950'
               }`}
             >
               {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-              {isPlaying ? 'Pause Audio' : playCount > 0 ? 'Play from Beginning' : 'Play Audio'}
+              {isPlaying ? 'Pause Audio' : 'Play Audio'}
             </button>
 
-            {isPlaying && (
-              <button
-                onClick={handleRestartAudio}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 border border-slate-700"
-                title="Restart audio from the beginning"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Restart
-              </button>
-            )}
+            {/* Separate, Dedicated Restart Button */}
+            <button
+              onClick={handleRestartAudio}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium text-slate-200 hover:text-white bg-slate-800 hover:bg-slate-700 active:bg-slate-900 rounded-lg transition-colors whitespace-nowrap shrink-0 border border-slate-700 shadow-xs"
+              title="Restart dialogue from the beginning"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Restart</span>
+            </button>
 
+            {/* Transcript Toggle Button */}
             <button
               onClick={() => setShowTranscript(!showTranscript)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 border border-slate-700/60"
               title="Toggle transcript text"
             >
               {showTranscript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -207,9 +206,13 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         {/* Animated Waveform Visualizer */}
         <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <Volume2 className={`w-4 h-4 ${isPlaying ? 'text-teal-400' : 'text-slate-500'}`} />
-            <span className="text-xs font-mono text-slate-400">
-              {isPlaying ? 'Playing Audio...' : 'Audio Ready'}
+            <Volume2 className={`w-4 h-4 ${isPlaying ? 'text-teal-400' : playCount > 0 ? 'text-amber-400' : 'text-slate-500'}`} />
+            <span className="text-xs font-mono text-slate-300">
+              {isPlaying
+                ? `Playing Line ${(activeLine ?? 0) + 1} of ${lines.length}...`
+                : playCount > 0
+                ? 'Audio Paused (click Play or Restart)'
+                : `Audio Ready (${lines.length} lines)`}
             </span>
           </div>
 

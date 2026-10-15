@@ -2,7 +2,7 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../u
 import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw } from 'lucide-react';
+import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
@@ -79,22 +79,37 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
+  const playQuestionAudio = async () => {
+    stopSpeaking();
+    setIsPlayingAudio(true);
+    const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
+    const browserVoice = pickBrowserVoiceForGender(interviewerGender);
+    try {
+      await speakScriptLine(currentQ.question, {
+        rate: 0.95,
+        voiceName,
+        browserVoice,
+        onEnd: () => setIsPlayingAudio(false),
+        onError: () => setIsPlayingAudio(false),
+      });
+    } catch {
+      setIsPlayingAudio(false);
+    }
+  };
+
   const handleHearQuestion = async () => {
     if (isPlayingAudio) {
       stopSpeaking();
       setIsPlayingAudio(false);
       return;
     }
-    setIsPlayingAudio(true);
-    const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
-    const browserVoice = pickBrowserVoiceForGender(interviewerGender);
-    await speakScriptLine(currentQ.question, {
-      rate: 0.95,
-      voiceName,
-      browserVoice,
-      onEnd: () => setIsPlayingAudio(false),
-      onError: () => setIsPlayingAudio(false),
-    });
+    await playQuestionAudio();
+  };
+
+  const handleRestartQuestionAudio = async () => {
+    stopSpeaking();
+    setIsPlayingAudio(false);
+    await playQuestionAudio();
   };
 
   // Background transcription per question
@@ -524,17 +539,28 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             </h3>
           </div>
 
-          <button
-            onClick={handleHearQuestion}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
-              isPlayingAudio
-                ? 'bg-teal-600 text-white border-teal-600 animate-pulse'
-                : 'text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <Volume2 className={`w-3.5 h-3.5 ${isPlayingAudio ? 'text-white' : 'text-teal-700'}`} />
-            {isPlayingAudio ? 'Pause Audio' : 'Hear Question'}
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleHearQuestion}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
+                isPlayingAudio
+                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
+                  : 'text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              {isPlayingAudio ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
+              {isPlayingAudio ? 'Pause Audio' : 'Hear Question'}
+            </button>
+
+            <button
+              onClick={handleRestartQuestionAudio}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+              title="Restart question audio from beginning"
+            >
+              <RotateCcw className="w-3 h-3 text-slate-500" />
+              <span>Restart</span>
+            </button>
+          </div>
         </div>
 
         {/* Timing simulation bar */}
