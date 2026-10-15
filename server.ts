@@ -16,8 +16,8 @@ import {
   isQuotaExhaustedError,
 } from './src/server/geminiHandler.ts';
 import { getApiConfig } from './src/server/apiConfig.ts';
-import { detectProviderFromKey } from './src/utils/keyDetect.ts';
-import { probeProvider } from './src/server/providerProbe.ts';
+import { probeProvider, probeAuto } from './src/server/providerProbe.ts';
+import { DEFAULT_PURPOSE_MODELS } from './src/utils/keyDetect.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -74,8 +74,8 @@ export async function createServer() {
   app.post('/api/tts', async (req, res) => {
     try {
       const { text, voiceName } = req.body || {};
-      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.headers['x-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
-      const result = await handleSynthesizeSpeech(text, voiceName, customApiKey);
+      const apiConfig = getApiConfig(req.headers, req.body);
+      const result = await handleSynthesizeSpeech(text, voiceName, apiConfig);
       res.json({ success: true, audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed: result.modelUsed });
     } catch (error: any) {
       const msg = extractErrorMessage(error);
@@ -93,11 +93,8 @@ export async function createServer() {
   app.post('/api/transcribe', async (req, res) => {
     try {
       const { audioBase64, mimeType } = req.body || {};
-
-      const customApiKey = (req.headers['x-gemini-api-key'] as string)?.trim() || (req.headers['x-api-key'] as string)?.trim() || (req.body?.apiKey?.trim() as string);
-      const result = await handleTranscribeAudio(audioBase64, mimeType, customApiKey);
-
-
+      const apiConfig = getApiConfig(req.headers, req.body);
+      const result = await handleTranscribeAudio(audioBase64, mimeType, apiConfig);
       res.json({ success: true, transcript: result.transcript, modelUsed: result.modelUsed, durationMs: result.durationMs });
     } catch (error: any) {
       const msg = error?.message || 'Audio transcription failed';
@@ -110,30 +107,19 @@ export async function createServer() {
     try {
       const config = getApiConfig(req.headers, req.body);
 
-      if (config.provider === 'auto') {
-        const detected = detectProviderFromKey(config.apiKey);
-        if (!detected.provider) {
-          return res.status(400).json({
-            success: false,
-            error: detected.note || 'Unsupported or incomplete key format.',
-            detected,
-          });
-        }
-        config.provider = detected.provider;
+      if (!config.apiKey && config.provider !== 'gemini' && config.provider !== 'custom') {
+        return res.status(400).json({
+          success: false,
+          error: 'Please paste an API key first.',
+        });
       }
 
-      if (config.provider === 'gemini' && config.apiKey) {
-        const detected = detectProviderFromKey(config.apiKey);
-        if (detected.provider && detected.provider !== 'gemini') {
-          config.provider = detected.provider;
-        } else if (/^sk-/.test(config.apiKey)) {
-          config.provider = 'openai';
+      // If provider is auto or auto-probed
+      if (config.provider === 'auto' || (!req.headers['x-api-provider'] && !req.body?.provider)) {
+        if (config.apiKey) {
+          const autoResult = await probeAuto(config.apiKey, config.model);
+          return res.json(autoResult);
         }
-      }
-
-      if (config.provider === 'nvidia' || config.provider === 'groq' || config.provider === 'openrouter') {
-        const probeResult = await probeProvider(config.provider, config.apiKey, config.model);
-        return res.json(probeResult);
       }
 
       if (config.provider === 'gemini') {
@@ -141,7 +127,7 @@ export async function createServer() {
         if (!apiKey) {
           return res.status(400).json({
             success: false,
-            error: 'No API key provided. Add yours in Dashboard > Settings & API Key',
+            error: 'No API key provided. Paste your key in Settings & API Key',
           });
         }
         const result = await handleTestApiKey(apiKey);
@@ -149,7 +135,14 @@ export async function createServer() {
           ...result,
           provider: 'gemini',
           providerName: 'Google Gemini',
+          purposeModels: DEFAULT_PURPOSE_MODELS.gemini,
         });
+      }
+
+      // Supported OpenAI-compatible providers
+      if (['nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'xai'].includes(config.provider)) {
+        const probeResult = await probeProvider(config.provider, config.apiKey, config.model);
+        return res.json(probeResult);
       }
 
       const result = await handleTestApiKey(config);

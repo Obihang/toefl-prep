@@ -1,3 +1,5 @@
+import { detectProviderFromKey } from '../utils/keyDetect.ts';
+
 export interface ApiConfig {
   provider: string;
   apiKey: string;
@@ -5,7 +7,7 @@ export interface ApiConfig {
   model: string;
 }
 
-const KNOWN_PROVIDERS = new Set(['gemini', 'nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'custom', 'auto']);
+const KNOWN_PROVIDERS = new Set(['gemini', 'nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'xai', 'anthropic', 'custom', 'auto']);
 
 function getHeader(headers: any, name: string): string | undefined {
   if (!headers) return undefined;
@@ -26,21 +28,40 @@ function getHeader(headers: any, name: string): string | undefined {
 export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   const b = body || {};
 
-  // Provider resolution
-  const rawProvider = (getHeader(headers, 'x-api-provider') || b.provider || 'gemini').trim().toLowerCase();
-  const provider = KNOWN_PROVIDERS.has(rawProvider) ? rawProvider : 'gemini';
-
   // API Key resolution
-  let apiKey = '';
   const xApiKey = getHeader(headers, 'x-api-key')?.trim();
   const xGeminiKey = getHeader(headers, 'x-gemini-api-key')?.trim();
   const bodyKey = typeof b.apiKey === 'string' ? b.apiKey.trim() : '';
+  const apiKey = xApiKey || xGeminiKey || bodyKey;
 
-  if (provider === 'gemini' || provider === 'auto') {
-    apiKey = xApiKey || xGeminiKey || bodyKey;
-  } else {
-    // For every other provider use ONLY x-api-key or body.apiKey (never legacy x-gemini-api-key)
-    apiKey = xApiKey || bodyKey;
+  // Provider resolution
+  let rawProvider = (getHeader(headers, 'x-api-provider') || b.provider || 'auto').trim().toLowerCase();
+  let provider = KNOWN_PROVIDERS.has(rawProvider) ? rawProvider : 'auto';
+
+  // If provider is auto or gemini, but key clearly indicates a specific provider:
+  if (apiKey) {
+    if (/^gsk_/i.test(apiKey)) {
+      provider = 'groq';
+    } else if (/^nvapi-/i.test(apiKey)) {
+      provider = 'nvidia';
+    } else if (/^sk-or-/i.test(apiKey)) {
+      provider = 'openrouter';
+    } else if (/^sk-proj-/i.test(apiKey) || /^sk-admin-/i.test(apiKey)) {
+      provider = 'openai';
+    } else if (/^xai-/i.test(apiKey)) {
+      provider = 'xai';
+    } else if (/^ds-/i.test(apiKey)) {
+      provider = 'deepseek';
+    } else if (/^AIza/i.test(apiKey)) {
+      provider = 'gemini';
+    } else if (provider === 'auto' && /^sk-/.test(apiKey)) {
+      const detected = detectProviderFromKey(apiKey);
+      provider = detected.provider || 'openai';
+    }
+  }
+
+  if (provider === 'auto') {
+    provider = apiKey ? (detectProviderFromKey(apiKey).provider || 'gemini') : 'gemini';
   }
 
   // Base URL resolution
@@ -54,7 +75,6 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
     }
     baseUrl = clientBaseUrl;
   } else {
-    // For all other providers ignore any client-sent base URL
     baseUrl = '';
   }
 

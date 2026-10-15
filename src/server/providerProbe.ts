@@ -1,14 +1,22 @@
+import { DEFAULT_PURPOSE_MODELS, PurposeModels } from '../utils/keyDetect.ts';
+
 export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Google Gemini',
-  nvidia: 'NVIDIA',
+  nvidia: 'NVIDIA NIM',
   groq: 'Groq',
   openrouter: 'OpenRouter',
+  openai: 'OpenAI',
+  deepseek: 'DeepSeek',
+  xai: 'xAI Grok',
 };
 
 export const PROBE_BASE_URLS: Record<string, string> = {
   nvidia: 'https://integrate.api.nvidia.com/v1',
   groq: 'https://api.groq.com/openai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
+  openai: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com/v1',
+  xai: 'https://api.x.ai/v1',
 };
 
 const DROP_PATTERN = /embed|whisper|tts|speech|guard|moderat|rerank|vision|image|audio|transcri|safety|ocr|parse|clip|diffusion|stable|flux|\bvl\b|-vl-|reward|retriev/i;
@@ -23,6 +31,7 @@ function redactKey(text: string, apiKey?: string): string {
     .replace(/nvapi-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
     .replace(/gsk_[A-Za-z0-9]{10,}/g, '[REDACTED]')
     .replace(/sk-or-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
+    .replace(/sk-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
     .replace(/AIza[A-Za-z0-9_-]{10,}/g, '[REDACTED]');
 }
 
@@ -30,16 +39,38 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
   // 1. Drop non-chat/specialized models
   let filtered = ids.filter((id) => !DROP_PATTERN.test(id));
 
-  // 2. For openrouter, keep only :free models
+  // 2. For openrouter, prioritize :free models if present
   if (provider === 'openrouter') {
-    filtered = filtered.filter((id) => id.endsWith(':free'));
+    const freeModels = filtered.filter((id) => id.endsWith(':free'));
+    if (freeModels.length > 0) {
+      filtered = freeModels;
+    }
   }
 
   // Score models based on provider preferences
   function getScore(id: string): number {
     const lower = id.toLowerCase();
-    
-    // Reasoning models pushed to end
+
+    if (provider === 'openai') {
+      if (lower === 'gpt-4o-mini') return 100;
+      if (lower === 'gpt-4o') return 90;
+      if (lower.includes('gpt-4')) return 70;
+      return 10;
+    }
+
+    if (provider === 'deepseek') {
+      if (lower === 'deepseek-chat') return 100;
+      if (lower === 'deepseek-reasoner') return 80;
+      return 10;
+    }
+
+    if (provider === 'xai') {
+      if (lower.includes('grok-2')) return 100;
+      if (lower.includes('grok')) return 80;
+      return 10;
+    }
+
+    // Reasoning models pushed to end for generation speed
     if (REASONING_PATTERN.test(lower)) {
       return -100;
     }
@@ -51,7 +82,7 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
 
     // Provider-specific second choices
     if (provider === 'groq') {
-      if (lower.includes('gpt-oss-120b') || lower.includes('qwen') || lower.includes('llama-3.1-70b')) {
+      if (lower.includes('gpt-oss-120b') || lower.includes('qwen') || lower.includes('llama-3.1-70b') || lower.includes('llama-3.1-8b')) {
         return 80;
       }
     } else if (provider === 'nvidia') {
@@ -59,7 +90,7 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
         return 80;
       }
     } else if (provider === 'openrouter') {
-      if (lower.includes('gpt-oss') || lower.includes('qwen') || lower.includes('gemma')) {
+      if (lower.includes('gpt-oss') || lower.includes('qwen') || lower.includes('gemma') || lower.includes('mistral')) {
         return 80;
       }
     }
@@ -98,6 +129,7 @@ export async function probeProvider(
   providerName: string;
   model: string;
   models: string[];
+  purposeModels?: PurposeModels;
   message: string;
   warning?: string;
 }> {
@@ -124,7 +156,7 @@ export async function probeProvider(
   // 1. Fetch models list with timeout
   const modelsUrl = `${baseUrl}/models`;
   const listController = new AbortController();
-  const listTimer = setTimeout(() => listController.abort(), 18000);
+  const listTimer = setTimeout(() => listController.abort(), 12000);
 
   let rawModels: any[] = [];
   try {
@@ -160,10 +192,10 @@ export async function probeProvider(
     clearTimeout(listTimer);
   }
 
-  // Filter openrouter free models
+  // Filter candidate IDs
   let candidateIds: string[] = [];
   if (provider === 'openrouter') {
-    candidateIds = rawModels
+    const freeModels = rawModels
       .filter((m: any) => {
         const id = String(m?.id || '');
         if (!id.endsWith(':free')) return false;
@@ -172,6 +204,7 @@ export async function probeProvider(
         return promptPrice === 0 && completionPrice === 0;
       })
       .map((m: any) => String(m.id));
+    candidateIds = freeModels.length > 0 ? freeModels : rawModels.map((m: any) => String(m?.id || m?.name || '')).filter(Boolean);
   } else {
     candidateIds = rawModels.map((m: any) => String(m?.id || m?.name || '')).filter(Boolean);
   }
@@ -181,14 +214,14 @@ export async function probeProvider(
     throw Object.assign(new Error(`${providerName} has no available chat models.`), { status: 502 });
   }
 
-  // 2. Test up to top 3 models
-  const topCandidates = ranked.slice(0, 3);
+  // 2. Test up to top 2 models
+  const topCandidates = ranked.slice(0, 2);
   let lastTestError: any = null;
 
   for (const modelToTest of topCandidates) {
     const chatUrl = `${baseUrl}/chat/completions`;
     const chatController = new AbortController();
-    const chatTimer = setTimeout(() => chatController.abort(), 20000);
+    const chatTimer = setTimeout(() => chatController.abort(), 12000);
 
     try {
       const res = await fetch(chatUrl, {
@@ -196,8 +229,8 @@ export async function probeProvider(
         headers,
         body: JSON.stringify({
           model: modelToTest,
-          messages: [{ role: 'user', content: 'Reply with the single word OK.' }],
-          max_tokens: 8,
+          messages: [{ role: 'user', content: 'Say OK' }],
+          max_tokens: 5,
         }),
         signal: chatController.signal,
       });
@@ -207,20 +240,20 @@ export async function probeProvider(
       }
 
       if (res.status === 402) {
-        // Needs payment, skipped
-        lastTestError = Object.assign(new Error('needs payment, skipped'), { status: 402 });
+        lastTestError = Object.assign(new Error('Insufficient credits or account balance.'), { status: 402 });
         continue;
       }
 
       if (res.status === 429) {
-        // Key is valid, but free limit reached!
+        const pModels = DEFAULT_PURPOSE_MODELS[provider];
         return {
           success: true,
           provider,
           providerName,
           model: modelToTest,
           models: ranked.slice(0, 30),
-          message: `Connected to ${providerName}. Using ${modelToTest}.`,
+          purposeModels: pModels,
+          message: `Connected to ${providerName}. Assigned model: ${modelToTest}.`,
           warning: 'Key is valid, but the free rate limit was reached. It will be usable once your quota resets.',
         };
       }
@@ -231,14 +264,15 @@ export async function probeProvider(
         continue;
       }
 
-      // Success
+      const pModels = DEFAULT_PURPOSE_MODELS[provider];
       return {
         success: true,
         provider,
         providerName,
         model: modelToTest,
         models: ranked.slice(0, 30),
-        message: `Connected to ${providerName}. Using ${modelToTest}.`,
+        purposeModels: pModels,
+        message: `Connected to ${providerName}. Assigned model: ${modelToTest}.`,
       };
     } catch (err: any) {
       if (err?.status === 401) throw err;
@@ -249,7 +283,6 @@ export async function probeProvider(
     }
   }
 
-  // If none answered
   if (lastTestError?.status === 401) {
     throw lastTestError;
   }
@@ -257,4 +290,80 @@ export async function probeProvider(
     new Error(`None of the tested models on ${providerName} answered successfully.`),
     { status: 502 }
   );
+}
+
+// Auto probe: scans key signature or probes OpenAI and DeepSeek if key is ambiguous (sk-...)
+export async function probeAuto(
+  apiKey: string,
+  preferredModel?: string
+): Promise<{
+  success: true;
+  provider: string;
+  providerName: string;
+  model: string;
+  models: string[];
+  purposeModels?: PurposeModels;
+  message: string;
+  warning?: string;
+}> {
+  const cleanKey = (apiKey || '').trim();
+  if (!cleanKey) {
+    throw Object.assign(new Error('No API key provided.'), { status: 400 });
+  }
+
+  // Direct signature matches
+  if (/^AIza/i.test(cleanKey)) {
+    const { handleTestApiKey } = await import('./geminiHandler.ts');
+    const result = await handleTestApiKey(cleanKey);
+    return {
+      success: true,
+      provider: 'gemini',
+      providerName: 'Google Gemini',
+      model: result.model || 'gemini-3.8-flash',
+      models: ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-pro-preview'],
+      purposeModels: DEFAULT_PURPOSE_MODELS.gemini,
+      message: `Connected to Google Gemini (${result.model || 'gemini-3.8-flash'})`,
+    };
+  }
+  if (/^gsk_/i.test(cleanKey)) {
+    return probeProvider('groq', cleanKey, preferredModel);
+  }
+  if (/^nvapi-/i.test(cleanKey)) {
+    return probeProvider('nvidia', cleanKey, preferredModel);
+  }
+  if (/^sk-or-/i.test(cleanKey)) {
+    return probeProvider('openrouter', cleanKey, preferredModel);
+  }
+  if (/^sk-proj-/i.test(cleanKey) || /^sk-admin-/i.test(cleanKey)) {
+    return probeProvider('openai', cleanKey, preferredModel);
+  }
+  if (/^xai-/i.test(cleanKey)) {
+    return probeProvider('xai', cleanKey, preferredModel);
+  }
+  if (/^ds-/i.test(cleanKey)) {
+    return probeProvider('deepseek', cleanKey, preferredModel);
+  }
+
+  // Ambiguous sk- prefix: Try OpenAI first, then DeepSeek
+  if (/^sk-/.test(cleanKey)) {
+    try {
+      const openAiResult = await probeProvider('openai', cleanKey, preferredModel);
+      return openAiResult;
+    } catch (openAiErr: any) {
+      // If unauthorized on OpenAI, try DeepSeek
+      if (openAiErr?.status === 401 || openAiErr?.status === 403 || String(openAiErr?.message).includes('rejected')) {
+        try {
+          const deepseekResult = await probeProvider('deepseek', cleanKey, preferredModel);
+          return deepseekResult;
+        } catch {
+          // Both failed, throw original error
+          throw openAiErr;
+        }
+      }
+      throw openAiErr;
+    }
+  }
+
+  // Fallback: try Groq, NVIDIA, OpenRouter
+  throw Object.assign(new Error('Could not automatically determine the provider for this key format. Supported keys: AIza... (Gemini), gsk_... (Groq), nvapi-... (NVIDIA), sk-or-... (OpenRouter), sk-proj-... (OpenAI), or sk-... (DeepSeek/OpenAI).'), { status: 400 });
 }

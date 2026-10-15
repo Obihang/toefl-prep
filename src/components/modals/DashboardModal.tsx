@@ -21,6 +21,7 @@ import {
   ArrowRight,
   Sparkles,
   Zap,
+  Mic,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { SettingsModal } from './SettingsModal';
@@ -74,6 +75,8 @@ export const DashboardModal: React.FC<Props> = ({
   const [modelInput, setModelInput] = useState('');
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [detected, setDetected] = useState<KeyDetectResult | null>(null);
+  const [activePurposeModels, setActivePurposeModels] = useState<any>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const autoTestedKeyRef = useRef<string>('');
 
   // Dedicated Goals State
@@ -124,6 +127,9 @@ export const DashboardModal: React.FC<Props> = ({
     if (!isOpen) return;
     const res = detectProviderFromKey(apiKeyInput);
     setDetected(res);
+    if (res.purposeModels) {
+      setActivePurposeModels(res.purposeModels);
+    }
 
     if (res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
       if (res.provider !== provider) {
@@ -223,6 +229,9 @@ export const DashboardModal: React.FC<Props> = ({
       setModelInput(resolvedModel);
       setStoredModel(resolvedModel);
       setApiKeySaved(true);
+      if (json.purposeModels) {
+        setActivePurposeModels(json.purposeModels);
+      }
       window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
 
       const msg = json.warning
@@ -850,147 +859,235 @@ export const DashboardModal: React.FC<Props> = ({
 
               <div className="space-y-4 pt-4 border-t border-slate-200">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                    <Key className="w-4 h-4 text-teal-700" />
-                    AI Provider &amp; API Key
-                  </h3>
-                  <span className="text-[11px] font-medium text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
-                    Works with Any API
+                  <div>
+                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-teal-700" />
+                      Universal AI Key &amp; Purpose Auto-Routing
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Paste any API key (Groq, NVIDIA, OpenAI, DeepSeek, OpenRouter, or Gemini). The applet automatically detects your provider and selects the ideal model for questions, scoring, and voice.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
+                    Auto-Configured
                   </span>
                 </div>
 
-                {/* Provider Selector Buttons */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">Choose AI Provider</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(Object.keys(PROVIDERS) as ApiProvider[]).map((pKey) => {
-                      const p = PROVIDERS[pKey];
-                      const isSelected = provider === pKey;
-                      return (
-                        <button
-                          key={pKey}
-                          type="button"
-                          onClick={() => handleProviderSelect(pKey)}
-                          className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-teal-600 bg-teal-50/80 text-teal-950 font-bold ring-2 ring-teal-600/20 shadow-xs'
-                              : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <div className="text-xs font-semibold leading-tight">{p.name}</div>
-                          <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{p.defaultModel}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-slate-500 pt-0.5">
-                    {PROVIDERS[provider]?.helpText}
-                  </p>
-                </div>
-
-                {/* API Key Input */}
-                <div className="space-y-1.5">
+                {/* Main API Key Input */}
+                <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-2xl p-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-700">
-                      {PROVIDERS[provider]?.name} API Key
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-teal-700" />
+                      <span>API Key</span>
+                      {detected?.provider && (
+                        <span className="ml-2 font-normal text-[11px] text-teal-700 bg-teal-100/60 px-2 py-0.5 rounded-md">
+                          Recognized: <strong>{detected.label}</strong>
+                        </span>
+                      )}
                     </label>
-                    {PROVIDERS[provider]?.keyHelpUrl && (
+                    <div className="flex items-center gap-2 text-[11px]">
                       <a
-                        href={PROVIDERS[provider].keyHelpUrl}
+                        href="https://console.groq.com/keys"
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[11px] text-teal-700 hover:text-teal-900 underline font-semibold"
+                        className="text-slate-500 hover:text-teal-700 underline"
                       >
-                        Get Key &rarr;
+                        Groq
                       </a>
-                    )}
+                      <span className="text-slate-300">·</span>
+                      <a
+                        href="https://build.nvidia.com"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-slate-500 hover:text-teal-700 underline"
+                      >
+                        NVIDIA
+                      </a>
+                      <span className="text-slate-300">·</span>
+                      <a
+                        href="https://platform.openai.com/api-keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-slate-500 hover:text-teal-700 underline"
+                      >
+                        OpenAI
+                      </a>
+                      <span className="text-slate-300">·</span>
+                      <a
+                        href="https://platform.deepseek.com/api_keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-slate-500 hover:text-teal-700 underline"
+                      >
+                        DeepSeek
+                      </a>
+                      <span className="text-slate-300">·</span>
+                      <a
+                        href="https://aistudio.google.com/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-teal-700 font-semibold hover:text-teal-900 underline"
+                      >
+                        Gemini Free
+                      </a>
+                    </div>
                   </div>
-                  <input
-                    type="password"
-                    value={apiKeyInput}
-                    onChange={(e) => {
-                      setApiKeyInput(e.target.value);
-                      setApiKeySaved(false);
-                      setTestKeyResult(null);
-                    }}
-                    placeholder={PROVIDERS[provider]?.placeholderKey || 'Paste API Key'}
-                    className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
-                  />
-                  {detected && apiKeyInput.trim().length > 0 && (
-                    <div className="pt-1">
-                      {detected.provider ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-teal-50 text-teal-800 border border-teal-200">
-                          <span>Detected: <strong>{detected.label}</strong> key{isTestingKey ? ' · Testing automatically...' : !detected.complete ? ' · Keep typing or paste the full key.' : ''}</span>
-                        </span>
-                      ) : (
-                        <div className="p-2 rounded-md text-xs bg-amber-50 text-amber-800 border border-amber-200">
-                          <span className="font-semibold">Detected: {detected.label}</span>
-                          {detected.note && <p className="text-[11px] mt-0.5 text-amber-700">{detected.note}</p>}
+
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={apiKeyInput}
+                      onChange={(e) => {
+                        setApiKeyInput(e.target.value);
+                        setApiKeySaved(false);
+                        setTestKeyResult(null);
+                      }}
+                      placeholder="Paste your API key here (AIza..., gsk_..., nvapi-..., sk-proj-..., sk-or-..., or sk-...)"
+                      className="w-full text-sm bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 outline-hidden font-mono pr-24 shadow-2xs"
+                    />
+                    <button
+                      onClick={() => handleTestKey(false)}
+                      disabled={isTestingKey || !apiKeyInput.trim()}
+                      className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {isTestingKey && <Loader2 className="w-3 h-3 animate-spin" />}
+                      <span>{isTestingKey ? 'Detecting...' : 'Activate'}</span>
+                    </button>
+                  </div>
+
+                  {/* Purpose-Specific Routing Grid */}
+                  <div className="pt-2">
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                      Purpose-Based Model Routing (Automatic)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      
+                      {/* 1. Question Generation */}
+                      <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <BookOpen className="w-3.5 h-3.5 text-teal-700" />
+                          <span>Question Generator</span>
                         </div>
+                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate">
+                          {activePurposeModels?.generation || (detected?.purposeModels?.generation || 'Auto-Optimized (70B/Flash)')}
+                        </div>
+                        <p className="text-[10px] text-slate-400">Authentic ETS schemas &amp; prompt passages</p>
+                      </div>
+
+                      {/* 2. Score & Answers Checking */}
+                      <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <Target className="w-3.5 h-3.5 text-indigo-700" />
+                          <span>Answer &amp; Rubric Scoring</span>
+                        </div>
+                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate">
+                          {activePurposeModels?.evaluation || (detected?.purposeModels?.evaluation || 'High-Precision Evaluator')}
+                        </div>
+                        <p className="text-[10px] text-slate-400">ETS 1.0–6.0 Bands &amp; CEFR diagnosis</p>
+                      </div>
+
+                      {/* 3. Voice TTS & STT */}
+                      <div className="p-2.5 bg-white border border-slate-200/80 rounded-xl space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                          <Mic className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Voice TTS &amp; Audio</span>
+                        </div>
+                        <div className="text-[11px] font-mono text-emerald-900 font-semibold truncate">
+                          {activePurposeModels?.transcription || (detected?.purposeModels?.transcription || 'Native Speech & Whisper')}
+                        </div>
+                        <p className="text-[10px] text-slate-400">Whisper STT / TTS-1 / Gemini Audio</p>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {testKeyResult && (
+                    <div
+                      className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 mt-2 ${
+                        testKeyResult.success
+                          ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-900 border border-rose-200'
+                      }`}
+                    >
+                      {testKeyResult.success ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                       )}
+                      <span>{testKeyResult.message}</span>
                     </div>
                   )}
                 </div>
 
-                {/* Base URL (editable for non-gemini or custom) */}
-                {provider !== 'gemini' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">API Base URL</label>
-                      <input
-                        type="text"
-                        value={baseUrlInput}
-                        onChange={(e) => {
-                          setBaseUrlInput(e.target.value);
-                          setApiKeySaved(false);
-                        }}
-                        placeholder="https://api.openai.com/v1"
-                        className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">Preferred Model Name (optional)</label>
-                      <input
-                        type="text"
-                        value={modelInput}
-                        onChange={(e) => {
-                          setModelInput(e.target.value);
-                          setApiKeySaved(false);
-                        }}
-                        placeholder="Auto-detected (or type override)"
-                        className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
-                      />
-                      <p className="text-[10px] text-slate-400">Leave blank to auto-detect the best free model</p>
-                    </div>
-                  </div>
-                )}
-
-                {testKeyResult && (
-                  <div
-                    className={`p-3 rounded-lg text-xs font-semibold flex items-center gap-2 ${
-                      testKeyResult.success
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        : 'bg-rose-50 text-rose-800 border border-rose-200'
-                    }`}
-                  >
-                    {testKeyResult.success ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    )}
-                    <span>{testKeyResult.message}</span>
-                  </div>
-                )}
-
-                <div className="flex gap-2 justify-end pt-1">
+                {/* Collapsible Advanced Override Section */}
+                <div className="pt-1">
                   <button
-                    onClick={() => handleTestKey(false)}
-                    disabled={isTestingKey || (!apiKeyInput.trim() && provider !== 'custom')}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
+                    type="button"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer transition-colors"
                   >
-                    {isTestingKey && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    <span>{isTestingKey ? 'Verifying...' : `Test & Save ${PROVIDERS[provider]?.name || 'Provider'}`}</span>
+                    <span>{showAdvanced ? '▾ Hide' : '▸ Show'} Manual Provider &amp; Model Overrides (Optional)</span>
                   </button>
+
+                  {showAdvanced && (
+                    <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4 animate-in fade-in">
+                      {/* Provider Selector Buttons */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold text-slate-700">Override Provider Selection</label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {(Object.keys(PROVIDERS) as ApiProvider[]).map((pKey) => {
+                            const p = PROVIDERS[pKey];
+                            const isSelected = provider === pKey;
+                            return (
+                              <button
+                                key={pKey}
+                                type="button"
+                                onClick={() => handleProviderSelect(pKey)}
+                                className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'border-teal-600 bg-teal-50 text-teal-950 font-bold ring-2 ring-teal-600/20'
+                                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                <div className="text-xs font-semibold leading-tight">{p.name}</div>
+                                <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{p.defaultModel}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Base URL & Preferred Model */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">Custom Base URL (optional)</label>
+                          <input
+                            type="text"
+                            value={baseUrlInput}
+                            onChange={(e) => {
+                              setBaseUrlInput(e.target.value);
+                              setApiKeySaved(false);
+                            }}
+                            placeholder="Leave blank for official endpoint"
+                            className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden font-mono"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-slate-700">Custom Model Name Override</label>
+                          <input
+                            type="text"
+                            value={modelInput}
+                            onChange={(e) => {
+                              setModelInput(e.target.value);
+                              setApiKeySaved(false);
+                            }}
+                            placeholder="Auto-routed by purpose"
+                            className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

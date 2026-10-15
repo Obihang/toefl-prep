@@ -5,7 +5,7 @@ import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
-import { callOpenAiCompatibleChat, testOpenAiCompatible } from './llmClient.ts';
+import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callWhisperTranscription } from './llmClient.ts';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string };
 
@@ -509,6 +509,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         apiKey: opts.apiKey,
         baseUrl: opts.baseUrl,
         model: opts.model,
+        purpose: 'generation',
         prompt: `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`,
         systemInstruction,
         responseJson: true,
@@ -654,6 +655,7 @@ Return valid JSON format:
       apiKey: opts.apiKey,
       baseUrl: opts.baseUrl,
       model: opts.model,
+      purpose: 'evaluation',
       prompt: evaluationPrompt,
       systemInstruction: 'You are an official certified ETS TOEFL iBT scoring rater. Return valid JSON only.',
       responseJson: true,
@@ -710,8 +712,22 @@ Return valid JSON format:
 export async function handleSynthesizeSpeech(
   text: string,
   voiceName: string = 'Kore',
-  customApiKey?: string
+  options?: ApiCallOptions
 ) {
+  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
+  let provider = opts.provider || 'gemini';
+  const customApiKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
+
+  // If OpenAI key, utilize OpenAI TTS API directly
+  if (provider === 'openai' && customApiKey) {
+    try {
+      const res = await callOpenAiTts({ apiKey: customApiKey, text, voiceName });
+      return res;
+    } catch (err: any) {
+      console.warn('OpenAI TTS failed, falling back to Gemini/browser:', err?.message || err);
+    }
+  }
+
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
@@ -745,11 +761,6 @@ export async function handleSynthesizeSpeech(
     });
 
     const audio = interaction.output_audio;
-    console.log('[TTS] Audio interaction output:', { 
-        hasData: !!audio?.data, 
-        mimeType: audio?.mime_type,
-        dataLength: audio?.data?.length 
-    });
     if (!audio?.data) {
       throw new Error('No audio data returned from model');
     }
@@ -762,8 +773,28 @@ export async function handleSynthesizeSpeech(
 export async function handleTranscribeAudio(
   audioBase64: string,
   mimeType: string = 'audio/webm',
-  customApiKey?: string
+  options?: ApiCallOptions
 ) {
+  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
+  let provider = opts.provider || 'gemini';
+  const customApiKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
+
+  // If Groq or OpenAI key, utilize native Whisper transcription
+  if ((provider === 'groq' || provider === 'openai') && customApiKey) {
+    try {
+      const startTime = Date.now();
+      const res = await callWhisperTranscription({
+        provider,
+        apiKey: customApiKey,
+        audioBase64,
+        mimeType,
+      });
+      return { transcript: res.transcript, modelUsed: res.modelUsed, durationMs: Date.now() - startTime };
+    } catch (err: any) {
+      console.warn(`${provider.toUpperCase()} Whisper transcription failed, checking Gemini fallback:`, err?.message || err);
+    }
+  }
+
   const ai = getAiClient(customApiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');

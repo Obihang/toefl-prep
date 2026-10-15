@@ -1,43 +1,79 @@
+export type ModelPurpose = 'generation' | 'evaluation' | 'transcription' | 'tts';
+
 export interface LlmCallOptions {
   provider?: string;
   apiKey?: string;
   baseUrl?: string;
   model?: string;
+  purpose?: ModelPurpose;
   prompt: string;
   systemInstruction?: string;
   temperature?: number;
   responseJson?: boolean;
 }
 
-export function resolveProviderDefaults(provider: string = 'gemini', baseUrl?: string, model?: string) {
+export function resolveProviderDefaults(
+  provider: string = 'gemini',
+  baseUrl?: string,
+  model?: string,
+  purpose: ModelPurpose = 'generation'
+) {
   let resolvedBaseUrl = baseUrl?.trim();
   let resolvedModel = model?.trim();
 
-  switch (provider) {
+  switch (provider.toLowerCase()) {
     case 'nvidia':
       resolvedBaseUrl = resolvedBaseUrl || 'https://integrate.api.nvidia.com/v1';
       resolvedModel = resolvedModel || 'meta/llama-3.3-70b-instruct';
       break;
+
     case 'groq':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.groq.com/openai/v1';
-      resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
+      if (purpose === 'transcription') {
+        resolvedModel = resolvedModel || 'whisper-large-v3';
+      } else {
+        resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
+      }
       break;
+
     case 'openrouter':
       resolvedBaseUrl = resolvedBaseUrl || 'https://openrouter.ai/api/v1';
       resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
       break;
+
     case 'openai':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.openai.com/v1';
-      resolvedModel = resolvedModel || 'gpt-4o-mini';
+      if (purpose === 'evaluation') {
+        resolvedModel = resolvedModel || 'gpt-4o';
+      } else if (purpose === 'transcription') {
+        resolvedModel = resolvedModel || 'whisper-1';
+      } else if (purpose === 'tts') {
+        resolvedModel = resolvedModel || 'tts-1';
+      } else {
+        resolvedModel = resolvedModel || 'gpt-4o-mini';
+      }
       break;
+
     case 'deepseek':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.deepseek.com/v1';
       resolvedModel = resolvedModel || 'deepseek-chat';
       break;
+
+    case 'xai':
+      resolvedBaseUrl = resolvedBaseUrl || 'https://api.x.ai/v1';
+      resolvedModel = resolvedModel || 'grok-2-latest';
+      break;
+
+    case 'anthropic':
+      resolvedBaseUrl = resolvedBaseUrl || 'https://api.anthropic.com/v1';
+      resolvedModel = resolvedModel || (purpose === 'evaluation' ? 'claude-3-5-sonnet-latest' : 'claude-3-5-haiku-latest');
+      break;
+
     case 'custom':
       resolvedBaseUrl = resolvedBaseUrl || 'http://localhost:11434/v1';
       resolvedModel = resolvedModel || 'llama3';
       break;
+
     case 'gemini':
     default:
       resolvedBaseUrl = resolvedBaseUrl || '';
@@ -49,12 +85,8 @@ export function resolveProviderDefaults(provider: string = 'gemini', baseUrl?: s
 }
 
 export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise<{ text: string; modelUsed: string }> {
-  const { provider = 'custom', apiKey, baseUrl, model, prompt, systemInstruction, temperature = 0.7, responseJson = true } = options;
-  const resolved = resolveProviderDefaults(provider, baseUrl, model);
-
-  if (provider === 'openrouter' && !(resolved.model && resolved.model.endsWith(':free'))) {
-    throw new Error("Only free OpenRouter models (ids ending in ':free') are allowed.");
-  }
+  const { provider = 'custom', apiKey, baseUrl, model, purpose = 'generation', prompt, systemInstruction, temperature = 0.7, responseJson = true } = options;
+  const resolved = resolveProviderDefaults(provider, baseUrl, model, purpose);
 
   if (!resolved.baseUrl) {
     throw new Error(`Base URL is missing for provider ${provider}`);
@@ -137,18 +169,110 @@ export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise
   return { text, modelUsed: `${provider}:${resolved.model}` };
 }
 
+// Native Speech Synthesis for OpenAI TTS
+export async function callOpenAiTts(options: {
+  apiKey: string;
+  text: string;
+  voiceName?: string;
+}): Promise<{ audioBase64: string; mimeType: string; modelUsed: string }> {
+  const { apiKey, text, voiceName = 'alloy' } = options;
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('OpenAI API key missing for TTS');
+  }
+
+  // Map TOEFL voice names to OpenAI natural voices (alloy, echo, fable, onyx, nova, shimmer)
+  const lowerVoice = (voiceName || '').toLowerCase();
+  let selectedVoice = 'alloy';
+  if (lowerVoice.includes('female') || ['kore', 'aoede', 'despina', 'leda', 'sarah', 'emily'].some(v => lowerVoice.includes(v))) {
+    selectedVoice = 'nova';
+  } else if (lowerVoice.includes('male') || ['fenrir', 'iapetus', 'orus', 'puck', 'lee', 'john'].some(v => lowerVoice.includes(v))) {
+    selectedVoice = 'onyx';
+  } else if (['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].includes(lowerVoice)) {
+    selectedVoice = lowerVoice;
+  }
+
+  const endpoint = 'https://api.openai.com/v1/audio/speech';
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey.trim()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'tts-1',
+      input: text,
+      voice: selectedVoice,
+      response_format: 'mp3',
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenAI TTS Error (${res.status}): ${err}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
+  return {
+    audioBase64,
+    mimeType: 'audio/mpeg',
+    modelUsed: `openai:tts-1 (${selectedVoice})`,
+  };
+}
+
+// Native Audio Transcription for Groq / OpenAI Whisper
+export async function callWhisperTranscription(options: {
+  provider: 'groq' | 'openai';
+  apiKey: string;
+  audioBase64: string;
+  mimeType?: string;
+}): Promise<{ transcript: string; modelUsed: string }> {
+  const { provider, apiKey, audioBase64, mimeType = 'audio/webm' } = options;
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error(`${provider.toUpperCase()} API key missing for transcription`);
+  }
+
+  const endpoint = provider === 'groq'
+    ? 'https://api.groq.com/openai/v1/audio/transcriptions'
+    : 'https://api.openai.com/v1/audio/transcriptions';
+
+  const model = provider === 'groq' ? 'whisper-large-v3' : 'whisper-1';
+
+  const buffer = Buffer.from(audioBase64, 'base64');
+  const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'm4a' : mimeType.includes('wav') ? 'wav' : 'mp3';
+  const fileBlob = new Blob([buffer], { type: mimeType });
+
+  const formData = new FormData();
+  formData.append('file', fileBlob, `speech.${ext}`);
+  formData.append('model', model);
+  formData.append('language', 'en');
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey.trim()}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`${provider.toUpperCase()} Whisper Error (${res.status}): ${errText}`);
+  }
+
+  const data: any = await res.json();
+  const transcript = data.text || '';
+  return { transcript, modelUsed: `${provider}:${model}` };
+}
+
 export async function testOpenAiCompatible(options: {
   provider: string;
   apiKey?: string;
   baseUrl?: string;
   model?: string;
-}): Promise<{ success: true; message: string; model: string }> {
+}): Promise<{ success: true; message: string; model: string; provider: string; providerName: string }> {
   const { provider, apiKey, baseUrl, model } = options;
-  const resolved = resolveProviderDefaults(provider, baseUrl, model);
-
-  if (provider === 'openrouter' && !(resolved.model && resolved.model.endsWith(':free'))) {
-    throw new Error("Only free OpenRouter models (ids ending in ':free') are allowed.");
-  }
+  const resolved = resolveProviderDefaults(provider, baseUrl, model, 'generation');
 
   const endpoint = `${resolved.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const headers: Record<string, string> = {
@@ -181,12 +305,24 @@ export async function testOpenAiCompatible(options: {
       const j = JSON.parse(errorText);
       parsedErr = j.error?.message || j.message || errorText;
     } catch {}
-    throw new Error(`${provider.toUpperCase()} Connection Error (${res.status}): ${parsedErr}`);
+    const errObj = new Error(`${provider.toUpperCase()} Connection Error (${res.status}): ${parsedErr}`);
+    (errObj as any).status = res.status;
+    throw errObj;
   }
+
+  const pName = provider === 'groq' ? 'Groq'
+    : provider === 'nvidia' ? 'NVIDIA NIM'
+    : provider === 'openrouter' ? 'OpenRouter'
+    : provider === 'openai' ? 'OpenAI'
+    : provider === 'deepseek' ? 'DeepSeek'
+    : provider === 'xai' ? 'xAI Grok'
+    : provider.toUpperCase();
 
   return {
     success: true,
-    message: `Connected successfully to ${provider.toUpperCase()} (${resolved.model})`,
+    provider,
+    providerName: pName,
+    message: `Connected successfully to ${pName}. Using ${resolved.model}.`,
     model: `${provider}:${resolved.model}`,
   };
 }
