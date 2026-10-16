@@ -484,6 +484,8 @@ export default function App() {
           } else {
             quotaExhaustedUntilRef.current = pause.resumeAt;
           }
+        } else if (status === 401 || reason.includes('invalid api key') || reason.includes('key')) {
+          quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
         } else if (status === 503) {
           quotaExhaustedUntilRef.current = Date.now() + 60000;
         } else {
@@ -591,6 +593,15 @@ export default function App() {
   useEffect(() => {
     setPrefetchProgress(getPrefetchProgress(prefetchedQueue, level, topic));
   }, [prefetchedQueue, level, topic]);
+
+  useEffect(() => {
+    const handleKeyReset = () => {
+      quotaExhaustedUntilRef.current = 0;
+      failedRecentlyRef.current = {};
+    };
+    window.addEventListener('apiKeyUpdated', handleKeyReset);
+    return () => window.removeEventListener('apiKeyUpdated', handleKeyReset);
+  }, []);
 
   // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {

@@ -529,7 +529,11 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       return { ...result, isFallback: false, modelUsed };
     } catch (error: any) {
       const errMsg = extractErrorMessage(error);
-      console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
+      if (!isKeyError(error)) {
+        console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
+      } else {
+        console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
+      }
       const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
       const curatedTasks = CURATED[curatedKey] as any[];
       const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
@@ -587,8 +591,10 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     const isQuota = isQuotaExhaustedError(error) || getStatus(error) === 429;
     const rateLimit = isQuota ? parseRateLimitFromError(error) : undefined;
     const errMsg = extractErrorMessage(error);
-    if (!isQuota) {
+    if (!isQuota && !isKeyError(error)) {
       console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
+    } else {
+      console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
     }
     const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
     const curatedTasks = CURATED[curatedKey] as any[];
