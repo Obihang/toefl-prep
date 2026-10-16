@@ -886,11 +886,18 @@ export const DashboardModal: React.FC<Props> = ({
               <div className="space-y-3">
                 <h3 className="font-semibold text-slate-900">Study Goals &amp; Preferences</h3>
                 <button 
-                  onClick={() => setIsSettingsOpen(true)}
+                  onClick={() => setActiveTab('goals')}
                   className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors cursor-pointer"
                 >
-                  <span className="text-sm font-medium text-teal-900">Configure Display Name, Voice Engine, Microphone &amp; Cursor Style</span>
-                  <Settings className="w-4 h-4 text-teal-600" />
+                  <span className="text-sm font-medium text-teal-900">Configure Study Goals &amp; Test Date</span>
+                  <Target className="w-4 h-4 text-teal-600" />
+                </button>
+                <button 
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="w-full flex items-center justify-between p-4 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  <span className="text-sm font-medium text-slate-700">Configure Display Name, Voice Engine, Microphone &amp; Cursor Style</span>
+                  <Settings className="w-4 h-4 text-slate-500" />
                 </button>
               </div>
 

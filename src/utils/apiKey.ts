@@ -238,9 +238,20 @@ export function setStoredRoles(provider: string, roles: StoredRoles): void {
   localStorage.setItem(`toefl_roles_${provider}`, JSON.stringify(roles));
 }
 
+export function getStoredVoiceKey(): string {
+  if (typeof localStorage === 'undefined') return '';
+  return (localStorage.getItem('toefl_voice_api_key') || '').trim();
+}
+
+export function setStoredVoiceKey(key: string): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('toefl_voice_api_key', key.trim());
+}
+
 export function getApiHeaders(): Record<string, string> {
   const provider = getStoredProvider();
   const key = getStoredApiKey();
+  const voiceKey = getStoredVoiceKey();
   const baseUrl = getStoredBaseUrl();
   const model = getStoredModel();
   const roles = getStoredRoles(provider);
@@ -256,6 +267,10 @@ export function getApiHeaders(): Record<string, string> {
     if (provider === 'gemini') {
       headers['x-gemini-api-key'] = key;
     }
+  }
+
+  if (voiceKey) {
+    headers['x-voice-api-key'] = voiceKey;
   }
 
   if (baseUrl) {

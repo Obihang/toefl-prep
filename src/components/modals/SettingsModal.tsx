@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, getVoices, getTtsUsageCount } from '../../utils/audioSpeech';
+import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, playSpeech, getVoices, getTtsUsageCount } from '../../utils/audioSpeech';
+import { getStoredVoiceKey, setStoredVoiceKey } from '../../utils/apiKey';
+import { isOfflineVoiceDownloaded, downloadOfflineVoice, removeOfflineVoice } from '../../utils/offlineVoice';
 
 interface Props {
   isOpen: boolean;
@@ -22,6 +24,11 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [randomizeVoices, setRandomizeVoices] = useState(true);
   const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>('device');
+
+  const [voiceKeyInput, setVoiceKeyInput] = useState('');
+  const [isOfflineDownloaded, setIsOfflineDownloaded] = useState(false);
+  const [isDownloadingOffline, setIsDownloadingOffline] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
 
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [testSecondsLeft, setTestSecondsLeft] = useState(3);
@@ -66,6 +73,8 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setSelectedMicId(getStoredMicDeviceId() || '');
     setRandomizeVoices(localStorage.getItem('toefl_randomize_voices') !== 'false');
     setVoiceEngineState(getVoiceEngine());
+    setVoiceKeyInput(getStoredVoiceKey());
+    setIsOfflineDownloaded(isOfflineVoiceDownloaded());
     getAudioInputDevices().then(setMicDevices).catch(() => {});
     setNameError(null);
     setSavedSuccess(false);
@@ -224,8 +233,6 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     if (trimmed) {
       setDisplayName(trimmed);
     }
-    localStorage.setItem('toefl_target_score', targetScore);
-    localStorage.setItem('toefl_test_date', testDate);
     setCursorPreference(cursorStyle);
     setStoredMicDeviceId(selectedMicId);
     setSavedSuccess(true);
@@ -279,39 +286,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             )}
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Target className="w-4 h-4 text-teal-700" />
-              Target TOEFL Score (0–120)
-            </label>
-            <input
-              type="number"
-              min="0"
-              max="120"
-              value={targetScore}
-              onChange={(e) => setTargetScore(e.target.value)}
-              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
-            />
-            <p className="text-xs text-slate-500">
-              Used to calculate test readiness, projected band scores, and study pacing.
-            </p>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-teal-700" />
-              Planned Test Date
-            </label>
-            <input
-              type="date"
-              value={testDate}
-              onChange={(e) => setTestDate(e.target.value)}
-              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-mono"
-            />
-            <p className="text-xs text-slate-500">
-              Enables exam countdown timer and recommended daily question quotas.
-            </p>
-          </div>
 
           {/* Interactive Clickable Cursor Object Style */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
@@ -394,12 +369,12 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Voice Engine Selector */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
+          {/* Voice Engine & Optional Separate Voice Key */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
             <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <Mic className="w-4 h-4 text-teal-700" />
-                Voice Engine
+                Voice Engine &amp; Speech Settings
               </span>
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -418,21 +393,104 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 Browser Device Voice (Offline)
               </button>
             </div>
+
+            {/* Optional Separate Voice Key */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800">
+                  Voice key (optional, free Gemini key)
+                </label>
+                <span className="text-[11px] text-teal-800 font-mono bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                  Calls today: {getTtsUsageCount()}
+                </span>
+              </div>
+              <input
+                type="password"
+                value={voiceKeyInput}
+                onChange={(e) => {
+                  setVoiceKeyInput(e.target.value);
+                  setStoredVoiceKey(e.target.value);
+                }}
+                placeholder="AIzaSy... (Dedicated Gemini API key for audio)"
+                className="w-full text-xs border border-slate-300 rounded px-2.5 py-1.5 bg-white focus:border-teal-600 outline-hidden font-mono"
+              />
+              <p className="text-[11px] text-slate-500">
+                Used for Studio AI voice playback when main provider is Groq, NVIDIA, or OpenRouter.
+              </p>
+            </div>
+
+            {/* Opt-in Offline Voice */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800">
+                  Offline voice (one-time download, about 90 MB)
+                </label>
+                {isOfflineDownloaded && (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Ready
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                High-quality offline ONNX neural voice for browsers without built-in speech synthesis.
+              </p>
+              {typeof navigator !== 'undefined' && (navigator as any).connection?.type === 'cellular' && (
+                <p className="text-[11px] text-amber-700 font-medium">
+                  ⚠️ Note: Mobile data connection detected. Download requires ~90 MB.
+                </p>
+              )}
+              {isDownloadingOffline ? (
+                <div className="space-y-1">
+                  <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-teal-600 transition-all duration-150"
+                      style={{ width: `${downloadProgress}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] text-slate-600 font-mono">
+                    Downloading model... {downloadProgress}%
+                  </span>
+                </div>
+              ) : isOfflineDownloaded ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await removeOfflineVoice();
+                    setIsOfflineDownloaded(false);
+                  }}
+                  className="px-3 py-1 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100 transition"
+                >
+                  Remove Offline Voice
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsDownloadingOffline(true);
+                    setDownloadProgress(0);
+                    await downloadOfflineVoice((pct) => setDownloadProgress(pct));
+                    setIsDownloadingOffline(false);
+                    setIsOfflineDownloaded(true);
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded transition"
+                >
+                  Download Offline Voice (~90 MB)
+                </button>
+              )}
+            </div>
+
             {voiceEngine === 'device' && getVoices().filter(v => v.lang.startsWith('en')).length === 0 && (
               <p className="text-xs text-rose-600">No English speech voices found on this device. Use Studio AI Voice for natural audio.</p>
             )}
             <button
               type="button"
               onClick={async () => {
-                await speakScriptLine("This is a test of the TOEFL Prep Studio voice engine.");
+                await playSpeech("This is a test of the TOEFL Prep Studio voice engine.");
               }}
               className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
             >
               Test Voice Audio
             </button>
-            <p className="text-xs text-slate-500">
-              Studio AI Voice generates authentic TOEFL audio clips and caches them locally for instant replay.
-            </p>
           </div>
 
           {/* Microphone Audio Input Selector */}

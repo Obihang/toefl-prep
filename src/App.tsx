@@ -55,6 +55,7 @@ import {
 } from './data/curatedQuestions';
 
 import { CompleteWordsView } from './components/tasks/CompleteWordsView';
+import { SelectionHandler } from './components/shared/SelectionHandler';
 import { ReadingPassageView } from './components/tasks/ReadingPassageView';
 import { ListeningDialogueView } from './components/tasks/ListeningDialogueView';
 import { ListenRepeatView } from './components/tasks/ListenRepeatView';
@@ -124,6 +125,7 @@ export default function App() {
   const [rateLimitPauseState, setRateLimitPauseState] = useState<{ kind: 'per-minute' | 'per-day' | 'unknown'; resumeAt: number; retryAfterSeconds: number } | null>(null);
   const lastPrefetchTimeRef = useRef(0);
   const lastDebugLogTimeRef = useRef<Record<string, number>>({});
+  const [sharedBankNotice, setSharedBankNotice] = useState<string | null>(null);
 
   // Modals
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
@@ -694,8 +696,12 @@ export default function App() {
           newTask.createdByName = displayName || 'Anonymous Scholar';
           newTask.createdByUid = user.uid;
           newTask.isSharedBank = true;
-        } catch (e) {
-          console.error('Failed to save to shared question bank:', e);
+          setSharedBankNotice('Added to the shared question bank');
+          setTimeout(() => setSharedBankNotice(null), 4000);
+        } catch (e: any) {
+          console.warn('Failed to save to shared question bank (rules, index or sign-in):', e?.message || e);
+          setSharedBankNotice('Notice: Question generated successfully, but could not be saved to shared bank.');
+          setTimeout(() => setSharedBankNotice(null), 5000);
         }
       }
 
@@ -1172,6 +1178,15 @@ export default function App() {
           )
         )}
 
+        {sharedBankNotice && (
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>{sharedBankNotice}</span>
+            </div>
+          </div>
+        )}
+
         {generationSuccess && (
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1189,6 +1204,9 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* Global Select-to-Save Vocabulary Handler */}
+        <SelectionHandler taskType={currentTaskType} />
 
         {/* Interactive Task Stage */}
         <section aria-label="Interactive Task Workspace" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">

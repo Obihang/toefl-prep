@@ -7,6 +7,7 @@ export interface VocabularyWord {
   word: string;
   definition: string;
   context?: string;
+  taskType?: string;
   leitnerBox: number; // 1 to 5
   nextReviewDate: any;
   createdAt: any;
@@ -14,15 +15,22 @@ export interface VocabularyWord {
 
 const LEITNER_INTERVALS = [1, 2, 4, 8, 16]; // Days for boxes 1 to 5
 
-export async function saveVocabularyWord(word: string, definition: string, context?: string) {
+export async function saveVocabularyWord(word: string, definition: string, context?: string, taskType?: string) {
   if (!auth.currentUser) throw new Error('User not authenticated');
   
+  const cleanWord = word.trim().toLowerCase();
+  const existing = await getVocabularyWords();
+  if (existing.some(w => w.word.trim().toLowerCase() === cleanWord)) {
+    return; // No duplicates
+  }
+
   const nextReviewDate = new Date(); // Due immediately
   await addDoc(collection(db, 'vocabulary'), {
     userId: auth.currentUser.uid,
-    word,
+    word: word.trim(),
     definition,
-    context,
+    context: context || '',
+    taskType: taskType || 'general',
     leitnerBox: 1,
     nextReviewDate,
     createdAt: serverTimestamp(),

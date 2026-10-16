@@ -1,5 +1,8 @@
 // Web Speech API and Web Audio utilities for TOEFL audio tasks and speaking test simulation
-import { getApiHeaders } from './apiKey';
+import { getApiHeaders, getStoredProvider } from './apiKey';
+import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
+import { isOfflineVoiceEnabled, isOfflineVoiceDownloaded } from './offlineVoice';
+import { inferGender } from './voices';
 
 export interface SpeechVoiceOption {
   name: string;
@@ -113,6 +116,15 @@ export function stopSpeaking() {
     } catch {}
   }
 
+  // Stop active Web Audio source node if playing
+  if (activeSourceNode) {
+    try {
+      activeSourceNode.stop();
+      activeSourceNode.disconnect();
+    } catch {}
+    activeSourceNode = null;
+  }
+
   // 5. Cancel Web Speech API
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {
@@ -127,6 +139,154 @@ export function stopSpeaking() {
 
 export function isAudioPlaying(): boolean {
   return isAudioPlayingState;
+}
+
+let globalAudioCtx: AudioContext | null = null;
+let activeSourceNode: AudioBufferSourceNode | null = null;
+
+export function getAudioContext(): AudioContext {
+  if (!globalAudioCtx && typeof window !== 'undefined') {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (AudioCtx) {
+      globalAudioCtx = new AudioCtx();
+    }
+  }
+  return globalAudioCtx!;
+}
+
+export async function decodeSpeech(
+  base64: string,
+  mimeType: string = 'audio/wav'
+): Promise<{ audioBuffer: AudioBuffer; sampleRate: number }> {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    try {
+      await ctx.resume();
+    } catch {}
+  }
+
+  const byteChars = atob(base64);
+  const bytes = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) {
+    bytes[i] = byteChars.charCodeAt(i);
+  }
+
+  const sampleRate = parseSampleRateFromMime(mimeType, 24000);
+  const first4Hex = Array.from(bytes.slice(0, 4)).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+  console.log(`[decodeSpeech] mimeType=${mimeType}, byteLen=${bytes.byteLength}, first4=${first4Hex}, sampleRate=${sampleRate}, isRiff=${isRiffWav(bytes)}`);
+
+  // Raw PCM / L16 without RIFF header
+  if ((mimeType.includes('pcm') || mimeType.includes('L16')) && !isRiffWav(bytes)) {
+    const numSamples = Math.floor(bytes.byteLength / 2);
+    const audioBuffer = ctx.createBuffer(1, numSamples, sampleRate);
+    const channelData = audioBuffer.getChannelData(0);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+    for (let i = 0; i < numSamples; i++) {
+      const int16 = view.getInt16(i * 2, true); // little endian
+      channelData[i] = int16 / 32768.0;
+    }
+    return { audioBuffer, sampleRate };
+  }
+
+  // RIFF WAV, MP3, OGG, WEBM via decodeAudioData
+  const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  return { audioBuffer, sampleRate: audioBuffer.sampleRate };
+}
+
+export async function playDecodedSpeech(
+  audioBuffer: AudioBuffer,
+  onEnd?: () => void
+): Promise<void> {
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    try {
+      await ctx.resume();
+    } catch {}
+  }
+
+  if (activeSourceNode) {
+    try {
+      activeSourceNode.stop();
+      activeSourceNode.disconnect();
+    } catch {}
+    activeSourceNode = null;
+  }
+
+  const sourceNode = ctx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.connect(ctx.destination);
+  activeSourceNode = sourceNode;
+
+  return new Promise<void>((resolve) => {
+    let finished = false;
+    const cleanup = () => {
+      if (finished) return;
+      finished = true;
+      try {
+        sourceNode.disconnect();
+      } catch {}
+      if (activeSourceNode === sourceNode) {
+        activeSourceNode = null;
+      }
+      onEnd?.();
+      resolve();
+    };
+
+    sourceNode.onended = cleanup;
+    sourceNode.start(0);
+  });
+}
+
+// Persistent Microphone Stream Retention
+let activeMicStream: MediaStream | null = null;
+let micIdleTimer: any = null;
+
+function resetMicIdleTimer() {
+  if (micIdleTimer) clearTimeout(micIdleTimer);
+  micIdleTimer = setTimeout(() => {
+    releaseMicStream();
+  }, 60000);
+}
+
+function handleMicVisibilityChange() {
+  if (document.hidden) {
+    releaseMicStream();
+  }
+}
+
+export async function getMicStream(): Promise<MediaStream> {
+  if (activeMicStream && activeMicStream.active) {
+    resetMicIdleTimer();
+    return activeMicStream;
+  }
+
+  activeMicStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+  });
+
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleMicVisibilityChange);
+    document.addEventListener('visibilitychange', handleMicVisibilityChange);
+  }
+
+  resetMicIdleTimer();
+  return activeMicStream;
+}
+
+export function releaseMicStream() {
+  if (micIdleTimer) clearTimeout(micIdleTimer);
+  if (activeMicStream) {
+    try {
+      activeMicStream.getTracks().forEach((track) => track.stop());
+    } catch {}
+    activeMicStream = null;
+  }
 }
 
 // TTS Daily Limit Tracker & Circuit Breaker
@@ -301,6 +461,135 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
       cleanup();
     });
   });
+}
+
+export interface PlaySpeechOptions {
+  voiceName?: string;
+  onEngineDetected?: (engineLabel: string) => void;
+  onStart?: () => void;
+  onEnd?: () => void;
+  onError?: (err: any) => void;
+}
+
+export async function playSpeech(
+  text: string,
+  options: PlaySpeechOptions = {}
+): Promise<void> {
+  stopSpeaking();
+  isAudioPlayingState = true;
+  const currentSession = ++currentDialogueSessionId;
+
+  const provider = getStoredProvider();
+  const voiceName = options.voiceName || 'Kore';
+  let cleanText = text.trim();
+  const colonIdx = cleanText.indexOf(':');
+  if (colonIdx > 0 && colonIdx < 35) {
+    cleanText = cleanText.substring(colonIdx + 1).trim();
+  }
+
+  // Step a: Cached audio in IndexedDB
+  const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
+  try {
+    const db = await dbPromise;
+    const cached = await db.get(STORE_NAME, cacheKey);
+    if (cached && cached.base64) {
+      const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
+      if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
+        options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Cloud'})`);
+        options.onStart?.();
+        await playDecodedSpeech(audioBuffer, options.onEnd);
+        return;
+      }
+    }
+  } catch {}
+
+  // Step b: Provider / Gemini Voice API
+  try {
+    const fetchTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Step B Timeout')), 3000)
+    );
+
+    const fetchPromise = (async () => {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ text: cleanText, voiceName }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success || !json.audioBase64) {
+        throw new Error(json.error || 'TTS failed');
+      }
+      return json;
+    })();
+
+    const json: any = await Promise.race([fetchPromise, fetchTimeout]);
+    const engineName = provider === 'groq' ? 'Groq' : 'Gemini';
+
+    const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/wav');
+
+    // Cache in IndexedDB
+    try {
+      const db = await dbPromise;
+      await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
+    } catch {}
+
+    if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
+      options.onEngineDetected?.(`Voice: ${engineName}`);
+      options.onStart?.();
+      await playDecodedSpeech(audioBuffer, options.onEnd);
+      return;
+    }
+  } catch {}
+
+  // Step c: Device voice (wait up to 1.5s for voiceschanged if needed)
+  let voices = getVoices();
+  if (voices.filter((v) => v.lang.toLowerCase().startsWith('en')).length === 0) {
+    await new Promise((r) => {
+      const timer = setTimeout(r, 1500);
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          clearTimeout(timer);
+          r(null);
+        };
+      }
+    });
+    voices = getVoices();
+  }
+
+  const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+  if (englishVoices.length > 0) {
+    try {
+      const g = inferGender(voiceName);
+      const gender = g === 'male' ? 'male' : 'female';
+      const voiceObj = pickBrowserVoiceForGender(gender);
+
+      options.onEngineDetected?.('Voice: Device');
+      options.onStart?.();
+      await speakScriptLineFallback(cleanText, 1.0, voiceObj);
+      options.onEnd?.();
+      return;
+    } catch {}
+  }
+
+  // Step d: Offline voice
+  if (isOfflineVoiceEnabled() && isOfflineVoiceDownloaded()) {
+    try {
+      const { generateOfflineSpeech } = await import('./offlineVoice');
+      const offlineRes = await generateOfflineSpeech(cleanText, voiceName);
+      const { audioBuffer } = await decodeSpeech(offlineRes.audioBase64, offlineRes.mimeType);
+
+      if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
+        options.onEngineDetected?.('Voice: Offline');
+        options.onStart?.();
+        await playDecodedSpeech(audioBuffer, options.onEnd);
+        return;
+      }
+    } catch {}
+  }
+
+  // Step e: Text only with note
+  options.onEngineDetected?.('Voice: Text only (no speech voices found)');
+  options.onEnd?.();
 }
 
 // Browser fallback speech synthesis

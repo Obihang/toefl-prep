@@ -223,8 +223,9 @@ export async function callWhisperTranscription(options: {
   audioBase64: string;
   mimeType?: string;
   sttModel?: string;
+  prompt?: string;
 }): Promise<{ transcript: string; modelUsed: string }> {
-  const { provider, apiKey, audioBase64, mimeType = 'audio/webm', sttModel } = options;
+  const { provider, apiKey, audioBase64, mimeType = 'audio/webm', sttModel, prompt } = options;
   if (!apiKey || !apiKey.trim()) {
     throw new Error(`${provider.toUpperCase()} API key missing for transcription`);
   }
@@ -248,30 +249,42 @@ export async function callWhisperTranscription(options: {
   }
 
   const buffer = Buffer.from(audioBase64, 'base64');
-  const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'm4a' : mimeType.includes('wav') ? 'wav' : 'mp3';
+  const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'm4a' : mimeType.includes('wav') ? 'wav' : 'mp3';
   const fileBlob = new Blob([buffer], { type: mimeType });
 
   const formData = new FormData();
   formData.append('file', fileBlob, `speech.${ext}`);
   formData.append('model', model);
   formData.append('language', 'en');
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey.trim()}`,
-    },
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`${provider.toUpperCase()} Whisper Error (${res.status}): ${errText}`);
+  formData.append('temperature', '0');
+  if (prompt && prompt.trim()) {
+    formData.append('prompt', prompt.trim());
   }
 
-  const data: any = await res.json();
-  const transcript = data.text || '';
-  return { transcript, modelUsed: `${provider}:${model}` };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey.trim()}`,
+      },
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`${provider.toUpperCase()} Whisper Error (${res.status}): ${errText}`);
+    }
+
+    const data: any = await res.json();
+    const transcript = data.text || '';
+    return { transcript, modelUsed: `${provider}:${model}` };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function testOpenAiCompatible(options: {

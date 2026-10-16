@@ -8,8 +8,9 @@ import { inferGender } from '../utils/voices.ts';
 import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callWhisperTranscription } from './llmClient.ts';
 import { callChatWithHealing } from './chatHealing.ts';
 import { callGroqSpeech } from './groqSpeech.ts';
+import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers.ts';
 
-export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string };
+export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; prompt?: string };
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
@@ -711,29 +712,7 @@ Return valid JSON format:
 }
 
 function addWavHeader(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
-  if (pcmBuffer.length >= 12 && pcmBuffer.toString('utf8', 0, 4) === 'RIFF') {
-    return pcmBuffer;
-  }
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const dataSize = pcmBuffer.length;
-  const header = Buffer.alloc(44);
-
-  header.write('RIFF', 0);
-  header.writeUInt32LE(header.length + dataSize - 8, 4);
-  header.write('WAVE', 8);
-  header.write('fmt ', 12);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(numChannels, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(byteRate, 28);
-  header.writeUInt16LE(blockAlign, 32);
-  header.writeUInt16LE(bitsPerSample, 34);
-  header.write('data', 36);
-  header.writeUInt32LE(dataSize, 40);
-
-  return Buffer.concat([header, pcmBuffer]) as unknown as Buffer;
+  return wrapWavHeaderIfNeeded(pcmBuffer, sampleRate, numChannels, bitsPerSample);
 }
 
 export async function handleSynthesizeSpeech(
@@ -786,7 +765,9 @@ export async function handleSynthesizeSpeech(
     }
   }
 
-  const geminiKey = (customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || '');
+  // Use voiceApiKey if provided, else customApiKey if AIza, else process.env.GEMINI_API_KEY
+  const voiceApiKey = opts.voiceApiKey && /^AIza/i.test(opts.voiceApiKey.trim()) ? opts.voiceApiKey.trim() : '';
+  const geminiKey = voiceApiKey || ((customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || ''));
   const ai = getAiClient(geminiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
@@ -829,13 +810,11 @@ export async function handleSynthesizeSpeech(
       throw new Error('No audio data returned from model');
     }
 
-    // Ensure audio contains a valid RIFF WAV header for universal browser compatibility (Firefox, Safari, Chrome, Edge)
     let pcmBuf = Buffer.from(audioData, 'base64');
-    if (pcmBuf.length < 12 || pcmBuf.toString('utf8', 0, 4) !== 'RIFF') {
-      pcmBuf = addWavHeader(pcmBuf, 24000, 1, 16) as any;
-      audioData = pcmBuf.toString('base64');
-      mimeType = 'audio/wav';
-    }
+    const sampleRate = parseSampleRateFromMime(mimeType, 24000);
+    pcmBuf = wrapWavHeaderIfNeeded(pcmBuf, sampleRate, 1, 16) as any;
+    audioData = pcmBuf.toString('base64');
+    mimeType = 'audio/wav';
 
     return { audioBase64: audioData, mimeType };
   });
@@ -862,6 +841,7 @@ export async function handleTranscribeAudio(
         audioBase64,
         mimeType,
         sttModel: opts.sttModel,
+        prompt: opts.prompt,
       });
       return { transcript: res.transcript, modelUsed: res.modelUsed, durationMs: Date.now() - startTime };
     } catch (err: any) {
@@ -878,6 +858,10 @@ export async function handleTranscribeAudio(
   const startTime = Date.now();
   const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
     const thinkingConfig = getModelThinkingConfig(model, 'transcribe');
+    const promptText = opts.prompt
+      ? `Transcribe the spoken speech in this audio accurately. Target sentence reference: "${opts.prompt}". Return only the transcribed speech.`
+      : 'Transcribe the spoken speech in this audio accurately. Return only the exact transcribed transcript text with no extra commentary, quotation marks, or notes.';
+
     const response = await ai.models.generateContent({
       model,
       contents: [
@@ -888,7 +872,7 @@ export async function handleTranscribeAudio(
           },
         },
         {
-          text: 'Transcribe the spoken speech in this audio accurately. Return only the exact transcribed transcript text with no extra commentary, quotation marks, or notes.',
+          text: promptText,
         },
       ],
       config: {
