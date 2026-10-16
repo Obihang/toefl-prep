@@ -816,6 +816,11 @@ export async function playSpeech(
       console.warn(reason);
       return { ok: false, reason };
     }
+    if (!isOfflineVoiceEnabled() && engine !== 'offline') {
+      const reason = 'Offline voice: disabled in settings.';
+      console.warn(reason);
+      return { ok: false, reason };
+    }
 
     try {
       options.onStatus?.('Generating offline voice...');
@@ -847,10 +852,11 @@ export async function playSpeech(
   };
 
   // Determine execution steps based on user's voiceEngine setting
+  const offlineEnabled = isOfflineVoiceEnabled() || engine === 'offline';
+  const offlineDownloaded = isOfflineVoiceDownloaded();
+
   let stepOrder: Array<'cloud' | 'device' | 'offline'> = [];
   if (engine === 'auto') {
-    // 'auto' (default) tries cloud (only if a key exists and breaker is not tripped),
-    // then the device voice (only if an English voice exists), then the offline voice (if downloaded)
     if (hasKey && !breakerBlocked) {
       stepOrder.push('cloud');
     }
@@ -858,24 +864,25 @@ export async function playSpeech(
     if (englishCount > 0) {
       stepOrder.push('device');
     }
-    if (isOfflineVoiceDownloaded()) {
+    if (offlineEnabled && offlineDownloaded) {
       stepOrder.push('offline');
     }
   } else if (engine === 'cloud') {
-    stepOrder = ['cloud', 'device', 'offline'];
+    stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
   } else if (engine === 'device') {
-    stepOrder = ['device', 'offline', 'cloud'];
+    stepOrder = ['device', (offlineEnabled && offlineDownloaded) ? 'offline' : null, 'cloud'].filter(Boolean) as any;
   } else if (engine === 'offline') {
     stepOrder = ['offline', 'device', 'cloud'];
   } else {
-    stepOrder = ['cloud', 'device', 'offline'];
+    stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
   }
 
-  let lastFailedReason: string | null = null;
+  const engineFailures: Record<string, string> = {};
 
   for (let i = 0; i < stepOrder.length; i++) {
     const step = stepOrder[i];
     let result: { ok: boolean; reason?: string } = { ok: false };
+    const label = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline';
 
     if (step === 'cloud') {
       result = await tryCloud();
@@ -886,29 +893,29 @@ export async function playSpeech(
     }
 
     if (result.ok) {
-      const stepName = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline';
-      if (lastFailedReason) {
-        // Fallback occurred, show user what happened
-        const fallbackMsg = `${lastFailedReason} Played with ${stepName} voice.`;
+      if (Object.keys(engineFailures).length > 0) {
+        const details = Object.entries(engineFailures).map(([eng, r]) => `${eng}: ${r}`).join(' | ');
+        const fallbackMsg = `Fallback occurred (${details}). Played with ${label} voice.`;
         options.onStatus?.(fallbackMsg);
         options.onEngineDetected?.(fallbackMsg);
       } else {
-        options.onStatus?.(`Voice: ${stepName}`);
-        options.onEngineDetected?.(`Voice: ${stepName}`);
+        options.onStatus?.(`Voice: ${label}`);
+        options.onEngineDetected?.(`Voice: ${label}`);
       }
       return;
     } else {
       if (result.reason) {
-        lastFailedReason = result.reason;
+        engineFailures[label] = result.reason;
       }
     }
   }
 
-  // If no step can speak: show "no voices found" and dispatch banner
+  // If no step can speak: show all engine failure reasons
   console.warn('All voice synthesis methods failed or unavailable.');
-  const finalMsg = lastFailedReason
-    ? `Engines tried: [${stepOrder.join(', ')}]. Reason: ${lastFailedReason}`
-    : `Engines tried: [${stepOrder.join(', ')}]. No speech voices found.`;
+  const details = Object.keys(engineFailures).length > 0
+    ? Object.entries(engineFailures).map(([eng, r]) => `${eng}: ${r}`).join(' | ')
+    : 'No speech voices found.';
+  const finalMsg = `Engines tried: [${stepOrder.join(', ')}]. Reasons: ${details}`;
   options.onStatus?.(finalMsg);
   options.onEngineDetected?.(finalMsg);
   options.onError?.(new Error(finalMsg));

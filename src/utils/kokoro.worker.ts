@@ -2,6 +2,7 @@ import { KokoroTTS } from 'kokoro-js';
 
 let ttsInstance: KokoroTTS | null = null;
 let isLoading = false;
+let initPromise: Promise<any> | null = null;
 
 self.onmessage = async (e: MessageEvent) => {
   const data = e.data || {};
@@ -11,14 +12,28 @@ self.onmessage = async (e: MessageEvent) => {
     if (ttsInstance) {
       self.postMessage({
         type: 'init-success',
-        voices: Object.keys(ttsInstance.voices),
+        voices: Object.keys(ttsInstance.voices || {}),
       });
       return;
     }
-    if (isLoading) return;
-    isLoading = true;
+    if (initPromise) {
+      try {
+        const voices = await initPromise;
+        self.postMessage({
+          type: 'init-success',
+          voices,
+        });
+      } catch (err: any) {
+        self.postMessage({
+          type: 'init-error',
+          error: err?.message || String(err),
+        });
+      }
+      return;
+    }
 
-    try {
+    isLoading = true;
+    initPromise = (async () => {
       const hasWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator && !!(navigator as any).gpu;
       const device = hasWebGpu ? 'webgpu' : 'wasm';
 
@@ -41,17 +56,21 @@ self.onmessage = async (e: MessageEvent) => {
         },
       });
 
-      // Verification test: generate a short test sentence ("Hello.")
       await ttsInstance.generate('Hello.', { voice: 'af_heart' });
+      return Object.keys(ttsInstance.voices || {});
+    })();
 
+    try {
+      const voices = await initPromise;
       isLoading = false;
       self.postMessage({
         type: 'init-success',
-        voices: Object.keys(ttsInstance.voices),
+        voices,
       });
     } catch (err: any) {
       isLoading = false;
       ttsInstance = null;
+      initPromise = null;
       self.postMessage({
         type: 'init-error',
         error: err?.message || String(err),
