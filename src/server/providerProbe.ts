@@ -369,15 +369,15 @@ export async function probeAuto(
       success: true,
       provider: 'gemini',
       providerName: 'Google Gemini',
-      model: result.model || 'gemini-2.5-flash',
-      models: ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'],
+      model: result.model || 'gemini-3.8-flash',
+      models: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-flash-latest'],
       purposeModels: DEFAULT_PURPOSE_MODELS.gemini,
       roles: {
-        chat: result.model || 'gemini-2.5-flash',
-        stt: 'gemini-2.5-flash',
+        chat: result.model || 'gemini-3.8-flash',
+        stt: 'gemini-3.8-flash',
         tts: 'gemini-speech',
       },
-      message: `Connected to Google Gemini (${result.model || 'gemini-2.5-flash'})`,
+      message: `Connected to Google Gemini (${result.model || 'gemini-3.8-flash'})`,
     };
   }
   if (/^gsk_/i.test(cleanKey)) {

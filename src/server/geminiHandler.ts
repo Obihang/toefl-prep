@@ -59,10 +59,10 @@ export interface ModelThinkingConfig {
 
 // Verified model thinking specifications chosen per model
 export const VERIFIED_MODEL_THINKING_CONFIGS: Record<string, ModelThinkingConfig> = {
-  'gemini-2.5-flash': {
+  'gemini-3.8-flash': {
     evaluation: { thinkingBudget: 256 },
   },
-  'gemini-2.5-flash-lite': {
+  'gemini-3.5-flash-lite': {
     evaluation: { thinkingBudget: 256 },
   },
 };
