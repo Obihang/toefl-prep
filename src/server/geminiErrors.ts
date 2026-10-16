@@ -112,8 +112,12 @@ export function isQuotaExhaustedError(err: any): boolean {
 export function redactKey(text: string): string {
   if (!text) return text;
   return text
-    .replace(/AIza[0-9A-Za-z_-]{20,}/g, '[REDACTED]')
-    .replace(/AQ\.[0-9A-Za-z_.-]{10,}/g, '[REDACTED]');
+    .replace(/AIza[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
+    .replace(/AQ\.[0-9A-Za-z_.-]{10,}/g, '[REDACTED]')
+    .replace(/gsk_[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
+    .replace(/nvapi-[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
+    .replace(/sk-or-[0-9A-Za-z_.-]{10,}/g, '[REDACTED]')
+    .replace(/sk-[0-9A-Za-z_-]{10,}/g, '[REDACTED]');
 }
 
 export function extractErrorMessage(err: any): string {

@@ -560,14 +560,17 @@ export function playAudioBlob(blob: Blob): Promise<void> {
 // Play HTML Audio Data URI (or Blob URL) with promise resolution
 export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): Promise<void> {
   if (activeHtmlAudio) {
+    const prevSrc = activeHtmlAudio.dataset.blobUrl || activeHtmlAudio.src || '';
+    const prevIsBlob = activeHtmlAudio.dataset.isBlobUrl === 'true';
     try {
       activeHtmlAudio.pause();
       activeHtmlAudio.currentTime = 0;
       activeHtmlAudio.src = '';
     } catch {}
-    // Revoke previous blob URL if it was a blob URL
-    if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
-      URL.revokeObjectURL(activeHtmlAudio.src);
+    if (prevIsBlob && prevSrc) {
+      try {
+        URL.revokeObjectURL(prevSrc);
+      } catch {}
     }
     activeHtmlAudio = null;
   }
@@ -575,35 +578,60 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
   isAudioPlayingState = true;
   const audio = new Audio(dataUri);
   audio.dataset.isBlobUrl = isBlobUrl ? 'true' : 'false';
+  audio.dataset.blobUrl = dataUri;
   activeHtmlAudio = audio;
 
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let finished = false;
-    const cleanup = () => {
+    let wasStoppedByUser = false;
+
+    const cleanup = (isError = false, errorObj?: any) => {
       if (finished) return;
       finished = true;
+      isAudioPlayingState = false;
       activeAudioCancel = null;
+
+      const targetSrc = audio.dataset.blobUrl || audio.src || '';
+      const isBlob = audio.dataset.isBlobUrl === 'true';
+
       try {
         audio.pause();
         audio.currentTime = 0;
         audio.src = '';
       } catch {}
-      if (audio.dataset.isBlobUrl === 'true') {
-        URL.revokeObjectURL(audio.src);
+
+      if (isBlob && targetSrc) {
+        try {
+          URL.revokeObjectURL(targetSrc);
+        } catch {}
       }
+
       if (activeHtmlAudio === audio) {
         activeHtmlAudio = null;
       }
-      resolve();
+
+      if (isError && !wasStoppedByUser) {
+        reject(errorObj || new Error('Audio playback failed'));
+      } else {
+        resolve();
+      }
     };
 
-    activeAudioCancel = cleanup;
-    audio.onended = cleanup;
-    audio.onerror = cleanup;
+    activeAudioCancel = () => {
+      wasStoppedByUser = true;
+      cleanup(false);
+    };
+
+    audio.onended = () => cleanup(false);
+    audio.onerror = (e) => cleanup(true, e || new Error('HTML Audio error event fired'));
 
     audio.play().catch((err) => {
-      console.warn('Audio play() failed:', err);
-      cleanup();
+      if (!wasStoppedByUser) {
+        console.warn('Audio play() failed:', err);
+        cleanup(true, err);
+      } else {
+        cleanup(false);
+      }
     });
   });
 }

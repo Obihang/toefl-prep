@@ -65,3 +65,30 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     description: 'Post in a university course forum engaging with professor & classmate views',
   },
 ];
+
+export type SectionName = 'Reading' | 'Listening' | 'Speaking' | 'Writing';
+
+export const TASK_SECTION_MAP: Record<string, SectionName> = {
+  'complete-words': 'Reading',
+  'reading-passage': 'Reading',
+  'listening-dialogue': 'Listening',
+  'listen-repeat': 'Speaking',
+  'speaking-interview': 'Speaking',
+  'build-sentence': 'Writing',
+  'write-email': 'Writing',
+  'academic-discussion': 'Writing',
+  // Legacy aliases
+  'reading': 'Reading',
+  'listening': 'Listening',
+  'listen_repeat': 'Speaking',
+  'speaking_interview': 'Speaking',
+  'complete_words': 'Reading',
+  'build_sentence': 'Writing',
+  'write_email': 'Writing',
+  'academic_discussion': 'Writing',
+};
+
+export function getSectionForTaskType(taskType: string): SectionName | null {
+  const norm = (taskType || '').trim().toLowerCase();
+  return TASK_SECTION_MAP[norm] || null;
+}

@@ -173,20 +173,31 @@ function cleanAndExtractJson(text: string): any {
 }
 
 function normalizeAcademicDiscussion(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Writing for an Academic Discussion');
   const profName = String(data.professorName || data.professor_name || data.professor?.name || 'Dr. Henderson');
-  const profPrompt = String(data.professorPrompt || data.professor_prompt || data.professor?.prompt || data.prompt || data.context || 'Please share your thoughts on the topic below.');
+  const profPrompt = String(data.professorPrompt || data.professor_prompt || data.professor?.prompt || data.prompt || data.context || '');
+  if (!profPrompt || profPrompt.trim().length < 10) {
+    throw new Error('AI response missing valid professor discussion prompt');
+  }
   
   let s1 = data.s1 || data.student1 || (Array.isArray(data.students) ? data.students[0] : null);
   let s2 = data.s2 || data.student2 || (Array.isArray(data.students) ? data.students[1] : null);
 
+  const s1Text = String((typeof s1 === 'object' ? (s1?.text || s1?.post || s1?.response || s1?.content) : (typeof s1 === 'string' ? s1 : '')) || '');
+  const s2Text = String((typeof s2 === 'object' ? (s2?.text || s2?.post || s2?.response || s2?.content) : (typeof s2 === 'string' ? s2 : '')) || '');
+
+  if (!s1Text || !s2Text) {
+    throw new Error('AI response missing student discussion posts');
+  }
+
   const s1Norm = {
     name: String((typeof s1 === 'object' ? (s1?.name || s1?.student || s1?.studentName) : null) || 'Student A'),
-    text: String((typeof s1 === 'object' ? (s1?.text || s1?.post || s1?.response || s1?.content) : (typeof s1 === 'string' ? s1 : '')) || 'I agree with the professor on this point, but we should also consider alternative perspectives.'),
+    text: s1Text,
   };
   const s2Norm = {
     name: String((typeof s2 === 'object' ? (s2?.name || s2?.student || s2?.studentName) : null) || 'Student B'),
-    text: String((typeof s2 === 'object' ? (s2?.text || s2?.post || s2?.response || s2?.content) : (typeof s2 === 'string' ? s2 : '')) || 'I take a somewhat different view. From my experience, there are several key factors to weigh.'),
+    text: s2Text,
   };
 
   const question = String(data.question || data.instruction || 'Participate in the discussion by responding to the professor and explaining your position.');
@@ -194,38 +205,61 @@ function normalizeAcademicDiscussion(data: any) {
 }
 
 function normalizeCompleteWords(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Complete the Words');
-  const text = String(data.text || data.passage || 'The development of [[modern]] science requires rigorous empirical observation and [[careful]] documentation.');
-  const totalBlanks = Number(data.totalBlanks || 10);
+  const text = String(data.text || data.passage || '');
+  if (!text || !text.includes('[[')) {
+    throw new Error('AI response missing [[masked]] word blanks in text');
+  }
+  const totalBlanks = Number(data.totalBlanks || (text.match(/\[\[/g) || []).length || 5);
   return { title, text, totalBlanks };
 }
 
 function normalizeReadingPassage(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Reading Comprehension Passage');
-  const passage = String(data.passage || 'Academic reading text explaining complex phenomena.');
+  const passage = String(data.passage || '');
+  if (!passage || passage.trim().length < 30) {
+    throw new Error('AI response missing valid reading passage text');
+  }
+
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}]).slice(0, 3).map((q: any, idx: number) => {
+  if (rawQs.length === 0) {
+    throw new Error('AI response missing questions array');
+  }
+
+  const questions = rawQs.slice(0, 3).map((q: any, idx: number) => {
+    if (!q || typeof q !== 'object') throw new Error(`Question ${idx + 1} is invalid`);
+    const qText = String(q.q || q.question || '').trim();
+    if (!qText) throw new Error(`Question ${idx + 1} missing question text`);
+
+    const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+    if (options.length < 2) throw new Error(`Question ${idx + 1} missing options array`);
+
     let answer = q.answer;
     if (typeof answer === 'string') {
       const char = answer.trim().toLowerCase();
       const mapped = ['a', 'b', 'c', 'd'].indexOf(char);
       answer = mapped !== -1 ? mapped : parseInt(char, 10);
     }
-    const finalAnswer = (typeof answer === 'number' && !isNaN(answer) && answer >= 0 && answer <= 3) ? answer : 0;
-    const options = Array.isArray(q.options) && q.options.length >= 2
-      ? q.options.map(String)
-      : ['Option A', 'Option B', 'Option C', 'Option D'];
+
+    if (typeof answer !== 'number' || isNaN(answer) || answer < 0 || answer >= options.length) {
+      throw new Error(`Question ${idx + 1} contains invalid or missing correct answer index (${q.answer})`);
+    }
+
     return {
-      q: String(q.q || q.question || `According to the passage, which statement best explains the central point? (${idx + 1})`),
+      q: qText,
       options,
-      answer: finalAnswer,
-      why: String(q.why || q.explanation || q.reason || 'This statement accurately reflects the evidence presented in the passage.'),
+      answer,
+      why: String(q.why || q.explanation || q.reason || 'Accurately supported by passage evidence.'),
     };
   });
+
   return { title, passage, questions };
 }
 
 function normalizeListeningDialogue(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Campus Conversation');
   const context = String(data.context || data.situation || 'A discussion between a professor and student.');
   let speakers: Record<string, string> = { A: 'Sarah (student)', B: 'Professor Lee' };
@@ -243,24 +277,40 @@ function normalizeListeningDialogue(data: any) {
     B: inferGender(speakers.B || ''),
   };
 
-  const script = String(data.script || data.dialogue || data.text || '');
+  const script = String(data.script || data.dialogue || data.text || '').trim();
+  if (!script || script.length < 20) {
+    throw new Error('AI response missing valid listening audio script');
+  }
+
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}]).slice(0, 3).map((q: any, idx: number) => {
+  if (rawQs.length === 0) {
+    throw new Error('AI response missing listening questions array');
+  }
+
+  const questions = rawQs.slice(0, 3).map((q: any, idx: number) => {
+    if (!q || typeof q !== 'object') throw new Error(`Question ${idx + 1} is invalid`);
+    const qText = String(q.q || q.question || '').trim();
+    if (!qText) throw new Error(`Question ${idx + 1} missing question text`);
+
+    const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+    if (options.length < 2) throw new Error(`Question ${idx + 1} missing options array`);
+
     let answer = q.answer;
     if (typeof answer === 'string') {
       const char = answer.trim().toLowerCase();
       const mapped = ['a', 'b', 'c', 'd'].indexOf(char);
       answer = mapped !== -1 ? mapped : parseInt(char, 10);
     }
-    const finalAnswer = (typeof answer === 'number' && !isNaN(answer) && answer >= 0 && answer <= 3) ? answer : 0;
-    const options = Array.isArray(q.options) && q.options.length >= 2
-      ? q.options.map(String)
-      : ['Reviewing the assignment guidelines', 'Clarifying research methodology', 'Requesting an extension', 'Discussing exam format'];
+
+    if (typeof answer !== 'number' || isNaN(answer) || answer < 0 || answer >= options.length) {
+      throw new Error(`Question ${idx + 1} contains invalid or missing correct answer index (${q.answer})`);
+    }
+
     return {
-      q: String(q.q || q.question || `What is the main purpose of the conversation? (${idx + 1})`),
+      q: qText,
       options,
-      answer: finalAnswer,
-      why: String(q.why || q.explanation || q.reason || 'This is supported directly by the speakers in the dialogue.'),
+      answer,
+      why: String(q.why || q.explanation || q.reason || 'Supported by dialogue.'),
     };
   });
 
@@ -268,6 +318,7 @@ function normalizeListeningDialogue(data: any) {
 }
 
 function normalizeListenRepeat(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Listen & Repeat Practice');
   const speakerName = String(data.speakerName || 'Sarah (student)');
   const speakerGender = String(data.speakerGender || inferGender(speakerName));
@@ -276,43 +327,54 @@ function normalizeListenRepeat(data: any) {
     sentences = data.items.map((it: any) => String(typeof it === 'string' ? it : it.sentence || it.text || '')).filter(Boolean);
   }
   if (sentences.length === 0) {
-    sentences = [
-      'The archaeological expedition uncovered significant artifacts.',
-      'Students are required to register for their seminar by Friday.',
-      'Recent laboratory experiments confirm the initial scientific hypothesis.',
-      'Environmental factors played a decisive role in the species migration.',
-      'The university library will extend its hours during final examination week.',
-    ];
+    throw new Error('AI response missing sentences array');
   }
   return { title, speakerName, speakerGender, sentences };
 }
 
 function normalizeSpeakingInterview(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Speaking Interview Practice');
   const context = String(data.context || 'University interview simulation.');
   const interviewerName = String(data.interviewerName || 'Professor Lee');
   const interviewerGender = String(data.interviewerGender || inferGender(interviewerName));
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  const questions = (rawQs.length > 0 ? rawQs : [{}, {}, {}, {}]).slice(0, 4).map((q: any, idx: number) => ({
-    question: String(typeof q === 'string' ? q : (q.question || q.prompt || `Can you describe an academic experience that significantly shaped your interests? (${idx + 1})`)),
-    prepTimeSeconds: Number(q.prepTimeSeconds || 20),
-    responseTimeSeconds: Number(q.responseTimeSeconds || 45),
-    suggestedPoints: Array.isArray(q.suggestedPoints) && q.suggestedPoints.length > 0
-      ? q.suggestedPoints.map(String)
-      : ['State your main viewpoint clearly', 'Provide a concrete personal or academic example', 'Summarize the significance'],
-  }));
+  if (rawQs.length === 0) {
+    throw new Error('AI response missing interview questions array');
+  }
+  const questions = rawQs.slice(0, 4).map((q: any, idx: number) => {
+    const qText = String(typeof q === 'string' ? q : (q.question || q.prompt || '')).trim();
+    if (!qText) throw new Error(`Interview question ${idx + 1} missing text`);
+    return {
+      question: qText,
+      prepTimeSeconds: Number(q.prepTimeSeconds || 20),
+      responseTimeSeconds: Number(q.responseTimeSeconds || 45),
+      suggestedPoints: Array.isArray(q.suggestedPoints) && q.suggestedPoints.length > 0
+        ? q.suggestedPoints.map(String)
+        : ['State your main viewpoint clearly', 'Provide a concrete personal or academic example', 'Summarize the significance'],
+    };
+  });
   return { title, context, interviewerName, interviewerGender, questions };
 }
 
 function normalizeBuildSentence(data: any) {
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Build a Sentence Practice');
   const rawItems = Array.isArray(data.items) ? data.items : [];
-  const items = (rawItems.length > 0 ? rawItems : [{}, {}, {}, {}, {}]).slice(0, 5).map((it: any) => ({
-    context: String(it.context || it.setup || 'Arrange the words into a grammatically correct sentence:'),
-    words: Array.isArray(it.words) && it.words.length > 0 ? it.words.map(String) : ['The', 'professors', 'conducted', 'groundbreaking', 'research'],
-    answer: String(it.answer || it.sentence || 'The professors conducted groundbreaking research.'),
-    explanation: String(it.explanation || it.rule || 'Subject-verb-object arrangement in academic writing.'),
-  }));
+  if (rawItems.length === 0) throw new Error('AI response missing build-sentence items array');
+  const items = rawItems.slice(0, 5).map((it: any, idx: number) => {
+    const words = Array.isArray(it.words) ? it.words.map(String).filter(Boolean) : [];
+    const answer = String(it.answer || '').trim();
+    if (words.length < 2 || !answer) {
+      throw new Error(`Build sentence item ${idx + 1} missing words or answer`);
+    }
+    return {
+      context: String(it.context || 'Order the words:'),
+      words,
+      answer,
+      explanation: String(it.explanation || 'Grammar rule.'),
+    };
+  });
   return { title, items };
 }
 

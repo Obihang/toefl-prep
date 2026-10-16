@@ -1,4 +1,5 @@
 import { db, auth } from '../firebase';
+import { getSectionForTaskType } from '../types/taskTypes';
 import {
   collection,
   doc,
@@ -240,11 +241,19 @@ export async function reportSharedQuestion(questionDocId: string, userId?: strin
   }
 }
 
-export async function seedDefaultQuestionsToFirestore(): Promise<void> {
+export interface SeedReport {
+  created: number;
+  skipped: number;
+  updated: number;
+  failed: number;
+}
+
+export async function seedDefaultQuestionsToFirestore(options?: { dryRun?: boolean }): Promise<SeedReport> {
+  const report: SeedReport = { created: 0, skipped: 0, updated: 0, failed: 0 };
+  const dryRun = Boolean(options?.dryRun);
+
   try {
-    if (!auth?.currentUser) return;
-    const qSnap = await getDocs(collection(db, 'questions'));
-    if (!qSnap.empty) return;
+    if (!auth?.currentUser) return report;
 
     const {
       CURATED_READING_PASSAGES,
@@ -267,8 +276,22 @@ export async function seedDefaultQuestionsToFirestore(): Promise<void> {
     CURATED_WRITE_EMAILS?.forEach(w => seedList.push({ taskType: 'write-email', data: w }));
     CURATED_ACADEMIC_DISCUSSIONS?.forEach(a => seedList.push({ taskType: 'academic-discussion', data: a }));
 
-    for (const item of seedList.slice(0, 30)) {
+    for (const item of seedList) {
       try {
+        const docId = await generateQuestionDocId(item.taskType, item.data);
+        const docRef = doc(db, 'questions', docId);
+        const existingSnap = await getDoc(docRef);
+
+        if (existingSnap.exists()) {
+          report.skipped++;
+          continue;
+        }
+
+        if (dryRun) {
+          report.created++;
+          continue;
+        }
+
         await saveSharedQuestion({
           taskType: item.taskType,
           level: item.data.level || 'upper-intermediate',
@@ -277,41 +300,43 @@ export async function seedDefaultQuestionsToFirestore(): Promise<void> {
           createdByName: 'TOEFL Master',
           createdByUid: auth.currentUser.uid,
         });
-      } catch {}
+        report.created++;
+      } catch {
+        report.failed++;
+      }
     }
   } catch (err) {
-    console.info('Auto-seeding check skipped:', err);
+    console.info('Auto-seeding skipped or failed:', err);
   }
+
+  return report;
 }
 
 export async function getQuestionCountsPerSection(): Promise<Record<string, number>> {
-  try {
-    await seedDefaultQuestionsToFirestore();
-    const qSnap = await getDocs(collection(db, 'questions'));
-    const counts: Record<string, number> = {
-      Reading: 0,
-      Listening: 0,
-      Speaking: 0,
-      Writing: 0,
-      'Vocabulary & Grammar': 0,
-    };
+  await seedDefaultQuestionsToFirestore();
 
-    qSnap.forEach(docSnap => {
-      const data = docSnap.data();
-      const t = (data.taskType || '').toLowerCase();
-      if (t === 'reading' || t === 'reading-passage') counts.Reading++;
-      else if (t === 'listening' || t === 'listening-dialogue' || t === 'listen-repeat' || t === 'listen_repeat') counts.Listening++;
-      else if (t === 'speaking' || t === 'speaking-interview' || t === 'speaking_interview') counts.Speaking++;
-      else if (t === 'writing' || t === 'academic-discussion' || t === 'academic_discussion' || t === 'write-email' || t === 'email') counts.Writing++;
-      else if (t === 'complete-words' || t === 'complete_words' || t === 'build-sentence' || t === 'build_sentence' || t === 'vocabulary') counts['Vocabulary & Grammar']++;
-      else {
-        counts.Reading++;
-      }
-    });
-    return counts;
-  } catch (err) {
-    console.warn('Failed to fetch question counts:', err);
-    return { Reading: 0, Listening: 0, Speaking: 0, Writing: 0, 'Vocabulary & Grammar': 0 };
-  }
+  const q = query(
+    collection(db, 'questions'),
+    where('reportCount', '<', 3)
+  );
+
+  const qSnap = await getDocs(q);
+
+  const counts: Record<string, number> = {
+    Reading: 0,
+    Listening: 0,
+    Speaking: 0,
+    Writing: 0,
+  };
+
+  qSnap.forEach(docSnap => {
+    const data = docSnap.data();
+    const section = getSectionForTaskType(data.taskType || '');
+    if (section && counts[section] !== undefined) {
+      counts[section]++;
+    }
+  });
+
+  return counts;
 }
 
