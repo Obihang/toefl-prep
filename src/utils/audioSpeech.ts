@@ -851,38 +851,57 @@ export async function playSpeech(
     }
   };
 
-  // Determine execution steps based on user's voiceEngine setting
+  // Determine execution steps based on user's voiceEngine setting and fallback policy
   const offlineEnabled = isOfflineVoiceEnabled() || engine === 'offline';
   const offlineDownloaded = isOfflineVoiceDownloaded();
+  const policy = getVoiceFallbackPolicy();
 
   let stepOrder: Array<'cloud' | 'device' | 'offline'> = [];
-  if (engine === 'auto') {
-    if (hasKey && !breakerBlocked) {
-      stepOrder.push('cloud');
+
+  if (policy === 'strict') {
+    if (engine === 'offline') {
+      stepOrder = ['offline'];
+    } else if (engine === 'cloud') {
+      stepOrder = ['cloud'];
+    } else if (engine === 'device') {
+      stepOrder = ['device'];
+    } else {
+      if (hasKey && !breakerBlocked) stepOrder.push('cloud');
+      const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
+      if (englishCount > 0) stepOrder.push('device');
+      if (offlineEnabled && offlineDownloaded) stepOrder.push('offline');
     }
-    const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
-    if (englishCount > 0) {
-      stepOrder.push('device');
-    }
-    if (offlineEnabled && offlineDownloaded) {
-      stepOrder.push('offline');
-    }
-  } else if (engine === 'cloud') {
-    stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
-  } else if (engine === 'device') {
-    stepOrder = ['device', (offlineEnabled && offlineDownloaded) ? 'offline' : null, 'cloud'].filter(Boolean) as any;
-  } else if (engine === 'offline') {
-    stepOrder = ['offline', 'device', 'cloud'];
   } else {
-    stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
+    if (engine === 'auto') {
+      if (hasKey && !breakerBlocked) {
+        stepOrder.push('cloud');
+      }
+      const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
+      if (englishCount > 0) {
+        stepOrder.push('device');
+      }
+      if (offlineEnabled && offlineDownloaded) {
+        stepOrder.push('offline');
+      }
+    } else if (engine === 'cloud') {
+      stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
+    } else if (engine === 'device') {
+      stepOrder = ['device', (offlineEnabled && offlineDownloaded) ? 'offline' : null, 'cloud'].filter(Boolean) as any;
+    } else if (engine === 'offline') {
+      stepOrder = ['offline', 'device', 'cloud'];
+    } else {
+      stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
+    }
   }
 
   const engineFailures: Record<string, string> = {};
 
   for (let i = 0; i < stepOrder.length; i++) {
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
+
     const step = stepOrder[i];
     let result: { ok: boolean; reason?: string } = { ok: false };
-    const label = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline';
+    const label = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline Neural (Kokoro)';
 
     if (step === 'cloud') {
       result = await tryCloud();
@@ -892,20 +911,27 @@ export async function playSpeech(
       result = await tryOffline();
     }
 
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
+
     if (result.ok) {
       if (Object.keys(engineFailures).length > 0) {
-        const details = Object.entries(engineFailures).map(([eng, r]) => `${eng}: ${r}`).join(' | ');
-        const fallbackMsg = `Fallback occurred (${details}). Played with ${label} voice.`;
+        const firstFailedEng = Object.keys(engineFailures)[0];
+        const firstReason = engineFailures[firstFailedEng];
+        const fallbackMsg = `Selected voice: ${firstFailedEng}. Failed: ${firstReason}. Fallback used: ${label}.`;
         options.onStatus?.(fallbackMsg);
         options.onEngineDetected?.(fallbackMsg);
       } else {
-        options.onStatus?.(`Voice: ${label}`);
-        options.onEngineDetected?.(`Voice: ${label}`);
+        const successMsg = `Voice used: ${label}`;
+        options.onStatus?.(successMsg);
+        options.onEngineDetected?.(successMsg);
       }
       return;
     } else {
       if (result.reason) {
         engineFailures[label] = result.reason;
+      }
+      if (policy === 'strict') {
+        break;
       }
     }
   }
@@ -915,7 +941,9 @@ export async function playSpeech(
   const details = Object.keys(engineFailures).length > 0
     ? Object.entries(engineFailures).map(([eng, r]) => `${eng}: ${r}`).join(' | ')
     : 'No speech voices found.';
-  const finalMsg = `Engines tried: [${stepOrder.join(', ')}]. Reasons: ${details}`;
+  const finalMsg = policy === 'strict'
+    ? `Strict selected engine failed. Reason: ${details}`
+    : `Engines tried: [${stepOrder.join(', ')}]. Reasons: ${details}`;
   options.onStatus?.(finalMsg);
   options.onEngineDetected?.(finalMsg);
   options.onError?.(new Error(finalMsg));
@@ -1027,6 +1055,19 @@ export function getVoiceEngine(): VoiceEngine {
 export function setVoiceEngine(engine: VoiceEngine) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('toefl_voice_engine', engine);
+  }
+}
+
+export type VoiceFallbackPolicy = 'fallback' | 'strict';
+
+export function getVoiceFallbackPolicy(): VoiceFallbackPolicy {
+  if (typeof localStorage === 'undefined') return 'fallback';
+  return (localStorage.getItem('toefl_voice_fallback_policy') as VoiceFallbackPolicy) || 'fallback';
+}
+
+export function setVoiceFallbackPolicy(policy: VoiceFallbackPolicy) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('toefl_voice_fallback_policy', policy);
   }
 }
 
