@@ -843,6 +843,12 @@ export async function handleSynthesizeSpeech(
   let provider = opts.provider || 'gemini';
   const customApiKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
 
+  // If OpenRouter, Anthropic, XAI, DeepSeek, NVIDIA, or custom, throw unsupported provider error
+  const unsupportedProviders = ['openrouter', 'anthropic', 'xai', 'deepseek', 'nvidia', 'custom'];
+  if (unsupportedProviders.includes(provider) || (customApiKey && /^sk-or-/i.test(customApiKey))) {
+    throw new Error(`TTS_UNSUPPORTED_PROVIDER: Provider '${provider}' does not support text-to-speech synthesis. Use Cloud (Gemini), Groq, OpenAI, or Offline Neural voice.`);
+  }
+
   // If Groq key, utilize Groq TTS API directly
   if (provider === 'groq' && customApiKey) {
     try {
@@ -870,7 +876,13 @@ export async function handleSynthesizeSpeech(
           { code: 'TTS_TERMS_REQUIRED' }
         );
       }
-      throw new Error('SPEECH_UNAVAILABLE');
+      if (err?.status === 401 || err?.message?.includes('401')) {
+        throw new Error('TTS_INVALID_CREDENTIALS');
+      }
+      if (err?.status === 429 || err?.message?.includes('429')) {
+        throw new Error('TTS_QUOTA_EXCEEDED');
+      }
+      throw new Error(`Groq TTS failed: ${err?.message || 'SPEECH_UNAVAILABLE'}`);
     }
   }
 
@@ -880,17 +892,27 @@ export async function handleSynthesizeSpeech(
       const res = await callOpenAiTts({ apiKey: customApiKey, text, voiceName });
       return res;
     } catch (err: any) {
-      console.warn('OpenAI TTS failed, falling back to Gemini/browser:', err?.message || err);
+      if (err?.status === 401 || err?.message?.includes('401')) {
+        throw new Error('TTS_INVALID_CREDENTIALS');
+      }
+      if (err?.status === 429 || err?.message?.includes('429')) {
+        throw new Error('TTS_QUOTA_EXCEEDED');
+      }
+      throw new Error(`OpenAI TTS failed: ${err?.message || 'SPEECH_UNAVAILABLE'}`);
     }
   }
 
-  // Use voiceApiKey if provided, else customApiKey if Gemini (AIza or AQ.), else process.env.GEMINI_API_KEY
+  // Gemini TTS path: NEVER send non-Gemini keys to Gemini
+  const isGeminiKey = (k: string) => /^(AIza|AQ\.)/i.test(k);
   const rawVoiceKey = (opts.voiceApiKey || '').trim();
-  const voiceApiKey = rawVoiceKey ? rawVoiceKey : '';
-  const geminiKey = voiceApiKey || ((customApiKey && /^(AIza|AQ\.)/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || customApiKey || ''));
+  const voiceApiKey = rawVoiceKey && isGeminiKey(rawVoiceKey) ? rawVoiceKey : '';
+  const validCustomGeminiKey = customApiKey && isGeminiKey(customApiKey) ? customApiKey : '';
+  const envKey = process.env.GEMINI_API_KEY && isGeminiKey(process.env.GEMINI_API_KEY) ? process.env.GEMINI_API_KEY : '';
+
+  const geminiKey = voiceApiKey || validCustomGeminiKey || envKey;
   const ai = getAiClient(geminiKey);
   if (!ai) {
-    throw new Error('SPEECH_UNAVAILABLE');
+    throw new Error('TTS_INVALID_CREDENTIALS: No valid Gemini API key configured for Cloud TTS.');
   }
 
   const validVoices = [
@@ -900,46 +922,57 @@ export async function handleSynthesizeSpeech(
 
   const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
 
-  const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
-    let audioData: string | undefined;
-    let mimeType: string = 'audio/wav';
+  try {
+    const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
+      let audioData: string | undefined;
+      let mimeType: string = 'audio/wav';
 
-    const resp = await ai.models.generateContent({
-      model: model,
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: text.trim() }],
-        },
-      ],
-      config: {
-        responseModalities: ['AUDIO'],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: resolvedVoice },
+      const resp = await ai.models.generateContent({
+        model: model,
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: text.trim() }],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: resolvedVoice },
+            },
           },
         },
-      },
+      });
+      audioData = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType) {
+        mimeType = resp.candidates[0].content.parts[0].inlineData.mimeType;
+      }
+
+      if (!audioData) {
+        throw new Error('No audio data returned from model');
+      }
+
+      let pcmBuf = Buffer.from(audioData, 'base64');
+      const sampleRate = parseSampleRateFromMime(mimeType, 24000);
+      pcmBuf = wrapWavHeaderIfNeeded(pcmBuf, sampleRate, 1, 16) as any;
+      audioData = pcmBuf.toString('base64');
+      mimeType = 'audio/wav';
+
+      return { audioBase64: audioData, mimeType };
     });
-    audioData = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType) {
-      mimeType = resp.candidates[0].content.parts[0].inlineData.mimeType;
+
+    return { audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed };
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    if (msg.includes('401') || msg.includes('API_KEY_INVALID') || msg.includes('PERMISSION_DENIED')) {
+      throw new Error('TTS_INVALID_CREDENTIALS');
     }
-
-    if (!audioData) {
-      throw new Error('No audio data returned from model');
+    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED')) {
+      throw new Error('TTS_QUOTA_EXCEEDED');
     }
-
-    let pcmBuf = Buffer.from(audioData, 'base64');
-    const sampleRate = parseSampleRateFromMime(mimeType, 24000);
-    pcmBuf = wrapWavHeaderIfNeeded(pcmBuf, sampleRate, 1, 16) as any;
-    audioData = pcmBuf.toString('base64');
-    mimeType = 'audio/wav';
-
-    return { audioBase64: audioData, mimeType };
-  });
-
-  return { audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed };
+    throw new Error(`Gemini TTS error: ${msg}`);
+  }
 }
 
 export async function handleTranscribeAudio(

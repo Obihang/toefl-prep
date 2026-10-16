@@ -4,6 +4,21 @@ let ttsInstance: KokoroTTS | null = null;
 let isLoading = false;
 let initPromise: Promise<any> | null = null;
 
+async function reportProgress(progress: any) {
+  let pct = 0;
+  if (typeof progress?.progress === 'number') {
+    pct = progress.progress <= 1 ? Math.round(progress.progress * 100) : Math.round(progress.progress);
+  } else if (typeof progress?.loaded === 'number' && typeof progress?.total === 'number' && progress.total > 0) {
+    pct = Math.round((progress.loaded / progress.total) * 100);
+  }
+  self.postMessage({
+    type: 'progress',
+    progress: pct,
+    status: progress?.status || 'downloading',
+    file: progress?.file,
+  });
+}
+
 self.onmessage = async (e: MessageEvent) => {
   const data = e.data || {};
   const { type, id, text, voice } = data;
@@ -34,30 +49,55 @@ self.onmessage = async (e: MessageEvent) => {
 
     isLoading = true;
     initPromise = (async () => {
-      const hasWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator && !!(navigator as any).gpu;
-      const device = hasWebGpu ? 'webgpu' : 'wasm';
+      let webGpuError: string | null = null;
+      let wasmError: string | null = null;
 
-      ttsInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-        dtype: 'q8',
-        device,
-        progress_callback: (progress: any) => {
-          let pct = 0;
-          if (typeof progress?.progress === 'number') {
-            pct = progress.progress <= 1 ? Math.round(progress.progress * 100) : Math.round(progress.progress);
-          } else if (typeof progress?.loaded === 'number' && typeof progress?.total === 'number' && progress.total > 0) {
-            pct = Math.round((progress.loaded / progress.total) * 100);
+      const hasGpu = typeof navigator !== 'undefined' && 'gpu' in navigator && !!(navigator as any).gpu;
+      let useWebGpu = false;
+
+      if (hasGpu) {
+        try {
+          const adapter = await (navigator as any).gpu.requestAdapter();
+          if (adapter) {
+            useWebGpu = true;
+          } else {
+            webGpuError = 'GPU adapter not found';
           }
-          self.postMessage({
-            type: 'progress',
-            progress: pct,
-            status: progress?.status || 'downloading',
-            file: progress?.file,
-          });
-        },
-      });
+        } catch (err: any) {
+          webGpuError = err?.message || String(err);
+        }
+      } else {
+        webGpuError = 'WebGPU not supported in environment';
+      }
 
-      await ttsInstance.generate('Hello.', { voice: 'af_heart' });
-      return Object.keys(ttsInstance.voices || {});
+      if (useWebGpu) {
+        try {
+          ttsInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+            dtype: 'q8',
+            device: 'webgpu',
+            progress_callback: reportProgress,
+          });
+          await ttsInstance.generate('Hello.', { voice: 'af_heart' });
+          return Object.keys(ttsInstance.voices || {});
+        } catch (err: any) {
+          webGpuError = err?.message || String(err);
+          ttsInstance = null;
+        }
+      }
+
+      try {
+        ttsInstance = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
+          dtype: 'q8',
+          device: 'wasm',
+          progress_callback: reportProgress,
+        });
+        await ttsInstance.generate('Hello.', { voice: 'af_heart' });
+        return Object.keys(ttsInstance.voices || {});
+      } catch (err: any) {
+        wasmError = err?.message || String(err);
+        ttsInstance = null;
+        throw new Error(`WebGPU failed: [${webGpuError}]. WASM failed: [${wasmError}]`);
+      }
     })();
 
     try {

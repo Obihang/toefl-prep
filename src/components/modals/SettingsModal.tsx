@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, playSpeech, getVoices, getTtsUsageCount, isTtsCircuitBreakerBlocked, decodeSpeech, playDecodedSpeech, getAudioContext, audioBufferToWavBlob } from '../../utils/audioSpeech';
 import { getStoredApiKey, getStoredVoiceKey, setStoredVoiceKey, getApiHeaders } from '../../utils/apiKey';
 import { isOfflineVoiceDownloaded, isOfflineVoiceEnabled, getOfflineVoiceLastError, downloadOfflineVoice, removeOfflineVoice, testOfflineVoice } from '../../utils/offlineVoice';
-import { getQuestionCountsPerSection } from '../../utils/sharedQuestions';
+
 
 interface Props {
   isOpen: boolean;
@@ -53,14 +53,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     deviceName: string;
   } | null>(null);
 
-  const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({
-    Reading: 0,
-    Listening: 0,
-    Speaking: 0,
-    Writing: 0,
-    'Vocabulary & Grammar': 0,
-  });
-  const [loadingCounts, setLoadingCounts] = useState(true);
+
 
   const testAudioNodesRef = useRef<{
     stream?: MediaStream;
@@ -99,11 +92,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
     setIsOfflineDownloaded(isOfflineVoiceDownloaded());
     getAudioInputDevices().then(setMicDevices).catch(() => {});
     
-    setLoadingCounts(true);
-    getQuestionCountsPerSection().then((counts) => {
-      setQuestionCounts(counts);
-      setLoadingCounts(false);
-    }).catch(() => setLoadingCounts(false));
+
 
     setNameError(null);
     setSavedSuccess(false);
@@ -837,35 +826,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Database Questions Stats */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-teal-700" />
-                Saved Questions Database Stats
-              </span>
-              <span className="text-[11px] text-teal-800 font-medium bg-teal-50 px-2 py-0.5 rounded-full">
-                Shared Bank
-              </span>
-            </label>
-            <p className="text-xs text-slate-500">
-              Total questions saved in the shared database for each TOEFL section:
-            </p>
-            {loadingCounts ? (
-              <div className="text-xs text-slate-400 py-2 text-center">Loading database stats...</div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {Object.entries(questionCounts).map(([section, count]) => (
-                  <div key={section} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-700">{section}</span>
-                    <span className="text-xs font-bold text-teal-800 font-mono bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
-                      {count} saved
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+
 
           {/* Microphone Audio Input Selector */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
