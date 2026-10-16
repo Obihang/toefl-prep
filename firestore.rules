@@ -14,7 +14,9 @@ service cloud.firestore {
         'speaking-interview',
         'build-sentence',
         'write-email',
-        'academic-discussion'
+        'academic-discussion',
+        'reading',
+        'listening'
       ];
     }
 
@@ -23,8 +25,8 @@ service cloud.firestore {
     }
 
     match /questions/{questionId} {
-      // Any signed-in user can read only where reportCount < 3
-      allow read: if isSignedIn() && resource.data.reportCount < 3;
+      // Any signed-in user can read questions
+      allow read: if isSignedIn();
 
       // On create, require createdByUid == request.auth.uid, valid taskType,
       // createdByName string of 2-30 characters, reportCount == 0, reportedBy empty list, and data size is reasonable

@@ -258,8 +258,8 @@ export async function seedDefaultQuestionsToFirestore(): Promise<void> {
     } = await import('../data/curatedQuestions');
 
     const seedList: Array<{ taskType: string; data: any }> = [];
-    CURATED_READING_PASSAGES?.forEach(p => seedList.push({ taskType: 'reading', data: p }));
-    CURATED_LISTENING?.forEach(l => seedList.push({ taskType: 'listening', data: l }));
+    CURATED_READING_PASSAGES?.forEach(p => seedList.push({ taskType: 'reading-passage', data: p }));
+    CURATED_LISTENING?.forEach(l => seedList.push({ taskType: 'listening-dialogue', data: l }));
     CURATED_LISTEN_REPEAT?.forEach(l => seedList.push({ taskType: 'listen-repeat', data: l }));
     CURATED_SPEAKING_INTERVIEWS?.forEach(s => seedList.push({ taskType: 'speaking-interview', data: s }));
     CURATED_BUILD_SENTENCES?.forEach(b => seedList.push({ taskType: 'build-sentence', data: b }));
@@ -299,11 +299,11 @@ export async function getQuestionCountsPerSection(): Promise<Record<string, numb
     qSnap.forEach(docSnap => {
       const data = docSnap.data();
       const t = (data.taskType || '').toLowerCase();
-      if (t === 'reading') counts.Reading++;
-      else if (t === 'listening' || t === 'listen_repeat') counts.Listening++;
-      else if (t === 'speaking_interview') counts.Speaking++;
-      else if (t === 'academic_discussion' || t === 'email' || t === 'writing') counts.Writing++;
-      else if (t === 'complete_words' || t === 'build_sentence' || t === 'vocabulary') counts['Vocabulary & Grammar']++;
+      if (t === 'reading' || t === 'reading-passage') counts.Reading++;
+      else if (t === 'listening' || t === 'listening-dialogue' || t === 'listen-repeat' || t === 'listen_repeat') counts.Listening++;
+      else if (t === 'speaking' || t === 'speaking-interview' || t === 'speaking_interview') counts.Speaking++;
+      else if (t === 'writing' || t === 'academic-discussion' || t === 'academic_discussion' || t === 'write-email' || t === 'email') counts.Writing++;
+      else if (t === 'complete-words' || t === 'complete_words' || t === 'build-sentence' || t === 'build_sentence' || t === 'vocabulary') counts['Vocabulary & Grammar']++;
       else {
         counts.Reading++;
       }

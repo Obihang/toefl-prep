@@ -1255,7 +1255,31 @@ export const DashboardModal: React.FC<Props> = ({
                       ) : (
                         <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                       )}
-                      <span>{testKeyResult.message}</span>
+                      <span className="leading-relaxed">
+                        {(() => {
+                          const msg = testKeyResult.message || '';
+                          const urlMatch = msg.match(/(https?:\/\/[^\s]+)/);
+                          if (urlMatch) {
+                            const url = urlMatch[0];
+                            const parts = msg.split(url);
+                            return (
+                              <>
+                                {parts[0]}
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline font-bold text-teal-800 hover:text-teal-900 mx-1"
+                                >
+                                  [Open Google Cloud Enable Page ↗]
+                                </a>
+                                {parts[1]}
+                              </>
+                            );
+                          }
+                          return msg;
+                        })()}
+                      </span>
                     </div>
                   )}
                 </div>

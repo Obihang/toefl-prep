@@ -141,13 +141,15 @@ export function extractErrorMessage(err: any): string {
   } catch {}
 
   const lower = rawMsg.toLowerCase();
-  if (lower.includes('not enabled') || lower.includes('api has not been used') || lower.includes('generativelanguage.googleapis.com')) {
-    rawMsg = 'Generative Language API is not enabled in your Google Cloud project. Enable it at console.cloud.google.com.';
+  const urlMatch = rawMsg.match(/https:\/\/console\.cloud\.google\.com\/[^\s"')]+/);
+  if (lower.includes('not enabled') || lower.includes('api has not been used') || lower.includes('service_disabled')) {
+    const directLink = urlMatch ? ` Enable it directly: ${urlMatch[0]}` : '';
+    rawMsg = `Generative Language API is not enabled for this key's project.${directLink} Or in Google AI Studio (aistudio.google.com/apikey), click "Create API key in new project".`;
   } else if (lower.includes('billing') || lower.includes('billable')) {
-    rawMsg = 'Billing account issue: Check your linked Google Cloud billing account or generate a free key at aistudio.google.com.';
+    rawMsg = 'Billing account issue: The model requested requires paid billing. Switch to gemini-2.5-flash in Settings for free-tier practice, or link a billing account.';
   } else if (lower.includes('caller does not have permission') || lower.includes('requests from referer') || lower.includes('requests from this ip')) {
     rawMsg = 'Key restriction issue: Remove HTTP referrer or IP restrictions on your key in Google Cloud Console.';
-  } else if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key')) {
+  } else if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key') || lower.includes('access_token_type_unsupported')) {
     rawMsg = 'Invalid API key. Please check your key in Dashboard > Settings & API Key.';
   } else if (lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted')) {
     rawMsg = "Your key's free daily AI quota is used up. It usually resets at midnight Pacific time (PT).";

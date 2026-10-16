@@ -38,9 +38,9 @@ export const DETECTED_PROVIDER_NAMES: Record<string, string> = {
 
 export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
   gemini: {
-    generation: 'gemini-3.8-flash',
-    evaluation: 'gemini-3.8-flash (thinking/rubric)',
-    transcription: 'gemini-3.8-flash (multimodal audio)',
+    generation: 'gemini-2.5-flash',
+    evaluation: 'gemini-2.5-flash (thinking/rubric)',
+    transcription: 'gemini-2.5-flash (multimodal audio)',
     tts: 'Gemini Speech (natural native voices)',
   },
   groq: {

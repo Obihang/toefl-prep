@@ -20,30 +20,30 @@ async function simulate() {
 
   console.log('Scenario A: Empty queue');
   queue = {};
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 8; i++) {
     const next = getNext();
     if (next) fetchTask(next);
   }
   let total = 0;
   for (const t of MOCK_TASKS) total += (queue[t.id] || []).length;
   console.log(`Total: ${total}`);
-  if (total !== 16) throw new Error('Scenario A failed');
+  if (total !== 8) throw new Error('Scenario A failed');
 
   console.log('Scenario B: Three tasks have 1');
   queue = {};
   for (let i = 0; i < 3; i++) fetchTask(MOCK_TASKS[i].id);
-  for (let i = 0; i < 13; i++) {
+  for (let i = 0; i < 5; i++) {
     const next = getNext();
     if (next) fetchTask(next);
   }
   total = 0;
   for (const t of MOCK_TASKS) total += (queue[t.id] || []).length;
   console.log(`Total: ${total}`);
-  if (total !== 16) throw new Error('Scenario B failed');
+  if (total !== 8) throw new Error('Scenario B failed');
 
-  console.log('Scenario C: Every task has 2');
+  console.log('Scenario C: Every task has 1');
   queue = {};
-  for (const t of MOCK_TASKS) { fetchTask(t.id); fetchTask(t.id); }
+  for (const t of MOCK_TASKS) { fetchTask(t.id); }
   if (getNext() !== null) throw new Error('Scenario C failed');
 
   console.log('Scenario D: One task in cooldown');

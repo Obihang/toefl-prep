@@ -462,8 +462,8 @@ export default function App() {
         };
         setPrefetchedQueue((prev) => {
           const currentItems = prev[type] || [];
-          // Ensure we don't exceed 2 questions per task type
-          const nextItems = [...currentItems, prefetchedItem].slice(-2);
+          // Ensure we don't exceed 1 question per task type
+          const nextItems = [...currentItems, prefetchedItem].slice(-1);
           const nextQueue: PrefetchQueue = {
             ...prev,
             [type]: nextItems,
@@ -526,7 +526,7 @@ export default function App() {
 
   // New sequential prefetch loop
   const inFlightLock = React.useRef(false);
-  const [prefetchProgress, setPrefetchProgress] = useState({ round: 1 as 1 | 2 | 'done', filled: 0, total: 16 });
+  const [prefetchProgress, setPrefetchProgress] = useState({ round: 1 as 1 | 'done', filled: 0, total: 8 });
   useEffect(() => {
     const el = sectionBarRef.current;
     if (!el) return;
@@ -627,7 +627,12 @@ export default function App() {
           }).catch(() => {});
         }
 
-        // Immediately replenish the next question in the background
+        // Immediately replenish the next question in the background if empty
+        if (enablePrefetching && getStoredApiKey().trim()) {
+          setTimeout(() => {
+            prefetchTaskInBackground(currentTaskType, level, topic);
+          }, 300);
+        }
         return;
       }
     }
@@ -714,6 +719,11 @@ export default function App() {
       setTimeout(() => setGenerationSuccess(false), 3000);
 
       // Immediately pre-fetch the next question into queue if quota is healthy
+      if (enablePrefetching && getStoredApiKey().trim()) {
+        setTimeout(() => {
+          prefetchTaskInBackground(currentTaskType, level, topic);
+        }, 300);
+      }
     } catch (err: any) {
       console.warn('AI generation notice:', err?.message || err);
       const rawMsg = err.message || 'unknown error';
@@ -1082,7 +1092,7 @@ export default function App() {
               </button>
               {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.round !== 'done' && (
                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                  Preparing questions: round {prefetchProgress.round} of 2 ({prefetchProgress.filled}/8 ready)
+                  Preparing questions ({prefetchProgress.filled}/8 ready)
                 </span>
               )}
               {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.round === 'done' && (

@@ -83,16 +83,15 @@ export function getPrefetchProgress(
   queue: PrefetchQueue,
   level: string,
   topic: string
-): { round: 1 | 2 | 'done'; filled: number; total: 16 } {
+): { round: 1 | 'done'; filled: number; total: 8 } {
   let totalFilled = 0;
   for (const task of TASK_DEFINITIONS) {
     const items = queue[task.id] || [];
     const matching = items.filter((item) => item.level === level && item.topic === topic);
-    totalFilled += Math.min(matching.length, 2);
+    totalFilled += Math.min(matching.length, 1);
   }
-  if (totalFilled < 8) return { round: 1, filled: totalFilled, total: 16 };
-  if (totalFilled < 16) return { round: 2, filled: totalFilled, total: 16 };
-  return { round: 'done', filled: 16, total: 16 };
+  if (totalFilled < 8) return { round: 1, filled: totalFilled, total: 8 };
+  return { round: 'done', filled: 8, total: 8 };
 }
 
 export function getNextTaskToPrefetch(
@@ -120,9 +119,6 @@ export function getNextTaskToPrefetch(
 
   for (const task of orderedTasks) {
     if (isEligible(task.id) && getCount(task.id) === 0) return task.id;
-  }
-  for (const task of orderedTasks) {
-    if (isEligible(task.id) && getCount(task.id) === 1) return task.id;
   }
 
   return null;
