@@ -1,5 +1,6 @@
 // Simulation and unit test suite for API key auto-detection, ranking, probing, and config
 import { detectProviderFromKey } from '../src/utils/keyDetect.ts';
+import { validateKeyForProvider } from '../src/utils/apiKey.ts';
 import { getApiConfig } from '../src/server/apiConfig.ts';
 import { rankModels, probeProvider } from '../src/server/providerProbe.ts';
 
@@ -215,6 +216,29 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
   delete process.env.VERCEL;
   const allowedCustom = getApiConfig({ 'x-api-provider': 'custom', 'x-api-base-url': 'http://localhost:11434/v1' });
   check('getApiConfig allows custom base URL when VERCEL is not set', allowedCustom.baseUrl === 'http://localhost:11434/v1');
+
+  // 7. Key validation and prefix mismatch rejection
+  const mismatchGroqOnGemini = validateKeyForProvider('gsk_123456789012345678901234567890', 'gemini');
+  check(
+    'Groq key rejected when provider is gemini',
+    !mismatchGroqOnGemini.valid &&
+      mismatchGroqOnGemini.mismatchedProvider === 'groq' &&
+      String(mismatchGroqOnGemini.message).includes('Switch to Groq?')
+  );
+
+  const mismatchGeminiOnGroq = validateKeyForProvider('AIzaSyD-123456789012345678901234567890', 'groq');
+  check(
+    'Gemini key rejected when provider is groq',
+    !mismatchGeminiOnGroq.valid &&
+      mismatchGeminiOnGroq.mismatchedProvider === 'gemini' &&
+      String(mismatchGeminiOnGroq.message).includes('Switch to Google Gemini?')
+  );
+
+  const validGemini = validateKeyForProvider('AIzaSyD-123456789012345678901234567890', 'gemini');
+  check('Gemini key valid for gemini provider', validGemini.valid);
+
+  const validAuto = validateKeyForProvider('gsk_123456789012345678901234567890', 'auto');
+  check('Any key valid when provider is auto', validAuto.valid);
 
   // Restore fetch
   (globalThis as any).fetch = originalFetch;

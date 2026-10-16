@@ -46,6 +46,7 @@ import {
   setStoredBaseUrl,
   getStoredModel,
   setStoredModel,
+  validateKeyForProvider,
   PROVIDERS,
   ApiProvider,
 } from '../../utils/apiKey';
@@ -186,7 +187,7 @@ export const DashboardModal: React.FC<Props> = ({
     const models = DEFAULT_PURPOSE_MODELS[activeKey] || DEFAULT_PURPOSE_MODELS.gemini;
     setActivePurposeModels(models);
 
-    if (res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
+    if (provider === 'auto' && res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
       if (res.provider !== provider) {
         setProvider(res.provider);
         setStoredProvider(res.provider);
@@ -211,13 +212,17 @@ export const DashboardModal: React.FC<Props> = ({
   const handleProviderSelect = (newProvider: ApiProvider) => {
     setProvider(newProvider);
     setStoredProvider(newProvider);
+    const savedKey = getStoredApiKey(newProvider);
+    setApiKeyInput(savedKey || '');
+    setApiKeySaved(false);
+    setTestKeyResult(null);
+    setDetected(null);
     const defBase = PROVIDERS[newProvider].defaultBaseUrl;
     const defModel = PROVIDERS[newProvider].defaultModel;
     setBaseUrlInput(defBase);
     setStoredBaseUrl(defBase);
     setModelInput(defModel);
     setStoredModel(defModel);
-    setTestKeyResult(null);
     const models = DEFAULT_PURPOSE_MODELS[newProvider] || DEFAULT_PURPOSE_MODELS.gemini;
     setActivePurposeModels(models);
   };
@@ -230,6 +235,11 @@ export const DashboardModal: React.FC<Props> = ({
       const trimmedBaseUrl = auto ? '' : baseUrlInput.trim();
       const trimmedModel = auto ? '' : modelInput.trim();
       let reqProvider = auto ? 'auto' : provider;
+
+      const validation = validateKeyForProvider(trimmedKey, provider);
+      if (!validation.valid && validation.message) {
+        throw new Error(validation.message);
+      }
 
       // Auto-detect if provider was still gemini but user pasted another provider key
       if (!auto && reqProvider === 'gemini' && trimmedKey) {
@@ -283,7 +293,7 @@ export const DashboardModal: React.FC<Props> = ({
 
       setProvider(resolvedProvider);
       setStoredProvider(resolvedProvider);
-      setStoredApiKey(trimmedKey);
+      setStoredApiKey(trimmedKey, resolvedProvider);
       setBaseUrlInput(defBase);
       setStoredBaseUrl(defBase);
       setModelInput(resolvedModel);
@@ -1057,6 +1067,35 @@ export const DashboardModal: React.FC<Props> = ({
                     </button>
                   </div>
 
+                  {(() => {
+                    const validation = validateKeyForProvider(apiKeyInput, provider);
+                    if (!validation.valid && validation.mismatchedProvider) {
+                      const target = validation.mismatchedProvider;
+                      const targetName = PROVIDERS[target]?.name || target;
+                      return (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs text-amber-900 animate-in fade-in">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>{validation.message}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const typedKey = apiKeyInput.trim();
+                              handleProviderSelect(target);
+                              setApiKeyInput(typedKey);
+                              setStoredApiKey(typedKey, target);
+                            }}
+                            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition cursor-pointer shrink-0"
+                          >
+                            Switch to {targetName}
+                          </button>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   {/* Purpose-Specific Routing Grid */}
                   <div className="pt-2">
                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
@@ -1240,6 +1279,7 @@ export const DashboardModal: React.FC<Props> = ({
                           {(Object.keys(PROVIDERS) as ApiProvider[]).map((pKey) => {
                             const p = PROVIDERS[pKey];
                             const isSelected = provider === pKey;
+                            const hasSavedKey = Boolean(getStoredApiKey(pKey));
                             return (
                               <button
                                 key={pKey}
@@ -1251,7 +1291,14 @@ export const DashboardModal: React.FC<Props> = ({
                                     : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
                                 }`}
                               >
-                                <div className="text-xs font-semibold leading-tight">{p.name}</div>
+                                <div className="flex items-center justify-between gap-1">
+                                  <div className="text-xs font-semibold leading-tight">{p.name}</div>
+                                  {hasSavedKey && (
+                                    <span className="text-emerald-600 font-bold text-xs shrink-0" title="Saved key available">
+                                      ✓
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-[10px] text-slate-400 font-normal truncate mt-0.5">{p.defaultModel}</div>
                               </button>
                             );

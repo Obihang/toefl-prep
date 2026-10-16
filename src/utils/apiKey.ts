@@ -1,3 +1,5 @@
+import { resetTtsQuotaBlock } from './audioSpeech';
+
 export type ApiProvider = 'auto' | 'gemini' | 'nvidia' | 'groq' | 'openrouter' | 'openai' | 'deepseek' | 'xai' | 'anthropic' | 'custom';
 
 export interface ProviderConfig {
@@ -101,95 +103,103 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
   },
 };
 
-export function getStoredProvider(): ApiProvider {
-  const p = (localStorage.getItem('toefl_api_provider') || '') as ApiProvider;
+export function migrateLegacyKeys(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const oldGemini = localStorage.getItem('toefl_gemini_api_key');
+    const oldCustom = localStorage.getItem('toefl_custom_api_key');
 
+    const migrateKey = (raw: string) => {
+      const k = raw.trim();
+      if (!k) return;
+      let target: ApiProvider | null = null;
+      if (/^AIza/i.test(k)) target = 'gemini';
+      else if (/^gsk_/.test(k)) target = 'groq';
+      else if (/^nvapi-/i.test(k)) target = 'nvidia';
+      else if (/^sk-or-/i.test(k)) target = 'openrouter';
+
+      if (target && !localStorage.getItem(`toefl_key_${target}`)) {
+        localStorage.setItem(`toefl_key_${target}`, k);
+      }
+    };
+
+    if (oldGemini) {
+      migrateKey(oldGemini);
+      localStorage.removeItem('toefl_gemini_api_key');
+    }
+    if (oldCustom) {
+      migrateKey(oldCustom);
+      localStorage.removeItem('toefl_custom_api_key');
+    }
+  } catch {
+    // Ignore storage errors in restricted iframe
+  }
+}
+
+// Run one-time migration at startup
+migrateLegacyKeys();
+
+export function getStoredProvider(): ApiProvider {
+  if (typeof localStorage === 'undefined') return 'gemini';
+  const p = (localStorage.getItem('toefl_api_provider') || '') as ApiProvider;
   if (p && PROVIDERS[p]) {
     return p;
   }
-
-  const key = (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
-
-  // If auto or unset, infer from key signature
-  if (key) {
-    if (/^nvapi-/i.test(key)) return 'nvidia';
-    if (/^gsk_/.test(key)) return 'groq';
-    if (/^sk-or-/i.test(key)) return 'openrouter';
-    if (/^sk-proj-/i.test(key) || /^sk-admin-/i.test(key)) return 'openai';
-    if (/^xai-/i.test(key)) return 'xai';
-    if (/^ds-/i.test(key)) return 'deepseek';
-    if (/^AIza/i.test(key)) return 'gemini';
-  }
-
   return 'gemini';
 }
 
-import { resetTtsQuotaBlock } from './audioSpeech';
-
 export function setStoredProvider(provider: ApiProvider): void {
+  if (typeof localStorage === 'undefined') return;
   localStorage.setItem('toefl_api_provider', provider);
   resetTtsQuotaBlock();
 }
 
-export function getStoredApiKey(): string {
-  const provider = getStoredProvider();
-  
-  if (provider === 'gemini') {
-    const geminiKey = (localStorage.getItem('toefl_key_gemini') || localStorage.getItem('toefl_gemini_api_key') || '').trim();
-    // Do not leak Groq/NVIDIA keys into Gemini requests
-    if (/^gsk_|^nvapi-|^sk-or-|^sk-proj-/i.test(geminiKey)) {
-      return '';
-    }
-    return geminiKey;
-  }
-
-  const perProviderKey = localStorage.getItem(`toefl_key_${provider}`);
-  if (perProviderKey !== null && perProviderKey.trim()) {
-    return perProviderKey.trim();
-  }
-
-  const legacyKey = (localStorage.getItem('toefl_gemini_api_key') || localStorage.getItem('toefl_custom_api_key') || '').trim();
-  return legacyKey;
+export function getStoredApiKey(provider?: ApiProvider): string {
+  if (typeof localStorage === 'undefined') return '';
+  const targetProvider = provider || getStoredProvider();
+  return (localStorage.getItem(`toefl_key_${targetProvider}`) || '').trim();
 }
 
-export function setStoredApiKey(key: string): void {
+export function setStoredApiKey(key: string, provider?: ApiProvider): void {
+  if (typeof localStorage === 'undefined') return;
+  const targetProvider = provider || getStoredProvider();
   const trimmed = key.trim();
-  let providerToSet: ApiProvider | null = null;
-
-  if (/^nvapi-/i.test(trimmed)) {
-    providerToSet = 'nvidia';
-  } else if (/^gsk_/.test(trimmed)) {
-    providerToSet = 'groq';
-  } else if (/^sk-or-/i.test(trimmed)) {
-    providerToSet = 'openrouter';
-  } else if (/^sk-proj-/i.test(trimmed) || /^sk-admin-/i.test(trimmed)) {
-    providerToSet = 'openai';
-  } else if (/^xai-/i.test(trimmed)) {
-    providerToSet = 'xai';
-  } else if (/^ds-/i.test(trimmed)) {
-    providerToSet = 'deepseek';
-  } else if (/^AIza/i.test(trimmed)) {
-    providerToSet = 'gemini';
-  }
-
-  if (providerToSet) {
-    localStorage.setItem(`toefl_key_${providerToSet}`, trimmed);
-    setStoredProvider(providerToSet);
-  } else {
-    const currentP = (localStorage.getItem('toefl_api_provider') || 'gemini') as ApiProvider;
-    localStorage.setItem(`toefl_key_${currentP}`, trimmed);
-  }
-
-  if (trimmed) {
-    if (providerToSet === 'gemini' || /^AIza/i.test(trimmed)) {
-      localStorage.setItem('toefl_gemini_api_key', trimmed);
-    } else if (providerToSet === 'groq') {
-      localStorage.setItem('toefl_key_groq', trimmed);
-    }
-    localStorage.setItem('toefl_custom_api_key', trimmed);
-  }
-
+  localStorage.setItem(`toefl_key_${targetProvider}`, trimmed);
   resetTtsQuotaBlock();
+}
+
+export function getPrefixOwnerProvider(key: string): ApiProvider | null {
+  const trimmed = (key || '').trim();
+  if (!trimmed) return null;
+  if (/^AIza/i.test(trimmed)) return 'gemini';
+  if (/^gsk_/.test(trimmed)) return 'groq';
+  if (/^nvapi-/i.test(trimmed)) return 'nvidia';
+  if (/^sk-or-/i.test(trimmed)) return 'openrouter';
+  if (/^sk-proj-|^sk-admin-/i.test(trimmed)) return 'openai';
+  if (/^xai-/i.test(trimmed)) return 'xai';
+  if (/^sk-ant-/i.test(trimmed)) return 'anthropic';
+  if (/^ds-/i.test(trimmed)) return 'deepseek';
+  return null;
+}
+
+export function validateKeyForProvider(
+  key: string,
+  provider: ApiProvider
+): { valid: boolean; mismatchedProvider?: ApiProvider; message?: string } {
+  const trimmed = (key || '').trim();
+  if (!trimmed || provider === 'auto' || provider === 'custom') {
+    return { valid: true };
+  }
+  const owner = getPrefixOwnerProvider(trimmed);
+  if (owner && owner !== provider) {
+    const ownerName = PROVIDERS[owner]?.name || owner;
+    return {
+      valid: false,
+      mismatchedProvider: owner,
+      message: `This looks like a ${ownerName} key. Switch to ${ownerName}?`,
+    };
+  }
+  return { valid: true };
 }
 
 export function getStoredBaseUrl(): string {

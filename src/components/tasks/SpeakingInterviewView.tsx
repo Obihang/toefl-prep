@@ -35,6 +35,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [transcribingQuestionIds, setTranscribingQuestionIds] = useState<Record<number, boolean>>({});
   const [transcriptionErrors, setTranscriptionErrors] = useState<Record<number, string | null>>({});
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
@@ -83,6 +84,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const playQuestionAudio = async () => {
     stopSpeaking();
     setIsPlayingAudio(true);
+    setAudioError(null);
     const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
     const browserVoice = pickBrowserVoiceForGender(interviewerGender);
     try {
@@ -91,10 +93,14 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         voiceName,
         browserVoice,
         onEnd: () => setIsPlayingAudio(false),
-        onError: () => setIsPlayingAudio(false),
+        onError: (err) => {
+          setIsPlayingAudio(false);
+          setAudioError(err?.message || String(err));
+        },
       });
-    } catch {
+    } catch (err: any) {
       setIsPlayingAudio(false);
+      setAudioError(err?.message || String(err));
     }
   };
 
@@ -543,27 +549,34 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             </h3>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={handleHearQuestion}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
-                isPlayingAudio
-                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
-                  : 'text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              {isPlayingAudio ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
-              {isPlayingAudio ? 'Pause Audio' : 'Hear Question'}
-            </button>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleHearQuestion}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap ${
+                  isPlayingAudio
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
+                    : 'text-slate-700 bg-slate-50 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {isPlayingAudio ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
+                {isPlayingAudio ? 'Pause Audio' : 'Hear Question'}
+              </button>
 
-            <button
-              onClick={handleRestartQuestionAudio}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
-              title="Restart question audio from beginning"
-            >
-              <RotateCcw className="w-3 h-3 text-slate-500" />
-              <span>Restart</span>
-            </button>
+              <button
+                onClick={handleRestartQuestionAudio}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap"
+                title="Restart question audio from beginning"
+              >
+                <RotateCcw className="w-3 h-3 text-slate-500" />
+                <span>Restart</span>
+              </button>
+            </div>
+            {audioError && (
+              <div className="text-[11px] text-rose-600 font-mono text-right max-w-sm">
+                Audio failure: {audioError}
+              </div>
+            )}
           </div>
         </div>
 

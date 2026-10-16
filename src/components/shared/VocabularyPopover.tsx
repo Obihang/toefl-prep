@@ -32,6 +32,7 @@ export const VocabularyPopover: React.FC<Props> = ({
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [explainingAI, setExplainingAI] = useState(false);
   const [engineLabel, setEngineLabel] = useState<string>('');
+  const [audioError, setAudioError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDictionaryData();
@@ -41,6 +42,7 @@ export const VocabularyPopover: React.FC<Props> = ({
     setLoading(true);
     setEntry(null);
     setAiExplanation(null);
+    setAudioError(null);
     const cleanWord = selectedText.trim().toLowerCase();
 
     // Check local cache first
@@ -185,11 +187,17 @@ export const VocabularyPopover: React.FC<Props> = ({
             <button
               type="button"
               onClick={async () => {
-                await playSpeech(selectedText, {
-                  onEngineDetected: (label) => setEngineLabel(label),
-                });
+                setAudioError(null);
+                try {
+                  await playSpeech(selectedText, {
+                    onEngineDetected: (label) => setEngineLabel(label),
+                    onError: (err) => setAudioError(err?.message || String(err)),
+                  });
+                } catch (err: any) {
+                  setAudioError(err?.message || String(err));
+                }
               }}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition cursor-pointer"
             >
               <Volume2 className="w-3.5 h-3.5 text-teal-700" />
               <span>Hear</span>
@@ -223,6 +231,12 @@ export const VocabularyPopover: React.FC<Props> = ({
               )}
             </button>
           </div>
+
+          {audioError && (
+            <div className="text-[11px] text-rose-600 font-mono mt-1">
+              Audio failure: {audioError}
+            </div>
+          )}
 
           {!entry && !explainingAI && (
             <button

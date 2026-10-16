@@ -33,11 +33,14 @@ if (typeof window !== 'undefined' && 'indexedDB' in window) {
   } catch {}
 }
 
-const dbPromise = openDB(DB_NAME, DB_VERSION, {
-  upgrade(db) {
-    db.createObjectStore(STORE_NAME);
-  },
-});
+const dbPromise =
+  typeof window !== 'undefined' && 'indexedDB' in window
+    ? openDB(DB_NAME, DB_VERSION, {
+        upgrade(db) {
+          db.createObjectStore(STORE_NAME);
+        },
+      })
+    : Promise.resolve(null as any);
 
 // Pre-cache available browser voices synchronously
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -194,15 +197,129 @@ export async function decodeSpeech(
   return { audioBuffer, sampleRate: audioBuffer.sampleRate };
 }
 
+function unlockAudioOnFirstUserGesture() {
+  if (typeof window === 'undefined') return;
+  try {
+    const ctx = getAudioContext();
+    if (ctx) {
+      ctx.resume().catch(() => {});
+      const silentBuffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = silentBuffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    }
+  } catch {}
+  window.removeEventListener('click', unlockAudioOnFirstUserGesture, true);
+  window.removeEventListener('keydown', unlockAudioOnFirstUserGesture, true);
+  window.removeEventListener('touchstart', unlockAudioOnFirstUserGesture, true);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', unlockAudioOnFirstUserGesture, true);
+  window.addEventListener('keydown', unlockAudioOnFirstUserGesture, true);
+  window.addEventListener('touchstart', unlockAudioOnFirstUserGesture, true);
+}
+
+export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const bitDepth = 16;
+  const numSamples = buffer.length;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+  const bufferLength = 44 + dataSize;
+
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
+
+  // RIFF chunk descriptor
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + dataSize, true); // size - 8
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  // fmt subchunk
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+  view.setUint16(22, numChannels, true); // NumChannels
+  view.setUint32(24, sampleRate, true); // SampleRate
+  view.setUint32(28, byteRate, true); // ByteRate
+  view.setUint16(32, blockAlign, true); // BlockAlign
+  view.setUint16(34, bitDepth, true); // BitsPerSample
+  // data subchunk
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, dataSize, true); // Subchunk2Size
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let channel = 0; channel < numChannels; channel++) {
+      let sample = buffer.getChannelData(channel)[i];
+      sample = Math.max(-1, Math.min(1, sample));
+      const int16 = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      view.setInt16(offset, int16, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
+}
+
 export async function playDecodedSpeech(
   audioBuffer: AudioBuffer,
-  onEnd?: () => void
+  onEnd?: () => void,
+  rawBlob?: Blob
 ): Promise<void> {
   const ctx = getAudioContext();
   if (ctx && ctx.state === 'suspended') {
     try {
       await ctx.resume();
     } catch {}
+  }
+
+  // Fallback to HTMLAudioElement if Web Audio context is not running
+  if (!ctx || ctx.state !== 'running') {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const blob = rawBlob || audioBufferToWavBlob(audioBuffer);
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        activeHtmlAudio = audio;
+        audio.dataset.isBlobUrl = 'true';
+
+        let finished = false;
+        const durationSec = audioBuffer?.duration || 1.5;
+        const timeoutMs = Math.round(durationSec * 1000) + 1500;
+
+        const cleanup = () => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(safetyTimer);
+          URL.revokeObjectURL(url);
+          if (activeHtmlAudio === audio) activeHtmlAudio = null;
+          onEnd?.();
+          resolve();
+        };
+
+        const safetyTimer = setTimeout(cleanup, timeoutMs);
+        audio.onended = cleanup;
+        audio.onerror = () => {
+          cleanup();
+          reject(new Error('HTMLAudioElement error during playback'));
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            cleanup();
+            reject(new Error(`HTMLAudioElement play failed: ${err?.message || err}`));
+          });
+        }
+      } catch (err: any) {
+        reject(new Error(`Fallback audio play error: ${err?.message || err}`));
+      }
+    });
   }
 
   if (activeSourceNode) {
@@ -218,11 +335,15 @@ export async function playDecodedSpeech(
   sourceNode.connect(ctx.destination);
   activeSourceNode = sourceNode;
 
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let finished = false;
+    const durationSec = audioBuffer.duration || 1;
+    const timeoutMs = Math.round(durationSec * 1000) + 1500;
+
     const cleanup = () => {
       if (finished) return;
       finished = true;
+      clearTimeout(safetyTimer);
       try {
         sourceNode.disconnect();
       } catch {}
@@ -233,8 +354,25 @@ export async function playDecodedSpeech(
       resolve();
     };
 
+    // Never wait only for onended: resolve after audioBuffer.duration + 1.5 s,
+    // and if the context is still not running report "Audio did not start"
+    const safetyTimer = setTimeout(() => {
+      if (ctx.state !== 'running') {
+        cleanup();
+        reject(new Error('Audio did not start'));
+        return;
+      }
+      cleanup();
+    }, timeoutMs);
+
     sourceNode.onended = cleanup;
-    sourceNode.start(0);
+    try {
+      sourceNode.start(0);
+    } catch (err) {
+      clearTimeout(safetyTimer);
+      finished = true;
+      reject(err);
+    }
   });
 }
 
@@ -333,9 +471,11 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
   const db = await dbPromise;
   
   // Check cache
-  const cachedBlob = await db.get(STORE_NAME, cacheKey);
-  if (cachedBlob) {
-    return cachedBlob;
+  if (db) {
+    const cachedBlob = await db.get(STORE_NAME, cacheKey);
+    if (cachedBlob) {
+      return cachedBlob;
+    }
   }
 
   const { blockedUntil } = getTtsQuotaData();
@@ -576,8 +716,14 @@ export async function playSpeech(
         options.onStatus?.(`Voice: ${engineName}`);
         options.onEngineDetected?.(`Voice: ${engineName}`);
         options.onStart?.();
-        await playDecodedSpeech(audioBuffer, options.onEnd);
-        return { ok: true };
+        try {
+          await playDecodedSpeech(audioBuffer, options.onEnd);
+          return { ok: true };
+        } catch (playErr: any) {
+          const reason = `Cloud playback failed: ${playErr?.message || playErr}`;
+          console.warn(reason);
+          return { ok: false, reason };
+        }
       }
       return { ok: true };
     } catch (err: any) {
@@ -651,8 +797,14 @@ export async function playSpeech(
 
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
         options.onStart?.();
-        await playDecodedSpeech(audioBuffer, options.onEnd);
-        return { ok: true };
+        try {
+          await playDecodedSpeech(audioBuffer, options.onEnd);
+          return { ok: true };
+        } catch (playErr: any) {
+          const reason = `Offline playback failed: ${playErr?.message || playErr}`;
+          console.warn(reason);
+          return { ok: false, reason };
+        }
       }
       return { ok: true };
     } catch (err: any) {
@@ -722,9 +874,12 @@ export async function playSpeech(
 
   // If no step can speak: show "no voices found" and dispatch banner
   console.warn('All voice synthesis methods failed or unavailable.');
-  const finalMsg = lastFailedReason ? `${lastFailedReason} No speech voices found.` : 'No speech voices found.';
+  const finalMsg = lastFailedReason
+    ? `Engines tried: [${stepOrder.join(', ')}]. Reason: ${lastFailedReason}`
+    : `Engines tried: [${stepOrder.join(', ')}]. No speech voices found.`;
   options.onStatus?.(finalMsg);
   options.onEngineDetected?.(finalMsg);
+  options.onError?.(new Error(finalMsg));
   options.onEnd?.();
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('toefl_no_voice_available'));

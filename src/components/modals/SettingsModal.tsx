@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, playSpeech, getVoices, getTtsUsageCount, isTtsCircuitBreakerBlocked, decodeSpeech, playDecodedSpeech } from '../../utils/audioSpeech';
+import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, playSpeech, getVoices, getTtsUsageCount, isTtsCircuitBreakerBlocked, decodeSpeech, playDecodedSpeech, getAudioContext, audioBufferToWavBlob } from '../../utils/audioSpeech';
 import { getStoredApiKey, getStoredVoiceKey, setStoredVoiceKey, getApiHeaders } from '../../utils/apiKey';
 import { isOfflineVoiceDownloaded, isOfflineVoiceEnabled, getOfflineVoiceLastError, downloadOfflineVoice, removeOfflineVoice, testOfflineVoice } from '../../utils/offlineVoice';
 import { getQuestionCountsPerSection } from '../../utils/sharedQuestions';
@@ -34,6 +34,14 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [cloudTestStatus, setCloudTestStatus] = useState<{ testing: boolean; result?: string; error?: string } | null>(null);
   const [deviceTestStatus, setDeviceTestStatus] = useState<{ testing: boolean; result?: string; error?: string } | null>(null);
   const [offlineTestStatus, setOfflineTestStatus] = useState<{ testing: boolean; result?: string; error?: string } | null>(null);
+  const [audioTestStatus, setAudioTestStatus] = useState<{
+    testing: boolean;
+    webAudioSuccess?: boolean;
+    htmlAudioSuccess?: boolean;
+    contextState?: string;
+    pageState?: string;
+    error?: string;
+  } | null>(null);
 
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [testSecondsLeft, setTestSecondsLeft] = useState(3);
@@ -241,6 +249,84 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
         message: err?.message || 'Could not access microphone',
         audioContextState,
         deviceName,
+      });
+    }
+  };
+
+  const handleAudioTest = async () => {
+    setAudioTestStatus({ testing: true });
+    try {
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        try {
+          await ctx.resume();
+        } catch {}
+      }
+
+      let webAudioOk = false;
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.value = 440;
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 1.0);
+        webAudioOk = true;
+      } catch (err: any) {
+        console.warn('Web Audio 440Hz test failed:', err);
+      }
+
+      // Wait 1.1s for Web Audio tone to complete before starting HTML Audio tone
+      await new Promise((r) => setTimeout(r, 1100));
+
+      let htmlAudioOk = false;
+      try {
+        const sampleRate = 22050;
+        const toneBuffer = ctx.createBuffer(1, sampleRate, sampleRate);
+        const data = toneBuffer.getChannelData(0);
+        for (let i = 0; i < sampleRate; i++) {
+          data[i] = Math.sin((2 * Math.PI * 440 * i) / sampleRate) * 0.15;
+        }
+        const wavBlob = audioBufferToWavBlob(toneBuffer);
+        const url = URL.createObjectURL(wavBlob);
+        const audio = new Audio(url);
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            URL.revokeObjectURL(url);
+            resolve();
+          }, 1500);
+          audio.onended = () => {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(url);
+            resolve();
+          };
+          audio.onerror = () => {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(url);
+            reject(new Error('HTML audio element playback failed'));
+          };
+          audio.play().then(() => {
+            htmlAudioOk = true;
+          }).catch(reject);
+        });
+      } catch (err: any) {
+        console.warn('HTML Audio 440Hz test failed:', err);
+      }
+
+      setAudioTestStatus({
+        testing: false,
+        webAudioSuccess: webAudioOk,
+        htmlAudioSuccess: htmlAudioOk,
+        contextState: ctx?.state || 'unknown',
+        pageState: document.hidden ? 'Muted / Background Tab' : 'Unmuted / Active Tab',
+      });
+    } catch (err: any) {
+      setAudioTestStatus({
+        testing: false,
+        error: err?.message || String(err),
       });
     }
   };
@@ -554,6 +640,68 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   Voice Diagnostics
                 </span>
                 <span className="text-[10px] text-slate-500">Live Engine Health</span>
+              </div>
+
+              {/* Hardware & Browser Audio Test */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <strong className="text-slate-900 font-semibold block">Hardware &amp; Audio Output Test</strong>
+                    <span className="text-[11px] text-slate-500">
+                      Plays 1-sec 440 Hz tone through Web Audio and HTML &lt;audio&gt; element
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={audioTestStatus?.testing}
+                    onClick={handleAudioTest}
+                    className="px-3 py-1 bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold rounded border border-teal-300 transition cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    {audioTestStatus?.testing ? 'Playing Tones...' : 'Audio test'}
+                  </button>
+                </div>
+
+                {audioTestStatus?.testing && (
+                  <p className="text-[11px] text-teal-700 animate-pulse font-medium">
+                    Playing 1s 440 Hz tone through Web Audio, then HTML &lt;audio&gt;...
+                  </p>
+                )}
+
+                {audioTestStatus && !audioTestStatus.testing && (
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1 text-[11px]">
+                    <div className="grid grid-cols-2 gap-2 font-mono">
+                      <div>
+                        <span className="text-slate-500">AudioContext State: </span>
+                        <strong className={audioTestStatus.contextState === 'running' ? 'text-emerald-700' : 'text-amber-700'}>
+                          {audioTestStatus.contextState || 'unknown'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Page Sound State: </span>
+                        <strong className="text-slate-800">{audioTestStatus.pageState || 'Normal'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Web Audio: </span>
+                        <strong className={audioTestStatus.webAudioSuccess ? 'text-emerald-700' : 'text-rose-600'}>
+                          {audioTestStatus.webAudioSuccess ? '✓ Played' : '✗ Failed'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">HTML &lt;audio&gt;: </span>
+                        <strong className={audioTestStatus.htmlAudioSuccess ? 'text-emerald-700' : 'text-rose-600'}>
+                          {audioTestStatus.htmlAudioSuccess ? '✓ Played' : '✗ Failed'}
+                        </strong>
+                      </div>
+                    </div>
+                    {audioTestStatus.error && (
+                      <p className="text-rose-600 font-mono mt-1">Error: {audioTestStatus.error}</p>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-[10px] text-slate-500 bg-amber-50 border border-amber-200/80 rounded px-2 py-1">
+                  💡 <strong>Reminder:</strong> If you hear nothing in Brave: unmute the tab, and allow sound at <code className="bg-amber-100/60 px-1 py-0.5 rounded text-amber-900 font-mono">brave://settings/content/sound</code>.
+                </p>
               </div>
 
               {/* Row 1: Cloud Voice */}

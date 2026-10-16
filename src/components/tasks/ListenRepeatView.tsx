@@ -36,6 +36,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [micError, setMicError] = useState<string | null>(null);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
   const [transcribeErrors, setTranscribeErrors] = useState<Record<number, string | null>>({});
+  const [audioErrors, setAudioErrors] = useState<Record<number, string | null>>({});
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
 
@@ -70,6 +71,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       return;
     }
     setActiveAudioIdx(index);
+    setAudioErrors((prev) => ({ ...prev, [index]: null }));
     const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
     try {
@@ -78,10 +80,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         voiceName,
         browserVoice,
         onEnd: () => setActiveAudioIdx(null),
-        onError: () => setActiveAudioIdx(null),
+        onError: (err) => {
+          setActiveAudioIdx(null);
+          setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+        },
       });
-    } catch {
+    } catch (err: any) {
       setActiveAudioIdx(null);
+      setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
     }
   };
 
@@ -359,27 +365,34 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   Item {idx + 1} of {task.sentences.length} · {wordCount} Words
                 </span>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => handlePlay(idx)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
-                      isAudioPlaying
-                        ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
-                        : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
-                    }`}
-                  >
-                    {isAudioPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5" />}
-                    {isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
-                  </button>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handlePlay(idx)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
+                        isAudioPlaying
+                          ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
+                          : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
+                      }`}
+                    >
+                      {isAudioPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5" />}
+                      {isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
+                    </button>
 
-                  <button
-                    onClick={() => handleRestartSentence(idx)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                    title="Restart sentence audio from beginning"
-                  >
-                    <RotateCcw className="w-3 h-3 text-slate-500" />
-                    <span>Restart</span>
-                  </button>
+                    <button
+                      onClick={() => handleRestartSentence(idx)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                      title="Restart sentence audio from beginning"
+                    >
+                      <RotateCcw className="w-3 h-3 text-slate-500" />
+                      <span>Restart</span>
+                    </button>
+                  </div>
+                  {audioErrors[idx] && (
+                    <div className="text-[11px] text-rose-600 font-mono text-right max-w-sm">
+                      Audio failure: {audioErrors[idx]}
+                    </div>
+                  )}
                 </div>
               </div>
 
