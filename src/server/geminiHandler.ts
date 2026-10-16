@@ -766,8 +766,9 @@ export async function handleSynthesizeSpeech(
   }
 
   // Use voiceApiKey if provided, else customApiKey if AIza, else process.env.GEMINI_API_KEY
-  const voiceApiKey = opts.voiceApiKey && /^AIza/i.test(opts.voiceApiKey.trim()) ? opts.voiceApiKey.trim() : '';
-  const geminiKey = voiceApiKey || ((customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || ''));
+  const rawVoiceKey = (opts.voiceApiKey || '').trim();
+  const voiceApiKey = rawVoiceKey ? rawVoiceKey : '';
+  const geminiKey = voiceApiKey || ((customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || customApiKey || ''));
   const ai = getAiClient(geminiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');

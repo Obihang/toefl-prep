@@ -1,4 +1,4 @@
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import {
   collection,
   doc,
@@ -239,3 +239,79 @@ export async function reportSharedQuestion(questionDocId: string, userId?: strin
     return false;
   }
 }
+
+export async function seedDefaultQuestionsToFirestore(): Promise<void> {
+  try {
+    if (!auth?.currentUser) return;
+    const qSnap = await getDocs(collection(db, 'questions'));
+    if (!qSnap.empty) return;
+
+    const {
+      CURATED_READING_PASSAGES,
+      CURATED_LISTENING,
+      CURATED_LISTEN_REPEAT,
+      CURATED_SPEAKING_INTERVIEWS,
+      CURATED_BUILD_SENTENCES,
+      CURATED_COMPLETE_WORDS,
+      CURATED_WRITE_EMAILS,
+      CURATED_ACADEMIC_DISCUSSIONS,
+    } = await import('../data/curatedQuestions');
+
+    const seedList: Array<{ taskType: string; data: any }> = [];
+    CURATED_READING_PASSAGES?.forEach(p => seedList.push({ taskType: 'reading', data: p }));
+    CURATED_LISTENING?.forEach(l => seedList.push({ taskType: 'listening', data: l }));
+    CURATED_LISTEN_REPEAT?.forEach(l => seedList.push({ taskType: 'listen-repeat', data: l }));
+    CURATED_SPEAKING_INTERVIEWS?.forEach(s => seedList.push({ taskType: 'speaking-interview', data: s }));
+    CURATED_BUILD_SENTENCES?.forEach(b => seedList.push({ taskType: 'build-sentence', data: b }));
+    CURATED_COMPLETE_WORDS?.forEach(c => seedList.push({ taskType: 'complete-words', data: c }));
+    CURATED_WRITE_EMAILS?.forEach(w => seedList.push({ taskType: 'write-email', data: w }));
+    CURATED_ACADEMIC_DISCUSSIONS?.forEach(a => seedList.push({ taskType: 'academic-discussion', data: a }));
+
+    for (const item of seedList.slice(0, 30)) {
+      try {
+        await saveSharedQuestion({
+          taskType: item.taskType,
+          level: item.data.level || 'upper-intermediate',
+          topic: item.data.topic || 'general',
+          data: item.data,
+          createdByName: 'TOEFL Master',
+          createdByUid: auth.currentUser.uid,
+        });
+      } catch {}
+    }
+  } catch (err) {
+    console.info('Auto-seeding check skipped:', err);
+  }
+}
+
+export async function getQuestionCountsPerSection(): Promise<Record<string, number>> {
+  try {
+    await seedDefaultQuestionsToFirestore();
+    const qSnap = await getDocs(collection(db, 'questions'));
+    const counts: Record<string, number> = {
+      Reading: 0,
+      Listening: 0,
+      Speaking: 0,
+      Writing: 0,
+      'Vocabulary & Grammar': 0,
+    };
+
+    qSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      const t = (data.taskType || '').toLowerCase();
+      if (t === 'reading') counts.Reading++;
+      else if (t === 'listening' || t === 'listen_repeat') counts.Listening++;
+      else if (t === 'speaking_interview') counts.Speaking++;
+      else if (t === 'academic_discussion' || t === 'email' || t === 'writing') counts.Writing++;
+      else if (t === 'complete_words' || t === 'build_sentence' || t === 'vocabulary') counts['Vocabulary & Grammar']++;
+      else {
+        counts.Reading++;
+      }
+    });
+    return counts;
+  } catch (err) {
+    console.warn('Failed to fetch question counts:', err);
+    return { Reading: 0, Listening: 0, Speaking: 0, Writing: 0, 'Vocabulary & Grammar': 0 };
+  }
+}
+

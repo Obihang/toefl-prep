@@ -35,6 +35,7 @@ import {
   convertScaledToBand6,
 } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
+import { getQuestionCountsPerSection } from '../../utils/sharedQuestions';
 import { MistakeNotebook } from '../tasks/MistakeNotebook';
 import {
   getStoredApiKey,
@@ -105,11 +106,30 @@ export const DashboardModal: React.FC<Props> = ({
   const [newWord, setNewWord] = useState('');
   const [newDef, setNewDef] = useState('');
 
+  const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({
+    Reading: 0,
+    Listening: 0,
+    Speaking: 0,
+    Writing: 0,
+    'Vocabulary & Grammar': 0,
+  });
+  const [loadingQuestionCounts, setLoadingQuestionCounts] = useState(false);
+
   useEffect(() => {
     if (defaultTab) {
       setActiveTab(defaultTab);
     }
   }, [defaultTab]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'settings') {
+      setLoadingQuestionCounts(true);
+      getQuestionCountsPerSection().then((counts) => {
+        setQuestionCounts(counts);
+        setLoadingQuestionCounts(false);
+      }).catch(() => setLoadingQuestionCounts(false));
+    }
+  }, [isOpen, activeTab]);
 
   useEffect(() => {
     if (isOpen) {
@@ -899,6 +919,41 @@ export const DashboardModal: React.FC<Props> = ({
                   <span className="text-sm font-medium text-slate-700">Configure Display Name, Voice Engine, Microphone &amp; Cursor Style</span>
                   <Settings className="w-4 h-4 text-slate-500" />
                 </button>
+              </div>
+
+              <div className="space-y-4 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                      <Target className="w-4 h-4 text-teal-700" />
+                      Saved Questions Database Statistics (Total Bank)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Total number of questions stored in the Firestore database across all sections (total bank, not user-filtered), helping you track progress and availability.
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
+                    Database Total
+                  </span>
+                </div>
+
+                {loadingQuestionCounts ? (
+                  <div className="text-xs text-slate-400 py-6 text-center">Loading database question counts...</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {Object.entries(questionCounts).map(([section, count]) => (
+                      <div key={section} className="p-4 bg-gradient-to-br from-slate-50 to-teal-50/40 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
+                        <div>
+                          <div className="text-xs font-semibold text-slate-700">{section}</div>
+                          <div className="text-[11px] text-slate-400">Total in database</div>
+                        </div>
+                        <div className="text-base font-bold text-teal-900 font-mono bg-white px-3 py-1 rounded-lg border border-teal-200 shadow-2xs">
+                          {count}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4 pt-4 border-t border-slate-200">
