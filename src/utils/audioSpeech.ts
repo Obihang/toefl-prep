@@ -74,15 +74,19 @@ export function stopSpeaking() {
 
   // 1. Immediately pause and silence HTML Audio element
   if (activeHtmlAudio) {
+    const prevSrc = activeHtmlAudio.dataset.blobUrl || activeHtmlAudio.src || '';
+    const prevIsBlob = activeHtmlAudio.dataset.isBlobUrl === 'true';
     try {
       activeHtmlAudio.pause();
       activeHtmlAudio.currentTime = 0;
       activeHtmlAudio.src = '';
-      if (activeHtmlAudio.dataset.isBlobUrl === 'true') {
-        URL.revokeObjectURL(activeHtmlAudio.src);
-      }
     } catch {
       // Ignored
+    }
+    if (prevIsBlob && prevSrc) {
+      try {
+        URL.revokeObjectURL(prevSrc);
+      } catch {}
     }
     activeHtmlAudio = null;
   }
@@ -920,12 +924,13 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
     return Promise.resolve();
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let finished = false;
+    let wasStoppedByUser = false;
     let currentUtt: SpeechSynthesisUtterance | null = null;
     let safetyTimer: any = null;
 
-    const cleanup = () => {
+    const cleanup = (hasError = false, err?: any) => {
       if (finished) return;
       finished = true;
       if (safetyTimer) clearTimeout(safetyTimer);
@@ -933,14 +938,24 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
       if (currentUtt) {
         activeUtterances.delete(currentUtt);
       }
-      resolve();
+      if (hasError && !wasStoppedByUser) {
+        reject(err || new Error('Browser speech synthesis error'));
+      } else {
+        resolve();
+      }
     };
 
-    activeFallbackCancel = cleanup;
+    activeFallbackCancel = () => {
+      wasStoppedByUser = true;
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+      cleanup(false);
+    };
 
     // Safety timeout in case browser speech synthesis hangs
     const maxDuration = Math.max(3500, text.length * 100);
-    safetyTimer = setTimeout(cleanup, maxDuration);
+    safetyTimer = setTimeout(() => cleanup(true, new Error('Browser speech synthesis timeout')), maxDuration);
 
     try {
       if (window.speechSynthesis.paused) {
@@ -965,8 +980,8 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
         }
       }
 
-      utt.onend = cleanup;
-      utt.onerror = cleanup;
+      utt.onend = () => cleanup(false);
+      utt.onerror = (e) => cleanup(true, e);
 
       // Handle Chrome speech engine state cleanly
       window.speechSynthesis.resume();
@@ -976,15 +991,15 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
           try {
             window.speechSynthesis.resume();
             window.speechSynthesis.speak(utt);
-          } catch {
-            cleanup();
+          } catch (speakErr) {
+            cleanup(true, speakErr);
           }
         }, 60);
       } else {
         window.speechSynthesis.speak(utt);
       }
-    } catch {
-      cleanup();
+    } catch (ex) {
+      cleanup(true, ex);
     }
   });
 }

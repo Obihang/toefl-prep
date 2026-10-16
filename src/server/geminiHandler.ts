@@ -224,17 +224,19 @@ function normalizeReadingPassage(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length === 0) {
-    throw new Error('AI response missing questions array');
+  if (rawQs.length !== 3) {
+    throw new Error(`Reading comprehension requires exactly 3 questions (received ${rawQs.length})`);
   }
 
-  const questions = rawQs.slice(0, 3).map((q: any, idx: number) => {
+  const questions = rawQs.map((q: any, idx: number) => {
     if (!q || typeof q !== 'object') throw new Error(`Question ${idx + 1} is invalid`);
     const qText = String(q.q || q.question || '').trim();
     if (!qText) throw new Error(`Question ${idx + 1} missing question text`);
 
     const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
-    if (options.length < 2) throw new Error(`Question ${idx + 1} missing options array`);
+    if (options.length !== 4) {
+      throw new Error(`Question ${idx + 1} must have exactly 4 options (received ${options.length})`);
+    }
 
     let answer = q.answer;
     if (typeof answer === 'string') {
@@ -243,8 +245,8 @@ function normalizeReadingPassage(data: any) {
       answer = mapped !== -1 ? mapped : parseInt(char, 10);
     }
 
-    if (typeof answer !== 'number' || isNaN(answer) || answer < 0 || answer >= options.length) {
-      throw new Error(`Question ${idx + 1} contains invalid or missing correct answer index (${q.answer})`);
+    if (typeof answer !== 'number' || isNaN(answer) || answer < 0 || answer > 3) {
+      throw new Error(`Question ${idx + 1} contains invalid correct answer index (${q.answer}), must be 0-3`);
     }
 
     return {
@@ -283,17 +285,19 @@ function normalizeListeningDialogue(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length === 0) {
-    throw new Error('AI response missing listening questions array');
+  if (rawQs.length !== 3) {
+    throw new Error(`Listening comprehension requires exactly 3 questions (received ${rawQs.length})`);
   }
 
-  const questions = rawQs.slice(0, 3).map((q: any, idx: number) => {
+  const questions = rawQs.map((q: any, idx: number) => {
     if (!q || typeof q !== 'object') throw new Error(`Question ${idx + 1} is invalid`);
     const qText = String(q.q || q.question || '').trim();
     if (!qText) throw new Error(`Question ${idx + 1} missing question text`);
 
     const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
-    if (options.length < 2) throw new Error(`Question ${idx + 1} missing options array`);
+    if (options.length !== 4) {
+      throw new Error(`Question ${idx + 1} must have exactly 4 options (received ${options.length})`);
+    }
 
     let answer = q.answer;
     if (typeof answer === 'string') {
@@ -302,8 +306,8 @@ function normalizeListeningDialogue(data: any) {
       answer = mapped !== -1 ? mapped : parseInt(char, 10);
     }
 
-    if (typeof answer !== 'number' || isNaN(answer) || answer < 0 || answer >= options.length) {
-      throw new Error(`Question ${idx + 1} contains invalid or missing correct answer index (${q.answer})`);
+    if (typeof answer !== 'number' || isNaN(answer) || answer < 0 || answer > 3) {
+      throw new Error(`Question ${idx + 1} contains invalid correct answer index (${q.answer}), must be 0-3`);
     }
 
     return {
@@ -339,16 +343,21 @@ function normalizeSpeakingInterview(data: any) {
   const interviewerName = String(data.interviewerName || 'Professor Lee');
   const interviewerGender = String(data.interviewerGender || inferGender(interviewerName));
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length === 0) {
-    throw new Error('AI response missing interview questions array');
+  if (rawQs.length !== 4) {
+    throw new Error(`Speaking interview requires exactly 4 questions (received ${rawQs.length})`);
   }
-  const questions = rawQs.slice(0, 4).map((q: any, idx: number) => {
+  const questions = rawQs.map((q: any, idx: number) => {
     const qText = String(typeof q === 'string' ? q : (q.question || q.prompt || '')).trim();
     if (!qText) throw new Error(`Interview question ${idx + 1} missing text`);
+    const prepTime = Number(q.prepTimeSeconds || 20);
+    const respTime = Number(q.responseTimeSeconds || 45);
+    if (prepTime <= 0 || respTime <= 0) {
+      throw new Error(`Interview question ${idx + 1} has invalid timer values`);
+    }
     return {
       question: qText,
-      prepTimeSeconds: Number(q.prepTimeSeconds || 20),
-      responseTimeSeconds: Number(q.responseTimeSeconds || 45),
+      prepTimeSeconds: prepTime,
+      responseTimeSeconds: respTime,
       suggestedPoints: Array.isArray(q.suggestedPoints) && q.suggestedPoints.length > 0
         ? q.suggestedPoints.map(String)
         : ['State your main viewpoint clearly', 'Provide a concrete personal or academic example', 'Summarize the significance'],
@@ -412,8 +421,9 @@ function normalizeTask(taskType: string, data: any): any {
     case 'write-email':
       return normalizeWriteEmail(data);
     case 'academic-discussion':
-    default:
       return normalizeAcademicDiscussion(data);
+    default:
+      throw new Error(`Unknown task type: ${taskType}`);
   }
 }
 

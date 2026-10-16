@@ -28,9 +28,15 @@ export async function createServer() {
 
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) {
+      const start = Date.now();
       const provider = req.headers['x-api-provider'] || 'gemini';
       const key = (req.headers['x-api-key'] || req.headers['x-gemini-api-key']) as string | undefined;
-      console.log(`API Request: ${req.method} ${req.path}, provider: ${provider}, key: ${key ? `PRESENT (starts with ${key.toString().slice(0, 6)})` : 'MISSING'}`);
+      const hasKey = !!key;
+      const requestId = (req.headers['x-request-id'] as string) || ('req-' + Math.random().toString(36).substring(2, 9));
+      res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`API Request: ${req.method} ${req.path}, provider: ${provider}, keyPresent: ${hasKey}, status: ${res.statusCode}, duration: ${duration}ms, requestId: ${requestId}`);
+      });
     }
     next();
   });

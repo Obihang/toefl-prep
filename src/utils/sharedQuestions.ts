@@ -91,26 +91,22 @@ export async function saveSharedQuestion(params: {
   const trimmedName = (createdByName || 'Anonymous Scholar').trim().slice(0, 30);
   const safeName = trimmedName.length >= 2 ? trimmedName : 'Scholar';
 
-  try {
-    await setDoc(
-      docRef,
-      {
-        taskType,
-        level,
-        topic,
-        data,
-        createdByName: safeName,
-        createdByUid,
-        createdAt: serverTimestamp(),
-        rand: Math.random(),
-        reportCount: 0,
-        reportedBy: [],
-      },
-      { merge: false }
-    );
-  } catch (err: any) {
-    console.info('Question already exists or duplicate docId in shared bank:', err?.message);
-  }
+  await setDoc(
+    docRef,
+    {
+      taskType,
+      level,
+      topic,
+      data,
+      createdByName: safeName,
+      createdByUid,
+      createdAt: serverTimestamp(),
+      rand: Math.random(),
+      reportCount: 0,
+      reportedBy: [],
+    },
+    { merge: false }
+  );
 
   return docId;
 }

@@ -12,8 +12,8 @@ export const EVALUATION_CHAIN = [
 
 export const TTS_CHAIN = [
   'gemini-2.5-flash',
+  'gemini-2.0-flash',
   'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
 ];
 
 export const TRANSCRIBE_CHAIN = [
