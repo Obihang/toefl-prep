@@ -111,7 +111,9 @@ export function isQuotaExhaustedError(err: any): boolean {
 
 export function redactKey(text: string): string {
   if (!text) return text;
-  return text.replace(/AIza[0-9A-Za-z_-]{35}/g, '[REDACTED]');
+  return text
+    .replace(/AIza[0-9A-Za-z_-]{20,}/g, '[REDACTED]')
+    .replace(/AQ\.[0-9A-Za-z_.-]{10,}/g, '[REDACTED]');
 }
 
 export function extractErrorMessage(err: any): string {
@@ -139,7 +141,13 @@ export function extractErrorMessage(err: any): string {
   } catch {}
 
   const lower = rawMsg.toLowerCase();
-  if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key')) {
+  if (lower.includes('not enabled') || lower.includes('api has not been used') || lower.includes('generativelanguage.googleapis.com')) {
+    rawMsg = 'Generative Language API is not enabled in your Google Cloud project. Enable it at console.cloud.google.com.';
+  } else if (lower.includes('billing') || lower.includes('billable')) {
+    rawMsg = 'Billing account issue: Check your linked Google Cloud billing account or generate a free key at aistudio.google.com.';
+  } else if (lower.includes('caller does not have permission') || lower.includes('requests from referer') || lower.includes('requests from this ip')) {
+    rawMsg = 'Key restriction issue: Remove HTTP referrer or IP restrictions on your key in Google Cloud Console.';
+  } else if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key')) {
     rawMsg = 'Invalid API key. Please check your key in Dashboard > Settings & API Key.';
   } else if (lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted')) {
     rawMsg = "Your key's free daily AI quota is used up. It usually resets at midnight Pacific time (PT).";
@@ -147,8 +155,6 @@ export function extractErrorMessage(err: any): string {
     rawMsg = 'AI models are temporarily busy. Please try again in a moment.';
   } else if (lower.includes('no longer available') || lower.includes('not supported') || lower.includes('not found')) {
     rawMsg = 'AI model temporarily unavailable. Please try again in a moment.';
-  } else if (lower.includes('not enabled') || lower.includes('api has not been used')) {
-    rawMsg = 'AI API service is not enabled for this key.';
   }
 
   return redactKey(rawMsg);

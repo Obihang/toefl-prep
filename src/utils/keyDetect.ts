@@ -74,12 +74,12 @@ export function detectProviderFromKey(raw: string): KeyDetectResult {
     };
   }
 
-  // 1. Google Gemini: starts with AIza
-  if (/^AIza/i.test(key)) {
+  // 1. Google Gemini: starts with AIza or AQ.
+  if (/^(AIza|AQ\.)/i.test(key)) {
     return {
       provider: 'gemini',
       label: 'Google Gemini',
-      complete: key.length >= 35,
+      complete: key.length >= 25,
       purposeModels: DEFAULT_PURPOSE_MODELS.gemini,
       note: 'Native multimodal models with built-in voice audio and fast grading.',
     };
@@ -153,7 +153,7 @@ export function detectProviderFromKey(raw: string): KeyDetectResult {
     provider: null,
     label: 'Unknown',
     complete: false,
-    note: 'Unrecognized key format. Supported free-tier keys start with AIza, nvapi-, gsk_, or sk-or-.',
+    note: 'Unrecognized key format. Supported free-tier keys start with AIza or AQ., nvapi-, gsk_, or sk-or-.',
   };
 }
 

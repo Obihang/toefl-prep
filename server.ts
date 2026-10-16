@@ -130,7 +130,11 @@ export async function createServer() {
             error: 'No API key provided. Paste your key in Settings & API Key',
           });
         }
-        const result = await handleTestApiKey(apiKey);
+        const result = await handleTestApiKey({
+          apiKey,
+          model: config.model,
+          provider: 'gemini',
+        });
         return res.json({
           ...result,
           provider: 'gemini',

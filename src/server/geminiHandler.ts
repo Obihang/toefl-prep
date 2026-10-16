@@ -359,7 +359,7 @@ function getAiClient(customApiKey?: string) {
   let apiKey = '';
   if (customApiKey && customApiKey.trim()) {
     const trimmed = customApiKey.trim();
-    if (/^AIza/i.test(trimmed)) {
+    if (/^(AIza|AQ\.)/i.test(trimmed)) {
       apiKey = trimmed;
     } else if (/^(gsk_|nvapi-|sk-or-|sk-proj-|sk-admin-|xai-|sk-ant-|ds-)/i.test(trimmed)) {
       // Key belongs to a third-party provider (Groq, NVIDIA, OpenRouter, OpenAI, etc.)
@@ -420,7 +420,13 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
     },
   });
 
-  const { modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+  const customModel =
+    opts.model && opts.model.trim() && opts.model !== 'Auto-Routed by Purpose' && opts.model !== 'Auto-Optimized'
+      ? opts.model.trim()
+      : null;
+  const chain = customModel ? [customModel, ...GENERATION_CHAIN] : GENERATION_CHAIN;
+
+  const { modelUsed } = await generateWithFallback(ai, chain, async (model) => {
     await ai.models.generateContent({
       model,
       contents: 'Reply with the single word OK',
@@ -765,10 +771,10 @@ export async function handleSynthesizeSpeech(
     }
   }
 
-  // Use voiceApiKey if provided, else customApiKey if AIza, else process.env.GEMINI_API_KEY
+  // Use voiceApiKey if provided, else customApiKey if Gemini (AIza or AQ.), else process.env.GEMINI_API_KEY
   const rawVoiceKey = (opts.voiceApiKey || '').trim();
   const voiceApiKey = rawVoiceKey ? rawVoiceKey : '';
-  const geminiKey = voiceApiKey || ((customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || customApiKey || ''));
+  const geminiKey = voiceApiKey || ((customApiKey && /^(AIza|AQ\.)/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || customApiKey || ''));
   const ai = getAiClient(geminiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');
@@ -850,7 +856,7 @@ export async function handleTranscribeAudio(
     }
   }
 
-  const geminiKey = (customApiKey && /^AIza/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || '');
+  const geminiKey = (customApiKey && /^(AIza|AQ\.)/i.test(customApiKey)) ? customApiKey : (process.env.GEMINI_API_KEY || '');
   const ai = getAiClient(geminiKey);
   if (!ai) {
     throw new Error('SPEECH_UNAVAILABLE');

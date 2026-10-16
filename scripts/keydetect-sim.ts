@@ -57,6 +57,9 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
   const geminiFull = detectProviderFromKey('AIzaSyD-12345678901234567890123456789012345');
   check('full Gemini key detected and complete', geminiFull.provider === 'gemini' && geminiFull.complete);
 
+  const geminiAuthKey = detectProviderFromKey('AQ.Ab8RN6Inn3jqhzqyr1234567890');
+  check('AQ. Gemini Auth key detected and complete', geminiAuthKey.provider === 'gemini' && geminiAuthKey.complete);
+
   const nvidiaKey = detectProviderFromKey('nvapi-1234567890123456789012345678901234567890');
   check('NVIDIA key detected and complete', nvidiaKey.provider === 'nvidia' && nvidiaKey.complete);
 
@@ -236,6 +239,12 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
 
   const validGemini = validateKeyForProvider('AIzaSyD-123456789012345678901234567890', 'gemini');
   check('Gemini key valid for gemini provider', validGemini.valid);
+
+  const validGeminiAuth = validateKeyForProvider('AQ.Ab8RN6Inn3jqhzqyr1234567890', 'gemini');
+  check('AQ. Gemini Auth key valid for gemini provider', validGeminiAuth.valid);
+
+  const mismatchGeminiAuthOnGroq = validateKeyForProvider('AQ.Ab8RN6Inn3jqhzqyr1234567890', 'groq');
+  check('AQ. Gemini Auth key rejected when provider is groq', !mismatchGeminiAuthOnGroq.valid && mismatchGeminiAuthOnGroq.mismatchedProvider === 'gemini');
 
   const validAuto = validateKeyForProvider('gsk_123456789012345678901234567890', 'auto');
   check('Any key valid when provider is auto', validAuto.valid);

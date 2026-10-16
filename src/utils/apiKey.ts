@@ -26,7 +26,7 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     name: 'Google Gemini',
     defaultBaseUrl: '',
     defaultModel: 'gemini-3.8-flash',
-    placeholderKey: 'AIzaSy...',
+    placeholderKey: 'AIzaSy... or AQ....',
     keyHelpUrl: 'https://aistudio.google.com/apikey',
     helpText: 'Native multimodal models with built-in TTS and fast reasoning.',
   },
@@ -113,7 +113,7 @@ export function migrateLegacyKeys(): void {
       const k = raw.trim();
       if (!k) return;
       let target: ApiProvider | null = null;
-      if (/^AIza/i.test(k)) target = 'gemini';
+      if (/^(AIza|AQ\.)/i.test(k)) target = 'gemini';
       else if (/^gsk_/.test(k)) target = 'groq';
       else if (/^nvapi-/i.test(k)) target = 'nvidia';
       else if (/^sk-or-/i.test(k)) target = 'openrouter';
@@ -171,7 +171,7 @@ export function setStoredApiKey(key: string, provider?: ApiProvider): void {
 export function getPrefixOwnerProvider(key: string): ApiProvider | null {
   const trimmed = (key || '').trim();
   if (!trimmed) return null;
-  if (/^AIza/i.test(trimmed)) return 'gemini';
+  if (/^(AIza|AQ\.)/i.test(trimmed)) return 'gemini';
   if (/^gsk_/.test(trimmed)) return 'groq';
   if (/^nvapi-/i.test(trimmed)) return 'nvidia';
   if (/^sk-or-/i.test(trimmed)) return 'openrouter';

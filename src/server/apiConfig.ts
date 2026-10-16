@@ -57,7 +57,7 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
       provider = 'nvidia';
     } else if (/^sk-or-/i.test(apiKey)) {
       provider = 'openrouter';
-    } else if (/^AIza/i.test(apiKey)) {
+    } else if (/^(AIza|AQ\.)/i.test(apiKey)) {
       provider = 'gemini';
     } else if (/^sk-/i.test(apiKey)) {
       provider = 'openai';

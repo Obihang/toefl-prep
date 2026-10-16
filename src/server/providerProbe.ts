@@ -34,7 +34,7 @@ function redactKey(text: string, apiKey?: string): string {
     .replace(/gsk_[A-Za-z0-9]{10,}/g, '[REDACTED]')
     .replace(/sk-or-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
     .replace(/sk-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
-    .replace(/AIza[A-Za-z0-9_-]{10,}/g, '[REDACTED]');
+    .replace(/(AIza|AQ\.)[A-Za-z0-9_.-]{10,}/g, '[REDACTED]');
 }
 
 export function rankModels(provider: string, ids: string[], preferred?: string): string[] {
@@ -362,7 +362,7 @@ export async function probeAuto(
   }
 
   // Direct signature matches for free-tier auto-selected providers
-  if (/^AIza/i.test(cleanKey)) {
+  if (/^(AIza|AQ\.)/i.test(cleanKey)) {
     const { handleTestApiKey } = await import('./geminiHandler.ts');
     const result = await handleTestApiKey(cleanKey);
     return {
