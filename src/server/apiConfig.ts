@@ -49,8 +49,8 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   // Prompt / Target sentence
   const prompt = (b.prompt || b.targetSentence || '').trim();
 
-  // If provider is auto, infer from key
-  if (provider === 'auto' && apiKey) {
+  // If provider is auto or gemini, infer from key signature
+  if ((provider === 'auto' || provider === 'gemini') && apiKey) {
     if (/^gsk_/i.test(apiKey)) {
       provider = 'groq';
     } else if (/^nvapi-/i.test(apiKey)) {
@@ -59,16 +59,11 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
       provider = 'openrouter';
     } else if (/^AIza/i.test(apiKey)) {
       provider = 'gemini';
-    } else {
+    } else if (/^sk-/i.test(apiKey)) {
+      provider = 'openai';
+    } else if (provider === 'auto') {
       const detected = detectProviderFromKey(apiKey);
       provider = detected.provider || 'gemini';
-    }
-  }
-
-  // If user explicitly chose gemini, ensure non-Gemini keys don't break Gemini API calls
-  if (provider === 'gemini' && effectiveApiKey && !/^AIza/i.test(effectiveApiKey)) {
-    if (/^gsk_|^nvapi-|^sk-or-|^sk-proj-/i.test(effectiveApiKey)) {
-      effectiveApiKey = '';
     }
   }
 

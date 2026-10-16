@@ -1117,8 +1117,10 @@ export default function App() {
 
         {generationError && (
           (generationError.toLowerCase().includes('no api key') ||
-           generationError.toLowerCase().includes('no gemini api key') ||
-           generationError.toLowerCase().includes('add yours in dashboard')) ? (
+           generationError.toLowerCase().includes('invalid api key') ||
+           generationError.toLowerCase().includes('api key not valid') ||
+           generationError.toLowerCase().includes('add yours in dashboard') ||
+           generationError.toLowerCase().includes('settings & api key')) ? (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900 relative">
               <button
                 onClick={() => setGenerationError(null)}

@@ -3,7 +3,7 @@ import { getApiConfig } from '../src/server/apiConfig.ts';
 import { detectProviderFromKey } from '../src/utils/keyDetect.ts';
 import { probeProvider } from '../src/server/providerProbe.ts';
 import { handleTestApiKey } from '../src/server/geminiHandler.ts';
-import { extractErrorMessage } from '../src/server/geminiErrors.ts';
+import { extractErrorMessage, isKeyError } from '../src/server/geminiErrors.ts';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -64,8 +64,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const rawStatus = typeof error?.status === 'number' ? error.status : 400;
 
     let httpStatus = 400;
-    if (rawStatus === 401 || rawStatus === 402 || rawStatus === 429) {
-      httpStatus = rawStatus;
+    if (isKeyError(error) || rawStatus === 401 || rawStatus === 402 || rawStatus === 429) {
+      httpStatus = isKeyError(error) ? 401 : rawStatus;
     } else if (rawStatus >= 500 && rawStatus <= 599) {
       httpStatus = 502;
     }

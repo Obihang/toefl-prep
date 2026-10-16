@@ -109,12 +109,14 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
   // Sort descending by score
   const sorted = [...filtered].sort((a, b) => getScore(b) - getScore(a));
 
-  // Put preferred first ONLY when present in list
+  // Put preferred first when specified
   if (preferred && preferred.trim()) {
     const trimmedPref = preferred.trim();
     const prefIndex = sorted.indexOf(trimmedPref);
     if (prefIndex > -1) {
       sorted.splice(prefIndex, 1);
+      sorted.unshift(trimmedPref);
+    } else {
       sorted.unshift(trimmedPref);
     }
   }
@@ -219,12 +221,9 @@ export async function probeProvider(
   let modelNote: string | undefined = undefined;
 
   if (preferredModel && preferredModel.trim()) {
-    const res = resolveModelName(preferredModel, candidateIds);
-    if (res.model) {
-      resolvedPref = res.model;
-    } else {
-      // Not found, will be assigned top candidate later
-    }
+    const trimmed = preferredModel.trim();
+    const res = resolveModelName(trimmed, candidateIds);
+    resolvedPref = res.model || trimmed;
   }
 
   const ranked = rankModels(provider, candidateIds, resolvedPref);

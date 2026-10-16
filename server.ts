@@ -148,12 +148,14 @@ export async function createServer() {
       const result = await handleTestApiKey(config);
       return res.json(result);
     } catch (error: any) {
-      console.error('Test key error:', error);
+      if (!isKeyError(error)) {
+        console.error('Test key error:', error);
+      }
       const errMsg = extractErrorMessage(error);
       const rawStatus = typeof error?.status === 'number' ? error.status : getStatus(error);
       let httpStatus = 400;
-      if (rawStatus === 401 || rawStatus === 402 || rawStatus === 429) {
-        httpStatus = rawStatus;
+      if (isKeyError(error) || rawStatus === 401 || rawStatus === 402 || rawStatus === 429) {
+        httpStatus = isKeyError(error) ? 401 : rawStatus;
       } else if (rawStatus >= 500 && rawStatus <= 599) {
         httpStatus = 502;
       }

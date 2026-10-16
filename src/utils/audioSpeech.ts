@@ -1,7 +1,6 @@
-// Web Speech API and Web Audio utilities for TOEFL audio tasks and speaking test simulation
-import { getApiHeaders, getStoredProvider } from './apiKey';
+import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
-import { isOfflineVoiceEnabled, isOfflineVoiceDownloaded } from './offlineVoice';
+import { isOfflineVoiceEnabled, isOfflineVoiceDownloaded, generateOfflineSpeech } from './offlineVoice';
 import { inferGender } from './voices';
 
 export interface SpeechVoiceOption {
@@ -318,6 +317,12 @@ export function resetTtsQuotaBlock(): void {
   }
 }
 
+export function isTtsCircuitBreakerBlocked(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  const { blockedUntil } = getTtsQuotaData();
+  return Date.now() < blockedUntil;
+}
+
 export function getTtsUsageCount(): number {
   return parseInt(localStorage.getItem(TTS_SUCCESS_COUNT_KEY) || '0', 10);
 }
@@ -466,18 +471,23 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
 export interface PlaySpeechOptions {
   voiceName?: string;
   onEngineDetected?: (engineLabel: string) => void;
+  onStatus?: (statusLabel: string) => void;
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (err: any) => void;
+  sessionId?: number;
+  skipStop?: boolean;
 }
 
 export async function playSpeech(
   text: string,
   options: PlaySpeechOptions = {}
 ): Promise<void> {
-  stopSpeaking();
+  if (!options.skipStop) {
+    stopSpeaking();
+  }
   isAudioPlayingState = true;
-  const currentSession = ++currentDialogueSessionId;
+  const currentSession = options.sessionId ?? ++currentDialogueSessionId;
 
   const provider = getStoredProvider();
   const voiceName = options.voiceName || 'Kore';
@@ -487,109 +497,238 @@ export async function playSpeech(
     cleanText = cleanText.substring(colonIdx + 1).trim();
   }
 
-  // Step a: Cached audio in IndexedDB
-  const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
-  try {
-    const db = await dbPromise;
-    const cached = await db.get(STORE_NAME, cacheKey);
-    if (cached && cached.base64) {
-      const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
-      if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-        options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Cloud'})`);
-        options.onStart?.();
-        await playDecodedSpeech(audioBuffer, options.onEnd);
-        return;
-      }
+  const engine = getVoiceEngine();
+  const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
+  const breakerBlocked = isTtsCircuitBreakerBlocked();
+
+  // Helper 1: Try Cloud Voice
+  const tryCloud = async (): Promise<{ ok: boolean; reason?: string }> => {
+    if (!hasKey) {
+      const reason = 'No API key configured for Cloud voice.';
+      console.warn(`Cloud voice skipped: ${reason}`);
+      return { ok: false, reason };
     }
-  } catch {}
+    if (breakerBlocked) {
+      const reason = 'Cloud voice: daily limit reached.';
+      console.warn(`Cloud voice skipped: ${reason}`);
+      return { ok: false, reason };
+    }
 
-  // Step b: Provider / Gemini Voice API
-  try {
-    const fetchTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Step B Timeout')), 3000)
-    );
+    // Check IndexedDB cache first
+    const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
+    try {
+      const db = await dbPromise;
+      const cached = await db.get(STORE_NAME, cacheKey);
+      if (cached && cached.base64) {
+        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
+        if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
+          options.onStatus?.(`Voice: Cached (${cached.engine || 'Cloud'})`);
+          options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Cloud'})`);
+          options.onStart?.();
+          await playDecodedSpeech(audioBuffer, options.onEnd);
+          return { ok: true };
+        }
+      }
+    } catch {}
 
-    const fetchPromise = (async () => {
+    // Cloud fetch with 20 second timeout
+    options.onStatus?.('Generating voice...');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+
+    try {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({ text: cleanText, voiceName }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
+
       const json = await res.json();
+      if (res.status === 429) {
+        const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
+        const blockDuration = Math.min(retryAfter + 5000, 60000);
+        localStorage.setItem(TTS_BLOCKED_UNTIL_KEY, (Date.now() + blockDuration).toString());
+        const reason = 'Cloud voice: daily limit reached.';
+        console.warn(reason);
+        return { ok: false, reason };
+      }
+
       if (!res.ok || !json.success || !json.audioBase64) {
-        throw new Error(json.error || 'TTS failed');
+        const reason = json.error || 'Cloud voice synthesis failed.';
+        console.warn(`Cloud voice error: ${reason}`);
+        return { ok: false, reason };
       }
-      return json;
-    })();
 
-    const json: any = await Promise.race([fetchPromise, fetchTimeout]);
-    const engineName = provider === 'groq' ? 'Groq' : 'Gemini';
+      incrementTtsQuota();
+      const engineName = provider === 'groq' ? 'Groq' : 'Gemini';
 
-    const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/wav');
+      // Always decode and cache immediately so late results are never discarded!
+      const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/wav');
+      try {
+        const db = await dbPromise;
+        await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
+      } catch {}
 
-    // Cache in IndexedDB
-    try {
-      const db = await dbPromise;
-      await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
-    } catch {}
-
-    if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-      options.onEngineDetected?.(`Voice: ${engineName}`);
-      options.onStart?.();
-      await playDecodedSpeech(audioBuffer, options.onEnd);
-      return;
+      // If user is still on this sentence, play it!
+      if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
+        options.onStatus?.(`Voice: ${engineName}`);
+        options.onEngineDetected?.(`Voice: ${engineName}`);
+        options.onStart?.();
+        await playDecodedSpeech(audioBuffer, options.onEnd);
+        return { ok: true };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      clearTimeout(timer);
+      const isTimeout = err?.name === 'AbortError' || String(err).includes('abort');
+      const reason = isTimeout ? 'Cloud voice: request timed out after 20 seconds.' : (err?.message || 'Cloud voice unavailable.');
+      console.warn(`Cloud voice failed: ${reason}`);
+      return { ok: false, reason };
     }
-  } catch {}
+  };
 
-  // Step c: Device voice (wait up to 1.5s for voiceschanged if needed)
-  let voices = getVoices();
-  if (voices.filter((v) => v.lang.toLowerCase().startsWith('en')).length === 0) {
-    await new Promise((r) => {
-      const timer = setTimeout(r, 1500);
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          clearTimeout(timer);
-          r(null);
-        };
-      }
-    });
-    voices = getVoices();
-  }
+  // Helper 2: Try Device Voice
+  const tryDevice = async (): Promise<{ ok: boolean; reason?: string }> => {
+    let voices = getVoices();
+    if (voices.filter((v) => v.lang.toLowerCase().startsWith('en')).length === 0) {
+      await new Promise((r) => {
+        const t = setTimeout(r, 1500);
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          window.speechSynthesis.onvoiceschanged = () => {
+            clearTimeout(t);
+            r(null);
+          };
+        }
+      });
+      voices = getVoices();
+    }
 
-  const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
-  if (englishVoices.length > 0) {
+    const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+    if (englishVoices.length === 0) {
+      const reason = 'Device voice: no English voices found.';
+      console.warn(reason);
+      return { ok: false, reason };
+    }
+
     try {
       const g = inferGender(voiceName);
       const gender = g === 'male' ? 'male' : 'female';
-      const voiceObj = pickBrowserVoiceForGender(gender);
-
-      options.onEngineDetected?.('Voice: Device');
-      options.onStart?.();
-      await speakScriptLineFallback(cleanText, 1.0, voiceObj);
-      options.onEnd?.();
-      return;
-    } catch {}
-  }
-
-  // Step d: Offline voice
-  if (isOfflineVoiceEnabled() && isOfflineVoiceDownloaded()) {
-    try {
-      const { generateOfflineSpeech } = await import('./offlineVoice');
-      const offlineRes = await generateOfflineSpeech(cleanText, voiceName);
-      const { audioBuffer } = await decodeSpeech(offlineRes.audioBase64, offlineRes.mimeType);
+      const voiceObj = pickBrowserVoiceForGender(gender) || englishVoices[0];
 
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-        options.onEngineDetected?.('Voice: Offline');
+        options.onStart?.();
+        await speakScriptLineFallback(cleanText, 1.0, voiceObj);
+        options.onEnd?.();
+        return { ok: true };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      const reason = `Device voice error: ${err?.message || err}`;
+      console.warn(reason);
+      return { ok: false, reason };
+    }
+  };
+
+  // Helper 3: Try Offline Voice
+  const tryOffline = async (): Promise<{ ok: boolean; reason?: string }> => {
+    if (!isOfflineVoiceDownloaded()) {
+      const reason = 'Offline voice: model not downloaded.';
+      console.warn(reason);
+      return { ok: false, reason };
+    }
+
+    try {
+      options.onStatus?.('Generating offline voice...');
+      const { generateOfflineSpeech } = await import('./offlineVoice');
+      const offlineRes = await generateOfflineSpeech(cleanText, voiceName);
+      const ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        await ctx.resume().catch(() => {});
+      }
+      const audioBuffer = await ctx.decodeAudioData(offlineRes.arrayBuffer.slice(0));
+
+      if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
         options.onStart?.();
         await playDecodedSpeech(audioBuffer, options.onEnd);
-        return;
+        return { ok: true };
       }
-    } catch {}
+      return { ok: true };
+    } catch (err: any) {
+      const reason = `Offline voice error: ${err?.message || err}`;
+      console.warn(reason);
+      return { ok: false, reason };
+    }
+  };
+
+  // Determine execution steps based on user's voiceEngine setting
+  let stepOrder: Array<'cloud' | 'device' | 'offline'> = [];
+  if (engine === 'auto') {
+    // 'auto' (default) tries cloud (only if a key exists and breaker is not tripped),
+    // then the device voice (only if an English voice exists), then the offline voice (if downloaded)
+    if (hasKey && !breakerBlocked) {
+      stepOrder.push('cloud');
+    }
+    const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
+    if (englishCount > 0) {
+      stepOrder.push('device');
+    }
+    if (isOfflineVoiceDownloaded()) {
+      stepOrder.push('offline');
+    }
+  } else if (engine === 'cloud') {
+    stepOrder = ['cloud', 'device', 'offline'];
+  } else if (engine === 'device') {
+    stepOrder = ['device', 'offline', 'cloud'];
+  } else if (engine === 'offline') {
+    stepOrder = ['offline', 'device', 'cloud'];
+  } else {
+    stepOrder = ['cloud', 'device', 'offline'];
   }
 
-  // Step e: Text only with note
-  options.onEngineDetected?.('Voice: Text only (no speech voices found)');
+  let lastFailedReason: string | null = null;
+
+  for (let i = 0; i < stepOrder.length; i++) {
+    const step = stepOrder[i];
+    let result: { ok: boolean; reason?: string } = { ok: false };
+
+    if (step === 'cloud') {
+      result = await tryCloud();
+    } else if (step === 'device') {
+      result = await tryDevice();
+    } else if (step === 'offline') {
+      result = await tryOffline();
+    }
+
+    if (result.ok) {
+      const stepName = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline';
+      if (lastFailedReason) {
+        // Fallback occurred, show user what happened
+        const fallbackMsg = `${lastFailedReason} Played with ${stepName} voice.`;
+        options.onStatus?.(fallbackMsg);
+        options.onEngineDetected?.(fallbackMsg);
+      } else {
+        options.onStatus?.(`Voice: ${stepName}`);
+        options.onEngineDetected?.(`Voice: ${stepName}`);
+      }
+      return;
+    } else {
+      if (result.reason) {
+        lastFailedReason = result.reason;
+      }
+    }
+  }
+
+  // If no step can speak: show "no voices found" and dispatch banner
+  console.warn('All voice synthesis methods failed or unavailable.');
+  const finalMsg = lastFailedReason ? `${lastFailedReason} No speech voices found.` : 'No speech voices found.';
+  options.onStatus?.(finalMsg);
+  options.onEngineDetected?.(finalMsg);
   options.onEnd?.();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('toefl_no_voice_available'));
+  }
 }
 
 // Browser fallback speech synthesis
@@ -667,16 +806,23 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
   });
 }
 
-export type VoiceEngine = 'gemini' | 'device';
+export type VoiceEngine = 'auto' | 'cloud' | 'device' | 'offline';
 
 export function getVoiceEngine(): VoiceEngine {
+  if (typeof localStorage === 'undefined') return 'auto';
   const stored = localStorage.getItem('toefl_voice_engine');
-  if (!stored) return 'gemini';
-  return stored as VoiceEngine;
+  if (!stored) return 'auto';
+  if (stored === 'gemini') return 'cloud';
+  if (stored === 'auto' || stored === 'cloud' || stored === 'device' || stored === 'offline') {
+    return stored;
+  }
+  return 'auto';
 }
 
 export function setVoiceEngine(engine: VoiceEngine) {
-  localStorage.setItem('toefl_voice_engine', engine);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('toefl_voice_engine', engine);
+  }
 }
 
 export function getSavedBrowserVoiceName(gender: 'male' | 'female'): string {
@@ -721,7 +867,7 @@ export async function previewBrowserVoice(text: string, voiceName?: string, pitc
   await speakScriptLineFallback(text, pitch, matchedVoice);
 }
 
-// Speak single line with Studio AI voice primary and browser fallback
+// Speak single line with unified playSpeech pipeline
 export async function speakScriptLine(
   text: string,
   options: {
@@ -729,74 +875,47 @@ export async function speakScriptLine(
     pitch?: number;
     voiceName?: string;
     browserVoice?: SpeechSynthesisVoice | null;
+    onStart?: () => void;
     onEnd?: () => void;
     onError?: (err: any) => void;
+    onStatus?: (status: string) => void;
+    onEngineDetected?: (engine: string) => void;
+  } = {}
+): Promise<void> {
+  const defaultVoice = options.pitch && options.pitch < 0.95 ? 'Puck' : 'Kore';
+  const voice = options.voiceName || defaultVoice;
+  return playSpeech(text, {
+    voiceName: voice,
+    onStart: options.onStart,
+    onEnd: options.onEnd,
+    onError: options.onError,
+    onStatus: options.onStatus,
+    onEngineDetected: options.onEngineDetected,
+  });
+}
+
+// Play multi-line dialogue line by line in order using unified playSpeech pipeline
+export async function playDialogue(
+  lines: string[],
+  voiceMapping: { A: string; B: string } = { A: 'Puck', B: 'Kore' },
+  onLineChange?: (lineIndex: number) => void,
+  options: {
+    onStatus?: (status: string) => void;
+    onEnd?: () => void;
   } = {}
 ): Promise<void> {
   stopSpeaking();
   isAudioPlayingState = true;
   const currentSession = ++currentDialogueSessionId;
 
-  const defaultVoice = options.pitch && options.pitch < 0.95 ? 'Puck' : 'Kore';
-  const voice = options.voiceName || defaultVoice;
-  const gender = voice === 'Puck' ? 'male' : 'female';
-
-  // Clean any speaker prefix (e.g. "Sarah (student): " or "Interviewer: ") so it is not spoken aloud
-  let cleanText = text.trim();
-  const colonIdx = cleanText.indexOf(':');
-  if (colonIdx > 0 && colonIdx < 35) {
-    cleanText = cleanText.substring(colonIdx + 1).trim();
-  }
-
-  // 1. Try high-fidelity Studio Cloud Voice first (crisp, natural, works in iframe)
-  try {
-    const blob = await fetchAudioBlob(cleanText, voice);
-    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
-    await playAudioBlob(blob);
-    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
-    isAudioPlayingState = false;
-    options.onEnd?.();
-    return;
-  } catch (err) {
-    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
-    console.warn('Studio AI voice failed or unavailable, falling back to browser voice:', err);
-  }
-
-  // 2. Fall back to browser speech synthesis
-  if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) return;
-  try {
-    const voiceObj = options.browserVoice || pickBrowserVoiceForGender(gender);
-    await speakScriptLineFallback(cleanText, options.pitch ?? 1.0, voiceObj);
-  } catch (browserErr) {
-    console.warn('Browser speech fallback failed:', browserErr);
-    options.onError?.(browserErr);
-  } finally {
-    if (currentDialogueSessionId === currentSession) {
-      isAudioPlayingState = false;
-      options.onEnd?.();
-    }
-  }
-}
-
-// Play multi-line dialogue (Speaker A & B) with Studio AI voices
-export async function playDialogue(
-  lines: string[],
-  voiceMapping: { A: string; B: string } = { A: 'Puck', B: 'Kore' },
-  onLineChange?: (lineIndex: number) => void
-): Promise<void> {
-  stopSpeaking();
-  isAudioPlayingState = true;
-  const currentSession = ++currentDialogueSessionId;
-
   for (let i = 0; i < lines.length; i++) {
-    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break; // User stopped/restarted playback
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
 
     const rawLine = lines[i].trim();
     if (!rawLine) continue;
 
     onLineChange?.(i);
 
-    // Clean speaker prefix so it doesn't speak "Speaker A:" or "Professor Lee:"
     let cleanText = rawLine;
     let speakerLabel = '';
     const colonIdx = rawLine.indexOf(':');
@@ -819,50 +938,21 @@ export async function playDialogue(
 
     const voiceToUse = isSpeakerA ? voiceMapping.A : voiceMapping.B;
 
-    // Asynchronously pre-fetch the next line while current line is about to play
-    if (i + 1 < lines.length) {
-      const nextRaw = lines[i + 1].trim();
-      let nextClean = nextRaw;
-      let nextLabel = '';
-      const nextColon = nextRaw.indexOf(':');
-      if (nextColon > 0 && nextColon < 35) {
-        nextLabel = nextRaw.substring(0, nextColon).trim().toLowerCase();
-        nextClean = nextRaw.substring(nextColon + 1).trim();
-      } else {
-        nextClean = nextRaw.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
-      }
-      const nextIsA =
-        nextLabel.includes('a') ||
-        nextLabel.includes('professor') ||
-        nextLabel.includes('advisor') ||
-        nextLabel.includes('dr.') ||
-        nextLabel.includes('doctor') ||
-        nextLabel.includes('faculty') ||
-        nextLabel.includes('interviewer') ||
-        (!nextLabel && (i + 1) % 2 === 0);
-      const nextVoice = nextIsA ? voiceMapping.A : voiceMapping.B;
-      fetchAudioDataUri(nextClean, nextVoice).catch(() => {});
-    }
+    await playSpeech(cleanText, {
+      voiceName: voiceToUse,
+      sessionId: currentSession,
+      skipStop: true,
+      onStatus: options.onStatus,
+      onEngineDetected: options.onStatus,
+    });
 
-    try {
-      // 1. Studio Quality AI Voice (Puck for Male, Kore for Female)
-      const dataUri = await fetchAudioDataUri(cleanText, voiceToUse);
-      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
-      await playAudioDataUri(dataUri);
-      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
-      await new Promise((r) => setTimeout(r, 200));
-    } catch {
-      // 2. Fallback to Web Speech API
-      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
-      const fallbackPitch = voiceToUse === 'Kore' || voiceToUse === 'Zephyr' ? 1.15 : 0.88;
-      await speakScriptLineFallback(cleanText, fallbackPitch);
-      if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
-      await new Promise((r) => setTimeout(r, 200));
-    }
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
+    await new Promise((r) => setTimeout(r, 200));
   }
 
   if (currentDialogueSessionId === currentSession) {
     isAudioPlayingState = false;
+    options.onEnd?.();
   }
 }
 

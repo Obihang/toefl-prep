@@ -32,38 +32,62 @@ export function parseSampleRateFromMime(mimeType?: string, defaultRate = 24000):
  * Creates standard 44-byte WAV header for PCM 16-bit audio unless already RIFF
  */
 export function wrapWavHeaderIfNeeded(
-  pcmBuffer: Buffer | Uint8Array,
+  pcmBuffer: any,
   sampleRate = 24000,
   numChannels = 1,
   bitsPerSample = 16
-): Buffer {
-  const isBuffer = Buffer.isBuffer(pcmBuffer);
-  const buf = isBuffer ? (pcmBuffer as Buffer) : Buffer.from(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.byteLength);
-
-  if (isRiffWav(buf)) {
-    return buf;
+): any {
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(pcmBuffer)) {
+    if (isRiffWav(pcmBuffer)) return pcmBuffer;
+    const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+    const blockAlign = (numChannels * bitsPerSample) / 8;
+    const dataSize = pcmBuffer.length;
+    const header = Buffer.alloc(44);
+    header.write('RIFF', 0);
+    header.writeUInt32LE(header.length + dataSize - 8, 4);
+    header.write('WAVE', 8);
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16);
+    header.writeUInt16LE(1, 20); // Uncompressed PCM
+    header.writeUInt16LE(numChannels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write('data', 36);
+    header.writeUInt32LE(dataSize, 40);
+    return Buffer.concat([header, pcmBuffer]);
   }
 
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const dataSize = buf.length;
-  const header = Buffer.alloc(44);
+  const bytes = pcmBuffer instanceof Uint8Array
+    ? pcmBuffer
+    : new Uint8Array(pcmBuffer?.buffer || pcmBuffer);
 
-  header.write('RIFF', 0);
-  header.writeUInt32LE(header.length + dataSize - 8, 4);
-  header.write('WAVE', 8);
-  header.write('fmt ', 12);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20); // Uncompressed PCM
-  header.writeUInt16LE(numChannels, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(byteRate, 28);
-  header.writeUInt16LE(blockAlign, 32);
-  header.writeUInt16LE(bitsPerSample, 34);
-  header.write('data', 36);
-  header.writeUInt32LE(dataSize, 40);
+  if (isRiffWav(bytes)) {
+    return bytes;
+  }
 
-  return Buffer.concat([header, buf]);
+  const dataSize = bytes.byteLength;
+  const header = new Uint8Array(44);
+  const view = new DataView(header.buffer);
+  header[0] = 82; header[1] = 73; header[2] = 70; header[3] = 70; // RIFF
+  view.setUint32(4, 36 + dataSize, true);
+  header[8] = 87; header[9] = 65; header[10] = 86; header[11] = 69; // WAVE
+  header[12] = 102; header[13] = 109; header[14] = 116; header[15] = 32; // fmt 
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, (sampleRate * numChannels * bitsPerSample) / 8, true);
+  view.setUint16(32, (numChannels * bitsPerSample) / 8, true);
+  view.setUint16(34, bitsPerSample, true);
+  header[36] = 100; header[37] = 97; header[38] = 116; header[39] = 97; // data
+  view.setUint32(40, dataSize, true);
+
+  const out = new Uint8Array(44 + dataSize);
+  out.set(header, 0);
+  out.set(bytes, 44);
+  return out;
 }
 
 /**

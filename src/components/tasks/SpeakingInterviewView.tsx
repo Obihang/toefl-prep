@@ -795,8 +795,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
       {evalError && (
         (evalError.toLowerCase().includes('no api key') ||
-         evalError.toLowerCase().includes('no gemini api key') ||
-         evalError.toLowerCase().includes('add yours in dashboard')) ? (
+         evalError.toLowerCase().includes('invalid api key') ||
+         evalError.toLowerCase().includes('api key not valid') ||
+         evalError.toLowerCase().includes('add yours in dashboard') ||
+         evalError.toLowerCase().includes('settings & api key')) ? (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
             <div className="flex items-center gap-2 font-semibold text-sm">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />

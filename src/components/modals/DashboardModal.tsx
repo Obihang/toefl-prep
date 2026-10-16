@@ -194,8 +194,11 @@ export const DashboardModal: React.FC<Props> = ({
         const defModel = PROVIDERS[res.provider]?.defaultModel || '';
         setBaseUrlInput(defBase);
         setStoredBaseUrl(defBase);
-        setModelInput(defModel);
-        setStoredModel(defModel);
+        // Only set default model if user hasn't explicitly entered a custom model
+        if (!modelInput.trim() || modelInput === (PROVIDERS[provider]?.defaultModel || '')) {
+          setModelInput(defModel);
+          setStoredModel(defModel);
+        }
       }
       const timer = setTimeout(() => {
         autoTestedKeyRef.current = apiKeyInput.trim();
@@ -203,7 +206,7 @@ export const DashboardModal: React.FC<Props> = ({
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [apiKeyInput, provider, isOpen]);
+  }, [apiKeyInput, provider, isOpen, modelInput]);
 
   const handleProviderSelect = (newProvider: ApiProvider) => {
     setProvider(newProvider);
@@ -275,7 +278,7 @@ export const DashboardModal: React.FC<Props> = ({
       }
 
       const resolvedProvider = (json.provider || provider) as ApiProvider;
-      const resolvedModel = json.model || modelInput;
+      const resolvedModel = (!auto && modelInput.trim()) ? modelInput.trim() : (json.model || modelInput);
       const defBase = PROVIDERS[resolvedProvider]?.defaultBaseUrl || '';
 
       setProvider(resolvedProvider);
@@ -1067,8 +1070,8 @@ export const DashboardModal: React.FC<Props> = ({
                           <BookOpen className="w-3.5 h-3.5 text-teal-700" />
                           <span>Question Generator</span>
                         </div>
-                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate" title={testKeyResult?.model || (modelInput.trim() || activePurposeModels?.generation)}>
-                          {testKeyResult?.model || (modelInput.trim() || activePurposeModels?.generation || 'Auto-Optimized')}
+                        <div className="text-[11px] font-mono text-teal-900 font-semibold truncate" title={modelInput.trim() || testKeyResult?.model || activePurposeModels?.generation}>
+                          {modelInput.trim() || testKeyResult?.model || activePurposeModels?.generation || 'Auto-Optimized'}
                         </div>
                         <p className="text-[10px] text-slate-400">Authentic ETS passage generation</p>
                       </div>
@@ -1079,8 +1082,8 @@ export const DashboardModal: React.FC<Props> = ({
                           <Target className="w-3.5 h-3.5 text-indigo-700" />
                           <span>Rubric Scoring</span>
                         </div>
-                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate" title={testKeyResult?.model || (modelInput.trim() || activePurposeModels?.evaluation)}>
-                          {testKeyResult?.model || (modelInput.trim() || activePurposeModels?.evaluation || 'High-Precision Evaluator')}
+                        <div className="text-[11px] font-mono text-indigo-900 font-semibold truncate" title={modelInput.trim() || testKeyResult?.model || activePurposeModels?.evaluation}>
+                          {modelInput.trim() || testKeyResult?.model || activePurposeModels?.evaluation || 'High-Precision Evaluator'}
                         </div>
                         <p className="text-[10px] text-slate-400">ETS 1.0–6.0 Bands &amp; CEFR diagnosis</p>
                       </div>
@@ -1272,17 +1275,23 @@ export const DashboardModal: React.FC<Props> = ({
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-semibold text-slate-700">Custom Model Name Override</label>
+                          <label className="text-xs font-semibold text-slate-700">Custom Model Override (Optional)</label>
                           <input
                             type="text"
                             value={modelInput}
                             onChange={(e) => {
-                              setModelInput(e.target.value);
+                              const val = e.target.value;
+                              setModelInput(val);
+                              setStoredModel(val);
                               setApiKeySaved(false);
+                              setTestKeyResult(null);
                             }}
-                            placeholder="Auto-routed by purpose"
+                            placeholder="Leave blank for automatic model selection"
                             className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden font-mono"
                           />
+                          <p className="text-[10px] text-slate-400">
+                            Leave blank for automatic purpose routing — the applet chooses the ideal model for questions, evaluation, and speech.
+                          </p>
                         </div>
                       </div>
                     </div>

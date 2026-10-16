@@ -31,14 +31,14 @@ export async function generateWithFallback<T>(
         const errMsg = String(err?.message || err);
         const isQuota = isQuotaExhaustedError(err);
         
+        if (isKeyError(err)) {
+          throw err;
+        }
+
         if (isQuota) {
           console.warn(`Model ${model} quota exhausted (${attempts}/2): switching to next candidate.`);
         } else {
           console.warn(`Model ${model} attempt ${attempts} failed:`, errMsg.slice(0, 200));
-        }
-
-        if (isKeyError(err)) {
-          throw err;
         }
 
         if (isQuota) {

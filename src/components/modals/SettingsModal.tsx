@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Target, Calendar, CheckCircle2, User, MousePointer, Mic, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, playSpeech, getVoices, getTtsUsageCount } from '../../utils/audioSpeech';
-import { getStoredVoiceKey, setStoredVoiceKey } from '../../utils/apiKey';
-import { isOfflineVoiceDownloaded, downloadOfflineVoice, removeOfflineVoice } from '../../utils/offlineVoice';
+import { getStoredMicDeviceId, setStoredMicDeviceId, getAudioInputDevices, getVoiceEngine, setVoiceEngine, VoiceEngine, speakScriptLine, playSpeech, getVoices, getTtsUsageCount, isTtsCircuitBreakerBlocked, decodeSpeech, playDecodedSpeech } from '../../utils/audioSpeech';
+import { getStoredApiKey, getStoredVoiceKey, setStoredVoiceKey, getApiHeaders } from '../../utils/apiKey';
+import { isOfflineVoiceDownloaded, isOfflineVoiceEnabled, getOfflineVoiceLastError, downloadOfflineVoice, removeOfflineVoice, testOfflineVoice } from '../../utils/offlineVoice';
 import { getQuestionCountsPerSection } from '../../utils/sharedQuestions';
 
 interface Props {
@@ -24,12 +24,16 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
   const [nameError, setNameError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [randomizeVoices, setRandomizeVoices] = useState(true);
-  const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>('device');
+  const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>('auto');
 
   const [voiceKeyInput, setVoiceKeyInput] = useState('');
   const [isOfflineDownloaded, setIsOfflineDownloaded] = useState(false);
   const [isDownloadingOffline, setIsDownloadingOffline] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const [cloudTestStatus, setCloudTestStatus] = useState<{ testing: boolean; result?: string; error?: string } | null>(null);
+  const [deviceTestStatus, setDeviceTestStatus] = useState<{ testing: boolean; result?: string; error?: string } | null>(null);
+  const [offlineTestStatus, setOfflineTestStatus] = useState<{ testing: boolean; result?: string; error?: string } | null>(null);
 
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [testSecondsLeft, setTestSecondsLeft] = useState(3);
@@ -386,28 +390,70 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          {/* Voice Engine & Optional Separate Voice Key */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
-              <span className="flex items-center gap-2">
+          {/* Voice Engine & Speech Settings */}
+          <div className="space-y-4 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                 <Mic className="w-4 h-4 text-teal-700" />
                 Voice Engine &amp; Speech Settings
+              </label>
+              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                Mode: {voiceEngine}
               </span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
+            </div>
+
+            {/* 4 Engine Modes */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
-                onClick={() => { setVoiceEngineState('gemini'); setVoiceEngine('gemini'); }}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'gemini' ? 'bg-teal-50 border-teal-600 text-teal-900 ring-2 ring-teal-600/20 font-bold' : 'bg-white border-slate-300 text-slate-700'}`}
+                onClick={() => { setVoiceEngineState('auto'); setVoiceEngine('auto'); }}
+                className={`p-2.5 text-xs rounded-lg border text-left transition-all ${
+                  voiceEngine === 'auto'
+                    ? 'bg-teal-50 border-teal-600 text-teal-900 ring-2 ring-teal-600/20 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                Studio AI Voice (Recommended)
+                <div className="font-semibold">Auto (Default)</div>
+                <div className="text-[10px] text-slate-500 font-normal">Cloud → Device → Offline</div>
               </button>
+
+              <button
+                type="button"
+                onClick={() => { setVoiceEngineState('cloud'); setVoiceEngine('cloud'); }}
+                className={`p-2.5 text-xs rounded-lg border text-left transition-all ${
+                  voiceEngine === 'cloud'
+                    ? 'bg-teal-50 border-teal-600 text-teal-900 ring-2 ring-teal-600/20 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="font-semibold">Cloud Voice</div>
+                <div className="text-[10px] text-slate-500 font-normal">Studio AI Voice</div>
+              </button>
+
               <button
                 type="button"
                 onClick={() => { setVoiceEngineState('device'); setVoiceEngine('device'); }}
-                className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-all ${voiceEngine === 'device' ? 'bg-teal-50 border-teal-600 text-teal-900' : 'bg-white border-slate-300 text-slate-700'}`}
+                className={`p-2.5 text-xs rounded-lg border text-left transition-all ${
+                  voiceEngine === 'device'
+                    ? 'bg-teal-50 border-teal-600 text-teal-900 ring-2 ring-teal-600/20 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
               >
-                Browser Device Voice (Offline)
+                <div className="font-semibold">Device Voice</div>
+                <div className="text-[10px] text-slate-500 font-normal">Browser Speech</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setVoiceEngineState('offline'); setVoiceEngine('offline'); }}
+                className={`p-2.5 text-xs rounded-lg border text-left transition-all ${
+                  voiceEngine === 'offline'
+                    ? 'bg-teal-50 border-teal-600 text-teal-900 ring-2 ring-teal-600/20 font-bold'
+                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="font-semibold">Offline Neural</div>
+                <div className="text-[10px] text-slate-500 font-normal">Kokoro ONNX (~90MB)</div>
               </button>
             </div>
 
@@ -415,7 +461,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-800">
-                  Voice key (optional, free Gemini key)
+                  Voice key (optional dedicated key for audio)
                 </label>
                 <span className="text-[11px] text-teal-800 font-mono bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                   Calls today: {getTtsUsageCount()}
@@ -428,7 +474,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   setVoiceKeyInput(e.target.value);
                   setStoredVoiceKey(e.target.value);
                 }}
-                placeholder="AIzaSy... (Dedicated Gemini API key for audio)"
+                placeholder="AIzaSy... or sk-... (Dedicated key for audio)"
                 className="w-full text-xs border border-slate-300 rounded px-2.5 py-1.5 bg-white focus:border-teal-600 outline-hidden font-mono"
               />
               <p className="text-[11px] text-slate-500">
@@ -436,11 +482,11 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
               </p>
             </div>
 
-            {/* Opt-in Offline Voice */}
+            {/* Offline Voice Download / Model Management */}
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-800">
-                  Offline voice (one-time download, about 90 MB)
+                  Offline neural voice (one-time download, about 90 MB)
                 </label>
                 {isOfflineDownloaded && (
                   <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
@@ -449,7 +495,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 )}
               </div>
               <p className="text-[11px] text-slate-500">
-                High-quality offline ONNX neural voice for browsers without built-in speech synthesis.
+                Runs Kokoro-82M (q8; WebGPU / WASM) in a Web Worker so speech synthesis works completely offline without freezing.
               </p>
               {typeof navigator !== 'undefined' && (navigator as any).connection?.type === 'cellular' && (
                 <p className="text-[11px] text-amber-700 font-medium">
@@ -475,7 +521,7 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     await removeOfflineVoice();
                     setIsOfflineDownloaded(false);
                   }}
-                  className="px-3 py-1 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100 transition"
+                  className="px-3 py-1 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100 transition cursor-pointer"
                 >
                   Remove Offline Voice
                 </button>
@@ -501,20 +547,146 @@ export const SettingsModal: React.FC<Props> = ({ isOpen, onClose }) => {
               )}
             </div>
 
-            {isOfflineDownloaded ? (
-              <p className="text-xs text-emerald-700 font-medium">✨ Offline neural voice active and ready (Kokoro ONNX engine).</p>
-            ) : voiceEngine === 'device' && getVoices().filter(v => v.lang.startsWith('en')).length === 0 ? (
-              <p className="text-xs text-rose-600">No English speech voices found on this device. Download the offline voice or use Studio AI Voice.</p>
-            ) : null}
-            <button
-              type="button"
-              onClick={async () => {
-                await playSpeech("This is a test of the TOEFL Prep Studio voice engine.");
-              }}
-              className="mt-2 w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
-            >
-              Test Voice Audio
-            </button>
+            {/* Voice Diagnostics: One row per engine */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Voice Diagnostics
+                </span>
+                <span className="text-[10px] text-slate-500">Live Engine Health</span>
+              </div>
+
+              {/* Row 1: Cloud Voice */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <strong className="text-slate-900 font-semibold block">Cloud Engine (Studio AI Voice)</strong>
+                    <span className="text-[11px] text-slate-500">
+                      {getStoredApiKey() || getStoredVoiceKey() ? 'API Key configured' : 'No API key set'} · Daily quota: {getTtsUsageCount()} calls · {isTtsCircuitBreakerBlocked() ? 'Breaker tripped' : 'Breaker normal'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={cloudTestStatus?.testing}
+                    onClick={async () => {
+                      setCloudTestStatus({ testing: true });
+                      try {
+                        const res = await fetch('/api/tts', {
+                          method: 'POST',
+                          headers: getApiHeaders(),
+                          body: JSON.stringify({ text: 'Cloud voice synthesis test.', voiceName: 'Kore' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok || !data.success || !data.audioBase64) {
+                          throw new Error(data.error || 'Failed to synthesize cloud voice');
+                        }
+                        const { audioBuffer } = await decodeSpeech(data.audioBase64, data.mimeType || 'audio/wav');
+                        await playDecodedSpeech(audioBuffer);
+                        setCloudTestStatus({ testing: false, result: 'Cloud voice played successfully.' });
+                      } catch (err: any) {
+                        setCloudTestStatus({ testing: false, error: err?.message || String(err) });
+                      }
+                    }}
+                    className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    {cloudTestStatus?.testing ? 'Testing...' : 'Test Cloud Voice'}
+                  </button>
+                </div>
+                {cloudTestStatus?.result && (
+                  <p className="text-[11px] text-emerald-700 font-medium">✓ {cloudTestStatus.result}</p>
+                )}
+                {cloudTestStatus?.error && (
+                  <p className="text-[11px] text-rose-600 font-mono">Error: {cloudTestStatus.error}</p>
+                )}
+              </div>
+
+              {/* Row 2: Device Voice */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <strong className="text-slate-900 font-semibold block">Device Engine (Browser SpeechSynthesis)</strong>
+                    <span className="text-[11px] text-slate-500">
+                      {getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length} English voices found ({getVoices().length} total system voices)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={deviceTestStatus?.testing}
+                    onClick={async () => {
+                      setDeviceTestStatus({ testing: true });
+                      try {
+                        const englishVoices = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en'));
+                        if (englishVoices.length === 0) {
+                          throw new Error('No English voices found in browser speech synthesis.');
+                        }
+                        const voiceObj = englishVoices[0];
+                        const utt = new SpeechSynthesisUtterance('This is a test of browser device speech synthesis.');
+                        utt.voice = voiceObj;
+                        utt.lang = 'en-US';
+                        await new Promise<void>((resolve, reject) => {
+                          utt.onend = () => resolve();
+                          utt.onerror = (e) => reject(new Error(e.error || 'Device speech error'));
+                          window.speechSynthesis.cancel();
+                          window.speechSynthesis.speak(utt);
+                        });
+                        setDeviceTestStatus({ testing: false, result: `Device voice (${voiceObj.name}) played successfully.` });
+                      } catch (err: any) {
+                        setDeviceTestStatus({ testing: false, error: err?.message || String(err) });
+                      }
+                    }}
+                    className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    {deviceTestStatus?.testing ? 'Testing...' : 'Test Device Voice'}
+                  </button>
+                </div>
+                {deviceTestStatus?.result && (
+                  <p className="text-[11px] text-emerald-700 font-medium">✓ {deviceTestStatus.result}</p>
+                )}
+                {deviceTestStatus?.error && (
+                  <p className="text-[11px] text-rose-600 font-mono">Error: {deviceTestStatus.error}</p>
+                )}
+              </div>
+
+              {/* Row 3: Offline Voice */}
+              <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <strong className="text-slate-900 font-semibold block">Offline Engine (Kokoro Neural Voice)</strong>
+                    <span className="text-[11px] text-slate-500">
+                      Downloaded: {isOfflineDownloaded ? 'Yes' : 'No'} · Enabled: {isOfflineVoiceEnabled() ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={offlineTestStatus?.testing}
+                    onClick={async () => {
+                      setOfflineTestStatus({ testing: true });
+                      try {
+                        const res = await testOfflineVoice();
+                        if (res.success) {
+                          setOfflineTestStatus({ testing: false, result: res.message });
+                        } else {
+                          setOfflineTestStatus({ testing: false, error: res.message });
+                        }
+                      } catch (err: any) {
+                        setOfflineTestStatus({ testing: false, error: err?.message || String(err) });
+                      }
+                    }}
+                    className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    {offlineTestStatus?.testing ? 'Testing...' : 'Test Offline Voice'}
+                  </button>
+                </div>
+                {offlineTestStatus?.result && (
+                  <p className="text-[11px] text-emerald-700 font-medium">✓ {offlineTestStatus.result}</p>
+                )}
+                {(offlineTestStatus?.error || (!offlineTestStatus?.result && getOfflineVoiceLastError())) && (
+                  <p className="text-[11px] text-rose-600 font-mono">
+                    Last error: {offlineTestStatus?.error || getOfflineVoiceLastError()}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Database Questions Stats */}
