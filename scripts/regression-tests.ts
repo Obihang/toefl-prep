@@ -1,5 +1,6 @@
 import { getSectionForTaskType, TASK_SECTION_MAP } from '../src/types/taskTypes';
 import { redactKey } from '../src/server/geminiErrors';
+import { normalizeTask } from '../src/server/geminiHandler';
 
 function runRegressionTests() {
   console.log('Running Master Regression Test Suite...');
@@ -41,6 +42,54 @@ function runRegressionTests() {
     throw new Error('Key redaction did not insert [REDACTED]');
   }
   console.log('PASS: All secrets completely redacted from log strings.');
+
+  // 3. Exact Question Validation & Strict Normalizer Tests
+  console.log('Test 3: Exact Question Validation & Error Rejections');
+
+  // Reading: must have exactly 3 questions, each with 4 options and valid answer (0-3)
+  let threw = false;
+  try {
+    normalizeTask('reading-passage', {
+      title: 'Test',
+      passage: 'This is a long enough academic passage for testing reading validation rules correctly.',
+      questions: [
+        { q: 'Q1', options: ['A', 'B', 'C', 'D'], answer: 0, why: 'Ok' },
+        { q: 'Q2', options: ['A', 'B', 'C', 'D'], answer: 1, why: 'Ok' }
+        // Insufficient questions (2 instead of 3)
+      ],
+    });
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error('FAIL: Reading passage with 2 questions should be rejected');
+
+  // Reading: invalid answer index (5)
+  threw = false;
+  try {
+    normalizeTask('reading-passage', {
+      title: 'Test',
+      passage: 'This is a long enough academic passage for testing reading validation rules correctly.',
+      questions: [
+        { q: 'Q1', options: ['A', 'B', 'C', 'D'], answer: 5, why: 'Ok' },
+        { q: 'Q2', options: ['A', 'B', 'C', 'D'], answer: 1, why: 'Ok' },
+        { q: 'Q3', options: ['A', 'B', 'C', 'D'], answer: 2, why: 'Ok' },
+      ],
+    });
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error('FAIL: Reading passage with invalid answer index (5) should be rejected');
+
+  // Unknown task type rejection
+  threw = false;
+  try {
+    normalizeTask('unknown-task-type', { title: 'Test' });
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error('FAIL: Unknown task type should be explicitly rejected');
+
+  console.log('PASS: Exact question validation and error rejections verified successfully.');
 
   console.log('All regression tests passed successfully!');
 }

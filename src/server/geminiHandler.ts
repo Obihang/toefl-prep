@@ -206,12 +206,17 @@ function normalizeAcademicDiscussion(data: any) {
 
 function normalizeCompleteWords(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
-  const title = String(data.title || 'Complete the Words');
-  const text = String(data.text || data.passage || '');
-  if (!text || !text.includes('[[')) {
-    throw new Error('AI response missing [[masked]] word blanks in text');
+  const title = String(data.title || '').trim();
+  if (!title) throw new Error('Complete the Words missing title');
+  const text = String(data.text || '').trim();
+  if (!text || !text.includes('[[') || !text.includes(']]')) {
+    throw new Error('AI response missing valid [[masked]] word blanks in text');
   }
-  const totalBlanks = Number(data.totalBlanks || (text.match(/\[\[/g) || []).length || 5);
+  const blankMatches = text.match(/\[\[/g) || [];
+  const totalBlanks = Number(data.totalBlanks);
+  if (isNaN(totalBlanks) || totalBlanks <= 0 || totalBlanks !== blankMatches.length) {
+    throw new Error(`Complete the Words totalBlanks (${totalBlanks}) does not match actual blank count (${blankMatches.length})`);
+  }
   return { title, text, totalBlanks };
 }
 
@@ -338,29 +343,38 @@ function normalizeListenRepeat(data: any) {
 
 function normalizeSpeakingInterview(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
-  const title = String(data.title || 'Speaking Interview Practice');
-  const context = String(data.context || 'University interview simulation.');
-  const interviewerName = String(data.interviewerName || 'Professor Lee');
+  const title = String(data.title || '').trim();
+  if (!title) throw new Error('Speaking Interview missing title');
+  const context = String(data.context || '').trim();
+  if (!context) throw new Error('Speaking Interview missing context');
+  const interviewerName = String(data.interviewerName || '').trim();
+  if (!interviewerName) throw new Error('Speaking Interview missing interviewerName');
   const interviewerGender = String(data.interviewerGender || inferGender(interviewerName));
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
   if (rawQs.length !== 4) {
     throw new Error(`Speaking interview requires exactly 4 questions (received ${rawQs.length})`);
   }
   const questions = rawQs.map((q: any, idx: number) => {
-    const qText = String(typeof q === 'string' ? q : (q.question || q.prompt || '')).trim();
+    if (!q || typeof q !== 'object') throw new Error(`Interview question ${idx + 1} is invalid`);
+    const qText = String(q.question || q.prompt || '').trim();
     if (!qText) throw new Error(`Interview question ${idx + 1} missing text`);
-    const prepTime = Number(q.prepTimeSeconds || 20);
-    const respTime = Number(q.responseTimeSeconds || 45);
-    if (prepTime <= 0 || respTime <= 0) {
-      throw new Error(`Interview question ${idx + 1} has invalid timer values`);
+    const prepTime = Number(q.prepTimeSeconds);
+    const respTime = Number(q.responseTimeSeconds);
+    if (isNaN(prepTime) || prepTime < 5 || prepTime > 90) {
+      throw new Error(`Interview question ${idx + 1} has invalid prepTimeSeconds (${q.prepTimeSeconds}), must be between 5 and 90`);
+    }
+    if (isNaN(respTime) || respTime < 10 || respTime > 300) {
+      throw new Error(`Interview question ${idx + 1} has invalid responseTimeSeconds (${q.responseTimeSeconds}), must be between 10 and 300`);
+    }
+    const suggestedPoints = Array.isArray(q.suggestedPoints) ? q.suggestedPoints.map(String).filter(Boolean) : [];
+    if (suggestedPoints.length === 0) {
+      throw new Error(`Interview question ${idx + 1} missing suggestedPoints`);
     }
     return {
       question: qText,
       prepTimeSeconds: prepTime,
       responseTimeSeconds: respTime,
-      suggestedPoints: Array.isArray(q.suggestedPoints) && q.suggestedPoints.length > 0
-        ? q.suggestedPoints.map(String)
-        : ['State your main viewpoint clearly', 'Provide a concrete personal or academic example', 'Summarize the significance'],
+      suggestedPoints,
     };
   });
   return { title, context, interviewerName, interviewerGender, questions };
@@ -368,39 +382,57 @@ function normalizeSpeakingInterview(data: any) {
 
 function normalizeBuildSentence(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
-  const title = String(data.title || 'Build a Sentence Practice');
+  const title = String(data.title || '').trim();
+  if (!title) throw new Error('Build a Sentence missing title');
   const rawItems = Array.isArray(data.items) ? data.items : [];
-  if (rawItems.length === 0) throw new Error('AI response missing build-sentence items array');
-  const items = rawItems.slice(0, 5).map((it: any, idx: number) => {
+  if (rawItems.length !== 5) {
+    throw new Error(`Build a sentence requires exactly 5 items (received ${rawItems.length})`);
+  }
+  const items = rawItems.map((it: any, idx: number) => {
+    if (!it || typeof it !== 'object') throw new Error(`Build sentence item ${idx + 1} is invalid`);
+    const context = String(it.context || '').trim();
+    if (!context) throw new Error(`Build sentence item ${idx + 1} missing context`);
     const words = Array.isArray(it.words) ? it.words.map(String).filter(Boolean) : [];
-    const answer = String(it.answer || '').trim();
-    if (words.length < 2 || !answer) {
-      throw new Error(`Build sentence item ${idx + 1} missing words or answer`);
+    if (words.length < 2) {
+      throw new Error(`Build sentence item ${idx + 1} must have at least 2 words`);
     }
-    return {
-      context: String(it.context || 'Order the words:'),
-      words,
-      answer,
-      explanation: String(it.explanation || 'Grammar rule.'),
-    };
+    const answer = String(it.answer || '').trim();
+    if (!answer) {
+      throw new Error(`Build sentence item ${idx + 1} missing correct sentence answer`);
+    }
+    const explanation = String(it.explanation || '').trim();
+    if (!explanation) {
+      throw new Error(`Build sentence item ${idx + 1} missing explanation`);
+    }
+    return { context, words, answer, explanation };
   });
   return { title, items };
 }
 
 function normalizeWriteEmail(data: any) {
-  const title = String(data.title || 'Write an Email');
-  const situation = String(data.situation || data.context || 'You need to contact your academic department regarding course enrollment.');
-  const recipient = String(data.recipient || 'Academic Advisor');
-  const goals = Array.isArray(data.goals) && data.goals.length > 0 ? data.goals.map(String) : [
-    'Explain the scheduling conflict with your required course',
-    'Inquire about alternative seminar sections or prerequisite waivers',
-    'Request an appointment during office hours to discuss graduation requirements',
-  ];
-  const suggestedWordCount = String(data.suggestedWordCount || '80-120 words');
+  if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
+  const title = String(data.title || '').trim();
+  if (!title) throw new Error('Write an Email missing title');
+  const situation = String(data.situation || '').trim();
+  if (!situation || situation.length < 15) {
+    throw new Error('Write an Email missing valid situation description');
+  }
+  const recipient = String(data.recipient || '').trim();
+  if (!recipient) {
+    throw new Error('Write an Email missing recipient');
+  }
+  const goals = Array.isArray(data.goals) ? data.goals.map(String).filter(Boolean) : [];
+  if (goals.length === 0) {
+    throw new Error('Write an Email must have at least 1 goal');
+  }
+  const suggestedWordCount = String(data.suggestedWordCount || '').trim();
+  if (!suggestedWordCount) {
+    throw new Error('Write an Email missing suggestedWordCount');
+  }
   return { title, situation, recipient, goals, suggestedWordCount };
 }
 
-function normalizeTask(taskType: string, data: any): any {
+export function normalizeTask(taskType: string, data: any): any {
   if (!data || typeof data !== 'object') {
     throw new Error('Parsed data is not an object');
   }
@@ -548,7 +580,10 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     'academic-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
   };
 
-  const schemaKey = taskMap[taskType] || 'academicDiscussion';
+  const schemaKey = taskMap[taskType];
+  if (!schemaKey) {
+    throw new Error(`Unknown task type: ${taskType}`);
+  }
   const schema = Schemas[schemaKey as keyof typeof Schemas];
 
   const getPrompt = (tType: string, lvl: string, top: string) => {
