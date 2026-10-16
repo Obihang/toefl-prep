@@ -528,7 +528,7 @@ export default function App() {
 
   // New sequential prefetch loop
   const inFlightLock = React.useRef(false);
-  const [prefetchProgress, setPrefetchProgress] = useState({ round: 1 as 1 | 'done', filled: 0, total: 8 });
+  const [prefetchProgress, setPrefetchProgress] = useState({ done: false, filled: 0, total: 8 });
   useEffect(() => {
     const el = sectionBarRef.current;
     if (!el) return;
@@ -1101,12 +1101,12 @@ export default function App() {
                     : 'Generate New with AI'}
                 </span>
               </button>
-              {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.round !== 'done' && (
+              {Boolean(getStoredApiKey().trim()) && enablePrefetching && !prefetchProgress.done && (
                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
                   Preparing questions ({prefetchProgress.filled}/8 ready)
                 </span>
               )}
-              {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.round === 'done' && (
+              {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.done && (
                 <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">
                   Questions ready
                 </span>
