@@ -32,7 +32,7 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     id: 'groq',
     name: 'Groq',
     defaultBaseUrl: 'https://api.groq.com/openai/v1',
-    defaultModel: 'llama-3.3-70b-versatile',
+    defaultModel: '',
     placeholderKey: 'gsk_...',
     keyHelpUrl: 'https://console.groq.com/keys',
     helpText: 'Ultra-fast LPU inference (Llama 3.3 70B) & Whisper Large v3 for speech.',
@@ -41,7 +41,7 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     id: 'nvidia',
     name: 'NVIDIA NIM',
     defaultBaseUrl: 'https://integrate.api.nvidia.com/v1',
-    defaultModel: 'meta/llama-3.3-70b-instruct',
+    defaultModel: '',
     placeholderKey: 'nvapi-...',
     keyHelpUrl: 'https://build.nvidia.com',
     helpText: 'Hardware-accelerated NVIDIA NIM with Llama 3.3 70B Instruct.',
@@ -50,7 +50,7 @@ export const PROVIDERS: Record<ApiProvider, ProviderConfig> = {
     id: 'openrouter',
     name: 'OpenRouter',
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
-    defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
+    defaultModel: '',
     placeholderKey: 'sk-or-v1-...',
     keyHelpUrl: 'https://openrouter.ai/keys',
     helpText: 'Universal access across top open-source models with automatic free routing.',
@@ -216,11 +216,34 @@ export function setStoredModel(model: string): void {
   localStorage.setItem(`toefl_model_${provider}`, model.trim());
 }
 
+export interface StoredRoles {
+  chat?: string;
+  stt?: string;
+  tts?: string;
+}
+
+export function getStoredRoles(provider?: string): StoredRoles | null {
+  const p = provider || getStoredProvider();
+  const raw = localStorage.getItem(`toefl_roles_${p}`);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredRoles(provider: string, roles: StoredRoles): void {
+  if (!provider) return;
+  localStorage.setItem(`toefl_roles_${provider}`, JSON.stringify(roles));
+}
+
 export function getApiHeaders(): Record<string, string> {
   const provider = getStoredProvider();
   const key = getStoredApiKey();
   const baseUrl = getStoredBaseUrl();
   const model = getStoredModel();
+  const roles = getStoredRoles(provider);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -241,6 +264,14 @@ export function getApiHeaders(): Record<string, string> {
 
   if (model && model !== 'Auto-Routed by Purpose' && model !== 'Auto-Optimized') {
     headers['x-api-model'] = model;
+  }
+
+  if (roles?.stt) {
+    headers['x-api-model-stt'] = roles.stt;
+  }
+
+  if (roles?.tts) {
+    headers['x-api-model-tts'] = roles.tts;
   }
 
   return headers;

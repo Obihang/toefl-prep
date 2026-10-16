@@ -24,21 +24,17 @@ export function resolveProviderDefaults(
   switch (provider.toLowerCase()) {
     case 'nvidia':
       resolvedBaseUrl = resolvedBaseUrl || 'https://integrate.api.nvidia.com/v1';
-      resolvedModel = resolvedModel || 'meta/llama-3.3-70b-instruct';
+      resolvedModel = resolvedModel || '';
       break;
 
     case 'groq':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.groq.com/openai/v1';
-      if (purpose === 'transcription') {
-        resolvedModel = resolvedModel || 'whisper-large-v3';
-      } else {
-        resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
-      }
+      resolvedModel = resolvedModel || '';
       break;
 
     case 'openrouter':
       resolvedBaseUrl = resolvedBaseUrl || 'https://openrouter.ai/api/v1';
-      resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
+      resolvedModel = resolvedModel || '';
       break;
 
     case 'openai':
@@ -226,8 +222,9 @@ export async function callWhisperTranscription(options: {
   apiKey: string;
   audioBase64: string;
   mimeType?: string;
+  sttModel?: string;
 }): Promise<{ transcript: string; modelUsed: string }> {
-  const { provider, apiKey, audioBase64, mimeType = 'audio/webm' } = options;
+  const { provider, apiKey, audioBase64, mimeType = 'audio/webm', sttModel } = options;
   if (!apiKey || !apiKey.trim()) {
     throw new Error(`${provider.toUpperCase()} API key missing for transcription`);
   }
@@ -236,7 +233,19 @@ export async function callWhisperTranscription(options: {
     ? 'https://api.groq.com/openai/v1/audio/transcriptions'
     : 'https://api.openai.com/v1/audio/transcriptions';
 
-  const model = provider === 'groq' ? 'whisper-large-v3' : 'whisper-1';
+  let model = (sttModel || '').trim();
+  if (!model && provider === 'groq') {
+    try {
+      const { getRoleModels } = await import('./modelRoles.ts');
+      const roles = await getRoleModels('groq', apiKey);
+      model = roles.stt[0] || 'whisper-large-v3-turbo';
+    } catch {
+      model = 'whisper-large-v3-turbo';
+    }
+  }
+  if (!model) {
+    model = provider === 'groq' ? 'whisper-large-v3-turbo' : 'whisper-1';
+  }
 
   const buffer = Buffer.from(audioBase64, 'base64');
   const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'm4a' : mimeType.includes('wav') ? 'wav' : 'mp3';

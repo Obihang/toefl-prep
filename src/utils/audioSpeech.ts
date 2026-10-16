@@ -340,8 +340,11 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
       currentUtt = utt;
       activeUtterances.add(utt);
       utt.lang = 'en-US';
-      utt.rate = 0.95;
-      utt.pitch = pitch;
+
+      // Firefox speech engines distort if pitch/rate are modified
+      const isFirefox = typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent);
+      utt.rate = isFirefox ? 1.0 : 0.95;
+      utt.pitch = isFirefox ? 1.0 : pitch;
 
       if (browserVoice) {
         const availableVoices = window.speechSynthesis.getVoices();

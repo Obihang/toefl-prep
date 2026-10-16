@@ -1,5 +1,6 @@
 import { DEFAULT_PURPOSE_MODELS } from '../utils/keyDetect.ts';
 import type { PurposeModels } from '../utils/keyDetect.ts';
+import { resolveModelName, classifyAudioModels } from './modelRoles.ts';
 
 export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Google Gemini',
@@ -20,7 +21,7 @@ export const PROBE_BASE_URLS: Record<string, string> = {
   xai: 'https://api.x.ai/v1',
 };
 
-const DROP_PATTERN = /embed|whisper|tts|speech|guard|moderat|rerank|vision|image|audio|transcri|safety|ocr|parse|clip|diffusion|stable|flux|\bvl\b|-vl-|reward|retriev/i;
+const DROP_PATTERN = /embed|whisper|tts|speech|guard|moderat|rerank|vision|image|audio|transcri|safety|ocr|parse|clip|diffusion|stable|flux|\bvl\b|-vl-|reward|retriev|orpheus|playai/i;
 const REASONING_PATTERN = /r1\b|reason|thinking|qwq|o1|o3/i;
 
 function redactKey(text: string, apiKey?: string): string {
@@ -108,14 +109,14 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
   // Sort descending by score
   const sorted = [...filtered].sort((a, b) => getScore(b) - getScore(a));
 
-  // Put preferred first when present or add it to top
+  // Put preferred first ONLY when present in list
   if (preferred && preferred.trim()) {
     const trimmedPref = preferred.trim();
     const prefIndex = sorted.indexOf(trimmedPref);
     if (prefIndex > -1) {
       sorted.splice(prefIndex, 1);
+      sorted.unshift(trimmedPref);
     }
-    sorted.unshift(trimmedPref);
   }
 
   return sorted;
@@ -132,6 +133,8 @@ export async function probeProvider(
   model: string;
   models: string[];
   purposeModels?: PurposeModels;
+  roles?: { chat: string; stt: string | null; tts: string | null };
+  modelNote?: string;
   message: string;
   warning?: string;
 }> {
@@ -211,10 +214,26 @@ export async function probeProvider(
     candidateIds = rawModels.map((m: any) => String(m?.id || m?.name || '')).filter(Boolean);
   }
 
-  const ranked = rankModels(provider, candidateIds, preferredModel);
+  // Typed model name resolution
+  let resolvedPref: string | undefined = undefined;
+  let modelNote: string | undefined = undefined;
+
+  if (preferredModel && preferredModel.trim()) {
+    const res = resolveModelName(preferredModel, candidateIds);
+    if (res.model) {
+      resolvedPref = res.model;
+    } else {
+      // Not found, will be assigned top candidate later
+    }
+  }
+
+  const ranked = rankModels(provider, candidateIds, resolvedPref);
   if (ranked.length === 0) {
     throw Object.assign(new Error(`${providerName} has no available chat models.`), { status: 502 });
   }
+
+  // Compute audio roles
+  const audioRoles = classifyAudioModels(candidateIds);
 
   // 2. Test top candidate models (up to 5)
   const topCandidates = ranked.slice(0, 5);
@@ -260,6 +279,11 @@ export async function probeProvider(
       }
 
       const pModels = DEFAULT_PURPOSE_MODELS[provider];
+
+      if (preferredModel && preferredModel.trim() && !resolvedPref) {
+        modelNote = `Model '${preferredModel.trim()}' was not found, using ${modelToTest} instead`;
+      }
+
       return {
         success: true,
         provider,
@@ -267,6 +291,12 @@ export async function probeProvider(
         model: modelToTest,
         models: ranked.slice(0, 30),
         purposeModels: pModels,
+        roles: {
+          chat: modelToTest,
+          stt: audioRoles.stt[0] || null,
+          tts: audioRoles.tts[0] || null,
+        },
+        modelNote,
         message: `Connected to ${providerName}. Assigned model: ${modelToTest}.`,
       };
     } catch (err: any) {
@@ -280,14 +310,24 @@ export async function probeProvider(
 
   if (has429QuotaError) {
     const pModels = DEFAULT_PURPOSE_MODELS[provider];
+    const assigned = topCandidates[0] || 'meta-llama/llama-3.3-70b-instruct:free';
+    if (preferredModel && preferredModel.trim() && !resolvedPref) {
+      modelNote = `Model '${preferredModel.trim()}' was not found, using ${assigned} instead`;
+    }
     return {
       success: true,
       provider,
       providerName,
-      model: topCandidates[0] || 'meta-llama/llama-3.3-70b-instruct:free',
+      model: assigned,
       models: ranked.slice(0, 30),
       purposeModels: pModels,
-      message: `Connected to ${providerName}. Assigned model: ${topCandidates[0] || 'meta-llama/llama-3.3-70b-instruct:free'}.`,
+      roles: {
+        chat: assigned,
+        stt: audioRoles.stt[0] || null,
+        tts: audioRoles.tts[0] || null,
+      },
+      modelNote,
+      message: `Connected to ${providerName}. Assigned model: ${assigned}.`,
       warning: 'Key is valid, but free rate limits were hit on tested models. It will be usable once your quota resets.',
     };
   }
@@ -301,7 +341,7 @@ export async function probeProvider(
   );
 }
 
-// Auto probe: scans key signature or probes OpenAI and DeepSeek if key is ambiguous (sk-...)
+// Auto probe: scans key signature for free auto-selected providers (Gemini, Groq, NVIDIA, OpenRouter)
 export async function probeAuto(
   apiKey: string,
   preferredModel?: string
@@ -312,6 +352,8 @@ export async function probeAuto(
   model: string;
   models: string[];
   purposeModels?: PurposeModels;
+  roles?: { chat: string; stt: string | null; tts: string | null };
+  modelNote?: string;
   message: string;
   warning?: string;
 }> {
@@ -320,7 +362,7 @@ export async function probeAuto(
     throw Object.assign(new Error('No API key provided.'), { status: 400 });
   }
 
-  // Direct signature matches
+  // Direct signature matches for free-tier auto-selected providers
   if (/^AIza/i.test(cleanKey)) {
     const { handleTestApiKey } = await import('./geminiHandler.ts');
     const result = await handleTestApiKey(cleanKey);
@@ -331,6 +373,11 @@ export async function probeAuto(
       model: result.model || 'gemini-3.8-flash',
       models: ['gemini-3.8-flash', 'gemini-flash-latest', 'gemini-3.1-pro-preview'],
       purposeModels: DEFAULT_PURPOSE_MODELS.gemini,
+      roles: {
+        chat: result.model || 'gemini-3.8-flash',
+        stt: 'gemini-3.8-flash',
+        tts: 'gemini-speech',
+      },
       message: `Connected to Google Gemini (${result.model || 'gemini-3.8-flash'})`,
     };
   }
@@ -343,36 +390,9 @@ export async function probeAuto(
   if (/^sk-or-/i.test(cleanKey)) {
     return probeProvider('openrouter', cleanKey, preferredModel);
   }
-  if (/^sk-proj-/i.test(cleanKey) || /^sk-admin-/i.test(cleanKey)) {
-    return probeProvider('openai', cleanKey, preferredModel);
-  }
-  if (/^xai-/i.test(cleanKey)) {
-    return probeProvider('xai', cleanKey, preferredModel);
-  }
-  if (/^ds-/i.test(cleanKey)) {
-    return probeProvider('deepseek', cleanKey, preferredModel);
-  }
 
-  // Ambiguous sk- prefix: Try OpenAI first, then DeepSeek
-  if (/^sk-/.test(cleanKey)) {
-    try {
-      const openAiResult = await probeProvider('openai', cleanKey, preferredModel);
-      return openAiResult;
-    } catch (openAiErr: any) {
-      // If unauthorized on OpenAI, try DeepSeek
-      if (openAiErr?.status === 401 || openAiErr?.status === 403 || String(openAiErr?.message).includes('rejected')) {
-        try {
-          const deepseekResult = await probeProvider('deepseek', cleanKey, preferredModel);
-          return deepseekResult;
-        } catch {
-          // Both failed, throw original error
-          throw openAiErr;
-        }
-      }
-      throw openAiErr;
-    }
-  }
-
-  // Fallback: try Groq, NVIDIA, OpenRouter
-  throw Object.assign(new Error('Could not automatically determine the provider for this key format. Supported keys: AIza... (Gemini), gsk_... (Groq), nvapi-... (NVIDIA), sk-or-... (OpenRouter), sk-proj-... (OpenAI), or sk-... (DeepSeek/OpenAI).'), { status: 400 });
+  throw Object.assign(
+    new Error('Only free-tier providers (Gemini, Groq, NVIDIA, OpenRouter) are auto-detected. For paid keys (OpenAI, DeepSeek, xAI, Anthropic), please select your provider manually.'),
+    { status: 400 }
+  );
 }

@@ -6,8 +6,10 @@ import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
 import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callWhisperTranscription } from './llmClient.ts';
+import { callChatWithHealing } from './chatHealing.ts';
+import { callGroqSpeech } from './groqSpeech.ts';
 
-export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string };
+export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string };
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
@@ -503,7 +505,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     try {
       const prompt = getPrompt(taskType, level, topic);
       const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
-      const { text, modelUsed } = await callOpenAiCompatibleChat({
+      const { text, modelUsed } = await callChatWithHealing({
         provider,
         apiKey: opts.apiKey,
         baseUrl: opts.baseUrl,
@@ -649,7 +651,7 @@ Return valid JSON format:
 
   // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
   if (provider !== 'gemini') {
-    const { text, modelUsed } = await callOpenAiCompatibleChat({
+    const { text, modelUsed } = await callChatWithHealing({
       provider,
       apiKey: opts.apiKey,
       baseUrl: opts.baseUrl,
@@ -743,6 +745,37 @@ export async function handleSynthesizeSpeech(
   let provider = opts.provider || 'gemini';
   const customApiKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
 
+  // If Groq key, utilize Groq TTS API directly
+  if (provider === 'groq' && customApiKey) {
+    try {
+      let ttsModel = opts.ttsModel || '';
+      if (!ttsModel) {
+        try {
+          const { getRoleModels } = await import('./modelRoles.ts');
+          const roles = await getRoleModels('groq', customApiKey);
+          ttsModel = roles.tts[0] || 'playai-tts';
+        } catch {
+          ttsModel = 'playai-tts';
+        }
+      }
+      const res = await callGroqSpeech({
+        apiKey: customApiKey,
+        text,
+        voiceName,
+        model: ttsModel,
+      });
+      return res;
+    } catch (err: any) {
+      if (err?.code === 'TTS_TERMS_REQUIRED') {
+        throw Object.assign(
+          new Error(err.message || 'Groq voice model terms must be accepted in the Groq console.'),
+          { code: 'TTS_TERMS_REQUIRED' }
+        );
+      }
+      throw new Error('SPEECH_UNAVAILABLE');
+    }
+  }
+
   // If OpenAI key, utilize OpenAI TTS API directly
   if (provider === 'openai' && customApiKey) {
     try {
@@ -770,60 +803,26 @@ export async function handleSynthesizeSpeech(
     let audioData: string | undefined;
     let mimeType: string = 'audio/wav';
 
-    // 1. Try ai.interactions.create if available on model/SDK
-    try {
-      if ((ai as any).interactions?.create) {
-        const interaction = await (ai as any).interactions.create({
-          model,
-          input: [
-            {
-              type: "text",
-              text: text.trim(),
-            },
-          ],
-          response_format: { type: "audio" },
-          generation_config: {
-            speech_config: [
-              {
-                language: "en-US",
-                voice: resolvedVoice,
-              },
-            ],
-          },
-        });
-        audioData = interaction.output_audio?.data;
-        if (interaction.output_audio?.mime_type) {
-          mimeType = interaction.output_audio.mime_type;
-        }
-      }
-    } catch (intErr: any) {
-      if (isKeyError(intErr)) throw intErr;
-      console.warn(`ai.interactions.create notice on ${model}:`, intErr?.message || intErr);
-    }
-
-    // 2. Canonical fallback to ai.models.generateContent
-    if (!audioData) {
-      const resp = await ai.models.generateContent({
-        model: model,
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: text.trim() }],
-          },
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: resolvedVoice },
-            },
+    const resp = await ai.models.generateContent({
+      model: model,
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: text.trim() }],
+        },
+      ],
+      config: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: resolvedVoice },
           },
         },
-      });
-      audioData = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType) {
-        mimeType = resp.candidates[0].content.parts[0].inlineData.mimeType;
-      }
+      },
+    });
+    audioData = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType) {
+      mimeType = resp.candidates[0].content.parts[0].inlineData.mimeType;
     }
 
     if (!audioData) {
@@ -862,6 +861,7 @@ export async function handleTranscribeAudio(
         apiKey: customApiKey,
         audioBase64,
         mimeType,
+        sttModel: opts.sttModel,
       });
       return { transcript: res.transcript, modelUsed: res.modelUsed, durationMs: Date.now() - startTime };
     } catch (err: any) {

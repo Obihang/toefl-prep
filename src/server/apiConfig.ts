@@ -5,6 +5,8 @@ export interface ApiConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  sttModel: string;
+  ttsModel: string;
 }
 
 const KNOWN_PROVIDERS = new Set(['gemini', 'nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'xai', 'anthropic', 'custom', 'auto']);
@@ -28,16 +30,16 @@ function getHeader(headers: any, name: string): string | undefined {
 export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   const b = body || {};
 
-  // API Key resolution
-  const xApiKey = getHeader(headers, 'x-api-key')?.trim();
-  const xGeminiKey = getHeader(headers, 'x-gemini-api-key')?.trim();
-  const bodyKey = typeof b.apiKey === 'string' ? b.apiKey.trim() : '';
-  const apiKey = xApiKey || xGeminiKey || bodyKey;
-  let effectiveApiKey = apiKey;
-
   // Provider resolution
   let rawProvider = (getHeader(headers, 'x-api-provider') || b.provider || 'auto').trim().toLowerCase();
   let provider = KNOWN_PROVIDERS.has(rawProvider) ? rawProvider : 'auto';
+
+  // API Key resolution
+  const xApiKey = getHeader(headers, 'x-api-key')?.trim();
+  const xGeminiKey = (provider === 'gemini' || provider === 'auto') ? getHeader(headers, 'x-gemini-api-key')?.trim() : undefined;
+  const bodyKey = typeof b.apiKey === 'string' ? b.apiKey.trim() : '';
+  const apiKey = xApiKey || xGeminiKey || bodyKey;
+  let effectiveApiKey = apiKey;
 
   // If provider is auto, infer from key
   if (provider === 'auto' && apiKey) {
@@ -47,23 +49,17 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
       provider = 'nvidia';
     } else if (/^sk-or-/i.test(apiKey)) {
       provider = 'openrouter';
-    } else if (/^sk-proj-/i.test(apiKey) || /^sk-admin-/i.test(apiKey)) {
-      provider = 'openai';
-    } else if (/^xai-/i.test(apiKey)) {
-      provider = 'xai';
-    } else if (/^ds-/i.test(apiKey)) {
-      provider = 'deepseek';
     } else if (/^AIza/i.test(apiKey)) {
       provider = 'gemini';
-    } else if (/^sk-/.test(apiKey)) {
+    } else {
       const detected = detectProviderFromKey(apiKey);
-      provider = detected.provider || 'openai';
+      provider = detected.provider || 'gemini';
     }
   }
 
   // If user explicitly chose gemini, ensure non-Gemini keys don't break Gemini API calls
-  if (provider === 'gemini' && apiKey && !/^AIza/i.test(apiKey)) {
-    if (/^gsk_|^nvapi-|^sk-or-|^sk-proj-/i.test(apiKey)) {
+  if (provider === 'gemini' && effectiveApiKey && !/^AIza/i.test(effectiveApiKey)) {
+    if (/^gsk_|^nvapi-|^sk-or-|^sk-proj-/i.test(effectiveApiKey)) {
       effectiveApiKey = '';
     }
   }
@@ -88,11 +84,15 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
 
   // Model resolution
   const model = (getHeader(headers, 'x-api-model') || b.model || '').trim();
+  const sttModel = (getHeader(headers, 'x-api-model-stt') || b.sttModel || '').trim();
+  const ttsModel = (getHeader(headers, 'x-api-model-tts') || b.ttsModel || '').trim();
 
   return {
     provider,
     apiKey: effectiveApiKey,
     baseUrl,
     model,
+    sttModel,
+    ttsModel,
   };
 }

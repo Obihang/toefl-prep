@@ -44,44 +44,20 @@ export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
     tts: 'Gemini Speech (natural native voices)',
   },
   groq: {
-    generation: 'llama-3.3-70b-versatile',
-    evaluation: 'llama-3.3-70b-versatile',
-    transcription: 'whisper-large-v3 (ultra-fast LPU)',
+    generation: 'Auto (best available)',
+    evaluation: 'Auto (best available)',
+    transcription: 'Whisper Large v3 (ultra-fast LPU)',
     tts: 'Studio Voice / Web Speech',
   },
   nvidia: {
-    generation: 'meta/llama-3.3-70b-instruct',
-    evaluation: 'meta/llama-3.3-70b-instruct',
+    generation: 'Auto (best available)',
+    evaluation: 'Auto (best available)',
     transcription: 'Whisper STT / Web Mic',
     tts: 'Studio Voice / Web Speech',
   },
   openrouter: {
-    generation: 'meta-llama/llama-3.3-70b-instruct:free',
-    evaluation: 'meta-llama/llama-3.3-70b-instruct:free',
-    transcription: 'Whisper STT / Web Mic',
-    tts: 'Studio Voice / Web Speech',
-  },
-  openai: {
-    generation: 'gpt-4o-mini (fast & structured)',
-    evaluation: 'gpt-4o (deep rubric scoring)',
-    transcription: 'whisper-1 (OpenAI Speech-to-Text)',
-    tts: 'tts-1 (OpenAI natural speech)',
-  },
-  deepseek: {
-    generation: 'deepseek-chat (DeepSeek-V3)',
-    evaluation: 'deepseek-chat (DeepSeek-V3 reasoning)',
-    transcription: 'Whisper STT / Web Mic',
-    tts: 'Studio Voice / Web Speech',
-  },
-  xai: {
-    generation: 'grok-2-latest',
-    evaluation: 'grok-2-latest',
-    transcription: 'Whisper STT / Web Mic',
-    tts: 'Studio Voice / Web Speech',
-  },
-  anthropic: {
-    generation: 'claude-3-5-haiku-latest',
-    evaluation: 'claude-3-5-sonnet-latest',
+    generation: 'Auto (best available)',
+    evaluation: 'Auto (best available)',
     transcription: 'Whisper STT / Web Mic',
     tts: 'Studio Voice / Web Speech',
   },
@@ -94,11 +70,11 @@ export function detectProviderFromKey(raw: string): KeyDetectResult {
       provider: null,
       label: 'Unknown',
       complete: false,
-      note: 'Paste any key (Gemini, Groq, NVIDIA, OpenAI, DeepSeek, or OpenRouter).',
+      note: 'Paste any key (Gemini, Groq, NVIDIA, or OpenRouter).',
     };
   }
 
-  // 1. Google Gemini: starts with AIza, length >= 39
+  // 1. Google Gemini: starts with AIza
   if (/^AIza/i.test(key)) {
     return {
       provider: 'gemini',
@@ -116,7 +92,7 @@ export function detectProviderFromKey(raw: string): KeyDetectResult {
       label: 'Groq',
       complete: key.length >= 35,
       purposeModels: DEFAULT_PURPOSE_MODELS.groq,
-      note: 'Instant LPU inference with Llama 3.3 70B & Whisper Large v3.',
+      note: 'Instant LPU inference with Llama models.',
     };
   }
 
@@ -142,69 +118,61 @@ export function detectProviderFromKey(raw: string): KeyDetectResult {
     };
   }
 
-  // 5. OpenAI project key: starts with sk-proj- or sk-admin-
-  if (/^sk-proj-/i.test(key) || /^sk-admin-/i.test(key)) {
-    return {
-      provider: 'openai',
-      label: 'OpenAI',
-      complete: key.length >= 45,
-      purposeModels: DEFAULT_PURPOSE_MODELS.openai,
-      note: 'GPT-4o for scoring, GPT-4o-mini for questions, Whisper for STT, and TTS-1 for voice.',
-    };
-  }
-
-  // 6. xAI: starts with xai-
+  // 5. xAI: starts with xai- (Paid per use)
   if (/^xai-/i.test(key)) {
     return {
-      provider: 'xai',
+      provider: null,
       label: 'xAI Grok',
-      complete: key.length >= 35,
-      purposeModels: DEFAULT_PURPOSE_MODELS.xai,
-      note: 'Grok-2 reasoning for TOEFL questions and evaluations.',
+      complete: key.length >= 20,
+      note: 'This paid API key is billed per use and is not auto-selected.',
     };
   }
 
-  // 7. Anthropic: starts with sk-ant-
+  // 6. Anthropic: starts with sk-ant- (Paid per use)
   if (/^sk-ant-/i.test(key)) {
     return {
-      provider: 'anthropic',
-      label: 'Anthropic Claude',
-      complete: key.length >= 40,
-      purposeModels: DEFAULT_PURPOSE_MODELS.anthropic,
-      note: 'Claude 3.5 Sonnet / Haiku for precise academic evaluation.',
+      provider: null,
+      label: 'Anthropic',
+      complete: key.length >= 20,
+      note: 'This paid API key is billed per use and is not auto-selected.',
     };
   }
 
-  // 8. DeepSeek specific pattern (often ds- or standard 32-hex format)
-  if (/^ds-/i.test(key)) {
+  // 7. OpenAI / DeepSeek: starts with sk- or sk-proj- or sk-admin- (Paid per use)
+  if (/^sk-/i.test(key)) {
     return {
-      provider: 'deepseek',
-      label: 'DeepSeek',
-      complete: key.length >= 30,
-      purposeModels: DEFAULT_PURPOSE_MODELS.deepseek,
-      note: 'DeepSeek-V3 for high-accuracy reasoning and answer grading.',
+      provider: null,
+      label: 'OpenAI or DeepSeek',
+      complete: key.length >= 20,
+      note: 'This paid API key is billed per use and is not auto-selected.',
     };
   }
 
-  // 9. Standard sk- prefix (can be OpenAI or DeepSeek)
-  if (/^sk-[A-Za-z0-9_-]{20,}/.test(key)) {
-    // If length is around 32-35 chars and purely alphanumeric, commonly DeepSeek
-    const isLikelyDeepSeek = key.length <= 36 && !key.includes('proj');
-    const likelyProvider = isLikelyDeepSeek ? 'deepseek' : 'openai';
-    return {
-      provider: likelyProvider,
-      label: isLikelyDeepSeek ? 'DeepSeek (or OpenAI)' : 'OpenAI (or DeepSeek)',
-      complete: key.length >= 30,
-      purposeModels: isLikelyDeepSeek ? DEFAULT_PURPOSE_MODELS.deepseek : DEFAULT_PURPOSE_MODELS.openai,
-      note: 'Auto-tested against OpenAI & DeepSeek to lock in optimal purpose models.',
-    };
-  }
-
-  // 10. Fallback for custom / partial keys
+  // 8. Unknown formats
   return {
     provider: null,
-    label: 'Custom / Universal Key',
-    complete: key.length >= 20,
-    note: 'Will auto-probe against supported endpoints (Gemini, Groq, NVIDIA, OpenRouter, OpenAI, DeepSeek).',
+    label: 'Unknown',
+    complete: false,
+    note: 'Unrecognized key format. Supported free-tier keys start with AIza, nvapi-, gsk_, or sk-or-.',
   };
+}
+
+export function detectProviderFromUrl(url: string): string | null {
+  if (!url) return null;
+  const lower = url.toLowerCase();
+  if (lower.includes('api.groq.com')) return 'groq';
+  if (lower.includes('integrate.api.nvidia.com')) return 'nvidia';
+  if (lower.includes('openrouter.ai')) return 'openrouter';
+  if (lower.includes('generativelanguage.googleapis.com')) return 'gemini';
+  return null;
+}
+
+export function guessProviderFromModel(model: string): string | null {
+  if (!model) return null;
+  const lower = model.toLowerCase();
+  if (lower.endsWith('-versatile') || lower.endsWith('-instant')) return 'groq';
+  if (lower.startsWith('meta/')) return 'nvidia';
+  if (lower.endsWith(':free')) return 'openrouter';
+  if (lower.startsWith('gemini-')) return 'gemini';
+  return null;
 }
