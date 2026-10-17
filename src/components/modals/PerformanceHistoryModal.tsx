@@ -6,6 +6,7 @@ import {
   calculateToeflEstimate,
   PracticeRecord,
 } from '../../utils/scoreTracker';
+import { PerformanceTrendChart } from './history/PerformanceTrendChart';
 
 interface Props {
   isOpen: boolean;
@@ -127,24 +128,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
     }
   };
 
-  // Filtered history for chart & table
-  const filteredHistory = activeSectionTab === 'All' 
-    ? [...history].reverse() 
-    : [...history].filter(h => h.section === activeSectionTab).reverse();
 
-  // SVG Trend Chart generation
-  const chartWidth = 600;
-  const chartHeight = 160;
-  const padding = 25;
-  const points = filteredHistory.map((h, i, arr) => {
-    const x = arr.length === 1 ? chartWidth / 2 : padding + (i / (arr.length - 1)) * (chartWidth - padding * 2);
-    const y = chartHeight - padding - ((h.scaledScore30 / 30) * (chartHeight - padding * 2));
-    return { x, y, score: h.scaledScore30, date: h.date, title: h.taskTitle };
-  });
-
-  const pathData = points.length > 1 
-    ? points.reduce((acc, p, idx) => idx === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`, '')
-    : points.length === 1 ? `M ${points[0].x - 10} ${points[0].y} L ${points[0].x + 10} ${points[0].y}` : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -230,61 +214,13 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </div>
         </div>
 
-        {/* Score Trend Chart Section */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Score Trend Over Time ({activeSectionTab})
-            </h3>
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs font-medium">
-              {(['All', 'Reading', 'Listening', 'Speaking', 'Writing'] as const).map(sec => (
-                <button
-                  key={sec}
-                  onClick={() => setActiveSectionTab(sec)}
-                  className={`px-2.5 py-1 rounded-md transition-colors ${
-                    activeSectionTab === sec ? 'bg-white text-teal-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {sec}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {points.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
-              No practice records available for trend analysis.
-            </div>
-          ) : (
-            <div className="w-full overflow-x-auto">
-              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-40 overflow-visible">
-                {/* Grid lines */}
-                {[0, 10, 20, 30].map((score) => {
-                  const y = chartHeight - padding - ((score / 30) * (chartHeight - padding * 2));
-                  return (
-                    <g key={score}>
-                      <line x1={padding} y1={y} x2={chartWidth - padding} y2={y} stroke="#e2e8f0" strokeDasharray="4 4" />
-                      <text x={padding - 8} y={y + 3} fontSize="10" fill="#94a3b8" textAnchor="end">{score}</text>
-                    </g>
-                  );
-                })}
-
-                {/* Trend Line */}
-                {pathData && (
-                  <path d={pathData} fill="none" stroke="#0d9488" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                )}
-
-                {/* Data Points */}
-                {points.map((p, idx) => (
-                  <g key={idx} className="group cursor-pointer">
-                    <circle cx={p.x} cy={p.y} r="4" className="fill-teal-700 hover:fill-teal-900 transition-all" />
-                    <title>{`${p.title}\nScore: ${p.score}/30\nDate: ${new Date(p.date).toLocaleDateString()}`}</title>
-                  </g>
-                ))}
-              </svg>
-            </div>
-          )}
-        </div>
+        {/* Score Trend Chart Section (Recharts) */}
+        <PerformanceTrendChart
+          history={history}
+          activeSectionTab={activeSectionTab}
+          onSectionTabChange={setActiveSectionTab}
+          targetScore={targetScore}
+        />
 
         {/* Data Backup & Export Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
