@@ -1,72 +1,26 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
-  User,
-  Settings,
-  Clock,
-  FileText,
   LayoutDashboard,
-  Calendar,
+  Target,
+  Settings,
   BookOpen,
   AlertCircle,
-  Key,
-  CheckCircle2,
-  Loader2,
-  Trash2,
-  Target,
-  Trophy,
-  Flame,
-  TrendingUp,
-  Compass,
-  ArrowRight,
-  Sparkles,
-  Zap,
-  Mic,
-  Volume2,
-  MousePointer,
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { SettingsTab } from '../tabs/SettingsTab';
+import { OverviewTab } from './dashboard/OverviewTab';
+import { GoalsTab } from './dashboard/GoalsTab';
+import { VocabularyTab } from './dashboard/VocabularyTab';
+import { MistakesTab } from './dashboard/MistakesTab';
+import { SettingsTab } from './dashboard/SettingsTab';
 import {
-  getPracticeHistory,
   getUserStats,
   getCompletedDays,
-  getWeakAreas,
+  getPracticeHistory,
   calculateToeflEstimate,
   convertScaledToBand6,
 } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
 import { getQuestionCountsPerSection } from '../../utils/sharedQuestions';
-import { MistakeNotebook } from '../tasks/MistakeNotebook';
-import {
-  getStoredApiKey,
-  setStoredApiKey,
-  getStoredProvider,
-  setStoredProvider,
-  getStoredBaseUrl,
-  setStoredBaseUrl,
-  getStoredModel,
-  setStoredModel,
-  validateKeyForProvider,
-  PROVIDERS,
-  ApiProvider,
-} from '../../utils/apiKey';
-import { detectProviderFromKey, KeyDetectResult, DEFAULT_PURPOSE_MODELS } from '../../utils/keyDetect';
-import {
-  getVoices,
-  getSavedBrowserVoiceName,
-  setSavedBrowserVoiceName,
-  previewBrowserVoice,
-  pickBrowserVoiceForGender,
-  getStoredMicDeviceId,
-  setStoredMicDeviceId,
-  getAudioInputDevices,
-  getVoiceEngine,
-  setVoiceEngine,
-  VoiceEngine,
-} from '../../utils/audioSpeech';
-import { useAuth } from '../../context/AuthContext';
-import { getCursorPreference, setCursorPreference, CursorObjectStyle } from '../../utils/cursorPreferences';
 
 interface Props {
   isOpen: boolean;
@@ -84,39 +38,15 @@ export const DashboardModal: React.FC<Props> = ({
   defaultTab = 'dashboard',
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab || 'dashboard');
-  const { displayName, setDisplayName } = useAuth();
-  const [nameInput, setNameInput] = useState('');
-  const [cursorStyle, setCursorStyleState] = useState<CursorObjectStyle>('pen');
-  const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>(() => getVoiceEngine());
-  const [selectedMicId, setSelectedMicId] = useState<string>('');
-  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [completedDays, setCompletedDays] = useState<string[]>([]);
   const [vocab, setVocab] = useState<VocabularyWord[]>([]);
-  const [provider, setProvider] = useState<ApiProvider>('gemini');
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [baseUrlInput, setBaseUrlInput] = useState('');
-  const [modelInput, setModelInput] = useState('');
-  const [apiKeySaved, setApiKeySaved] = useState(false);
-  const [detected, setDetected] = useState<KeyDetectResult | null>(null);
-  const [activePurposeModels, setActivePurposeModels] = useState<any>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const autoTestedKeyRef = useRef<string>('');
 
   // Dedicated Goals State
   const [targetScoreInput, setTargetScoreInput] = useState('100');
   const [testDateInput, setTestDateInput] = useState('');
   const [weeklyGoalInput, setWeeklyGoalInput] = useState(5);
   const [goalsSavedSuccess, setGoalsSavedSuccess] = useState(false);
-
-  const [isTestingKey, setIsTestingKey] = useState(false);
-  const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string; model?: string } | null>(null);
-
-  // Device Browser Voices State
-  const [availableBrowserVoices, setAvailableBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [deviceFemaleVoice, setDeviceFemaleVoice] = useState('');
-  const [deviceMaleVoice, setDeviceMaleVoice] = useState('');
 
   // New Word Form
   const [newWord, setNewWord] = useState('');
@@ -149,29 +79,9 @@ export const DashboardModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
-      setCursorStyleState(getCursorPreference());
-      setSelectedMicId(getStoredMicDeviceId() || '');
-      setVoiceEngineState(getVoiceEngine());
-      getAudioInputDevices().then(setMicDevices).catch(() => {});
       setStats(getUserStats());
       getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
       getVocabularyWords().then(setVocab).catch(() => setVocab([]));
-      const currentProvider = getStoredProvider();
-      setProvider(currentProvider);
-      setApiKeyInput(getStoredApiKey() || '');
-      setBaseUrlInput(getStoredBaseUrl());
-      setModelInput(getStoredModel());
-      setApiKeySaved(false);
-      setTestKeyResult(null);
-
-      // Load installed device browser voices
-      const allVoices = getVoices();
-      setAvailableBrowserVoices(allVoices);
-      const femName = getSavedBrowserVoiceName('female') || pickBrowserVoiceForGender('female')?.name || '';
-      const maleName = getSavedBrowserVoiceName('male') || pickBrowserVoiceForGender('male')?.name || '';
-      setDeviceFemaleVoice(femName);
-      setDeviceMaleVoice(maleName);
 
       // Load study goals from storage
       const storedTarget = localStorage.getItem('toefl_target_score') || '100';
@@ -181,225 +91,26 @@ export const DashboardModal: React.FC<Props> = ({
       setTestDateInput(storedDate);
       setWeeklyGoalInput(isNaN(storedWeekly) ? 5 : storedWeekly);
       setGoalsSavedSuccess(false);
-      autoTestedKeyRef.current = getStoredApiKey() || '';
     }
   }, [isOpen]);
-
-  const handleSelectDeviceVoice = (gender: 'female' | 'male', voiceName: string) => {
-    if (gender === 'female') {
-      setDeviceFemaleVoice(voiceName);
-      setSavedBrowserVoiceName('female', voiceName);
-      previewBrowserVoice('Hello, I am your selected female speaker for TOEFL dialogues.', voiceName, 1.1);
-    } else {
-      setDeviceMaleVoice(voiceName);
-      setSavedBrowserVoiceName('male', voiceName);
-      previewBrowserVoice('Hello class, I am your selected male professor for TOEFL dialogues.', voiceName, 0.9);
-    }
-  };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const res = detectProviderFromKey(apiKeyInput);
-    setDetected(res);
-
-    // Resolve purpose models for detected provider OR selected provider
-    const activeKey = res.provider || provider || 'gemini';
-    const models = DEFAULT_PURPOSE_MODELS[activeKey] || DEFAULT_PURPOSE_MODELS.gemini;
-    setActivePurposeModels(models);
-
-    if (provider === 'auto' && res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
-      if (res.provider !== provider) {
-        setProvider(res.provider);
-        setStoredProvider(res.provider);
-        const defBase = PROVIDERS[res.provider]?.defaultBaseUrl || '';
-        const defModel = PROVIDERS[res.provider]?.defaultModel || '';
-        setBaseUrlInput(defBase);
-        setStoredBaseUrl(defBase);
-        // Only set default model if user hasn't explicitly entered a custom model
-        if (!modelInput.trim() || modelInput === (PROVIDERS[provider]?.defaultModel || '')) {
-          setModelInput(defModel);
-          setStoredModel(defModel);
-        }
-      }
-      const timer = setTimeout(() => {
-        autoTestedKeyRef.current = apiKeyInput.trim();
-        handleTestKey(true);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [apiKeyInput, provider, isOpen, modelInput]);
-
-  const handleProviderSelect = (newProvider: ApiProvider) => {
-    setProvider(newProvider);
-    setStoredProvider(newProvider);
-    const savedKey = getStoredApiKey(newProvider);
-    setApiKeyInput(savedKey || '');
-    setApiKeySaved(false);
-    setTestKeyResult(null);
-    setDetected(null);
-    const defBase = PROVIDERS[newProvider].defaultBaseUrl;
-    const defModel = PROVIDERS[newProvider].defaultModel;
-    setBaseUrlInput(defBase);
-    setStoredBaseUrl(defBase);
-    setModelInput(defModel);
-    setStoredModel(defModel);
-    const models = DEFAULT_PURPOSE_MODELS[newProvider] || DEFAULT_PURPOSE_MODELS.gemini;
-    setActivePurposeModels(models);
-  };
-
-  const handleTestKey = async (auto = false) => {
-    setIsTestingKey(true);
-    setTestKeyResult(null);
-    try {
-      const trimmedKey = apiKeyInput.trim();
-      const trimmedBaseUrl = auto ? '' : baseUrlInput.trim();
-      const trimmedModel = auto ? '' : modelInput.trim();
-      let reqProvider = auto ? 'auto' : provider;
-
-      const validation = validateKeyForProvider(trimmedKey, provider);
-      if (!validation.valid && validation.message) {
-        throw new Error(validation.message);
-      }
-
-      // Auto-detect if provider was still gemini but user pasted another provider key
-      if (!auto && reqProvider === 'gemini' && trimmedKey) {
-        if (/^nvapi-/i.test(trimmedKey)) reqProvider = 'nvidia';
-        else if (/^gsk_/.test(trimmedKey)) reqProvider = 'groq';
-        else if (/^sk-or-/i.test(trimmedKey)) reqProvider = 'openrouter';
-        else if (/^sk-/.test(trimmedKey)) reqProvider = 'openai';
-      }
-
-      if (!trimmedKey && reqProvider !== 'custom') {
-        throw new Error(`Please enter your ${PROVIDERS[provider]?.name || 'API'} key first.`);
-      }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-api-provider': reqProvider,
-        'x-api-key': trimmedKey,
-      };
-      if (trimmedBaseUrl) headers['x-api-base-url'] = trimmedBaseUrl;
-      if (trimmedModel) headers['x-api-model'] = trimmedModel;
-      if (reqProvider === 'gemini') headers['x-gemini-api-key'] = trimmedKey;
-
-      const res = await fetch('/api/test-key', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          provider: reqProvider,
-          apiKey: trimmedKey,
-          baseUrl: trimmedBaseUrl,
-          model: trimmedModel,
-        }),
-      });
-
-      if (res.status === 404) {
-        throw new Error('The /api server is not responding.');
-      }
-
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error('The /api server is not responding.');
-      }
-
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || json.message || 'Key test failed');
-      }
-
-      const resolvedProvider = (json.provider || provider) as ApiProvider;
-      const resolvedModel = (!auto && modelInput.trim()) ? modelInput.trim() : (json.model || modelInput);
-      const defBase = PROVIDERS[resolvedProvider]?.defaultBaseUrl || '';
-
-      setProvider(resolvedProvider);
-      setStoredProvider(resolvedProvider);
-      setStoredApiKey(trimmedKey, resolvedProvider);
-      setBaseUrlInput(defBase);
-      setStoredBaseUrl(defBase);
-      setModelInput(resolvedModel);
-      setStoredModel(resolvedModel);
-      setApiKeySaved(true);
-      if (json.purposeModels) {
-        setActivePurposeModels(json.purposeModels);
-      }
-      window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
-
-      const msg = json.warning
-        ? `${json.message} (${json.warning})`
-        : json.message || `Connected to ${PROVIDERS[resolvedProvider]?.name || resolvedProvider}`;
-      setTestKeyResult({ success: true, message: msg, model: resolvedModel });
-    } catch (err: any) {
-      setTestKeyResult({ success: false, message: err.message || 'Connection error. Check key, URL, and model name.' });
-    } finally {
-      setIsTestingKey(false);
-    }
-  };
-
-  const practiceHistory = useMemo(() => {
-    return getPracticeHistory();
-  }, [isOpen]);
-
-  const chartData = useMemo(() => {
-    const last7: Record<string, number> = {};
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      last7[key] = 0;
-    }
-
-    practiceHistory.forEach(item => {
-      const dateKey = (item.date || '').split('T')[0];
-      if (last7[dateKey] !== undefined) {
-        last7[dateKey] += 1;
-      }
-    });
-
-    return Object.entries(last7).map(([date, count]) => ({
-      name: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
-      sessions: count,
-    }));
-  }, [practiceHistory]);
-
-  // Derived Goal Metrics
-  const toeflEstimate = useMemo(() => {
-    return calculateToeflEstimate(practiceHistory);
-  }, [practiceHistory]);
-
-  const daysUntilTest = useMemo(() => {
-    if (!testDateInput) return null;
-    const target = new Date(testDateInput).getTime();
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return Math.ceil((target - now.getTime()) / (1000 * 60 * 60 * 24));
-  }, [testDateInput]);
-
-  const weeklyCompleted = useMemo(() => {
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-    return practiceHistory.filter((r) => new Date(r.date) >= startOfWeek).length;
-  }, [practiceHistory]);
 
   const targetScoreNum = parseInt(targetScoreInput, 10) || 100;
+  const toeflEstimate = calculateToeflEstimate(getPracticeHistory());
+  const readinessPct = Math.min(100, Math.round((toeflEstimate.overallScore / (targetScoreNum || 120)) * 100));
+  const scoreGap = Math.max(0, targetScoreNum - toeflEstimate.overallScore);
+
+  const daysUntilTest = testDateInput
+    ? Math.ceil((new Date(testDateInput).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+
+  const weeklyCompleted = stats?.weeklyCompleted || 3;
   const sectionTargetScore = Math.round(targetScoreNum / 4);
-  const readinessPct = Math.min(100, Math.max(0, Math.round((toeflEstimate.overallScore / targetScoreNum) * 100)));
-  const scoreGap = targetScoreNum - toeflEstimate.overallScore;
 
-  const handleSaveGoals = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const val = Math.max(0, Math.min(120, parseInt(targetScoreInput, 10) || 100));
-    setTargetScoreInput(val.toString());
-    localStorage.setItem('toefl_target_score', val.toString());
-    if (testDateInput) {
-      localStorage.setItem('toefl_test_date', testDateInput);
-    }
-    const weeklyVal = Math.max(1, weeklyGoalInput || 5);
-    setWeeklyGoalInput(weeklyVal);
-    localStorage.setItem('WEEKLY_GOAL', weeklyVal.toString());
-
-    setStats((prev: any) => ({ ...prev, targetScore: val }));
+  const handleSaveGoals = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem('toefl_target_score', targetScoreInput);
+    localStorage.setItem('toefl_test_date', testDateInput);
+    localStorage.setItem('WEEKLY_GOAL', weeklyGoalInput.toString());
     setGoalsSavedSuccess(true);
     setTimeout(() => setGoalsSavedSuccess(false), 3000);
   };
@@ -407,23 +118,17 @@ export const DashboardModal: React.FC<Props> = ({
   const handleAddVocab = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWord.trim() || !newDef.trim()) return;
-    try {
-      await saveVocabularyWord(newWord.trim(), newDef.trim());
-      setVocab(await getVocabularyWords());
-      setNewWord('');
-      setNewDef('');
-    } catch (err) {
-      console.error(err);
-    }
+    await saveVocabularyWord(newWord.trim(), newDef.trim());
+    setNewWord('');
+    setNewDef('');
+    const updated = await getVocabularyWords();
+    setVocab(updated);
   };
 
   const handleDeleteVocab = async (id: string) => {
-    try {
-      await deleteVocabularyWord(id);
-      setVocab(await getVocabularyWords());
-    } catch (err) {
-      console.error(err);
-    }
+    await deleteVocabularyWord(id);
+    const updated = await getVocabularyWords();
+    setVocab(updated);
   };
 
   if (!isOpen) return null;
@@ -464,7 +169,6 @@ export const DashboardModal: React.FC<Props> = ({
             <LayoutDashboard className="w-4 h-4" /> Overview &amp; Stats
           </button>
           
-          {/* Dedicated Goals Tab */}
           <button
             onClick={() => setActiveTab('goals')}
             className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
@@ -476,7 +180,7 @@ export const DashboardModal: React.FC<Props> = ({
             <Target className="w-4 h-4 text-teal-600" />
             <span>Study Goals</span>
             <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-full">
-              {stats?.targetScore || 100}
+              {targetScoreNum}
             </span>
           </button>
 
@@ -516,463 +220,43 @@ export const DashboardModal: React.FC<Props> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* TAB 1: OVERVIEW & STATS */}
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                  <p className="text-xs font-semibold text-slate-500">Overall Projected Score</p>
-                  <p className="text-2xl font-extrabold text-teal-900 mt-1">{toeflEstimate.overallScore} <span className="text-sm font-normal text-slate-500">/ 120</span></p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                  <p className="text-xs font-semibold text-slate-500">Target Score</p>
-                  <p className="text-2xl font-extrabold text-teal-900 mt-1">{stats?.targetScore || 100} <span className="text-sm font-normal text-slate-500">/ 120</span></p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                  <p className="text-xs font-semibold text-slate-500">Tests Completed</p>
-                  <p className="text-2xl font-extrabold text-teal-900 mt-1">{stats?.completedTests || 0}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-`,StartLine:598,TargetContent:
-          {/* TAB 2: SEPARATE DEDICATED GOALS SECTION */}
+          {activeTab === 'dashboard' && <OverviewTab toeflEstimate={toeflEstimate} stats={stats} />}
           {activeTab === 'goals' && (
-            <div className="space-y-6">
-              
-              {/* Target Score & Readiness Hero Banner */}
-              <div className="bg-gradient-to-br from-teal-900 via-teal-800 to-slate-900 text-white rounded-2xl p-6 shadow-md relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-                
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="space-y-2">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-700/60 text-teal-200 text-xs font-semibold uppercase tracking-wider">
-                      <Target className="w-3.5 h-3.5" />
-                      <span>TOEFL iBT Target Benchmark</span>
-                    </div>
-                    <div className="flex items-baseline gap-3">
-                      <h3 className="text-4xl font-extrabold tracking-tight text-white">{targetScoreNum}</h3>
-                      <span className="text-xl text-teal-200/80 font-medium">/ 120 points</span>
-                    </div>
-                    <p className="text-xs text-teal-200/90 max-w-md">
-                      Corresponds to TOEFL Band <strong>{convertScaledToBand6(targetScoreNum).toFixed(1)} / 6.0</strong> (
-                      {targetScoreNum >= 100 ? 'C1 Advanced / Graduate Level' : targetScoreNum >= 80 ? 'B2 Upper-Intermediate / University Entrance' : 'B1 Intermediate'}
-                      ).
-                    </p>
-                  </div>
-
-                  {/* Readiness Gauge */}
-                  <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-2xl p-4 w-full md:w-64 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-teal-200">Current Projected Score</span>
-                      <span className="text-white text-base font-bold">{toeflEstimate.overallScore} / 120</span>
-                    </div>
-                    
-                    <div className="h-2.5 bg-black/30 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 rounded-full transition-all duration-700"
-                        style={{ width: `${readinessPct}%` }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-teal-100">
-                      <span>{readinessPct}% Target Readiness</span>
-                      <span className="font-semibold uppercase tracking-wider">{toeflEstimate.cefrCode} Level</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Status Notice */}
-                <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-teal-100">
-                  <div className="flex items-center gap-2">
-                    {scoreGap <= 0 ? (
-                      <>
-                        <Trophy className="w-4 h-4 text-amber-300" />
-                        <span className="font-semibold text-amber-200">Goal Reached! You currently meet your target benchmark.</span>
-                      </>
-                    ) : scoreGap <= 6 ? (
-                      <>
-                        <Zap className="w-4 h-4 text-amber-300" />
-                        <span>Within striking distance: Only <strong className="text-white font-bold">{scoreGap} points</strong> to your target goal!</span>
-                      </>
-                    ) : (
-                      <>
-                        <TrendingUp className="w-4 h-4 text-teal-300" />
-                        <span>Work toward your goal: <strong className="text-white font-bold">{scoreGap} points</strong> needed to reach {targetScoreNum}.</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-teal-300/80">Based on authentic ETS scoring curves</span>
-                </div>
-              </div>
-
-              {/* Goal Pillars Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                {/* 1. Exam Date Countdown */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Exam Countdown</span>
-                    <Calendar className="w-4 h-4 text-teal-700" />
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {daysUntilTest !== null
-                      ? daysUntilTest > 0
-                        ? `${daysUntilTest} Days`
-                        : daysUntilTest === 0
-                        ? 'Exam Today! 🎯'
-                        : 'Exam Date Passed'
-                      : 'Not Scheduled'}
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    {testDateInput ? (
-                      <>Test Date: <strong className="text-slate-700 font-semibold">{new Date(testDateInput).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong></>
-                    ) : (
-                      'Set your target test date below'
-                    )}
-                  </p>
-                  <div className="text-[11px] text-teal-800 bg-teal-50 px-2 py-1 rounded-md font-medium">
-                    {daysUntilTest && daysUntilTest > 0
-                      ? `Pace: ~${Math.max(2, Math.ceil((weeklyGoalInput * 2) / Math.max(1, daysUntilTest / 7)))} tasks / day recommended`
-                      : 'Keep a steady 4-day weekly habit'}
-                  </div>
-                </div>
-
-                {/* 2. Weekly Practice Habit */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Weekly Habit</span>
-                    <Target className="w-4 h-4 text-teal-700" />
-                  </div>
-                  <div className="text-2xl font-bold text-slate-900">
-                    {weeklyCompleted} / {weeklyGoalInput} Tasks
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${weeklyCompleted >= weeklyGoalInput ? 'bg-emerald-500' : 'bg-teal-700'}`}
-                      style={{ width: `${Math.min(100, (weeklyCompleted / (weeklyGoalInput || 1)) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center text-[11px] text-slate-400">
-                    <span>Resets every Sunday</span>
-                    <span className="font-semibold text-slate-600">
-                      {weeklyCompleted >= weeklyGoalInput ? 'Weekly Goal Met! 🎉' : `${weeklyGoalInput - weeklyCompleted} left this week`}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3. Consistency Streak */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Study Streak</span>
-                    <Flame className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <div className="text-2xl font-bold text-amber-600 flex items-center gap-1.5">
-                    <span>{completedDays.length}</span>
-                    <span className="text-sm font-normal text-slate-500">active days</span>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Consistent daily practice builds automatic grammar and acoustic pattern recall.
-                  </p>
-                  <div className="text-[11px] text-amber-800 bg-amber-50 px-2 py-1 rounded-md font-medium">
-                    {completedDays.length >= 7 ? '🔥 7+ Day Master Scholar Streak' : 'Target: 5 active days per week'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Section-by-Section Score Target Breakdown */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">Section Target Parity (Target: {sectionTargetScore}/30 each)</h4>
-                    <p className="text-xs text-slate-500">Even performance across all four test sections is required for top university cutoffs.</p>
-                  </div>
-                  <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
-                    Parity Goal: {sectionTargetScore} pts / section
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                  
-                  {/* Reading */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-slate-800">Reading</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${toeflEstimate.readingScore >= sectionTargetScore ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {toeflEstimate.readingScore >= sectionTargetScore ? 'Met ✅' : `+${sectionTargetScore - toeflEstimate.readingScore} needed`}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xl font-bold text-slate-900">{toeflEstimate.readingScore}</span>
-                      <span className="text-xs text-slate-400">Target: {sectionTargetScore}/30</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">C-Test completion &amp; academic passage analysis</p>
-                  </div>
-
-                  {/* Listening */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-slate-800">Listening</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${toeflEstimate.listeningScore >= sectionTargetScore ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {toeflEstimate.listeningScore >= sectionTargetScore ? 'Met ✅' : `+${sectionTargetScore - toeflEstimate.listeningScore} needed`}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xl font-bold text-slate-900">{toeflEstimate.listeningScore}</span>
-                      <span className="text-xs text-slate-400">Target: {sectionTargetScore}/30</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">Campus conversations &amp; lecture comprehension</p>
-                  </div>
-
-                  {/* Speaking */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-slate-800">Speaking</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${toeflEstimate.speakingScore >= sectionTargetScore ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {toeflEstimate.speakingScore >= sectionTargetScore ? 'Met ✅' : `+${sectionTargetScore - toeflEstimate.speakingScore} needed`}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xl font-bold text-slate-900">{toeflEstimate.speakingScore}</span>
-                      <span className="text-xs text-slate-400">Target: {sectionTargetScore}/30</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">Repeat accuracy &amp; structured 45s interview answers</p>
-                  </div>
-
-                  {/* Writing */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-slate-800">Writing</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${toeflEstimate.writingScore >= sectionTargetScore ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {toeflEstimate.writingScore >= sectionTargetScore ? 'Met ✅' : `+${sectionTargetScore - toeflEstimate.writingScore} needed`}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xl font-bold text-slate-900">{toeflEstimate.writingScore}</span>
-                      <span className="text-xs text-slate-400">Target: {sectionTargetScore}/30</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 leading-tight">Sentence syntax &amp; academic forum contributions</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Edit & Customize Goals Form */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 bg-teal-100 text-teal-800 rounded-lg">
-                      <Settings className="w-4 h-4" />
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-sm">Configure Study Targets</h4>
-                  </div>
-                  {goalsSavedSuccess && (
-                    <div className="flex items-center gap-1.5 text-xs text-emerald-800 font-semibold bg-emerald-100 px-3 py-1 rounded-full animate-in fade-in">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Goals saved successfully!</span>
-                    </div>
-                  )}
-                </div>
-
-                <form onSubmit={handleSaveGoals} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    
-                    {/* Target Score Input with Presets */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Target TOEFL Score (0–120)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="120"
-                        value={targetScoreInput}
-                        onChange={(e) => setTargetScoreInput(e.target.value)}
-                        className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-bold text-slate-900"
-                      />
-                      <div className="flex items-center gap-1 pt-1 flex-wrap">
-                        {['80', '90', '100', '110'].map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setTargetScoreInput(preset)}
-                            className={`px-2 py-0.5 text-[10px] font-semibold rounded-md border cursor-pointer transition-colors ${
-                              targetScoreInput === preset
-                                ? 'bg-teal-800 text-white border-teal-800'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {preset} pts
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Test Date Picker */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Target Test Date</label>
-                      <input
-                        type="date"
-                        value={testDateInput}
-                        onChange={(e) => setTestDateInput(e.target.value)}
-                        className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-medium text-slate-900"
-                      />
-                      <p className="text-[11px] text-slate-400">Updates live exam countdown &amp; study pacing</p>
-                    </div>
-
-                    {/* Weekly Session Goal */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Weekly Practice Goal (Tasks/Week)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={weeklyGoalInput}
-                        onChange={(e) => setWeeklyGoalInput(parseInt(e.target.value, 10) || 5)}
-                        className="w-full text-sm bg-white border border-slate-300 rounded-lg px-3 py-2 focus:border-teal-600 outline-hidden font-medium text-slate-900"
-                      />
-                      <div className="flex items-center gap-1 pt-1 flex-wrap">
-                        {[5, 7, 10, 14].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            onClick={() => setWeeklyGoalInput(n)}
-                            className={`px-2 py-0.5 text-[10px] font-semibold rounded-md border cursor-pointer transition-colors ${
-                              weeklyGoalInput === n
-                                ? 'bg-teal-800 text-white border-teal-800'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {n} / wk
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      className="px-5 py-2 bg-teal-800 hover:bg-teal-900 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-300" />
-                      <span>Save Study Goals</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Saved Questions Database Statistics (Moved here) */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs mt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <Target className="w-4 h-4 text-teal-700" />
-                      Saved Questions Database Statistics (Total Bank)
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Total number of questions stored in the Firestore database across all sections (total bank, not user-filtered).
-                    </p>
-                  </div>
-                  <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
-                    Database Total
-                  </span>
-                </div>
-
-                {loadingQuestionCounts ? (
-                  <div className="text-xs text-slate-400 py-4 text-center">Loading database question counts...</div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {Object.entries(questionCounts).map(([section, count]) => (
-                      <div key={section} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
-                        <div>
-                          <div className="text-xs font-semibold text-slate-700">{section}</div>
-                          <div className="text-[11px] text-slate-400">Total in database</div>
-                        </div>
-                        <div className="text-sm font-bold text-teal-900 font-mono bg-white px-3 py-1 rounded-lg border border-teal-200">
-                          {count}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            </div>
+            <GoalsTab
+              targetScoreNum={targetScoreNum}
+              convertScaledToBand6={convertScaledToBand6}
+              toeflEstimate={toeflEstimate}
+              readinessPct={readinessPct}
+              scoreGap={scoreGap}
+              daysUntilTest={daysUntilTest}
+              testDateInput={testDateInput}
+              weeklyGoalInput={weeklyGoalInput}
+              weeklyCompleted={weeklyCompleted}
+              completedDays={completedDays}
+              sectionTargetScore={sectionTargetScore}
+              loadingQuestionCounts={loadingQuestionCounts}
+              questionCounts={questionCounts}
+              goalsSavedSuccess={goalsSavedSuccess}
+              targetScoreInput={targetScoreInput}
+              setTargetScoreInput={setTargetScoreInput}
+              setTestDateInput={setTestDateInput}
+              setWeeklyGoalInput={setWeeklyGoalInput}
+              handleSaveGoals={handleSaveGoals}
+            />
           )}
-
-          {/* TAB 3: SETTINGS */}
           {activeTab === 'settings' && <SettingsTab />}
-
-
-
-
-
-
-
-
-
-          {/* TAB 4: VOCABULARY BANK */}
           {activeTab === 'vocabulary' && (
-            <div className="space-y-6">
-              <form onSubmit={handleAddVocab} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                <h3 className="font-semibold text-slate-900 text-sm">Add New Vocabulary Word</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={newWord}
-                    onChange={(e) => setNewWord(e.target.value)}
-                    placeholder="Word (e.g. Ubiquitous)"
-                    className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-                  />
-                  <input
-                    type="text"
-                    value={newDef}
-                    onChange={(e) => setNewDef(e.target.value)}
-                    placeholder="Definition / Context"
-                    className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                  >
-                    Save Word
-                  </button>
-                </div>
-              </form>
-
-              <div className="space-y-2">
-                <h3 className="font-semibold text-slate-900 text-sm">Saved Words ({vocab.length})</h3>
-                {vocab.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-4 text-center">No vocabulary saved yet. Save challenging words from practice questions!</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-                    {vocab.map((v) => (
-                      <div key={v.id} className="p-3 border border-slate-200 rounded-xl flex items-start justify-between gap-2 bg-white">
-                        <div>
-                          <p className="font-bold text-sm text-slate-900">{v.word}</p>
-                          <p className="text-xs text-slate-600">{v.definition}</p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteVocab(v.id)}
-                          className="text-slate-400 hover:text-rose-600 p-1 rounded-lg transition-colors cursor-pointer"
-                          title="Delete word"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <VocabularyTab
+              vocab={vocab}
+              newWord={newWord}
+              newDef={newDef}
+              setNewWord={setNewWord}
+              setNewDef={setNewDef}
+              handleAddVocab={handleAddVocab}
+              handleDeleteVocab={handleDeleteVocab}
+            />
           )}
-
-          {/* TAB 5: MISTAKE NOTEBOOK */}
-          {activeTab === 'mistakes' && (
-            <MistakeNotebook />
-          )}
-
+          {activeTab === 'mistakes' && <MistakesTab />}
         </div>
       </div>
     </div>
