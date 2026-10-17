@@ -1450,7 +1450,6 @@ export default function App() {
           defaultTab={dashboardDefaultTab}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
-          openSettings={() => { setIsDashboardOpen(false); setIsSettingsModalOpen(true); }}
         />
       </Suspense>
     </div>
