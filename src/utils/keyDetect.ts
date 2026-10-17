@@ -46,20 +46,26 @@ export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
   groq: {
     generation: 'llama-3.3-70b-versatile',
     evaluation: 'llama-3.3-70b-versatile (analytical grading)',
-    transcription: 'Whisper Large v3 (ultra-fast LPU)',
-    tts: 'Web Speech / Kokoro',
+    transcription: 'whisper-large-v3-turbo (ultra-fast LPU)',
+    tts: 'PlayAI Speech / Web Speech',
   },
   nvidia: {
     generation: 'meta/llama-3.3-70b-instruct',
     evaluation: 'meta/llama-3.3-70b-instruct (hardware accelerated)',
-    transcription: 'Whisper STT / Web Mic',
+    transcription: 'Whisper STT / Web Speech',
     tts: 'Web Speech / Kokoro',
   },
   openrouter: {
     generation: 'meta-llama/llama-3.3-70b-instruct:free',
     evaluation: 'meta-llama/llama-3.3-70b-instruct:free (rubric rater)',
-    transcription: 'Whisper STT / Web Mic',
-    tts: 'Web Speech / Kokoro',
+    transcription: 'openai/whisper-large-v3 (OpenRouter STT)',
+    tts: 'openai/tts-1 (OpenRouter TTS)',
+  },
+  openai: {
+    generation: 'gpt-4o-mini',
+    evaluation: 'gpt-4o (comprehensive grading)',
+    transcription: 'whisper-1 (high accuracy)',
+    tts: 'tts-1 (natural speech)',
   },
 };
 

@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Key, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
-import { getStoredApiKey, setStoredApiKey, getStoredProvider, setStoredProvider, PROVIDERS, ApiProvider } from '../../../../utils/apiKey';
-import { detectProviderFromKey, KeyDetectResult, DEFAULT_PURPOSE_MODELS } from '../../../../utils/keyDetect';
+import { Key, CheckCircle2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  getStoredApiKey,
+  setStoredApiKey,
+  getStoredProvider,
+  setStoredProvider,
+  disconnectAllApiKeys,
+  PROVIDERS,
+  ApiProvider,
+} from '../../../../utils/apiKey';
+import { detectProviderFromKey } from '../../../../utils/keyDetect';
 
 export const AIProviderSection: React.FC = () => {
   const [provider, setProvider] = useState<ApiProvider>('gemini');
@@ -45,6 +53,17 @@ export const AIProviderSection: React.FC = () => {
     checkAllStatuses();
   };
 
+  const handleDisconnect = () => {
+    disconnectAllApiKeys();
+    setApiKeyInput('');
+    setProvider('gemini');
+    checkAllStatuses();
+    setTestKeyResult({
+      success: true,
+      message: 'API disconnected. Stored API keys cleared from localStorage and app API state reset.',
+    });
+  };
+
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -52,14 +71,24 @@ export const AIProviderSection: React.FC = () => {
           <h4 className="font-bold text-slate-900 text-sm">AI Provider &amp; API Keys</h4>
           <p className="text-xs text-slate-500 mt-0.5">Manage keys for Groq, Gemini, OpenRouter, OpenAI, NVIDIA, and DeepSeek.</p>
         </div>
-        <button
-          onClick={handleTestAllKeys}
-          disabled={isTestingAll}
-          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isTestingAll ? 'animate-spin' : ''}`} />
-          <span>Test all keys</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDisconnect}
+            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold rounded-lg border border-rose-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Clear stored API keys and reset API state"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>Disconnect API</span>
+          </button>
+          <button
+            onClick={handleTestAllKeys}
+            disabled={isTestingAll}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isTestingAll ? 'animate-spin' : ''}`} />
+            <span>Test all keys</span>
+          </button>
+        </div>
       </div>
 
       {/* Provider Status Chips */}

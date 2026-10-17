@@ -10,6 +10,8 @@ import {
   setStoredBaseUrl,
   getStoredModel,
   setStoredModel,
+  disconnectAllApiKeys,
+  hasAnyStoredApiKey,
   PROVIDERS,
   ApiProvider,
 } from '../../../utils/apiKey';
@@ -34,6 +36,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
   const [activePurposeModels, setActivePurposeModels] = useState<any>(null);
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string; model?: string } | null>(null);
+  const [hasAnyApiKey, setHasAnyApiKey] = useState<boolean>(() => hasAnyStoredApiKey());
   const autoTestedKeyRef = useRef<string>('');
 
   useEffect(() => {
@@ -43,9 +46,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
     setApiKeyInput(getStoredApiKey(currentProvider) || '');
     setBaseUrlInput(getStoredBaseUrl());
     setModelInput(getStoredModel());
-    setTestKeyResult(null);
+    setHasAnyApiKey(hasAnyStoredApiKey());
     autoTestedKeyRef.current = getStoredApiKey(currentProvider) || '';
   }, [displayName]);
+
+  useEffect(() => {
+    const updateKeyStatus = () => {
+      setHasAnyApiKey(hasAnyStoredApiKey());
+      const currentProvider = getStoredProvider();
+      setProvider(currentProvider);
+      setApiKeyInput(getStoredApiKey(currentProvider) || '');
+    };
+    window.addEventListener('apiKeyUpdated', updateKeyStatus);
+    return () => window.removeEventListener('apiKeyUpdated', updateKeyStatus);
+  }, []);
 
   useEffect(() => {
     const res = detectProviderFromKey(apiKeyInput);
@@ -87,6 +101,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
     // If key is present, save for new provider
     if (apiKeyInput.trim()) {
       setStoredApiKey(apiKeyInput.trim(), newProvider);
+      setHasAnyApiKey(true);
       window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
       setTestKeyResult({
         success: true,
@@ -96,15 +111,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
   };
 
   const handleDisconnectKey = () => {
-    setStoredApiKey('', provider);
+    disconnectAllApiKeys();
     setApiKeyInput('');
-    setTestKeyResult(null);
-    window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
+    setProvider('gemini');
+    setBaseUrlInput('');
+    setModelInput('');
+    setDetected(null);
+    setHasAnyApiKey(false);
+    autoTestedKeyRef.current = '';
     setTestKeyResult({
       success: true,
-      message: `API disconnected. Key for ${PROVIDERS[provider]?.name || provider} removed.`,
+      message: 'API disconnected. Stored API keys cleared from localStorage and app API state reset.',
     });
-    setTimeout(() => setTestKeyResult(null), 4000);
+    setTimeout(() => setTestKeyResult(null), 5000);
   };
 
   const handleTestKey = async (overrideProvider?: ApiProvider) => {
@@ -246,16 +265,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
                 )}
               </div>
 
-              {hasCurrentSavedKey && (
-                <button
-                  type="button"
-                  onClick={handleDisconnectKey}
-                  className="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Disconnect API</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleDisconnectKey}
+                className="px-3.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-300 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Clear stored API key from localStorage and reset API state"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Disconnect API</span>
+              </button>
             </div>
           </div>
 
@@ -323,7 +341,48 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
 
   return (
     <div className="space-y-4">
+      {/* Top API Status & Disconnect Bar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className={`p-2 rounded-lg ${hasAnyApiKey ? 'bg-teal-50 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>
+            <Key className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800">
+                {hasAnyApiKey ? `Active Provider: ${PROVIDERS[provider]?.name || provider}` : 'No Custom API Key Connected'}
+              </span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  hasAnyApiKey ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {hasAnyApiKey ? 'Connected' : 'Free / Built-in Mode'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {hasAnyApiKey
+                ? 'Your custom API key is active. All generation, scoring, and voice tasks route through this provider.'
+                : 'Using free built-in quota and offline models. Connect a key below for unlimited requests.'}
+            </p>
+          </div>
+        </div>
+
+        {hasAnyApiKey && (
+          <button
+            type="button"
+            onClick={handleDisconnectKey}
+            className="px-3.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-300 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            title="Clear stored API key from localStorage and reset app API state"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>Disconnect API</span>
+          </button>
+        )}
+      </div>
+
       <Accordion sections={sections} storageKey="dashboard_settings_accordion_open" />
     </div>
   );
 };
+

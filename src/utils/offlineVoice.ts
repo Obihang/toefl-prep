@@ -1,5 +1,5 @@
-// High-performance Offline Neural Voice support using Kokoro-82M in a dedicated Web Worker
 import { inferGender } from './voices';
+import { recordVoiceEngineFailure, recordVoiceEngineSuccess } from './voiceDiagnostics';
 
 const STORAGE_KEY_ENABLED = 'toefl_offline_voice_enabled';
 const STORAGE_KEY_DOWNLOADED = 'toefl_offline_voice_downloaded';
@@ -282,6 +282,7 @@ export async function downloadOfflineVoice(
       localStorage.setItem(STORAGE_KEY_ENABLED, 'true');
       localStorage.removeItem(STORAGE_KEY_ERROR);
     }
+    recordVoiceEngineSuccess('kokoro');
     return { success: true };
   } catch (err: any) {
     const msg = err?.message || String(err);
@@ -291,6 +292,7 @@ export async function downloadOfflineVoice(
       localStorage.setItem(STORAGE_KEY_ENABLED, 'false');
       localStorage.setItem(STORAGE_KEY_ERROR, msg);
     }
+    recordVoiceEngineFailure('kokoro', msg);
     return { success: false, error: msg };
   } finally {
     progressCallbackRef = null;
@@ -368,9 +370,11 @@ export async function testOfflineVoice(): Promise<{ success: boolean; message: s
     }
     const audioBuffer = await ctx.decodeAudioData(res.arrayBuffer.slice(0));
     await playDecodedSpeech(audioBuffer);
+    recordVoiceEngineSuccess('kokoro');
     return { success: true, message: 'Offline voice played successfully!' };
   } catch (err: any) {
     const msg = err?.message || String(err);
+    recordVoiceEngineFailure('kokoro', msg);
     return { success: false, message: msg };
   }
 }

@@ -10,14 +10,15 @@ export interface RoleModelsResult {
 export function classifyAudioModels(ids: string[]): { stt: string[]; tts: string[] } {
   const sttCandidates = ids.filter((id) => /whisper|transcri|parakeet|canary/i.test(id));
   const ttsCandidates = ids.filter(
-    (id) => /tts|orpheus|playai|text-to-speech/i.test(id) && !/guard|whisper|transcri/i.test(id)
+    (id) => /tts|orpheus|playai|text-to-speech|voxtral/i.test(id) && !/guard|whisper|transcri/i.test(id)
   );
 
   function scoreStt(id: string): number {
     const lower = id.toLowerCase();
     if (lower.includes('arabic') || lower.includes('translate')) return -100;
     if (lower.includes('whisper-large-v3-turbo')) return 100;
-    if (lower.includes('whisper-large-v3')) return 90;
+    if (lower.includes('whisper-large-v3')) return 95;
+    if (lower.includes('whisper-1')) return 90;
     if (lower.includes('whisper')) return 80;
     return 10;
   }
@@ -25,9 +26,12 @@ export function classifyAudioModels(ids: string[]): { stt: string[]; tts: string
   function scoreTts(id: string): number {
     const lower = id.toLowerCase();
     if (lower.includes('arabic')) return -100;
+    if (lower.includes('tts-1') || lower.includes('openai/tts-1')) return 105;
     if (lower.includes('orpheus') && lower.includes('english')) return 100;
     if (lower.includes('orpheus')) return 90;
-    if (lower.includes('playai')) return 80;
+    if (lower.includes('playai')) return 85;
+    if (lower.includes('voxtral')) return 80;
+    if (lower.includes('tts')) return 70;
     return 10;
   }
 

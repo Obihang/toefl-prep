@@ -28,21 +28,20 @@ export function evaluateRateLimitPause(
   now: number
 ): RateLimitPauseState {
   const errStr = JSON.stringify(errorOrResponse || '');
-  const lower = errStr.toLowerCase();
   let kind: 'per-minute' | 'per-day' | 'unknown' = 'per-minute';
-  let retryAfterSeconds = 60;
+  let retryAfterSeconds = 25;
 
-  if (lower.includes('perday') || lower.includes('daily') || lower.includes('day')) {
-    kind = 'per-day';
-    retryAfterSeconds = 3600;
-  }
-
-  const match = errStr.match(/(\d+)\s*s/);
+  const match = errStr.match(/(\d+)\s*(?:s|sec|seconds|second)\b/i);
   if (match) {
-    retryAfterSeconds = Math.max(retryAfterSeconds, parseInt(match[1], 10));
+    retryAfterSeconds = Math.max(5, parseInt(match[1], 10));
   }
 
-  const durationMs = kind === 'per-day' ? 3600 * 1000 : Math.max(60, retryAfterSeconds + 5) * 1000;
+  if (/(per[-_ ]?day|daily[-_ ]quota|daily[-_ ]limit|generate_content_free_tier_requests|resets at midnight pt)/i.test(errStr)) {
+    kind = 'per-day';
+    retryAfterSeconds = 1800;
+  }
+
+  const durationMs = kind === 'per-day' ? 1800 * 1000 : Math.max(20, (retryAfterSeconds + 2) * 1000);
   return {
     kind,
     resumeAt: now + durationMs,

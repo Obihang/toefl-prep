@@ -29,12 +29,24 @@ export function resolveProviderDefaults(
 
     case 'groq':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.groq.com/openai/v1';
-      resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
+      if (purpose === 'tts') {
+        resolvedModel = resolvedModel || 'playai-tts';
+      } else if (purpose === 'transcription') {
+        resolvedModel = resolvedModel || 'whisper-large-v3-turbo';
+      } else {
+        resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
+      }
       break;
 
     case 'openrouter':
       resolvedBaseUrl = resolvedBaseUrl || 'https://openrouter.ai/api/v1';
-      resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
+      if (purpose === 'tts') {
+        resolvedModel = resolvedModel || 'openai/tts-1';
+      } else if (purpose === 'transcription') {
+        resolvedModel = resolvedModel || 'openai/whisper-large-v3';
+      } else {
+        resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
+      }
       break;
 
     case 'openai':
@@ -216,9 +228,63 @@ export async function callOpenAiTts(options: {
   };
 }
 
-// Native Audio Transcription for Groq / OpenAI Whisper
+// Native Speech Synthesis for OpenRouter TTS (/api/v1/audio/speech)
+export async function callOpenRouterTts(options: {
+  apiKey: string;
+  text: string;
+  voiceName?: string;
+  model?: string;
+}): Promise<{ audioBase64: string; mimeType: string; modelUsed: string }> {
+  const { apiKey, text, voiceName = 'alloy', model = 'openai/tts-1' } = options;
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('OpenRouter API key missing for TTS');
+  }
+
+  const lowerVoice = (voiceName || '').toLowerCase();
+  let selectedVoice = 'alloy';
+  if (lowerVoice.includes('female') || ['kore', 'aoede', 'despina', 'leda', 'sarah', 'emily'].some(v => lowerVoice.includes(v))) {
+    selectedVoice = 'nova';
+  } else if (lowerVoice.includes('male') || ['fenrir', 'iapetus', 'orus', 'puck', 'lee', 'john'].some(v => lowerVoice.includes(v))) {
+    selectedVoice = 'onyx';
+  } else if (['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].includes(lowerVoice)) {
+    selectedVoice = lowerVoice;
+  }
+
+  const ttsModel = model || 'openai/tts-1';
+  const endpoint = 'https://openrouter.ai/api/v1/audio/speech';
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey.trim()}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://toeflprepstudio.com',
+      'X-Title': 'TOEFL Prep Studio',
+    },
+    body: JSON.stringify({
+      model: ttsModel,
+      input: text,
+      voice: selectedVoice,
+      response_format: 'mp3',
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenRouter TTS Error (${res.status}): ${err}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const audioBase64 = Buffer.from(arrayBuffer).toString('base64');
+  return {
+    audioBase64,
+    mimeType: 'audio/mpeg',
+    modelUsed: `openrouter:${ttsModel} (${selectedVoice})`,
+  };
+}
+
+// Native Audio Transcription for Groq / OpenRouter / OpenAI Whisper
 export async function callWhisperTranscription(options: {
-  provider: 'groq' | 'openai';
+  provider: 'groq' | 'openai' | 'openrouter';
   apiKey: string;
   audioBase64: string;
   mimeType?: string;
@@ -232,6 +298,8 @@ export async function callWhisperTranscription(options: {
 
   const endpoint = provider === 'groq'
     ? 'https://api.groq.com/openai/v1/audio/transcriptions'
+    : provider === 'openrouter'
+    ? 'https://openrouter.ai/api/v1/audio/transcriptions'
     : 'https://api.openai.com/v1/audio/transcriptions';
 
   let model = (sttModel || '').trim();
@@ -245,7 +313,9 @@ export async function callWhisperTranscription(options: {
     }
   }
   if (!model) {
-    model = provider === 'groq' ? 'whisper-large-v3-turbo' : 'whisper-1';
+    model = provider === 'groq' ? 'whisper-large-v3-turbo'
+      : provider === 'openrouter' ? 'openai/whisper-large-v3'
+      : 'whisper-1';
   }
 
   const buffer = Buffer.from(audioBase64, 'base64');
@@ -261,15 +331,21 @@ export async function callWhisperTranscription(options: {
     formData.append('prompt', prompt.trim());
   }
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey.trim()}`,
+  };
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://toeflprepstudio.com';
+    headers['X-Title'] = 'TOEFL Prep Studio';
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey.trim()}`,
-      },
+      headers,
       body: formData,
       signal: controller.signal,
     });

@@ -14,6 +14,7 @@ import {
   downloadOfflineVoice,
   removeOfflineVoice,
 } from '../../../../utils/offlineVoice';
+import { getVoiceEngineFailureCount } from '../../../../utils/voiceDiagnostics';
 
 export const VoiceCheckingSection: React.FC = () => {
   const [engine, setEngine] = useState<'webspeech' | 'kokoro' | 'aivoice'>('webspeech');
@@ -44,15 +45,42 @@ export const VoiceCheckingSection: React.FC = () => {
   const intervalRef = useRef<any>(null);
 
   useEffect(() => {
-    const storedEng = getVoiceEngine();
-    if (storedEng === 'offline') setEngine('kokoro');
-    else if (storedEng === 'cloud') setEngine('aivoice');
-    else setEngine('webspeech');
+    const syncEngine = () => {
+      const storedEng = getVoiceEngine();
+      if (storedEng === 'offline') setEngine('kokoro');
+      else if (storedEng === 'cloud') setEngine('aivoice');
+      else setEngine('webspeech');
+    };
 
+    syncEngine();
     setIsKokoroDownloaded(isOfflineVoiceDownloaded());
     setVoices(getVoices());
     setSelectedMicId(getStoredMicDeviceId() || '');
     getAudioInputDevices().then(setMicDevices).catch(() => {});
+
+    const handleEngineEvent = (e: any) => {
+      const eng = e.detail?.engine || getVoiceEngine();
+      if (eng === 'offline') setEngine('kokoro');
+      else if (eng === 'cloud') setEngine('aivoice');
+      else setEngine('webspeech');
+    };
+
+    const handleFallbackToast = (e: any) => {
+      if (e.detail) {
+        setEngine('webspeech');
+        setTestResult({
+          success: false,
+          message: `${e.detail.failedEngine} failed after 3 attempts (${e.detail.reason || 'audio error'}). Automatically switched to Web Speech.`,
+        });
+      }
+    };
+
+    window.addEventListener('toefl_voice_engine_changed', handleEngineEvent);
+    window.addEventListener('toefl_voice_fallback_toast', handleFallbackToast);
+    return () => {
+      window.removeEventListener('toefl_voice_engine_changed', handleEngineEvent);
+      window.removeEventListener('toefl_voice_fallback_toast', handleFallbackToast);
+    };
   }, []);
 
   const handleEngineChange = async (newEng: 'webspeech' | 'kokoro' | 'aivoice') => {
@@ -118,12 +146,20 @@ export const VoiceCheckingSection: React.FC = () => {
       });
       setTestResult({ success: true, message: statusLog || 'Voice test completed successfully!' });
     } catch (err: any) {
-      setTestResult({
-        success: false,
-        message: `Engine encountered an issue (${err?.message || 'unavailable'}). Automatically falling back to Web Speech.`,
-      });
-      setEngine('webspeech');
-      setVoiceEngine('device');
+      const activeVoiceEng = getVoiceEngine();
+      const failures = getVoiceEngineFailureCount(engine);
+      if (activeVoiceEng === 'device' && engine !== 'webspeech') {
+        setEngine('webspeech');
+        setTestResult({
+          success: false,
+          message: `${engine === 'kokoro' ? 'Kokoro' : 'AI Voice'} failed 3 consecutive attempts (${err?.message || 'unavailable'}). Automatically toggled setting to Web Speech.`,
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: `${engine === 'kokoro' ? 'Kokoro' : 'AI Voice'} encountered an issue (${err?.message || 'unavailable'}). Diagnostic attempt ${failures || 1}/3.`,
+        });
+      }
     } finally {
       setIsTestingVoice(false);
     }

@@ -67,6 +67,7 @@ import { WriteEmailView } from './components/tasks/WriteEmailView';
 import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionView';
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
 import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
+import { VoiceDiagnosticToast } from './components/shared/VoiceDiagnosticToast';
 
 import { TaskTypeId, TaskDefinition, TASK_DEFINITIONS } from './types/taskTypes';
 import {
@@ -694,9 +695,9 @@ export default function App() {
           const pause = evaluateRateLimitPause(json.data.rateLimit, Date.now()); setRateLimitPauseState(pause); quotaExhaustedUntilRef.current = pause.resumeAt;
         }
         setGenerationError(
-          isQuota
-            ? "Your key's free daily AI quota is used up. Practicing with an authentic ETS TOEFL curated question."
-            : `AI notice: ${reason}. Showing an authentic curated TOEFL question instead.`
+          reason && !reason.toLowerCase().includes('unknown')
+            ? `AI notice: ${reason}. Showing an authentic curated TOEFL question instead.`
+            : "AI service rate limit reached or model busy. Practicing with an authentic ETS TOEFL curated question."
         );
         handleNextCurated(currentTaskType);
         setIsGenerating(false);
@@ -759,9 +760,9 @@ export default function App() {
         const pause = evaluateRateLimitPause(err, Date.now()); setRateLimitPauseState(pause); quotaExhaustedUntilRef.current = pause.resumeAt;
       }
       setGenerationError(
-        isQuota
-          ? "Your key's free daily AI quota is used up. Practicing with an authentic ETS TOEFL curated question."
-          : `AI notice: ${rawMsg.slice(0, 120)}. Showing an authentic curated question instead.`
+        rawMsg && !rawMsg.toLowerCase().includes('unknown')
+          ? `AI notice: ${rawMsg}. Showing an authentic curated question instead.`
+          : "AI service rate limit reached or model busy. Practicing with an authentic ETS TOEFL curated question."
       );
       handleNextCurated(currentTaskType);
     } finally {
@@ -1252,6 +1253,18 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
                 <button
                   onClick={() => {
+                    setGenerationError(null);
+                    setRateLimitPauseState(null);
+                    quotaExhaustedUntilRef.current = 0;
+                    handleGenerateNewAiTask();
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-lg transition-colors cursor-pointer shadow-2xs flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Retry with AI Now
+                </button>
+                <button
+                  onClick={() => {
                     setDashboardDefaultTab('settings');
                     setIsDashboardOpen(true);
                   }}
@@ -1491,6 +1504,14 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Diagnostic Voice Fallback Toast */}
+      <VoiceDiagnosticToast
+        onOpenSettings={() => {
+          setDashboardDefaultTab('settings');
+          setIsDashboardOpen(true);
+        }}
+      />
 
       {/* Modals */}
       <RubricGuideModal isOpen={isRubricsOpen} onClose={() => setIsRubricsOpen(false)} />

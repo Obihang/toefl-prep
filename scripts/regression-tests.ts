@@ -1,5 +1,5 @@
 import { getSectionForTaskType, TASK_SECTION_MAP } from '../src/types/taskTypes';
-import { redactKey } from '../src/server/geminiErrors';
+import { redactKey, extractErrorMessage } from '../src/server/geminiErrors';
 import { normalizeTask } from '../src/server/geminiHandler';
 
 function runRegressionTests() {
@@ -89,7 +89,41 @@ function runRegressionTests() {
   }
   if (!threw) throw new Error('FAIL: Unknown task type should be explicitly rejected');
 
+  // Complete words: reconcile totalBlanks when model says 10 but created 6 blanks
+  const normCW = normalizeTask('complete-words', {
+    title: 'Ecology Test',
+    text: 'Forests play a crit[[ical]] role in our glob[[al]] ecos[[ystem]]. Trees abs[[orb]] carb[[on]] and rele[[ase]] oxygen.',
+    totalBlanks: 10,
+  });
+  if (normCW.totalBlanks !== 6) {
+    throw new Error(`FAIL: Complete words totalBlanks should reconcile to 6, got ${normCW.totalBlanks}`);
+  }
+
+  // Complete words: reject when insufficient blanks (< 3)
+  threw = false;
+  try {
+    normalizeTask('complete-words', {
+      title: 'Too few blanks',
+      text: 'Only one bl[[ank]] here.',
+      totalBlanks: 1,
+    });
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error('FAIL: Complete words with < 3 blanks should be rejected');
+
   console.log('PASS: Exact question validation and error rejections verified successfully.');
+
+  // 4. Provider-specific Quota Error Message Test
+  console.log('Test 4: Provider-specific Error Messages');
+  const orErr = extractErrorMessage(new Error('OPENROUTER API Error (429): Rate limit exceeded'));
+  if (orErr.includes('midnight Pacific time')) {
+    throw new Error(`FAIL: OpenRouter error should not mention midnight Pacific time: ${orErr}`);
+  }
+  if (!orErr.toLowerCase().includes('openrouter')) {
+    throw new Error(`FAIL: OpenRouter error should mention OpenRouter: ${orErr}`);
+  }
+  console.log('PASS: Provider-specific quota errors formatted accurately.');
 
   console.log('All regression tests passed successfully!');
 }

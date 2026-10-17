@@ -49,7 +49,8 @@ export async function createServer() {
       const result = await handleGenerateTask(taskType, level, topic, apiConfig);
       res.json({ success: true, data: result, rateLimit: result.rateLimit });
     } catch (error: any) {
-      const msg = extractErrorMessage(error);
+      const apiConfig = getApiConfig(req.headers, req.body);
+      const msg = extractErrorMessage(error, apiConfig.provider);
       const status = getStatus(error);
       const rateLimit = (status === 429 || isQuotaExhaustedError(error)) ? parseRateLimitFromError(error) : undefined;
       res.status(status === 429 ? 429 : 500).json({ success: false, error: msg, rateLimit });
@@ -63,7 +64,8 @@ export async function createServer() {
       const result = await handleEvaluateResponse(taskType, promptData, studentResponse, apiConfig);
       res.json({ success: true, data: result });
     } catch (error: any) {
-      const msg = extractErrorMessage(error);
+      const apiConfig = getApiConfig(req.headers, req.body);
+      const msg = extractErrorMessage(error, apiConfig.provider);
       const status = getStatus(error);
       let httpStatus = 500;
       if (isKeyError(error)) {
@@ -84,7 +86,8 @@ export async function createServer() {
       const result = await handleSynthesizeSpeech(text, voiceName, apiConfig);
       res.json({ success: true, audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed: result.modelUsed });
     } catch (error: any) {
-      const msg = extractErrorMessage(error);
+      const apiConfig = getApiConfig(req.headers, req.body);
+      const msg = extractErrorMessage(error, apiConfig.provider);
       const status = getStatus(error);
       const rateLimit = (status === 429 || isQuotaExhaustedError(error)) ? parseRateLimitFromError(error) : undefined;
       if (status === 429 || isQuotaExhaustedError(error)) {
@@ -161,7 +164,8 @@ export async function createServer() {
       if (!isKeyError(error)) {
         console.error('Test key error:', error);
       }
-      const errMsg = extractErrorMessage(error);
+      const config = getApiConfig(req.headers, req.body);
+      const errMsg = extractErrorMessage(error, config.provider);
       const rawStatus = typeof error?.status === 'number' ? error.status : getStatus(error);
       let httpStatus = 400;
       if (isKeyError(error) || rawStatus === 401 || rawStatus === 402 || rawStatus === 429) {

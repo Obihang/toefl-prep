@@ -120,7 +120,7 @@ export function redactKey(text: string): string {
     .replace(/sk-[0-9A-Za-z_-]{10,}/g, '[REDACTED]');
 }
 
-export function extractErrorMessage(err: any): string {
+export function extractErrorMessage(err: any, explicitProvider?: string): string {
   if (!err) return 'Unknown error';
   let rawMsg = '';
   if (typeof err === 'string') {
@@ -133,7 +133,17 @@ export function extractErrorMessage(err: any): string {
     rawMsg = String(err);
   }
 
-  // Extract nested JSON error message if present (e.g. from Google API)
+  // Detect provider from original message or explicit argument BEFORE stripping nested JSON
+  const originalLower = (rawMsg + ' ' + (err?.provider || '')).toLowerCase();
+  const detectedProvider = (explicitProvider || '').toLowerCase() ||
+    (originalLower.includes('openrouter') || originalLower.includes('sk-or-') ? 'openrouter' :
+     originalLower.includes('groq') || originalLower.includes('gsk_') ? 'groq' :
+     originalLower.includes('nvidia') || originalLower.includes('nvapi-') ? 'nvidia' :
+     originalLower.includes('openai') ? 'openai' :
+     originalLower.includes('gemini') || originalLower.includes('aiza') || originalLower.includes('generativelanguage') ? 'gemini' :
+     '');
+
+  // Extract nested JSON error message if present (e.g. from Google API or OpenRouter)
   try {
     const jsonMatch = rawMsg.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -154,9 +164,29 @@ export function extractErrorMessage(err: any): string {
   } else if (lower.includes('caller does not have permission') || lower.includes('requests from referer') || lower.includes('requests from this ip')) {
     rawMsg = 'Key restriction issue: Remove HTTP referrer or IP restrictions on your key in Google Cloud Console.';
   } else if (isKeyError(err) || lower.includes('api_key_invalid') || lower.includes('api key not valid') || lower.includes('invalid api key') || lower.includes('access_token_type_unsupported')) {
-    rawMsg = 'Invalid API key. Please check your key in Dashboard > Settings & API Key.';
-  } else if (lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted')) {
-    rawMsg = "Your key's free daily AI quota is used up. It usually resets at midnight Pacific time (PT).";
+    // Preserve key error
+  } else if (lower.includes('quota or rate limit') || lower.includes('fallback models were attempted')) {
+    // Preserve custom healing error messages with explicit provider recovery instructions
+  } else if (lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted') || lower.includes('rate limit')) {
+    if (detectedProvider === 'openrouter') {
+      if (lower.includes('insufficient_quota') || lower.includes('credit') || lower.includes('balance') || lower.includes('payment_required') || lower.includes('402')) {
+        rawMsg = "Your OpenRouter credits are exhausted. Check your balance at https://openrouter.ai/credits or connect another key.";
+      } else {
+        rawMsg = "OpenRouter rate limit reached. Please wait a few moments or try another model in Settings.";
+      }
+    } else if (detectedProvider === 'groq') {
+      rawMsg = "Your Groq per-minute rate limit is reached. Please wait a moment for it to reset or connect another key.";
+    } else if (detectedProvider === 'nvidia') {
+      rawMsg = "Your NVIDIA rate limit is reached. Please wait a moment for it to reset or connect another key.";
+    } else if (detectedProvider === 'gemini') {
+      if (lower.includes('resource_exhausted') || lower.includes('generate_content_free_tier_requests') || lower.includes('daily')) {
+        rawMsg = "Gemini free daily AI quota is used up. It resets at midnight Pacific time (PT). Try using OpenRouter (https://openrouter.ai/keys) or Groq (https://console.groq.com/keys) for free quota.";
+      } else {
+        rawMsg = "Gemini per-minute rate limit reached (15 requests/min). Please wait 15-30 seconds.";
+      }
+    } else {
+      rawMsg = "API rate limit reached. Please wait a moment for it to reset or connect another key.";
+    }
   } else if (lower.includes('503') || lower.includes('unavailable') || lower.includes('overloaded') || lower.includes('model busy')) {
     rawMsg = 'AI models are temporarily busy. Please try again in a moment.';
   } else if (lower.includes('no longer available') || lower.includes('not supported') || lower.includes('not found')) {

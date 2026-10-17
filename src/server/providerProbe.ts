@@ -41,12 +41,11 @@ export function rankModels(provider: string, ids: string[], preferred?: string):
   // 1. Drop non-chat/specialized models
   let filtered = ids.filter((id) => !DROP_PATTERN.test(id));
 
-  // 2. For openrouter, prioritize :free models if present
+  // 2. For openrouter, prioritize :free models first, followed by standard models
   if (provider === 'openrouter') {
     const freeModels = filtered.filter((id) => id.endsWith(':free'));
-    if (freeModels.length > 0) {
-      filtered = freeModels;
-    }
+    const nonFreeModels = filtered.filter((id) => !id.endsWith(':free'));
+    filtered = [...freeModels, ...nonFreeModels];
   }
 
   // Score models based on provider preferences

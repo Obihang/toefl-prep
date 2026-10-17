@@ -4,9 +4,13 @@ import { getRoleModels } from './modelRoles.ts';
 const FALLBACK_MODELS_BY_PROVIDER: Record<string, string[]> = {
   openrouter: [
     'meta-llama/llama-3.3-70b-instruct:free',
-    'google/gemini-2.0-flash-exp:free',
     'qwen/qwen-2.5-72b-instruct:free',
-    'mistralai/mistral-7b-instruct:free',
+    'meta-llama/llama-3.1-8b-instruct:free',
+    'deepseek/deepseek-r1:free',
+    'mistralai/mistral-small-24b-instruct-2501:free',
+    'google/gemini-2.0-flash-thinking-exp:free',
+    'google/gemini-2.0-flash-001',
+    'meta-llama/llama-3.3-70b-instruct',
   ],
   groq: [
     'llama-3.3-70b-versatile',
@@ -55,19 +59,25 @@ export async function callChatWithHealing(
 
     // Determine alternative candidates
     let candidatesToTry: string[] = [];
-    const originalModel = options.model || '';
+    const defaultModel =
+      provider === 'openrouter'
+        ? 'meta-llama/llama-3.3-70b-instruct:free'
+        : provider === 'groq'
+        ? 'llama-3.3-70b-versatile'
+        : 'meta/llama-3.3-70b-instruct';
+    const attemptedModel = options.model || defaultModel;
 
     if (isQuotaOr429) {
       const predefined = FALLBACK_MODELS_BY_PROVIDER[provider] || [];
-      candidatesToTry = predefined.filter((m) => m !== originalModel);
+      candidatesToTry = predefined.filter((m) => m !== attemptedModel);
     } else {
       // 404 or decommissioned: fetch fresh models from provider probe
       try {
         const roles = await getRoleModels(provider, options.apiKey, true);
         const fresh = roles.chat || [];
-        candidatesToTry = fresh.filter((m) => m !== originalModel).slice(0, 3);
+        candidatesToTry = fresh.filter((m) => m !== attemptedModel).slice(0, 3);
       } catch {
-        candidatesToTry = (FALLBACK_MODELS_BY_PROVIDER[provider] || []).filter((m) => m !== originalModel);
+        candidatesToTry = (FALLBACK_MODELS_BY_PROVIDER[provider] || []).filter((m) => m !== attemptedModel);
       }
     }
 
@@ -87,7 +97,7 @@ export async function callChatWithHealing(
 
     if (isQuotaOr429) {
       throw new Error(
-        `Quota or rate limit completed for ${provider}. Fallback models were attempted and also exhausted. Please use another API key (Gemini: https://aistudio.google.com/apikey | Groq: https://console.groq.com/keys | OpenRouter: https://openrouter.ai/keys) or wait for your quota to reset.`
+        `Rate limit reached for ${provider}. Fallback models were attempted. Please wait a moment for limits to reset or switch to another provider.`
       );
     }
 

@@ -5,7 +5,7 @@ import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
-import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callWhisperTranscription } from './llmClient.ts';
+import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callOpenRouterTts, callWhisperTranscription } from './llmClient.ts';
 import { callChatWithHealing } from './chatHealing.ts';
 import { callGroqSpeech } from './groqSpeech.ts';
 import { callAudio8Speech } from './audio8Speech.ts';
@@ -17,13 +17,20 @@ export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage
 
 export function parseRateLimitFromError(error: any) {
   let kind: 'per-minute' | 'per-day' | 'unknown' = 'per-minute';
-  let retryAfterSeconds = 60;
+  let retryAfterSeconds = 25;
 
   const errStr = JSON.stringify(error?.details || error?.message || error || '');
   const lower = errStr.toLowerCase();
-  if (lower.includes('perday') || lower.includes('daily') || lower.includes('day')) {
+
+  // Extract explicit retry seconds if mentioned in message (e.g. "try again in 12s", "retry after 20 seconds")
+  const secMatch = errStr.match(/(\d+)\s*(?:s|sec|seconds|second)\b/i);
+  if (secMatch) {
+    retryAfterSeconds = Math.max(5, parseInt(secMatch[1], 10));
+  }
+
+  if (/(per[-_ ]?day|daily[-_ ]quota|daily[-_ ]limit|generate_content_free_tier_requests|resets at midnight pt)/i.test(errStr)) {
     kind = 'per-day';
-    retryAfterSeconds = 3600;
+    retryAfterSeconds = 1800;
   }
 
   if (error?.details && Array.isArray(error.details)) {
@@ -38,7 +45,7 @@ export function parseRateLimitFromError(error: any) {
           const qId = String(v.quotaId || '').toLowerCase();
           if (qId.includes('perday') || qId.includes('daily')) {
             kind = 'per-day';
-            retryAfterSeconds = 3600;
+            retryAfterSeconds = 1800;
           } else if (qId.includes('perminute') || qId.includes('minute')) {
             kind = 'per-minute';
           }
@@ -207,17 +214,19 @@ function normalizeAcademicDiscussion(data: any) {
 
 function normalizeCompleteWords(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
-  const title = String(data.title || '').trim();
+  const title = String(data.title || 'Complete the Words').trim();
   if (!title) throw new Error('Complete the Words missing title');
   const text = String(data.text || '').trim();
   if (!text || !text.includes('[[') || !text.includes(']]')) {
     throw new Error('AI response missing valid [[masked]] word blanks in text');
   }
   const blankMatches = text.match(/\[\[/g) || [];
-  const totalBlanks = Number(data.totalBlanks);
-  if (isNaN(totalBlanks) || totalBlanks <= 0 || totalBlanks !== blankMatches.length) {
-    throw new Error(`Complete the Words totalBlanks (${totalBlanks}) does not match actual blank count (${blankMatches.length})`);
+  if (blankMatches.length < 3) {
+    throw new Error(`Complete the Words generated insufficient blanks (${blankMatches.length}), at least 3 required`);
   }
+  // The actual [[masked]] words in the text define the true blank count.
+  // We reconcile totalBlanks to blankMatches.length so mismatching totalBlanks never crashes valid generation.
+  const totalBlanks = blankMatches.length;
   return { title, text, totalBlanks };
 }
 
@@ -602,7 +611,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
     switch (tType) {
       case 'complete-words':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select exactly 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
+        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select between 8 to 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
       case 'reading-passage':
         return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
       case 'listening-dialogue':
@@ -642,7 +651,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       const result = schema.parse(normalized);
       return { ...result, isFallback: false, modelUsed };
     } catch (error: any) {
-      const errMsg = extractErrorMessage(error);
+      const errMsg = extractErrorMessage(error, provider);
       if (!isKeyError(error)) {
         console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
       } else {
@@ -704,7 +713,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
   } catch (error: any) {
     const isQuota = isQuotaExhaustedError(error) || getStatus(error) === 429;
     const rateLimit = isQuota ? parseRateLimitFromError(error) : undefined;
-    const errMsg = extractErrorMessage(error);
+    const errMsg = extractErrorMessage(error, provider);
     if (!isQuota && !isKeyError(error)) {
       console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
     } else {
@@ -870,10 +879,25 @@ export async function handleSynthesizeSpeech(
     }
   }
 
-  // If OpenRouter, Anthropic, XAI, DeepSeek, NVIDIA, or custom, throw unsupported provider error
-  const unsupportedProviders = ['openrouter', 'anthropic', 'xai', 'deepseek', 'nvidia', 'custom'];
-  if (unsupportedProviders.includes(provider) || (customApiKey && /^sk-or-/i.test(customApiKey))) {
-    throw new Error(`TTS_UNSUPPORTED_PROVIDER: Provider '${provider}' does not support text-to-speech synthesis. Use Cloud (Gemini), Groq, OpenAI, or Offline Neural voice.`);
+  // If OpenRouter key, utilize OpenRouter TTS API directly (/api/v1/audio/speech)
+  if (provider === 'openrouter' && customApiKey) {
+    try {
+      const res = await callOpenRouterTts({
+        apiKey: customApiKey,
+        text,
+        voiceName,
+        model: opts.ttsModel,
+      });
+      return res;
+    } catch (err: any) {
+      if (err?.status === 401 || err?.message?.includes('401')) {
+        throw new Error('TTS_INVALID_CREDENTIALS');
+      }
+      if (err?.status === 429 || err?.message?.includes('429')) {
+        throw new Error('TTS_QUOTA_EXCEEDED');
+      }
+      throw new Error(`OpenRouter TTS failed: ${err?.message || 'SPEECH_UNAVAILABLE'}`);
+    }
   }
 
   // If Groq key, utilize Groq TTS API directly
@@ -927,6 +951,12 @@ export async function handleSynthesizeSpeech(
       }
       throw new Error(`OpenAI TTS failed: ${err?.message || 'SPEECH_UNAVAILABLE'}`);
     }
+  }
+
+  // If Anthropic, XAI, DeepSeek, NVIDIA, or custom, throw unsupported provider error
+  const unsupportedProviders = ['anthropic', 'xai', 'deepseek', 'nvidia', 'custom'];
+  if (unsupportedProviders.includes(provider)) {
+    throw new Error(`TTS_UNSUPPORTED_PROVIDER: Provider '${provider}' does not support text-to-speech synthesis. Use Cloud (Gemini), Groq, OpenRouter, OpenAI, or Offline Neural voice.`);
   }
 
   // Gemini TTS path: NEVER send non-Gemini keys to Gemini
@@ -1011,8 +1041,8 @@ export async function handleTranscribeAudio(
   let provider = opts.provider || 'gemini';
   const customApiKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
 
-  // If Groq or OpenAI key, utilize native Whisper transcription
-  if ((provider === 'groq' || provider === 'openai') && customApiKey) {
+  // If Groq, OpenRouter, or OpenAI key, utilize native Whisper transcription
+  if ((provider === 'groq' || provider === 'openai' || provider === 'openrouter') && customApiKey) {
     try {
       const startTime = Date.now();
       const res = await callWhisperTranscription({

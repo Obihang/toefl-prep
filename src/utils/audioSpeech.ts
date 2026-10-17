@@ -2,6 +2,11 @@ import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } 
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { isOfflineVoiceEnabled, isOfflineVoiceDownloaded, generateOfflineSpeech } from './offlineVoice';
 import { inferGender } from './voices';
+import {
+  recordVoiceEngineFailure,
+  recordVoiceEngineSuccess,
+  resetVoiceEngineFailureCounts,
+} from './voiceDiagnostics';
 
 export interface SpeechVoiceOption {
   name: string;
@@ -1025,10 +1030,27 @@ export async function playSpeech(
 
     if (step === 'cloud') {
       result = await tryCloud();
+      if (!result.cancelled) {
+        if (result.ok) {
+          recordVoiceEngineSuccess('cloud');
+        } else if (engine === 'cloud' || stepOrder[0] === 'cloud') {
+          recordVoiceEngineFailure('cloud', result.reason);
+        }
+      }
     } else if (step === 'device') {
       result = await tryDevice();
+      if (result.ok) {
+        recordVoiceEngineSuccess('device');
+      }
     } else if (step === 'offline') {
       result = await tryOffline();
+      if (!result.cancelled) {
+        if (result.ok) {
+          recordVoiceEngineSuccess('offline');
+        } else if (engine === 'offline' || stepOrder[0] === 'offline') {
+          recordVoiceEngineFailure('offline', result.reason);
+        }
+      }
     }
 
     if (!isAudioPlayingState || currentDialogueSessionId !== currentSession || result.cancelled) {
@@ -1177,7 +1199,9 @@ export function getVoiceEngine(): VoiceEngine {
 export function setVoiceEngine(engine: VoiceEngine) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('toefl_voice_engine', engine);
+    window.dispatchEvent(new CustomEvent('toefl_voice_engine_changed', { detail: { engine } }));
   }
+  resetVoiceEngineFailureCounts(engine);
 }
 
 export type VoiceFallbackPolicy = 'fallback' | 'strict';

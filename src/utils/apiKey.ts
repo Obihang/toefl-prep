@@ -248,6 +248,40 @@ export function setStoredRoles(provider: string, roles: StoredRoles): void {
   localStorage.setItem(`toefl_roles_${provider}`, JSON.stringify(roles));
 }
 
+export function hasAnyStoredApiKey(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  const providers: ApiProvider[] = ['gemini', 'openrouter', 'groq', 'nvidia', 'openai', 'deepseek', 'xai', 'anthropic', 'custom'];
+  for (const p of providers) {
+    if ((localStorage.getItem(`toefl_key_${p}`) || '').trim()) return true;
+  }
+  if ((localStorage.getItem('toefl_gemini_api_key') || '').trim()) return true;
+  if ((localStorage.getItem('toefl_custom_api_key') || '').trim()) return true;
+  if ((localStorage.getItem('toefl_voice_api_key') || '').trim()) return true;
+  return false;
+}
+
+export function disconnectAllApiKeys(): void {
+  if (typeof localStorage === 'undefined') return;
+  const providers: ApiProvider[] = ['gemini', 'openrouter', 'groq', 'nvidia', 'openai', 'deepseek', 'xai', 'anthropic', 'custom', 'auto'];
+  providers.forEach((p) => {
+    localStorage.removeItem(`toefl_key_${p}`);
+    localStorage.removeItem(`toefl_base_url_${p}`);
+    localStorage.removeItem(`toefl_model_${p}`);
+    localStorage.removeItem(`toefl_roles_${p}`);
+    localStorage.removeItem(`toefl_purpose_models_${p}`);
+  });
+  localStorage.removeItem('toefl_api_provider');
+  localStorage.removeItem('toefl_gemini_api_key');
+  localStorage.removeItem('toefl_custom_api_key');
+  localStorage.removeItem('toefl_voice_api_key');
+  localStorage.removeItem('toefl_audio8_url');
+  localStorage.removeItem('toefl_tts_provider');
+  localStorage.removeItem('toefl_purpose_models');
+  localStorage.removeItem('toefl_tts_blocked_until');
+  resetTtsQuotaBlock();
+  window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
+}
+
 export function getStoredVoiceKey(): string {
   if (typeof localStorage === 'undefined') return '';
   return (localStorage.getItem('toefl_voice_api_key') || '').trim();
