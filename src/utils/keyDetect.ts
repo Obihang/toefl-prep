@@ -44,22 +44,22 @@ export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
     tts: 'Gemini Speech (natural native voices)',
   },
   groq: {
-    generation: 'Auto (best available)',
-    evaluation: 'Auto (best available)',
+    generation: 'llama-3.3-70b-versatile',
+    evaluation: 'llama-3.3-70b-versatile (analytical grading)',
     transcription: 'Whisper Large v3 (ultra-fast LPU)',
-    tts: 'Studio Voice / Web Speech',
+    tts: 'Web Speech / Kokoro',
   },
   nvidia: {
-    generation: 'Auto (best available)',
-    evaluation: 'Auto (best available)',
+    generation: 'meta/llama-3.3-70b-instruct',
+    evaluation: 'meta/llama-3.3-70b-instruct (hardware accelerated)',
     transcription: 'Whisper STT / Web Mic',
-    tts: 'Studio Voice / Web Speech',
+    tts: 'Web Speech / Kokoro',
   },
   openrouter: {
-    generation: 'Auto (best available)',
-    evaluation: 'Auto (best available)',
+    generation: 'meta-llama/llama-3.3-70b-instruct:free',
+    evaluation: 'meta-llama/llama-3.3-70b-instruct:free (rubric rater)',
     transcription: 'Whisper STT / Web Mic',
-    tts: 'Studio Voice / Web Speech',
+    tts: 'Web Speech / Kokoro',
   },
 };
 

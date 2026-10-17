@@ -93,23 +93,27 @@ export const MicSection: React.FC<MicSectionProps> = ({ onVerified }) => {
       analyser.smoothingTimeConstant = 0.3;
       analyserRef.current = analyser;
 
+      // Refresh audio input devices now that permission is granted
+      getAudioInputDevices().then(setMicDevices).catch(() => {});
+
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const timeDomainData = new Uint8Array(analyser.fftSize);
       let localMax = 0;
       let soundDetectedCount = 0;
 
       intervalRef.current = setInterval(() => {
         if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
+        analyserRef.current.getByteTimeDomainData(timeDomainData);
 
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
+        let maxDeviation = 0;
+        for (let i = 0; i < timeDomainData.length; i++) {
+          const dev = Math.abs(timeDomainData[i] - 128);
+          if (dev > maxDeviation) maxDeviation = dev;
         }
-        const avg = sum / dataArray.length;
-        const level = Math.min(100, Math.round((avg / 100) * 100));
+
+        const level = Math.min(100, Math.round((maxDeviation / 128) * 160));
         setAudioLevel(level);
 
         if (level > localMax) {
@@ -117,29 +121,34 @@ export const MicSection: React.FC<MicSectionProps> = ({ onVerified }) => {
           setMaxAmplitude(localMax);
         }
 
-        if (level > 4) {
+        if (level > 10) {
           soundDetectedCount++;
-          if (soundDetectedCount >= 3 && testStatus !== 'success') {
+          if (soundDetectedCount >= 2) {
             setTestStatus('success');
             setStatusMessage('Microphone active! Sound successfully detected.');
             onVerified?.();
           }
         }
-      }, 50);
+      }, 40);
 
       setTimeout(() => {
-        if (isTesting && testStatus === 'testing') {
-          if (localMax < 4) {
-            setTestStatus('warning');
-            setStatusMessage('No voice detected. Please check your mic volume or select another device.');
-          }
+        if (soundDetectedCount < 2) {
+          setTestStatus('warning');
+          setStatusMessage('No voice detected. Please check your mic volume or select another device.');
         }
-      }, 8000);
+      }, 7000);
 
     } catch (err: any) {
       stopTest();
       setTestStatus('error');
-      setStatusMessage(err?.message || 'Could not access microphone. Please check permissions.');
+      const errName = err?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setStatusMessage('Microphone access blocked. Please allow microphone permissions in your browser address bar.');
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        setStatusMessage('No microphone device found. Please connect an audio input.');
+      } else {
+        setStatusMessage(err?.message || 'Could not access microphone. Please check permissions.');
+      }
     }
   };
 

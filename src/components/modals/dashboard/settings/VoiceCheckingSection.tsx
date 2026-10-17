@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, Mic, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
-import { getVoices, playSpeech, getVoiceEngine, setVoiceEngine, getAudioInputDevices, getStoredMicDeviceId, setStoredMicDeviceId } from '../../../../utils/audioSpeech';
+import { Volume2, Mic, CheckCircle2, AlertCircle, RefreshCw, Download, Trash2 } from 'lucide-react';
+import {
+  getVoices,
+  playSpeech,
+  getVoiceEngine,
+  setVoiceEngine,
+  getAudioInputDevices,
+  getStoredMicDeviceId,
+  setStoredMicDeviceId,
+} from '../../../../utils/audioSpeech';
+import {
+  isOfflineVoiceDownloaded,
+  downloadOfflineVoice,
+  removeOfflineVoice,
+} from '../../../../utils/offlineVoice';
 
 export const VoiceCheckingSection: React.FC = () => {
   const [engine, setEngine] = useState<'webspeech' | 'kokoro' | 'aivoice'>('webspeech');
@@ -9,8 +22,13 @@ export const VoiceCheckingSection: React.FC = () => {
   const [speed, setSpeed] = useState(1.0);
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [testResult, setTestResult] = useState<{ success?: boolean; message?: string } | null>(null);
-  const [kokoroLoading, setKokoroLoading] = useState(false);
-  const [kokoroError, setKokoroError] = useState<string | null>(null);
+
+  // Kokoro offline model management state
+  const [isKokoroDownloaded, setIsKokoroDownloaded] = useState(false);
+  const [isDownloadingKokoro, setIsDownloadingKokoro] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloadStatusText, setDownloadStatusText] = useState<string>('');
+  const [kokoroNotice, setKokoroNotice] = useState<string | null>(null);
 
   // Mic check state
   const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
@@ -22,15 +40,16 @@ export const VoiceCheckingSection: React.FC = () => {
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const intervalRef = useRef<any>(null);
 
   useEffect(() => {
     const storedEng = getVoiceEngine();
-    // Map stored engine to one of the 3
     if (storedEng === 'offline') setEngine('kokoro');
     else if (storedEng === 'cloud') setEngine('aivoice');
     else setEngine('webspeech');
 
+    setIsKokoroDownloaded(isOfflineVoiceDownloaded());
     setVoices(getVoices());
     setSelectedMicId(getStoredMicDeviceId() || '');
     getAudioInputDevices().then(setMicDevices).catch(() => {});
@@ -38,21 +57,49 @@ export const VoiceCheckingSection: React.FC = () => {
 
   const handleEngineChange = async (newEng: 'webspeech' | 'kokoro' | 'aivoice') => {
     setEngine(newEng);
-    setKokoroError(null);
-    if (newEng === 'webspeech') setVoiceEngine('device');
-    else if (newEng === 'kokoro') {
+    setTestResult(null);
+    if (newEng === 'webspeech') {
+      setVoiceEngine('device');
+    } else if (newEng === 'kokoro') {
       setVoiceEngine('offline');
-      setKokoroLoading(true);
-      try {
-        // simulate or trigger load check
-        setTimeout(() => setKokoroLoading(false), 800);
-      } catch (err: any) {
-        setKokoroError(err?.message || 'Failed to load Kokoro neural model');
-        setKokoroLoading(false);
+      if (!isOfflineVoiceDownloaded()) {
+        setKokoroNotice('Tip: Kokoro model weights are not downloaded yet. Click "Download Kokoro Model" below to pre-cache for instant voice response.');
+      } else {
+        setKokoroNotice(null);
       }
     } else if (newEng === 'aivoice') {
       setVoiceEngine('cloud');
     }
+  };
+
+  const handleDownloadKokoro = async () => {
+    setIsDownloadingKokoro(true);
+    setDownloadProgress(0);
+    setDownloadStatusText('Initializing neural model download...');
+    setKokoroNotice(null);
+
+    const res = await downloadOfflineVoice((pct, status) => {
+      setDownloadProgress(Math.round(pct));
+      setDownloadStatusText(status || `Downloading weights (${Math.round(pct)}%)...`);
+    });
+
+    setIsDownloadingKokoro(false);
+    if (res.success) {
+      setIsKokoroDownloaded(true);
+      setDownloadProgress(null);
+      setKokoroNotice('Kokoro 82M model successfully downloaded and cached! Speech synthesis will now be instant and offline.');
+      setTimeout(() => setKokoroNotice(null), 5000);
+    } else {
+      setKokoroNotice(`Download failed: ${res.error || 'Network error'}. You can still use Web Speech.`);
+    }
+  };
+
+  const handleDeleteKokoro = async () => {
+    await removeOfflineVoice();
+    setIsKokoroDownloaded(false);
+    setDownloadProgress(null);
+    setKokoroNotice('Kokoro model weights removed from browser cache. Storage freed.');
+    setTimeout(() => setKokoroNotice(null), 4000);
   };
 
   const handleTestVoice = async () => {
@@ -67,14 +114,13 @@ export const VoiceCheckingSection: React.FC = () => {
         },
         onEngineDetected: (eng) => {
           statusLog = eng;
-        }
+        },
       });
       setTestResult({ success: true, message: statusLog || 'Voice test completed successfully!' });
     } catch (err: any) {
-      // Automatic fallback notice
       setTestResult({
         success: false,
-        message: `Engine encountered an issue (${err?.message || 'unavailable'}). Automatically fell back to Web Speech.`
+        message: `Engine encountered an issue (${err?.message || 'unavailable'}). Automatically falling back to Web Speech.`,
       });
       setEngine('webspeech');
       setVoiceEngine('device');
@@ -90,7 +136,9 @@ export const VoiceCheckingSection: React.FC = () => {
       streamRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      try { audioContextRef.current.close(); } catch {}
+      try {
+        audioContextRef.current.close();
+      } catch {}
       audioContextRef.current = null;
     }
     setIsTestingMic(false);
@@ -108,49 +156,82 @@ export const VoiceCheckingSection: React.FC = () => {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
           ...(selectedMicId ? { deviceId: { exact: selectedMicId } } : {}),
         },
       };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch {
+        // Fallback without deviceId constraint in case of ID mismatch
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
       streamRef.current = stream;
+
+      // Refresh audio input devices now that permission is granted
+      getAudioInputDevices().then(setMicDevices).catch(() => {});
 
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioCtx();
-      if (audioCtx.state === 'suspended') await audioCtx.resume();
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
       audioContextRef.current = audioCtx;
 
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.2;
+      analyserRef.current = analyser;
+
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      let maxL = 0;
+      const timeDomainData = new Uint8Array(analyser.fftSize);
+      let soundCount = 0;
+      let maxLvl = 0;
 
       intervalRef.current = setInterval(() => {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        const lvl = Math.min(100, Math.round((sum / dataArray.length) * 120));
-        setAudioLevel(lvl);
-        if (lvl > maxL) maxL = lvl;
-
-        if (lvl > 5) {
-          setMicStatusType('success');
-          setMicStatusMsg('Microphone active! Voice input detected successfully.');
+        analyser.getByteTimeDomainData(timeDomainData);
+        let maxDeviation = 0;
+        for (let i = 0; i < timeDomainData.length; i++) {
+          const dev = Math.abs(timeDomainData[i] - 128);
+          if (dev > maxDeviation) maxDeviation = dev;
         }
-      }, 50);
+
+        // Calculate responsive volume level (0-100)
+        const lvl = Math.min(100, Math.round((maxDeviation / 128) * 160));
+        setAudioLevel(lvl);
+        if (lvl > maxLvl) maxLvl = lvl;
+
+        if (lvl > 10) {
+          soundCount++;
+          if (soundCount >= 2) {
+            setMicStatusType('success');
+            setMicStatusMsg('Microphone working properly! Sound detected successfully.');
+          }
+        }
+      }, 40);
 
       setTimeout(() => {
-        if (maxL < 5 && isTestingMic) {
+        if (isTestingMic && soundCount < 2) {
           setMicStatusType('warning');
-          setMicStatusMsg('No voice detected. Please check microphone volume or select another input.');
+          setMicStatusMsg('No clear sound detected. Please verify your mic is unmuted or speak louder.');
         }
-      }, 6000);
+      }, 7000);
     } catch (err: any) {
       stopMicTest();
       setMicStatusType('error');
-      setMicStatusMsg(err?.message || 'Microphone permission denied or no microphone found.');
+      const errName = err?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setMicStatusMsg('Microphone permission blocked. Please allow microphone access in your browser address bar.');
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        setMicStatusMsg('No microphone found on your computer. Please connect an audio input.');
+      } else {
+        setMicStatusMsg(err?.message || 'Could not access microphone.');
+      }
     }
   };
 
@@ -159,7 +240,7 @@ export const VoiceCheckingSection: React.FC = () => {
       <div>
         <h4 className="font-bold text-slate-900 text-sm">Voice &amp; Speech Checking</h4>
         <p className="text-xs text-slate-500 mt-0.5">
-          Choose your preferred speech synthesis engine, test audio output, and verify microphone input levels.
+          Choose your speech engine, manage local neural weights (Kokoro), test audio output, and check your microphone.
         </p>
       </div>
 
@@ -171,46 +252,106 @@ export const VoiceCheckingSection: React.FC = () => {
             type="button"
             onClick={() => handleEngineChange('webspeech')}
             className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-              engine === 'webspeech' ? 'border-teal-600 bg-teal-50/50 ring-2 ring-teal-600/20' : 'border-slate-200 hover:bg-slate-50'
+              engine === 'webspeech'
+                ? 'border-teal-600 bg-teal-50/50 ring-2 ring-teal-600/20'
+                : 'border-slate-200 hover:bg-slate-50'
             }`}
           >
             <div className="font-bold text-xs text-slate-900">1. Web Speech</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Browser built-in, offline ready, instant.</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Built-in browser synthesis. Works offline, 0 download.</div>
           </button>
 
           <button
             type="button"
             onClick={() => handleEngineChange('kokoro')}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-              engine === 'kokoro' ? 'border-teal-600 bg-teal-50/50 ring-2 ring-teal-600/20' : 'border-slate-200 hover:bg-slate-50'
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer relative ${
+              engine === 'kokoro'
+                ? 'border-teal-600 bg-teal-50/50 ring-2 ring-teal-600/20'
+                : 'border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <div className="font-bold text-xs text-slate-900">2. Kokoro Neural</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Local neural TTS, high-quality audio.</div>
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-xs text-slate-900">2. Kokoro Neural</div>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${isKokoroDownloaded ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                {isKokoroDownloaded ? 'Ready' : 'Not Cached'}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Local neural TTS. High natural quality.</div>
           </button>
 
           <button
             type="button"
             onClick={() => handleEngineChange('aivoice')}
             className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-              engine === 'aivoice' ? 'border-teal-600 bg-teal-50/50 ring-2 ring-teal-600/20' : 'border-slate-200 hover:bg-slate-50'
+              engine === 'aivoice'
+                ? 'border-teal-600 bg-teal-50/50 ring-2 ring-teal-600/20'
+                : 'border-slate-200 hover:bg-slate-50'
             }`}
           >
             <div className="font-bold text-xs text-slate-900">3. AI Voice (Cloud)</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">Cloud model-based voice (requires API key).</div>
+            <div className="text-[11px] text-slate-500 mt-0.5">Native cloud audio via your configured API key.</div>
           </button>
         </div>
+      </div>
 
-        {kokoroLoading && (
-          <div className="p-2.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-lg text-xs flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
-            <span>Loading local Kokoro neural weights...</span>
+      {/* Kokoro Model Download / Delete Management Card */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+              <span>Kokoro 82M Neural Voice Storage</span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isKokoroDownloaded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                {isKokoroDownloaded ? '✓ Cached in Browser (Fast Playback)' : 'Not Cached (~15-25s on first test)'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Pre-downloading Kokoro stores model weights in browser storage so voice synthesis runs instantly without network lag.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isKokoroDownloaded ? (
+              <button
+                type="button"
+                onClick={handleDownloadKokoro}
+                disabled={isDownloadingKokoro}
+                className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                {isDownloadingKokoro ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                <span>{isDownloadingKokoro ? 'Downloading...' : 'Download Kokoro Model'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDeleteKokoro}
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                <span>Delete Kokoro Cache</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isDownloadingKokoro && (
+          <div className="space-y-1 pt-1">
+            <div className="flex justify-between text-[11px] text-slate-600 font-medium">
+              <span>{downloadStatusText}</span>
+              <span>{downloadProgress !== null ? `${downloadProgress}%` : ''}</span>
+            </div>
+            <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-600 transition-all duration-200 rounded-full"
+                style={{ width: `${downloadProgress || 5}%` }}
+              />
+            </div>
           </div>
         )}
-        {kokoroError && (
-          <div className="p-2.5 bg-rose-50 text-rose-900 border border-rose-200 rounded-lg text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600" />
-            <span>{kokoroError}. Fell back to Web Speech.</span>
+
+        {kokoroNotice && (
+          <div className="p-2.5 bg-teal-50 border border-teal-200 text-teal-900 rounded-lg text-xs flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-teal-600 shrink-0" />
+            <span>{kokoroNotice}</span>
           </div>
         )}
       </div>
@@ -218,7 +359,7 @@ export const VoiceCheckingSection: React.FC = () => {
       {/* Voice Picker & Speed */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-slate-700">Voice / Persona</label>
+          <label className="text-xs font-semibold text-slate-700">Voice Persona</label>
           <select
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value)}
@@ -237,7 +378,7 @@ export const VoiceCheckingSection: React.FC = () => {
 
         <div className="space-y-1">
           <div className="flex justify-between text-xs font-semibold text-slate-700">
-            <span>Speaking Speed</span>
+            <span>Playback Speed</span>
             <span>{speed}x</span>
           </div>
           <input
@@ -247,7 +388,7 @@ export const VoiceCheckingSection: React.FC = () => {
             step="0.05"
             value={speed}
             onChange={(e) => setSpeed(parseFloat(e.target.value))}
-            className="w-full accent-teal-600 mt-2"
+            className="w-full accent-teal-600 mt-2 cursor-pointer"
           />
         </div>
       </div>
@@ -261,7 +402,7 @@ export const VoiceCheckingSection: React.FC = () => {
           className="px-4 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
         >
           <Volume2 className="w-4 h-4" />
-          <span>{isTestingVoice ? 'Playing Test...' : 'Test Voice Audio'}</span>
+          <span>{isTestingVoice ? 'Synthesizing Audio...' : 'Test Voice Output'}</span>
         </button>
       </div>
 
@@ -277,7 +418,7 @@ export const VoiceCheckingSection: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h5 className="font-bold text-slate-900 text-xs">Microphone Check &amp; Permissions</h5>
-            <p className="text-[11px] text-slate-500">Verify your input device and test voice level before speaking tasks.</p>
+            <p className="text-[11px] text-slate-500">Live test to ensure your microphone picks up clear speech before practice.</p>
           </div>
           {isTestingMic ? (
             <button
@@ -299,7 +440,7 @@ export const VoiceCheckingSection: React.FC = () => {
         </div>
 
         <div className="space-y-1">
-          <label className="text-[11px] font-semibold text-slate-600">Input Device</label>
+          <label className="text-[11px] font-semibold text-slate-600">Selected Audio Device</label>
           <select
             value={selectedMicId}
             onChange={(e) => {
@@ -307,7 +448,7 @@ export const VoiceCheckingSection: React.FC = () => {
               setStoredMicDeviceId(e.target.value);
               if (isTestingMic) startMicTest();
             }}
-            className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+            className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600 font-medium"
           >
             <option value="">Default System Microphone</option>
             {micDevices.map((d, i) => (
@@ -318,12 +459,12 @@ export const VoiceCheckingSection: React.FC = () => {
 
         <div className="space-y-1">
           <div className="flex justify-between text-[11px] text-slate-500 font-medium">
-            <span>Input Level Meter</span>
-            <span>{audioLevel}%</span>
+            <span>Live Microphone Waveform Level</span>
+            <span className="font-mono font-bold">{audioLevel}%</span>
           </div>
-          <div className="h-2 bg-slate-200 rounded-full overflow-hidden p-0.5">
+          <div className="h-3 bg-slate-200 rounded-full overflow-hidden p-0.5">
             <div
-              className="h-full bg-teal-600 rounded-full transition-all duration-75"
+              className={`h-full rounded-full transition-all duration-75 ${audioLevel > 10 ? 'bg-emerald-500' : 'bg-teal-600'}`}
               style={{ width: `${audioLevel}%` }}
             />
           </div>

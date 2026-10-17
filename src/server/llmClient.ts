@@ -24,17 +24,17 @@ export function resolveProviderDefaults(
   switch (provider.toLowerCase()) {
     case 'nvidia':
       resolvedBaseUrl = resolvedBaseUrl || 'https://integrate.api.nvidia.com/v1';
-      resolvedModel = resolvedModel || '';
+      resolvedModel = resolvedModel || 'meta/llama-3.3-70b-instruct';
       break;
 
     case 'groq':
       resolvedBaseUrl = resolvedBaseUrl || 'https://api.groq.com/openai/v1';
-      resolvedModel = resolvedModel || '';
+      resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
       break;
 
     case 'openrouter':
       resolvedBaseUrl = resolvedBaseUrl || 'https://openrouter.ai/api/v1';
-      resolvedModel = resolvedModel || '';
+      resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
       break;
 
     case 'openai':

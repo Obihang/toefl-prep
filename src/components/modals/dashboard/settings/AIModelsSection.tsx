@@ -7,7 +7,10 @@ export const AIModelsSection: React.FC = () => {
   const [savedNotice, setSavedNotice] = useState(false);
 
   useEffect(() => {
-    setModels(getPurposeModels());
+    const update = () => setModels(getPurposeModels());
+    update();
+    window.addEventListener('apiKeyUpdated', update);
+    return () => window.removeEventListener('apiKeyUpdated', update);
   }, []);
 
   const handleModelChange = (purpose: keyof PurposeModelMapping, val: string) => {

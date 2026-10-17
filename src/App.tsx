@@ -1214,6 +1214,59 @@ export default function App() {
                 <span className="text-slate-500 font-medium">Supports Gemini, NVIDIA, Groq, OpenRouter, and custom keys</span>
               </div>
             </div>
+          ) : (generationError.toLowerCase().includes('quota') ||
+               generationError.toLowerCase().includes('rate limit') ||
+               generationError.toLowerCase().includes('429') ||
+               generationError.toLowerCase().includes('resource_exhausted')) ? (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-2.5 text-amber-950 relative shadow-xs">
+              <button
+                onClick={() => setGenerationError(null)}
+                className="absolute top-3 right-3 text-amber-600 hover:text-amber-800 p-1 rounded-md cursor-pointer transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 font-bold text-sm text-amber-900 pr-6">
+                <AlertCircle className="w-4.5 h-4.5 text-amber-600 shrink-0" />
+                <span>API Quota Limit Reached (Fallback Models Attempted)</span>
+              </div>
+              <p className="text-xs text-amber-800 leading-relaxed">
+                {generationError}
+              </p>
+              <div className="p-2.5 bg-white/80 rounded-lg border border-amber-200 text-xs space-y-1.5">
+                <div className="font-semibold text-slate-700">Quick options:</div>
+                <div className="text-slate-600">
+                  1. <strong>Wait for reset:</strong> Free minute quotas reset in 1-2 minutes; daily quotas reset in 1 hour or at midnight UTC.
+                </div>
+                <div className="text-slate-600 flex items-center flex-wrap gap-2">
+                  <span>2. <strong>Switch to another free API key:</strong></span>
+                  <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-teal-700 font-bold underline hover:text-teal-900">OpenRouter (Free)</a>
+                  <span>·</span>
+                  <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-teal-700 font-bold underline hover:text-teal-900">Groq (Free)</a>
+                  <span>·</span>
+                  <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-teal-700 font-bold underline hover:text-teal-900">Gemini (Free)</a>
+                  <span>·</span>
+                  <a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-teal-700 font-bold underline hover:text-teal-900">NVIDIA (Free)</a>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                <button
+                  onClick={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 bg-teal-800 hover:bg-teal-900 text-white font-semibold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                >
+                  Open API Settings
+                </button>
+                <button
+                  onClick={() => setGenerationError(null)}
+                  className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-medium rounded-lg transition-colors cursor-pointer"
+                >
+                  Dismiss &amp; Use Curated Tasks
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900 relative">
               <button
