@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Mic, Key, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Mic, Key, CheckCircle2, AlertCircle, Volume2, Cpu } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { getStoredApiKey, setStoredApiKey, getStoredProvider, setStoredProvider, getStoredBaseUrl, setStoredBaseUrl, getStoredModel, setStoredModel, PROVIDERS, ApiProvider } from '../../../utils/apiKey';
 import { detectProviderFromKey, KeyDetectResult, DEFAULT_PURPOSE_MODELS } from '../../../utils/keyDetect';
 import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
+import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
+import { AIModelsSection } from './settings/AIModelsSection';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -143,6 +145,28 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
       ),
     },
     {
+      id: 'voice_checking',
+      title: 'Voice Checking',
+      icon: <Volume2 className="w-4 h-4 text-teal-700" />,
+      content: <VoiceCheckingSection />,
+    },
+    {
+      id: 'ai_models',
+      title: 'AI Models',
+      icon: <Cpu className="w-4 h-4 text-teal-700" />,
+      content: <AIModelsSection />,
+    },
+    {
+      id: 'microphone',
+      title: 'Microphone',
+      icon: <Mic className="w-4 h-4 text-teal-700" />,
+      content: (
+        <div className="pt-2">
+          <MicSection />
+        </div>
+      ),
+    },
+    {
       id: 'profile',
       title: 'Profile',
       icon: <User className="w-4 h-4 text-teal-700" />,
@@ -156,16 +180,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
             onBlur={() => { if (nameInput.trim()) setDisplayName(nameInput.trim()); }}
             className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
           />
-        </div>
-      ),
-    },
-    {
-      id: 'microphone',
-      title: 'Microphone',
-      icon: <Mic className="w-4 h-4 text-teal-700" />,
-      content: (
-        <div className="pt-2">
-          <MicSection />
         </div>
       ),
     },

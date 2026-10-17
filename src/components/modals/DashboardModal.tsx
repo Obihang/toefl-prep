@@ -137,8 +137,8 @@ export const DashboardModal: React.FC<Props> = ({
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        {/* Header - flex-shrink-0 */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-teal-100 rounded-xl text-teal-700">
               <LayoutDashboard className="w-5 h-5" />
@@ -156,11 +156,11 @@ export const DashboardModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Tabs Bar */}
-        <div className="flex border-b border-slate-100 px-6 bg-slate-50/30 gap-6 overflow-x-auto scrollbar-none">
+        {/* Tabs Bar - flex-shrink-0, sticky, solid background, z-20, pb-2 so bottom labels/focus rings are never clipped */}
+        <div className="flex border-b border-slate-200 px-6 bg-white gap-6 overflow-x-auto scrollbar-none flex-shrink-0 sticky top-0 z-20 pt-1 pb-2 shadow-2xs">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'dashboard'
                 ? 'border-teal-600 text-teal-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -171,7 +171,7 @@ export const DashboardModal: React.FC<Props> = ({
           
           <button
             onClick={() => setActiveTab('goals')}
-            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'goals'
                 ? 'border-teal-600 text-teal-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -186,7 +186,7 @@ export const DashboardModal: React.FC<Props> = ({
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'settings'
                 ? 'border-teal-600 text-teal-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -197,7 +197,7 @@ export const DashboardModal: React.FC<Props> = ({
 
           <button
             onClick={() => setActiveTab('vocabulary')}
-            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'vocabulary'
                 ? 'border-teal-600 text-teal-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -208,7 +208,7 @@ export const DashboardModal: React.FC<Props> = ({
           
           <button
             onClick={() => setActiveTab('mistakes')}
-            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            className={`py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               activeTab === 'mistakes'
                 ? 'border-teal-600 text-teal-700'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -218,8 +218,8 @@ export const DashboardModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Content Body - flex-1, min-h-0, overflow-y-auto */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-slate-50/30">
           {activeTab === 'dashboard' && <OverviewTab toeflEstimate={toeflEstimate} stats={stats} />}
           {activeTab === 'goals' && (
             <GoalsTab
