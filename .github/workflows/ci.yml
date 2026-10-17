@@ -37,3 +37,4 @@ jobs:
           npx tsx scripts/voices-sim.ts
           npx tsx scripts/llm-sim.ts
           npx tsx scripts/keydetect-sim.ts
+          npx tsx scripts/dashboard-stats-sim.ts
