@@ -2,7 +2,7 @@ import { pickDialogueVoices, inferGender } from '../../utils/voices';
 import React, { useState, useEffect } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
-import { playDialogue, stopSpeaking } from '../../utils/audioSpeech';
+import { playDialogue, stopSpeaking, prefetchSpeechAudio } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
@@ -29,10 +29,15 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const voices = pickDialogueVoices(seedStr, gA, gB);
 
   useEffect(() => {
+    // Silent background pre-synthesis of dialogue lines
+    lines.forEach((line, i) => {
+      const isA = i % 2 === 0;
+      prefetchSpeechAudio(line, isA ? voices.A : voices.B).catch(() => {});
+    });
     return () => {
       stopSpeaking();
     };
-  }, []);
+  }, [task.id, task.title]);
 
   const startPlayback = async () => {
     stopSpeaking();

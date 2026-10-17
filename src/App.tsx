@@ -13,6 +13,7 @@ import {
   reportSharedQuestion,
 } from './utils/sharedQuestions';
 import { getApiHeaders, getStoredApiKey } from './utils/apiKey';
+import { attachUserInteractionVoiceInitializer } from './utils/offlineVoice';
 import {
   BookOpen,
   Headphones,
@@ -34,6 +35,7 @@ import {
   Flag,
   X,
 } from 'lucide-react';
+
 
 import {
   CURATED_COMPLETE_WORDS,
@@ -142,6 +144,10 @@ export default function App() {
     localStorage.setItem('toefl_dark_mode', darkMode ? 'true' : 'false');
   }, [darkMode]);
 
+  useEffect(() => {
+    attachUserInteractionVoiceInitializer();
+  }, []);
+
   // Listen for API key updates to reset any quota backoff timer
   useEffect(() => {
     const handleKeyChange = () => {
@@ -159,6 +165,7 @@ export default function App() {
   const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
   
   // Settings
+
   const [enablePrefetching, setEnablePrefetching] = useState<boolean>(() => {
     const saved = localStorage.getItem('toefl_enable_prefetching');
     return saved === null ? true : saved === 'true';
@@ -167,6 +174,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('toefl_enable_prefetching', enablePrefetching ? 'true' : 'false');
   }, [enablePrefetching]);
+
+  useEffect(() => {
+    const handlePrefetchChange = () => {
+      const saved = localStorage.getItem('toefl_enable_prefetching');
+      setEnablePrefetching(saved === null ? true : saved === 'true');
+    };
+    window.addEventListener('prefetchSettingChanged', handlePrefetchChange);
+    return () => window.removeEventListener('prefetchSettingChanged', handlePrefetchChange);
+  }, []);
 
   // Keyboard shortcuts: 'N' for next task, 'Space' to pause/resume exam timer
   useEffect(() => {
@@ -865,10 +881,18 @@ export default function App() {
                 setIsDashboardOpen(true);
               }}
               aria-label="Open Dashboard"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Settings className="w-3.5 h-3.5" />
+              <BarChart2 className="w-3.5 h-3.5" />
               <span>Dashboard</span>
+            </button>
+            <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              aria-label="Open Settings"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5 text-teal-700" />
+              <span>Settings</span>
             </button>
             <button
               onClick={() => setDarkMode(prev => !prev)}
@@ -1022,8 +1046,38 @@ export default function App() {
         {/* Generator Controls Strip */}
         <section
           aria-label="Practice Parameters"
-          className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4"
+          className="space-y-2"
         >
+          {/* Prefetching Toggle Switch (Outside, right above question controls) */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-700">Background Prefetching:</span>
+              <span className="text-[11px] text-slate-500">
+                {enablePrefetching ? 'Pre-loads questions for instant ⚡ generation' : 'Paused to save quota & bandwidth'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !enablePrefetching;
+                setEnablePrefetching(next);
+                localStorage.setItem('toefl_enable_prefetching', next ? 'true' : 'false');
+                window.dispatchEvent(new Event('prefetchSettingChanged'));
+              }}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer flex items-center gap-1.5 ${
+                !enablePrefetching
+                  ? 'bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-teal-50 text-teal-900 border-teal-300 hover:bg-teal-100'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${enablePrefetching ? 'bg-emerald-600 animate-pulse' : 'bg-slate-400'}`} />
+              <span>{!enablePrefetching ? 'Prefetching Off' : 'Prefetching On'}</span>
+            </button>
+          </div>
+
+          <div
+            className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4"
+          >
           <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
             <div className="flex items-center gap-2">
               <label htmlFor="select-level" className="text-xs text-slate-500 font-medium">
@@ -1134,6 +1188,7 @@ export default function App() {
               </div>
             );
           })()}
+          </div>
         </section>
 
         {generationError && (
@@ -1394,6 +1449,7 @@ export default function App() {
 
       {/* Modals */}
       <RubricGuideModal isOpen={isRubricsOpen} onClose={() => setIsRubricsOpen(false)} />
+
       <Suspense fallback={null}>
         <PerformanceHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
         <DashboardModal 
@@ -1402,6 +1458,7 @@ export default function App() {
           defaultTab={dashboardDefaultTab}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
+          openSettings={() => { setIsDashboardOpen(false); setIsSettingsModalOpen(true); }}
         />
       </Suspense>
     </div>

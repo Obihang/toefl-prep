@@ -42,6 +42,77 @@ const dbPromise =
       })
     : Promise.resolve(null as any);
 
+const audioBufferMemoryCache = new Map<string, AudioBuffer>();
+
+// Pre-fetch speech audio silently in the background
+export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kore'): Promise<void> {
+  if (typeof window === 'undefined') return;
+  let cleanText = text.trim();
+  const colonIdx = cleanText.indexOf(':');
+  if (colonIdx > 0 && colonIdx < 35) {
+    cleanText = cleanText.substring(colonIdx + 1).trim();
+  }
+  if (!cleanText) return;
+
+  const provider = getStoredProvider();
+  const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
+
+  if (audioBufferMemoryCache.has(cacheKey)) return;
+
+  try {
+    const db = await dbPromise;
+    if (db) {
+      const cached = await db.get(STORE_NAME, cacheKey);
+      if (cached && cached.base64) {
+        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
+        audioBufferMemoryCache.set(cacheKey, audioBuffer);
+        return;
+      }
+    }
+  } catch {}
+
+  const engine = getVoiceEngine();
+  if (isOfflineVoiceDownloaded() || engine === 'offline') {
+    try {
+      const { generateOfflineSpeech, splitTextIntoChunks } = await import('./offlineVoice');
+      const chunks = splitTextIntoChunks(cleanText, 140);
+      const ctx = getAudioContext();
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const chunkCacheKey = `cache_offline_${voiceName}_${chunk}`;
+        if (!audioBufferMemoryCache.has(chunkCacheKey)) {
+          const res = await generateOfflineSpeech(chunk, voiceName);
+          const audioBuffer = await ctx.decodeAudioData(res.arrayBuffer.slice(0));
+          audioBufferMemoryCache.set(chunkCacheKey, audioBuffer);
+        }
+      }
+      return;
+    } catch {}
+  }
+
+  const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
+  if (hasKey && !isTtsCircuitBreakerBlocked()) {
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ text: cleanText, voiceName }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.audioBase64) {
+        incrementTtsQuota();
+        const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/wav');
+        audioBufferMemoryCache.set(cacheKey, audioBuffer);
+        try {
+          const db = await dbPromise;
+          await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: provider }, cacheKey);
+        } catch {}
+      }
+    } catch {}
+  }
+}
+
 // Pre-cache available browser voices synchronously
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   cachedVoices = window.speechSynthesis.getVoices();
@@ -674,7 +745,7 @@ export async function playSpeech(
   const breakerBlocked = isTtsCircuitBreakerBlocked();
 
   // Helper 1: Try Cloud Voice
-  const tryCloud = async (): Promise<{ ok: boolean; reason?: string }> => {
+  const tryCloud = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
     if (!hasKey) {
       const reason = 'No API key configured for Cloud voice.';
       console.warn(`Cloud voice skipped: ${reason}`);
@@ -757,7 +828,7 @@ export async function playSpeech(
           return { ok: false, reason };
         }
       }
-      return { ok: true };
+      return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
     } catch (err: any) {
       clearTimeout(timer);
       const isTimeout = err?.name === 'AbortError' || String(err).includes('abort');
@@ -768,7 +839,7 @@ export async function playSpeech(
   };
 
   // Helper 2: Try Device Voice
-  const tryDevice = async (): Promise<{ ok: boolean; reason?: string }> => {
+  const tryDevice = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
     let voices = getVoices();
     if (voices.filter((v) => v.lang.toLowerCase().startsWith('en')).length === 0) {
       await new Promise((r) => {
@@ -801,7 +872,7 @@ export async function playSpeech(
         options.onEnd?.();
         return { ok: true };
       }
-      return { ok: true };
+      return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
     } catch (err: any) {
       const reason = `Device voice error: ${err?.message || err}`;
       console.warn(reason);
@@ -810,39 +881,88 @@ export async function playSpeech(
   };
 
   // Helper 3: Try Offline Voice
-  const tryOffline = async (): Promise<{ ok: boolean; reason?: string }> => {
+  const tryOffline = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
     if (!isOfflineVoiceDownloaded()) {
       const reason = 'Offline voice: model not downloaded.';
-      console.warn(reason);
-      return { ok: false, reason };
-    }
-    if (!isOfflineVoiceEnabled() && engine !== 'offline') {
-      const reason = 'Offline voice: disabled in settings.';
       console.warn(reason);
       return { ok: false, reason };
     }
 
     try {
       options.onStatus?.('Generating offline voice...');
-      const { generateOfflineSpeech } = await import('./offlineVoice');
-      const offlineRes = await generateOfflineSpeech(cleanText, voiceName);
+      const { generateOfflineSpeech, splitTextIntoChunks } = await import('./offlineVoice');
+      const chunks = splitTextIntoChunks(cleanText, 140);
       const ctx = getAudioContext();
       if (ctx && ctx.state === 'suspended') {
         await ctx.resume().catch(() => {});
       }
-      const audioBuffer = await ctx.decodeAudioData(offlineRes.arrayBuffer.slice(0));
 
-      if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-        options.onStart?.();
-        try {
-          await playDecodedSpeech(audioBuffer, options.onEnd);
-          return { ok: true };
-        } catch (playErr: any) {
-          const reason = `Offline playback failed: ${playErr?.message || playErr}`;
-          console.warn(reason);
-          return { ok: false, reason };
+      if (chunks.length === 1) {
+        const chunkCacheKey = `cache_offline_${voiceName}_${chunks[0]}`;
+        let audioBuffer: AudioBuffer | undefined = audioBufferMemoryCache.get(chunkCacheKey);
+
+        if (!audioBuffer) {
+          const offlineRes = await generateOfflineSpeech(chunks[0], voiceName);
+          audioBuffer = await ctx.decodeAudioData(offlineRes.arrayBuffer.slice(0));
+          audioBufferMemoryCache.set(chunkCacheKey, audioBuffer);
         }
+
+        if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
+          options.onStart?.();
+          try {
+            await playDecodedSpeech(audioBuffer, options.onEnd);
+            return { ok: true };
+          } catch (playErr: any) {
+            const reason = `Offline playback failed: ${playErr?.message || playErr}`;
+            console.warn(reason);
+            return { ok: false, reason };
+          }
+        }
+        return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
       }
+
+      // Pipelined low-latency streaming playback for multi-sentence text
+      let nextChunkPromise: Promise<any> | null = null;
+
+      for (let i = 0; i < chunks.length; i++) {
+        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
+          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+        }
+
+        const chunk = chunks[i];
+        const chunkCacheKey = `cache_offline_${voiceName}_${chunk}`;
+        let audioBuffer: AudioBuffer | undefined = audioBufferMemoryCache.get(chunkCacheKey);
+
+        if (!audioBuffer) {
+          options.onStatus?.(`Generating offline voice (${i + 1}/${chunks.length})...`);
+          const chunkRes = await (nextChunkPromise || generateOfflineSpeech(chunk, voiceName));
+          audioBuffer = await ctx.decodeAudioData(chunkRes.arrayBuffer.slice(0));
+          audioBufferMemoryCache.set(chunkCacheKey, audioBuffer);
+        }
+
+        // Pipeline next chunk generation in background immediately if not cached
+        if (i + 1 < chunks.length) {
+          const nextChunk = chunks[i + 1];
+          const nextKey = `cache_offline_${voiceName}_${nextChunk}`;
+          if (!audioBufferMemoryCache.has(nextKey)) {
+            nextChunkPromise = generateOfflineSpeech(nextChunk, voiceName);
+          } else {
+            nextChunkPromise = null;
+          }
+        }
+
+        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
+          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+        }
+
+        if (i === 0) {
+          options.onStart?.();
+        }
+
+        const isLast = i === chunks.length - 1;
+        await playDecodedSpeech(audioBuffer, isLast ? options.onEnd : undefined);
+      }
+
       return { ok: true };
     } catch (err: any) {
       const reason = `Offline voice error: ${err?.message || err}`;
@@ -900,7 +1020,7 @@ export async function playSpeech(
     if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
 
     const step = stepOrder[i];
-    let result: { ok: boolean; reason?: string } = { ok: false };
+    let result: { ok: boolean; reason?: string; cancelled?: boolean } = { ok: false };
     const label = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline Neural (Kokoro)';
 
     if (step === 'cloud') {
@@ -911,7 +1031,9 @@ export async function playSpeech(
       result = await tryOffline();
     }
 
-    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
+    if (!isAudioPlayingState || currentDialogueSessionId !== currentSession || result.cancelled) {
+      return;
+    }
 
     if (result.ok) {
       if (Object.keys(engineFailures).length > 0) {

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ReadingPassageTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle, Volume2, VolumeX } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
 
 interface Props {
   task: ReadingPassageTask;
@@ -15,6 +16,38 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
+
+  const handleTogglePassageAudio = () => {
+    if (isPlayingAudio || isAudioPlaying()) {
+      stopSpeaking();
+      setIsPlayingAudio(false);
+      setAudioStatus(null);
+    } else {
+      setIsPlayingAudio(true);
+      setAudioStatus('Starting passage audio...');
+      playSpeech(task.passage, {
+        voiceName: 'Kore',
+        onStart: () => setAudioStatus('Playing audio...'),
+        onStatus: (st) => setAudioStatus(st),
+        onEnd: () => {
+          setIsPlayingAudio(false);
+          setAudioStatus(null);
+        },
+        onError: (err) => {
+          setIsPlayingAudio(false);
+          setAudioStatus(`Audio error: ${err?.message || err}`);
+        },
+      });
+    }
+  };
 
   const handleSelect = (qIdx: number, optIdx: number) => {
     if (submitted) return;
@@ -97,6 +130,18 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
 
         <div className="flex items-center gap-2">
           <button
+            onClick={handleTogglePassageAudio}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              isPlayingAudio
+                ? 'bg-teal-700 text-white border-teal-800 animate-pulse'
+                : 'bg-teal-50 text-teal-900 border-teal-200 hover:bg-teal-100'
+            }`}
+          >
+            {isPlayingAudio ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
+            <span>{isPlayingAudio ? 'Stop Passage Audio' : 'Listen to Passage'}</span>
+          </button>
+
+          <button
             onClick={() => setIsHighlightMode(!isHighlightMode)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
               isHighlightMode
@@ -109,6 +154,15 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
           </button>
         </div>
       </div>
+
+      {audioStatus && (
+        <div className="px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 border border-teal-200 rounded-lg flex items-center justify-between">
+          <span>{audioStatus}</span>
+          <button onClick={handleTogglePassageAudio} className="text-teal-700 underline text-[11px]">
+            Stop
+          </button>
+        </div>
+      )}
 
       {/* Two-Column Official Layout on Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

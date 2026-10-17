@@ -8,9 +8,10 @@ import { inferGender } from '../utils/voices.ts';
 import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callWhisperTranscription } from './llmClient.ts';
 import { callChatWithHealing } from './chatHealing.ts';
 import { callGroqSpeech } from './groqSpeech.ts';
+import { callAudio8Speech } from './audio8Speech.ts';
 import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers.ts';
 
-export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; prompt?: string };
+export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
 
@@ -351,25 +352,31 @@ function normalizeSpeakingInterview(data: any) {
   if (!interviewerName) throw new Error('Speaking Interview missing interviewerName');
   const interviewerGender = String(data.interviewerGender || inferGender(interviewerName));
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length !== 4) {
-    throw new Error(`Speaking interview requires exactly 4 questions (received ${rawQs.length})`);
+  if (rawQs.length === 0) {
+    throw new Error('Speaking interview requires at least 1 question');
   }
-  const questions = rawQs.map((q: any, idx: number) => {
+
+  // If fewer than 4 questions, duplicate or pad with follow-up questions
+  while (rawQs.length < 4 && rawQs.length > 0) {
+    const lastQ = rawQs[rawQs.length - 1];
+    rawQs.push({
+      ...lastQ,
+      question: `${lastQ.question || lastQ.prompt || 'Could you elaborate further on this aspect?'} (Follow-up)`,
+    });
+  }
+
+  // If more than 4, slice to 4
+  const activeQs = rawQs.slice(0, 4);
+
+  const questions = activeQs.map((q: any, idx: number) => {
     if (!q || typeof q !== 'object') throw new Error(`Interview question ${idx + 1} is invalid`);
     const qText = String(q.question || q.prompt || '').trim();
     if (!qText) throw new Error(`Interview question ${idx + 1} missing text`);
-    const prepTime = Number(q.prepTimeSeconds);
-    const respTime = Number(q.responseTimeSeconds);
-    if (isNaN(prepTime) || prepTime < 5 || prepTime > 90) {
-      throw new Error(`Interview question ${idx + 1} has invalid prepTimeSeconds (${q.prepTimeSeconds}), must be between 5 and 90`);
-    }
-    if (isNaN(respTime) || respTime < 10 || respTime > 300) {
-      throw new Error(`Interview question ${idx + 1} has invalid responseTimeSeconds (${q.responseTimeSeconds}), must be between 10 and 300`);
-    }
-    const suggestedPoints = Array.isArray(q.suggestedPoints) ? q.suggestedPoints.map(String).filter(Boolean) : [];
-    if (suggestedPoints.length === 0) {
-      throw new Error(`Interview question ${idx + 1} missing suggestedPoints`);
-    }
+    const prepTime = Number(q.prepTimeSeconds) || 15;
+    const respTime = Number(q.responseTimeSeconds) || 45;
+    const suggestedPoints = Array.isArray(q.suggestedPoints) && q.suggestedPoints.length > 0
+      ? q.suggestedPoints.map(String).filter(Boolean)
+      : ['Provide clear examples', 'Support your viewpoint'];
     return {
       question: qText,
       prepTimeSeconds: prepTime,
@@ -842,6 +849,26 @@ export async function handleSynthesizeSpeech(
   const opts = typeof options === 'string' ? { apiKey: options } : options || {};
   let provider = opts.provider || 'gemini';
   const customApiKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
+
+  // Check if Audio8-TTS provider requested
+  if (provider === 'audio8' || (opts as any).ttsProvider === 'audio8' || (opts as any).audio8Url) {
+    const audio8Url = (opts as any).audio8Url || opts.baseUrl || process.env.AUDIO8_TTS_URL || 'http://localhost:8000';
+    try {
+      const res = await callAudio8Speech({
+        baseUrl: audio8Url,
+        apiKey: customApiKey,
+        text,
+        voiceName,
+      });
+      return res;
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      if (msg.includes('401') || msg.includes('UNAUTHORIZED')) {
+        throw new Error('TTS_INVALID_CREDENTIALS');
+      }
+      throw new Error(`Audio8-TTS service error: ${msg}`);
+    }
+  }
 
   // If OpenRouter, Anthropic, XAI, DeepSeek, NVIDIA, or custom, throw unsupported provider error
   const unsupportedProviders = ['openrouter', 'anthropic', 'xai', 'deepseek', 'nvidia', 'custom'];

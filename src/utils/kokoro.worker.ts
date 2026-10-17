@@ -77,7 +77,6 @@ self.onmessage = async (e: MessageEvent) => {
             device: 'webgpu',
             progress_callback: reportProgress,
           });
-          await ttsInstance.generate('Hello.', { voice: 'af_heart' });
           return Object.keys(ttsInstance.voices || {});
         } catch (err: any) {
           webGpuError = err?.message || String(err);
@@ -91,7 +90,6 @@ self.onmessage = async (e: MessageEvent) => {
           device: 'wasm',
           progress_callback: reportProgress,
         });
-        await ttsInstance.generate('Hello.', { voice: 'af_heart' });
         return Object.keys(ttsInstance.voices || {});
       } catch (err: any) {
         wasmError = err?.message || String(err);

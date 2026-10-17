@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { AcademicDiscussionTask } from '../../data/curatedQuestions';
-import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User } from 'lucide-react';
+import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders } from '../../utils/apiKey';
 import { markUserAiRequest } from '../../utils/userActivity';
+import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
 
 interface Props {
   task: AcademicDiscussionTask;
@@ -21,6 +22,14 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [isPlayingProfAudio, setIsPlayingProfAudio] = useState(false);
+  const [isLoadingProfAudio, setIsLoadingProfAudio] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
   useEffect(() => {
     let interval: any = null;
@@ -154,14 +163,54 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
         <div className="lg:col-span-6 space-y-4">
           {/* Professor's Post */}
           <div className="bg-slate-900 text-white rounded-xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2.5 border-b border-slate-800 pb-2.5">
-              <div className="w-7 h-7 rounded-full bg-teal-500 text-slate-950 font-bold flex items-center justify-center text-xs">
-                {task.professorName.charAt(0)}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-teal-500 text-slate-950 font-bold flex items-center justify-center text-xs">
+                  {task.professorName.charAt(0)}
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-teal-400 block">{task.professorName}</span>
+                  <span className="text-[11px] text-slate-400">Course Instructor · Discussion Board Topic</span>
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-semibold text-teal-400 block">{task.professorName}</span>
-                <span className="text-[11px] text-slate-400">Course Instructor · Discussion Board Topic</span>
-              </div>
+
+              <button
+                disabled={isLoadingProfAudio}
+                onClick={() => {
+                  if (isPlayingProfAudio || isLoadingProfAudio || isAudioPlaying()) {
+                    stopSpeaking();
+                    setIsPlayingProfAudio(false);
+                    setIsLoadingProfAudio(false);
+                  } else {
+                    setIsLoadingProfAudio(true);
+                    playSpeech(task.professorPrompt, {
+                      voiceName: 'Puck',
+                      onStart: () => {
+                        setIsLoadingProfAudio(false);
+                        setIsPlayingProfAudio(true);
+                      },
+                      onEnd: () => {
+                        setIsPlayingProfAudio(false);
+                        setIsLoadingProfAudio(false);
+                      },
+                      onError: () => {
+                        setIsPlayingProfAudio(false);
+                        setIsLoadingProfAudio(false);
+                      },
+                    });
+                  }
+                }}
+                className="px-2.5 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-teal-300 rounded border border-slate-700 flex items-center gap-1.5 transition cursor-pointer shrink-0"
+              >
+                {isLoadingProfAudio ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                ) : isPlayingProfAudio ? (
+                  <VolumeX className="w-3.5 h-3.5" />
+                ) : (
+                  <Volume2 className="w-3.5 h-3.5 text-teal-400" />
+                )}
+                <span>{isLoadingProfAudio ? 'Loading...' : isPlayingProfAudio ? 'Stop' : 'Listen'}</span>
+              </button>
             </div>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-normal whitespace-pre-line">
               {task.professorPrompt}

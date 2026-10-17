@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw } from 'lucide-react';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
 import { MicrophoneTestWidget } from '../shared/MicrophoneTestWidget';
@@ -46,6 +46,14 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const interviewerName = (task as any).interviewerName || 'Professor Lee';
   const interviewerGender = (task as any).interviewerGender || inferGender(interviewerName);
   const interviewerVoice = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
+
+  // Silent background pre-synthesis of interviewer questions
+  useEffect(() => {
+    if (!task?.questions) return;
+    task.questions.forEach((q) => {
+      prefetchSpeechAudio(q.question, interviewerVoice).catch(() => {});
+    });
+  }, [task.id, task.title, interviewerVoice]);
 
   // Stop audio/timers/voice session on unmount
   useEffect(() => {

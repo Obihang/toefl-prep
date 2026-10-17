@@ -8,10 +8,12 @@ export interface ApiConfig {
   sttModel: string;
   ttsModel: string;
   voiceApiKey?: string;
+  ttsProvider?: string;
+  audio8Url?: string;
   prompt?: string;
 }
 
-const KNOWN_PROVIDERS = new Set(['gemini', 'nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'xai', 'anthropic', 'custom', 'auto']);
+const KNOWN_PROVIDERS = new Set(['gemini', 'nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'xai', 'anthropic', 'custom', 'auto', 'audio8']);
 
 function getHeader(headers: any, name: string): string | undefined {
   if (!headers) return undefined;
@@ -43,8 +45,10 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   const apiKey = xApiKey || xGeminiKey || bodyKey;
   let effectiveApiKey = apiKey;
 
-  // Optional Voice Key
+  // Optional Voice Key & TTS Provider Settings
   const voiceApiKey = (getHeader(headers, 'x-voice-api-key') || b.voiceApiKey || '').trim();
+  const ttsProvider = (getHeader(headers, 'x-tts-provider') || b.ttsProvider || '').trim().toLowerCase();
+  const audio8Url = (getHeader(headers, 'x-audio8-url') || b.audio8Url || '').trim();
 
   // Prompt / Target sentence
   const prompt = (b.prompt || b.targetSentence || '').trim();
@@ -75,12 +79,12 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   let baseUrl = '';
   const clientBaseUrl = (getHeader(headers, 'x-api-base-url') || b.baseUrl || '').trim();
 
-  if (provider === 'custom') {
+  if (provider === 'custom' || provider === 'audio8') {
     const allowCustom = process.env.ALLOW_CUSTOM_BASE_URL === 'true' || !process.env.VERCEL;
-    if (!allowCustom) {
+    if (!allowCustom && provider === 'custom') {
       throw new Error('Custom endpoints are disabled on this server.');
     }
-    baseUrl = clientBaseUrl;
+    baseUrl = clientBaseUrl || audio8Url;
   } else {
     baseUrl = '';
   }
@@ -98,6 +102,8 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
     sttModel,
     ttsModel,
     voiceApiKey,
+    ttsProvider,
+    audio8Url,
     prompt,
   };
 }

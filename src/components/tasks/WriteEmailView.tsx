@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { WriteEmailTask } from '../../data/curatedQuestions';
-import { Send, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, ArrowRight, Volume2, VolumeX } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders } from '../../utils/apiKey';
 import { markUserAiRequest } from '../../utils/userActivity';
+import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
 
 interface Props {
   task: WriteEmailTask;
@@ -21,6 +22,13 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+    };
+  }, []);
 
   useEffect(() => {
     let interval: any = null;
@@ -152,9 +160,30 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-5 space-y-4 bg-slate-50 border border-slate-200 rounded-xl p-5">
           <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-              Background Situation
-            </span>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
+                Background Situation
+              </span>
+              <button
+                onClick={() => {
+                  if (isPlayingAudio || isAudioPlaying()) {
+                    stopSpeaking();
+                    setIsPlayingAudio(false);
+                  } else {
+                    setIsPlayingAudio(true);
+                    playSpeech(task.situation, {
+                      voiceName: 'Kore',
+                      onEnd: () => setIsPlayingAudio(false),
+                      onError: () => setIsPlayingAudio(false),
+                    });
+                  }
+                }}
+                className="px-2.5 py-0.5 text-xs font-semibold bg-white hover:bg-slate-100 text-teal-800 rounded border border-slate-300 flex items-center gap-1 transition cursor-pointer"
+              >
+                {isPlayingAudio ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
+                <span>{isPlayingAudio ? 'Stop' : 'Listen'}</span>
+              </button>
+            </div>
             <p className="text-sm text-slate-800 leading-relaxed font-normal">{task.situation}</p>
           </div>
 

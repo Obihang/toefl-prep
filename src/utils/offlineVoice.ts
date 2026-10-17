@@ -41,7 +41,11 @@ export const KOKORO_MALE_VOICES = [
 
 export function isOfflineVoiceEnabled(): boolean {
   if (typeof localStorage === 'undefined') return false;
-  return localStorage.getItem(STORAGE_KEY_ENABLED) === 'true';
+  const val = localStorage.getItem(STORAGE_KEY_ENABLED);
+  if (val === null) {
+    return isOfflineVoiceDownloaded();
+  }
+  return val === 'true';
 }
 
 export function setOfflineVoiceEnabled(enabled: boolean): void {
@@ -69,8 +73,11 @@ function hashCode(str: string): number {
 }
 
 export function pickOfflineVoice(voiceName: string, gender?: 'female' | 'male' | 'unknown'): string {
+  if ((KOKORO_FEMALE_VOICES as readonly string[]).includes(voiceName) || (KOKORO_MALE_VOICES as readonly string[]).includes(voiceName)) {
+    return voiceName;
+  }
   const g = gender && gender !== 'unknown' ? gender : inferGender(voiceName);
-  const isMale = g === 'male' || voiceName.toLowerCase().includes('puck') || voiceName.toLowerCase().includes('male');
+  const isMale = g === 'male' || voiceName.toLowerCase().includes('puck') || voiceName.toLowerCase().includes('male') || voiceName.toLowerCase().includes('adam');
   const pool = isMale ? KOKORO_MALE_VOICES : KOKORO_FEMALE_VOICES;
   const idx = hashCode(voiceName) % pool.length;
   return pool[idx];
@@ -83,6 +90,45 @@ export function pickOfflineDialogueVoices(seedStr: string): { A: string; B: stri
   return { A: voiceA, B: voiceB };
 }
 
+export function splitTextIntoChunks(text: string, maxLen = 140): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxLen) return [trimmed];
+
+  const rawSentences = trimmed.match(/[^.!?;\n]+[.!?;\n]*/g) || [trimmed];
+  const chunks: string[] = [];
+  let current = '';
+
+  for (const s of rawSentences) {
+    const part = s.trim();
+    if (!part) continue;
+
+    if ((current + ' ' + part).trim().length <= maxLen) {
+      current = (current + ' ' + part).trim();
+    } else {
+      if (current) chunks.push(current);
+      if (part.length > maxLen) {
+        const clauses = part.match(/[^,:]+[,:]*/g) || [part];
+        let sub = '';
+        for (const c of clauses) {
+          if ((sub + ' ' + c).trim().length <= maxLen) {
+            sub = (sub + ' ' + c).trim();
+          } else {
+            if (sub) chunks.push(sub);
+            sub = c.trim();
+          }
+        }
+        if (sub) chunks.push(sub);
+        current = '';
+      } else {
+        current = part;
+      }
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks.length > 0 ? chunks : [trimmed];
+}
+
 let workerInstance: Worker | null = null;
 let isInitialized = false;
 let initPromise: Promise<string[]> | null = null;
@@ -90,9 +136,38 @@ let currentRequestId = 0;
 const pendingRequests = new Map<number, { resolve: (val: any) => void; reject: (err: any) => void }>();
 let progressCallbackRef: ((progressPct: number, statusText?: string) => void) | null = null;
 
+let hasInteractionInitStarted = false;
+
+export function isOfflineVoiceReady(): boolean {
+  return isInitialized && workerInstance !== null;
+}
+
+export function isOfflineVoiceLoading(): boolean {
+  return initPromise !== null && !isInitialized;
+}
+
+export function initOfflineVoiceInBackground(): void {
+  if (hasInteractionInitStarted || isInitialized || initPromise) return;
+  hasInteractionInitStarted = true;
+  ensureOfflineVoiceLoaded().catch((err) => {
+    console.debug('Background Kokoro initialization deferred:', err?.message || err);
+  });
+}
+
+export function attachUserInteractionVoiceInitializer(): void {
+  if (typeof window === 'undefined') return;
+  const events = ['pointerdown', 'keydown', 'touchstart', 'mousemove'];
+  const handler = () => {
+    initOfflineVoiceInBackground();
+    events.forEach((evt) => window.removeEventListener(evt, handler));
+  };
+  events.forEach((evt) => window.addEventListener(evt, handler, { passive: true }));
+}
+
 export function resetOfflineVoiceStateForTest(): void {
   isInitialized = false;
   initPromise = null;
+  hasInteractionInitStarted = false;
   if (workerInstance) {
     try { workerInstance.terminate(); } catch {}
     workerInstance = null;

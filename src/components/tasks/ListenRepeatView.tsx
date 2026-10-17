@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw } from 'lucide-react';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
 interface Props {
@@ -28,6 +28,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     }))
   );
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
+  const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
   const [autoStart, setAutoStart] = useState(false);
@@ -43,6 +44,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const speakerName = (task as any).speakerName || 'Sarah (student)';
   const speakerGender = (task as any).speakerGender || inferGender(speakerName);
   const speakerVoice = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
+
+  // Silent background pre-synthesis so clicking "Hear sentence" is INSTANT (0 ms delay)
+  useEffect(() => {
+    if (!task?.sentences || task.sentences.length === 0) return;
+    task.sentences.forEach((sentence) => {
+      prefetchSpeechAudio(sentence, speakerVoice).catch(() => {});
+    });
+  }, [task.id, task.title, speakerVoice]);
 
   useEffect(() => {
     return () => {
@@ -65,12 +74,13 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, [micStatus]);
 
   const handlePlay = async (index: number) => {
-    if (activeAudioIdx === index) {
+    if (activeAudioIdx === index || loadingAudioIdx === index) {
       stopSpeaking();
       setActiveAudioIdx(null);
+      setLoadingAudioIdx(null);
       return;
     }
-    setActiveAudioIdx(index);
+    setLoadingAudioIdx(index);
     setAudioErrors((prev) => ({ ...prev, [index]: null }));
     const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
@@ -79,14 +89,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         rate: 0.9,
         voiceName,
         browserVoice,
-        onEnd: () => setActiveAudioIdx(null),
+        onStart: () => {
+          setLoadingAudioIdx(null);
+          setActiveAudioIdx(index);
+        },
+        onEnd: () => {
+          setActiveAudioIdx(null);
+          setLoadingAudioIdx(null);
+        },
         onError: (err) => {
           setActiveAudioIdx(null);
+          setLoadingAudioIdx(null);
           setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
         },
       });
     } catch (err: any) {
       setActiveAudioIdx(null);
+      setLoadingAudioIdx(null);
       setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
     }
   };
@@ -369,14 +388,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handlePlay(idx)}
+                      disabled={loadingAudioIdx === idx}
                       className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
                         isAudioPlaying
                           ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-500 font-semibold'
+                          : loadingAudioIdx === idx
+                          ? 'bg-teal-100 text-teal-800 border-teal-300 opacity-90'
                           : 'bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100'
                       }`}
                     >
-                      {isAudioPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5" />}
-                      {isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
+                      {loadingAudioIdx === idx ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-700" />
+                      ) : isAudioPlaying ? (
+                        <Pause className="w-3.5 h-3.5 fill-current" />
+                      ) : (
+                        <Volume2 className="w-3.5 h-3.5" />
+                      )}
+                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
                     </button>
 
                     <button

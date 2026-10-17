@@ -23,6 +23,7 @@ import {
   Zap,
   Mic,
   Volume2,
+  MousePointer,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { SettingsModal } from './SettingsModal';
@@ -57,14 +58,22 @@ import {
   setSavedBrowserVoiceName,
   previewBrowserVoice,
   pickBrowserVoiceForGender,
+  getStoredMicDeviceId,
+  setStoredMicDeviceId,
+  getAudioInputDevices,
+  getVoiceEngine,
+  setVoiceEngine,
+  VoiceEngine,
 } from '../../utils/audioSpeech';
+import { useAuth } from '../../context/AuthContext';
+import { getCursorPreference, setCursorPreference, CursorObjectStyle } from '../../utils/cursorPreferences';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   openHistory: () => void;
   openRubrics: () => void;
-  defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
+  defaultTab?: 'dashboard' | 'goals' | 'vocabulary' | 'mistakes';
 }
 
 export const DashboardModal: React.FC<Props> = ({
@@ -74,7 +83,13 @@ export const DashboardModal: React.FC<Props> = ({
   openRubrics,
   defaultTab = 'dashboard',
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'vocabulary' | 'mistakes'>(defaultTab === 'settings' ? 'dashboard' : defaultTab || 'dashboard');
+  const { displayName, setDisplayName } = useAuth();
+  const [nameInput, setNameInput] = useState('');
+  const [cursorStyle, setCursorStyleState] = useState<CursorObjectStyle>('pen');
+  const [voiceEngine, setVoiceEngineState] = useState<VoiceEngine>(() => getVoiceEngine());
+  const [selectedMicId, setSelectedMicId] = useState<string>('');
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [completedDays, setCompletedDays] = useState<string[]>([]);
@@ -134,6 +149,11 @@ export const DashboardModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
+      setCursorStyleState(getCursorPreference());
+      setSelectedMicId(getStoredMicDeviceId() || '');
+      setVoiceEngineState(getVoiceEngine());
+      getAudioInputDevices().then(setMicDevices).catch(() => {});
       setStats(getUserStats());
       getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
       getVocabularyWords().then(setVocab).catch(() => setVocab([]));
@@ -454,22 +474,12 @@ export const DashboardModal: React.FC<Props> = ({
             }`}
           >
             <Target className="w-4 h-4 text-teal-600" />
-            <span>Study Goals &amp; Readiness</span>
+            <span>Study Goals</span>
             <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-full">
               {stats?.targetScore || 100}
             </span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              activeTab === 'settings'
-                ? 'border-teal-600 text-teal-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Settings className="w-4 h-4" /> Settings &amp; API Key
-          </button>
           
           <button
             onClick={() => setActiveTab('vocabulary')}
@@ -573,12 +583,21 @@ export const DashboardModal: React.FC<Props> = ({
                   <p className="text-sm text-rose-600">No major weak areas detected yet!</p>
                 )}
               </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                 <button onClick={openHistory} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
                   <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><Clock className="w-4 h-4 text-teal-600"/> View Performance History</span>
                   <ArrowRight className="w-4 h-4 text-slate-400" />
                 </button>
+                <button onClick={openRubrics} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
+                  <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><FileText className="w-4 h-4 text-teal-600"/> View Scoring Rubrics</span>
+                  <ArrowRight className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+            </div>
+          )}
+`,StartLine:598,TargetContent:                </button>
                 <button onClick={openRubrics} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
                   <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><FileText className="w-4 h-4 text-teal-600"/> View Scoring Rubrics</span>
                   <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -910,63 +929,193 @@ export const DashboardModal: React.FC<Props> = ({
                 </form>
               </div>
 
-            </div>
-          )}
-
-          {/* TAB 3: SETTINGS & API KEY */}
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <h3 className="font-semibold text-slate-900">Study Goals &amp; Preferences</h3>
-                <button 
-                  onClick={() => setActiveTab('goals')}
-                  className="w-full flex items-center justify-between p-4 border border-teal-200 bg-teal-50 rounded-lg hover:bg-teal-100 transition-colors cursor-pointer"
-                >
-                  <span className="text-sm font-medium text-teal-900">Configure Study Goals &amp; Test Date</span>
-                  <Target className="w-4 h-4 text-teal-600" />
-                </button>
-                <button 
-                  onClick={() => setIsSettingsOpen(true)}
-                  className="w-full flex items-center justify-between p-4 border border-slate-200 bg-white rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  <span className="text-sm font-medium text-slate-700">Configure Display Name, Voice Engine, Microphone &amp; Cursor Style</span>
-                  <Settings className="w-4 h-4 text-slate-500" />
-                </button>
-              </div>
-
-              <div className="space-y-4 pt-4 border-t border-slate-200">
+              {/* Saved Questions Database Statistics (Moved here) */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs mt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                       <Target className="w-4 h-4 text-teal-700" />
                       Saved Questions Database Statistics (Total Bank)
-                    </h3>
+                    </h4>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Total number of questions stored in the Firestore database across all sections (total bank, not user-filtered), helping you track progress and availability.
+                      Total number of questions stored in the Firestore database across all sections (total bank, not user-filtered).
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
+                  <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
                     Database Total
                   </span>
                 </div>
 
                 {loadingQuestionCounts ? (
-                  <div className="text-xs text-slate-400 py-6 text-center">Loading database question counts...</div>
+                  <div className="text-xs text-slate-400 py-4 text-center">Loading database question counts...</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {Object.entries(questionCounts).map(([section, count]) => (
-                      <div key={section} className="p-4 bg-gradient-to-br from-slate-50 to-teal-50/40 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
+                      <div key={section} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
                         <div>
                           <div className="text-xs font-semibold text-slate-700">{section}</div>
                           <div className="text-[11px] text-slate-400">Total in database</div>
                         </div>
-                        <div className="text-base font-bold text-teal-900 font-mono bg-white px-3 py-1 rounded-lg border border-teal-200 shadow-2xs">
+                        <div className="text-sm font-bold text-teal-900 font-mono bg-white px-3 py-1 rounded-lg border border-teal-200">
                           {count}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 3: SETTINGS & API KEY */}
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+
+              {/* Collapsible Dropdown Sections for Display Name, Cursor Style, and Voice Engine */}
+              <div className="space-y-3">
+                
+                {/* 1. Scholar Identity (Display Name) */}
+                <details className="group bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all open:shadow-xs">
+                  <summary className="font-semibold text-sm text-slate-900 cursor-pointer flex items-center justify-between outline-hidden">
+                    <span className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-teal-700" />
+                      Scholar Display Name
+                    </span>
+                    <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2">
+                    <label className="text-xs font-semibold text-slate-700 block">Author label for shared questions</label>
+                    <input
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => {
+                        setNameInput(e.target.value);
+                        localStorage.setItem('toefl_display_name', e.target.value);
+                      }}
+                      placeholder="e.g. TOEFLScholar"
+                      maxLength={30}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600 font-mono"
+                    />
+                    <p className="text-[11px] text-slate-500">Used for "Created by &lt;name&gt;" when contributing questions to the shared community bank.</p>
+                  </div>
+                </details>
+
+                {/* 2. Cursor Object Style */}
+                <details className="group bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all open:shadow-xs">
+                  <summary className="font-semibold text-sm text-slate-900 cursor-pointer flex items-center justify-between outline-hidden">
+                    <span className="flex items-center gap-2">
+                      <MousePointer className="w-4 h-4 text-teal-700" />
+                      Hover Cursor Style ({cursorStyle})
+                    </span>
+                    <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2">
+                    <p className="text-xs text-slate-500">Select custom hover cursor for clickable points and buttons:</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setCursorStyleState('pen'); setCursorPreference('pen'); }}
+                        className={`p-2.5 rounded-xl border text-left text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                          cursorStyle === 'pen' ? 'border-teal-700 bg-teal-50 text-teal-950 font-bold ring-2 ring-teal-600/20' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-base">✒️</span>
+                        <div>
+                          <div className="font-semibold leading-tight">Pen</div>
+                          <div className="text-[10px] text-slate-400">ETS nib</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCursorStyleState('quill'); setCursorPreference('quill'); }}
+                        className={`p-2.5 rounded-xl border text-left text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                          cursorStyle === 'quill' ? 'border-indigo-700 bg-indigo-50 text-indigo-950 font-bold ring-2 ring-indigo-600/20' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-base">🪶</span>
+                        <div>
+                          <div className="font-semibold leading-tight">Quill</div>
+                          <div className="text-[10px] text-slate-400">Manuscript</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCursorStyleState('wand'); setCursorPreference('wand'); }}
+                        className={`p-2.5 rounded-xl border text-left text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                          cursorStyle === 'wand' ? 'border-sky-700 bg-sky-50 text-sky-950 font-bold ring-2 ring-sky-600/20' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-base">✨</span>
+                        <div>
+                          <div className="font-semibold leading-tight">Wand</div>
+                          <div className="text-[10px] text-slate-400">Radiance</div>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setCursorStyleState('classic'); setCursorPreference('classic'); }}
+                        className={`p-2.5 rounded-xl border text-left text-xs transition-all flex items-center gap-2 cursor-pointer ${
+                          cursorStyle === 'classic' ? 'border-slate-700 bg-slate-100 text-slate-900 font-bold ring-2 ring-slate-400/20' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-base">👆</span>
+                        <div>
+                          <div className="font-semibold leading-tight">Classic</div>
+                          <div className="text-[10px] text-slate-400">Hand</div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </details>
+
+                {/* 3. Voice Engine & Speech Settings */}
+                <details className="group bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all open:shadow-xs">
+                  <summary className="font-semibold text-sm text-slate-900 cursor-pointer flex items-center justify-between outline-hidden">
+                    <span className="flex items-center gap-2">
+                      <Mic className="w-4 h-4 text-teal-700" />
+                      Voice Engine &amp; Speech Settings ({voiceEngine})
+                    </span>
+                    <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setVoiceEngineState('auto'); setVoiceEngine('auto'); }}
+                        className={`p-2 text-xs rounded-lg border text-left transition-all ${voiceEngine === 'auto' ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold ring-2 ring-teal-600/20' : 'bg-white border-slate-200 text-slate-700'}`}
+                      >
+                        <div className="font-semibold">Auto</div>
+                        <div className="text-[10px] text-slate-500">Cloud → Device → Offline</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setVoiceEngineState('cloud'); setVoiceEngine('cloud'); }}
+                        className={`p-2 text-xs rounded-lg border text-left transition-all ${voiceEngine === 'cloud' ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold ring-2 ring-teal-600/20' : 'bg-white border-slate-200 text-slate-700'}`}
+                      >
+                        <div className="font-semibold">Cloud Voice</div>
+                        <div className="text-[10px] text-slate-500">Studio AI</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setVoiceEngineState('device'); setVoiceEngine('device'); }}
+                        className={`p-2 text-xs rounded-lg border text-left transition-all ${voiceEngine === 'device' ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold ring-2 ring-teal-600/20' : 'bg-white border-slate-200 text-slate-700'}`}
+                      >
+                        <div className="font-semibold">Device Voice</div>
+                        <div className="text-[10px] text-slate-500">Browser Speech</div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setVoiceEngineState('offline'); setVoiceEngine('offline'); }}
+                        className={`p-2 text-xs rounded-lg border text-left transition-all ${voiceEngine === 'offline' ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold ring-2 ring-teal-600/20' : 'bg-white border-slate-200 text-slate-700'}`}
+                      >
+                        <div className="font-semibold">Offline Neural</div>
+                        <div className="text-[10px] text-slate-500">Kokoro ONNX</div>
+                      </button>
+                    </div>
+                  </div>
+                </details>
+
               </div>
 
               <div className="space-y-4 pt-4 border-t border-slate-200">
@@ -1437,11 +1586,6 @@ export const DashboardModal: React.FC<Props> = ({
 
         </div>
       </div>
-
-      <SettingsModal 
-        isOpen={isSettingsOpen} 
-        onClose={() => setIsSettingsOpen(false)} 
-      />
     </div>
   );
 };
