@@ -510,102 +510,25 @@ export const DashboardModal: React.FC<Props> = ({
           {/* TAB 1: OVERVIEW & STATS */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
-              {/* Stat Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-teal-50 border border-teal-100 rounded-2xl p-4 flex items-center gap-4">
-                  <div className="p-3 bg-teal-600 text-white rounded-xl">
-                    <Clock className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-teal-700 font-medium uppercase tracking-wider">Completed Sessions</p>
-                    <p className="text-2xl font-bold text-teal-900">{stats?.totalCompleted || 0}</p>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-center gap-4">
-                  <div className="p-3 bg-amber-600 text-white rounded-xl">
-                    <Calendar className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-amber-700 font-medium uppercase tracking-wider">Streak Days</p>
-                    <p className="text-2xl font-bold text-amber-900">{completedDays.length}</p>
-                  </div>
-                </div>
-
-                <div 
-                  onClick={() => setActiveTab('goals')}
-                  className="bg-indigo-50 hover:bg-indigo-100/70 border border-indigo-100 rounded-2xl p-4 flex items-center gap-4 cursor-pointer transition-colors group"
-                  title="Click to view full Goals section"
-                >
-                  <div className="p-3 bg-indigo-600 text-white rounded-xl group-hover:scale-105 transition-transform">
-                    <Target className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-indigo-700 font-medium uppercase tracking-wider">Target TOEFL Score</p>
-                      <ArrowRight className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                    <p className="text-2xl font-bold text-indigo-900">{stats?.targetScore || 100}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Activity Chart */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <h3 className="font-semibold text-slate-900 text-sm mb-2">Study Consistency Trend</h3>
-                <p className="text-[10px] text-slate-400 mb-4">Tasks completed per day over the last week</p>
-                <div className="h-32 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} />
-                      <YAxis hide allowDecimals={false} />
-                      <Tooltip cursor={{ stroke: '#cbd5e1', strokeWidth: 1 }} />
-                      <Line type="monotone" dataKey="sessions" stroke="#0d9488" strokeWidth={2} dot={{ r: 3 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Weak Areas */}
-              <div className="bg-rose-50 rounded-xl border border-rose-100 p-4">
-                <h3 className="font-semibold text-rose-900 text-sm mb-2">Weak Areas Detected</h3>
-                {getWeakAreas(practiceHistory).length > 0 ? (
-                  <div className="space-y-2">
-                    {getWeakAreas(practiceHistory).map(area => (
-                      <div key={area.section} className="flex justify-between text-sm text-rose-800">
-                        <span>{area.section}</span>
-                        <span className="font-bold">{area.avgScore}/30</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-rose-600">No major weak areas detected yet!</p>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                <button onClick={openHistory} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><Clock className="w-4 h-4 text-teal-600"/> View Performance History</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
-                </button>
-                <button onClick={openRubrics} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><FileText className="w-4 h-4 text-teal-600"/> View Scoring Rubrics</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
-                </button>
+              {/* Settings Dropdowns */}
+              <div className="space-y-3 mt-6 border-t border-slate-200 pt-6">
+                <h3 className="font-semibold text-slate-900 text-sm mb-4">Settings</h3>
+                <details className="bg-white border border-slate-200 rounded-lg p-3">
+                  <summary className="font-medium text-sm cursor-pointer">Universal Key</summary>
+                  <p className="text-xs text-slate-500 mt-2">API key settings go here</p>
+                </details>
+                <details className="bg-white border border-slate-200 rounded-lg p-3">
+                  <summary className="font-medium text-sm cursor-pointer">Device</summary>
+                  <p className="text-xs text-slate-500 mt-2">Device settings go here</p>
+                </details>
+                <details className="bg-white border border-slate-200 rounded-lg p-3">
+                  <summary className="font-medium text-sm cursor-pointer">Browser Voice</summary>
+                  <p className="text-xs text-slate-500 mt-2">Voice settings go here</p>
+                </details>
               </div>
             </div>
           )}
-`,StartLine:598,TargetContent:                </button>
-                <button onClick={openRubrics} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer">
-                  <span className="text-sm font-medium text-slate-700 flex items-center gap-2"><FileText className="w-4 h-4 text-teal-600"/> View Scoring Rubrics</span>
-                  <ArrowRight className="w-4 h-4 text-slate-400" />
-                </button>
-              </div>
-            </div>
-          )}
-
+`,StartLine:598,TargetContent:
           {/* TAB 2: SEPARATE DEDICATED GOALS SECTION */}
           {activeTab === 'goals' && (
             <div className="space-y-6">
