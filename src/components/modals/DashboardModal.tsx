@@ -26,7 +26,7 @@ import {
   MousePointer,
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { SettingsModal } from './SettingsModal';
+import { SettingsTab } from '../tabs/SettingsTab';
 import {
   getPracticeHistory,
   getUserStats,
@@ -83,7 +83,7 @@ export const DashboardModal: React.FC<Props> = ({
   openRubrics,
   defaultTab = 'dashboard',
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'vocabulary' | 'mistakes'>(defaultTab === 'settings' ? 'dashboard' : defaultTab || 'dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab || 'dashboard');
   const { displayName, setDisplayName } = useAuth();
   const [nameInput, setNameInput] = useState('');
   const [cursorStyle, setCursorStyleState] = useState<CursorObjectStyle>('pen');
@@ -480,7 +480,17 @@ export const DashboardModal: React.FC<Props> = ({
             </span>
           </button>
 
-          
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === 'settings'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Settings className="w-4 h-4" /> Settings
+          </button>
+
           <button
             onClick={() => setActiveTab('vocabulary')}
             className={`py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer ${
@@ -506,28 +516,7 @@ export const DashboardModal: React.FC<Props> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-6">
-          
-          {/* TAB 1: OVERVIEW & STATS */}
-          {activeTab === 'dashboard' && (
-            <div className="space-y-6">
-              {/* Settings Dropdowns */}
-              <div className="space-y-3 mt-6 border-t border-slate-200 pt-6">
-                <h3 className="font-semibold text-slate-900 text-sm mb-4">Settings</h3>
-                <details className="bg-white border border-slate-200 rounded-lg p-3">
-                  <summary className="font-medium text-sm cursor-pointer">Universal Key</summary>
-                  <p className="text-xs text-slate-500 mt-2">API key settings go here</p>
-                </details>
-                <details className="bg-white border border-slate-200 rounded-lg p-3">
-                  <summary className="font-medium text-sm cursor-pointer">Device</summary>
-                  <p className="text-xs text-slate-500 mt-2">Device settings go here</p>
-                </details>
-                <details className="bg-white border border-slate-200 rounded-lg p-3">
-                  <summary className="font-medium text-sm cursor-pointer">Browser Voice</summary>
-                  <p className="text-xs text-slate-500 mt-2">Voice settings go here</p>
-                </details>
-              </div>
-            </div>
-          )}
+
 `,StartLine:598,TargetContent:
           {/* TAB 2: SEPARATE DEDICATED GOALS SECTION */}
           {activeTab === 'goals' && (
@@ -891,64 +880,12 @@ export const DashboardModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* TAB 3: SETTINGS & API KEY */}
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
+          {/* TAB 3: SETTINGS */}
+          {activeTab === 'settings' && <SettingsTab />}
 
-              {/* Collapsible Dropdown Sections for Display Name, Cursor Style, and Voice Engine */}
-              <div className="space-y-3">
-                
-                {/* 1. Scholar Identity (Display Name) */}
-                <details className="group bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all open:shadow-xs">
-                  <summary className="font-semibold text-sm text-slate-900 cursor-pointer flex items-center justify-between outline-hidden">
-                    <span className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-teal-700" />
-                      Scholar Display Name
-                    </span>
-                    <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                  </summary>
-                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2">
-                    <label className="text-xs font-semibold text-slate-700 block">Author label for shared questions</label>
-                    <input
-                      type="text"
-                      value={nameInput}
-                      onChange={(e) => {
-                        setNameInput(e.target.value);
-                        localStorage.setItem('toefl_display_name', e.target.value);
-                      }}
-                      placeholder="e.g. TOEFLScholar"
-                      maxLength={30}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600 font-mono"
-                    />
-                    <p className="text-[11px] text-slate-500">Used for "Created by &lt;name&gt;" when contributing questions to the shared community bank.</p>
-                  </div>
-                </details>
+          {/* TAB 3: SETTINGS */}
+          {activeTab === 'settings' && <SettingsTab />}
 
-                {/* 2. Cursor Object Style */}
-                <details className="group bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all open:shadow-xs">
-                  <summary className="font-semibold text-sm text-slate-900 cursor-pointer flex items-center justify-between outline-hidden">
-                    <span className="flex items-center gap-2">
-                      <MousePointer className="w-4 h-4 text-teal-700" />
-                      Hover Cursor Style ({cursorStyle})
-                    </span>
-                    <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                  </summary>
-                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-2">
-                    <p className="text-xs text-slate-500">Select custom hover cursor for clickable points and buttons:</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => { setCursorStyleState('pen'); setCursorPreference('pen'); }}
-                        className={`p-2.5 rounded-xl border text-left text-xs transition-all flex items-center gap-2 cursor-pointer ${
-                          cursorStyle === 'pen' ? 'border-teal-700 bg-teal-50 text-teal-950 font-bold ring-2 ring-teal-600/20' : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <span className="text-base">✒️</span>
-                        <div>
-                          <div className="font-semibold leading-tight">Pen</div>
-                          <div className="text-[10px] text-slate-400">ETS nib</div>
-                        </div>
-                      </button>
                       <button
                         type="button"
                         onClick={() => { setCursorStyleState('quill'); setCursorPreference('quill'); }}
@@ -990,27 +927,9 @@ export const DashboardModal: React.FC<Props> = ({
                       </button>
                     </div>
                   </div>
-                </details>
+          {/* TAB 3: SETTINGS */}
+          {activeTab === 'settings' && <SettingsTab />}
 
-                {/* 3. Voice Engine & Speech Settings */}
-                <details className="group bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all open:shadow-xs">
-                  <summary className="font-semibold text-sm text-slate-900 cursor-pointer flex items-center justify-between outline-hidden">
-                    <span className="flex items-center gap-2">
-                      <Mic className="w-4 h-4 text-teal-700" />
-                      Voice Engine &amp; Speech Settings ({voiceEngine})
-                    </span>
-                    <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                  </summary>
-                  <div className="mt-3 pt-3 border-t border-slate-200/60 space-y-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setVoiceEngineState('auto'); setVoiceEngine('auto'); }}
-                        className={`p-2 text-xs rounded-lg border text-left transition-all ${voiceEngine === 'auto' ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold ring-2 ring-teal-600/20' : 'bg-white border-slate-200 text-slate-700'}`}
-                      >
-                        <div className="font-semibold">Auto</div>
-                        <div className="text-[10px] text-slate-500">Cloud → Device → Offline</div>
-                      </button>
                       <button
                         type="button"
                         onClick={() => { setVoiceEngineState('cloud'); setVoiceEngine('cloud'); }}
@@ -1038,9 +957,7 @@ export const DashboardModal: React.FC<Props> = ({
                     </div>
                   </div>
                 </details>
-
               </div>
-
               <div className="space-y-4 pt-4 border-t border-slate-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1052,6 +969,11 @@ export const DashboardModal: React.FC<Props> = ({
                       Paste any API key (Groq, NVIDIA, OpenAI, DeepSeek, OpenRouter, or Gemini). The applet automatically detects your provider and selects the ideal model for questions, scoring, and voice.
                     </p>
                   </div>
+                </div>
+              </div>
+
+
+
                   <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
                     Auto-Configured
                   </span>
@@ -1437,12 +1359,6 @@ export const DashboardModal: React.FC<Props> = ({
                           </p>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* TAB 4: VOCABULARY BANK */}
           {activeTab === 'vocabulary' && (

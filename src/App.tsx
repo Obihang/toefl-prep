@@ -887,14 +887,6 @@ export default function App() {
               <span>Dashboard</span>
             </button>
             <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              aria-label="Open Settings"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <Settings className="w-3.5 h-3.5 text-teal-700" />
-              <span>Settings</span>
-            </button>
-            <button
               onClick={() => setDarkMode(prev => !prev)}
               aria-label="Toggle Dark Mode"
               className="p-2 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
