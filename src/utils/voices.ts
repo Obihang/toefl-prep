@@ -248,20 +248,20 @@ export function getBrowserSpeechPitchAndRate(
   genderInput?: 'female' | 'male' | 'unknown',
   speakerIndex: number = 0
 ): { pitch: number; rate: number } {
-  const gender = genderInput || detectSpeakerGender(speakerName);
+  const gender = genderInput && genderInput !== 'unknown' ? genderInput : detectSpeakerGender(speakerName);
 
   if (gender === 'male') {
     if (speakerIndex === 0) {
-      return { pitch: 0.85, rate: 0.98 };
+      return { pitch: 0.95, rate: 0.98 };
     }
-    return { pitch: 0.75, rate: 0.94 };
+    return { pitch: 0.93, rate: 0.96 };
   }
 
   // Female or unknown
   if (speakerIndex === 0) {
-    return { pitch: 1.15, rate: 1.00 };
+    return { pitch: 1.03, rate: 1.00 };
   }
-  return { pitch: 1.25, rate: 1.03 };
+  return { pitch: 1.06, rate: 1.02 };
 }
 
 function hashCode(str: string): number {
@@ -338,8 +338,15 @@ export function pickBrowserVoiceForGender(
   const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
   if (englishVoices.length === 0) return null;
 
+  // Prioritize natural/online/neural/Google speech voices
+  const naturalVoices = englishVoices.filter((v) => {
+    const name = v.name.toLowerCase();
+    return name.includes('natural') || name.includes('online') || name.includes('neural') || name.includes('google');
+  });
+
+  const pool = naturalVoices.length > 0 ? naturalVoices : englishVoices;
   const target = gender === 'male' ? 'male' : 'female';
-  const matches = englishVoices.filter((v) => {
+  const matches = pool.filter((v) => {
     const name = v.name.toLowerCase();
     if (target === 'female') {
       return (
@@ -377,5 +384,5 @@ export function pickBrowserVoiceForGender(
     return matches[speakerIndex % matches.length];
   }
 
-  return englishVoices[speakerIndex % englishVoices.length];
+  return pool[speakerIndex % pool.length];
 }

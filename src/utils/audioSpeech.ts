@@ -1011,9 +1011,6 @@ function speakScriptLineFallback(
       activeFallbackCancel = null;
       if (currentUtt) {
         activeUtterances.delete(currentUtt);
-        if ((window as any).__activeUtterance === currentUtt) {
-          (window as any).__activeUtterance = null;
-        }
       }
       if (hasError && !wasStoppedByUser) {
         reject(err || new Error('Browser speech synthesis error'));
@@ -1049,7 +1046,6 @@ function speakScriptLineFallback(
 
         const utt = new SpeechSynthesisUtterance(cleanText);
         currentUtt = utt;
-        (window as any).__activeUtterance = utt; // Retain active utterance against garbage collection cutoff
         activeUtterances.add(utt);
         utt.lang = 'en-US';
 

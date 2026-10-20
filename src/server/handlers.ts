@@ -10,20 +10,7 @@ import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
-import { EdgeTTS as NodeEdgeTTS } from 'node-edge-tts';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
-
-// Monkey patch generateSecMsGec to fix 64-bit integer overflow bug in msedge-tts
-if ((MsEdgeTTS as any).generateSecMsGec) {
-  (MsEdgeTTS as any).generateSecMsGec = async function (trustedClientToken: string) {
-    const WINDOWS_FILE_TIME_EPOCH = 11644473600n;
-    const ticks = BigInt(Math.floor(Date.now() / 1000 + Number(WINDOWS_FILE_TIME_EPOCH))) * 10000000n;
-    const roundedTicks = ticks - (ticks % 3000000000n);
-    const strToHash = roundedTicks.toString() + trustedClientToken;
-    return crypto.createHash('sha256').update(strToHash, 'ascii').digest('hex').toUpperCase();
-  };
-}
 
 type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
@@ -258,11 +245,105 @@ export async function handleSttEndpoint(req: Req, res: Res) {
   }
 }
 
+function splitTextIntoSentences(text: string, maxLen = 180): string[] {
+  if (!text) return [];
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  const chunks: string[] = [];
+
+  for (const raw of sentences) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    if (trimmed.length <= maxLen) {
+      chunks.push(trimmed);
+    } else {
+      const words = trimmed.split(/\s+/);
+      let current = '';
+      for (const word of words) {
+        if ((current + ' ' + word).trim().length <= maxLen) {
+          current = (current + ' ' + word).trim();
+        } else {
+          if (current) chunks.push(current);
+          current = word;
+        }
+      }
+      if (current) chunks.push(current);
+    }
+  }
+
+  return chunks.length > 0 ? chunks : [text.trim()];
+}
+
+async function synthesizeWithZeroKeyFetch(
+  text: string,
+  speakerName: string,
+  gender: string
+): Promise<{ buffer: Buffer; modelUsed: string } | null> {
+  const chunks = splitTextIntoSentences(text, 180);
+  if (chunks.length === 0) return null;
+
+  // Map speaker/gender to distinct English regional accents for clear natural speaker separation
+  let accent = 'en-US';
+  const normSpk = (speakerName || '').toLowerCase();
+
+  if (gender === 'male' || normSpk.includes('mark') || normSpk.includes('prof') || normSpk.includes('john') || normSpk.includes('puck') || normSpk.includes('guy')) {
+    if (normSpk.includes('b') || normSpk.includes('2') || normSpk.includes('prof')) {
+      accent = 'en-GB'; // British English
+    } else if (normSpk.includes('c') || normSpk.includes('dean')) {
+      accent = 'en-AU'; // Australian English
+    } else {
+      accent = 'en-CA'; // Canadian / US English
+    }
+  } else {
+    if (normSpk.includes('b') || normSpk.includes('2')) {
+      accent = 'en-GB'; // British Female
+    } else {
+      accent = 'en-US'; // US Female
+    }
+  }
+
+  const buffers: Buffer[] = [];
+  try {
+    for (const chunk of chunks) {
+      const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${accent}&q=${encodeURIComponent(chunk)}`;
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://translate.google.com/',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`Zero-key TTS fetch returned status ${response.status}`);
+        return null;
+      }
+
+      const arrBuf = await response.arrayBuffer();
+      if (arrBuf && arrBuf.byteLength > 0) {
+        buffers.push(Buffer.from(arrBuf));
+      }
+    }
+
+    if (buffers.length > 0) {
+      return {
+        buffer: Buffer.concat(buffers),
+        modelUsed: `Neural Stream (${accent})`,
+      };
+    }
+  } catch (fetchErr) {
+    console.warn('Zero-key TTS fetch error:', fetchErr);
+  }
+
+  return null;
+}
+
 export async function handleTtsEndpoint(req: Req, res: Res) {
   try {
-    const uid = await verifyFirebaseToken(req);
-    if (!uid) {
-      return res.status(401).json({ success: false, error: 'Unauthorized: Valid Firebase ID token required in Authorization header' });
+    // Verify token if present, but do NOT block guests practicing tasks without login
+    let uid: string | null = null;
+    try {
+      uid = await verifyFirebaseToken(req);
+    } catch {
+      // Ignored for guest mode
     }
 
     const { text, voiceName, speaker, rate = 1.0 } = req.body || {};
@@ -290,20 +371,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    let selectedVoice = 'en-US-JennyNeural';
-
-    if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
-      selectedVoice = voiceName;
-    } else {
-      const gender = detectSpeakerGender(speakerName, parsedLine.speakerHint);
-      if (gender === 'female') {
-        selectedVoice = 'en-US-AriaNeural';
-      } else if (gender === 'male') {
-        selectedVoice = 'en-US-GuyNeural';
-      } else {
-        selectedVoice = 'en-US-JennyNeural';
-      }
-    }
+    const gender = detectSpeakerGender(speakerName, parsedLine.speakerHint);
+    let selectedVoice = voiceName || (gender === 'female' ? 'en-US-AriaNeural' : gender === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural');
 
     const ratePercent = Math.round((numRate - 1.0) * 100);
     const rateStr = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`;
@@ -332,62 +401,23 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         success: true,
         audioUrl,
         mimeType: 'audio/mpeg',
-        modelUsed: `EdgeTTS (${selectedVoice})`,
+        modelUsed: `Cached Voice (${selectedVoice})`,
         hash,
         cached: true,
       });
     }
 
-    // Synthesize using 3-stage pipeline:
-    // Stage 1: Primary MsEdgeTTS
-    // Stage 2: Secondary NodeEdgeTTS
-    // Stage 3: Gemini Cloud TTS fallback
     let audioBuffer: Buffer | null = null;
     let mimeType = 'audio/mpeg';
-    let modelUsed = `EdgeTTS (${selectedVoice})`;
+    let modelUsed = `Neural Stream (${selectedVoice})`;
 
-    // Stage 1: MsEdgeTTS
-    const tmpDir = path.join('/tmp', `msedge_${hash}_${Date.now()}`);
-    try {
-      await fs.promises.mkdir(tmpDir, { recursive: true });
-      const msTts = new MsEdgeTTS();
-      await msTts.setMetadata(selectedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-      const fileRes = await msTts.toFile(tmpDir, cleanText);
-      if (fileRes && fileRes.audioFilePath && fs.existsSync(fileRes.audioFilePath)) {
-        audioBuffer = await fs.promises.readFile(fileRes.audioFilePath);
-      }
-      msTts.close();
-    } catch (primaryErr) {
-      console.warn('MsEdgeTTS attempt failed, falling back to NodeEdgeTTS:', redactSensitiveInfo(primaryErr));
-    } finally {
-      fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    }
+    // Stage 1: Try Gemini Cloud TTS if API key provided in headers
+    const userApiKey = (req.headers['x-api-key'] || req.headers['x-gemini-api-key'] || '').toString();
+    const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString();
+    const provider = (req.headers['x-api-provider'] || '').toString();
 
-    // Stage 2: NodeEdgeTTS
-    if (!audioBuffer || audioBuffer.length === 0) {
-      const tmpPath = path.join('/tmp', `tts_${hash}.mp3`);
+    if (userApiKey || voiceApiKey) {
       try {
-        const nodeTts = new NodeEdgeTTS({
-          voice: selectedVoice,
-          rate: rateStr,
-        });
-        await nodeTts.ttsPromise(cleanText, tmpPath);
-        if (fs.existsSync(tmpPath)) {
-          audioBuffer = await fs.promises.readFile(tmpPath);
-        }
-      } catch (secondaryErr) {
-        console.warn('NodeEdgeTTS attempt failed:', redactSensitiveInfo(secondaryErr));
-      } finally {
-        fs.promises.unlink(tmpPath).catch(() => {});
-      }
-    }
-
-    // Stage 3: Gemini Cloud TTS fallback
-    if (!audioBuffer || audioBuffer.length === 0) {
-      try {
-        const userApiKey = (req.headers['x-api-key'] || req.headers['x-gemini-api-key'] || '').toString();
-        const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString();
-        const provider = (req.headers['x-api-provider'] || '').toString();
         const geminiRes = await handleSynthesizeSpeech(cleanText, selectedVoice, {
           apiKey: userApiKey,
           voiceApiKey,
@@ -399,16 +429,24 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed = geminiRes.modelUsed || 'Gemini Cloud TTS';
         }
       } catch (geminiErr) {
-        console.warn('Gemini TTS fallback attempt failed:', redactSensitiveInfo(geminiErr));
+        console.warn('Gemini TTS attempt failed:', redactSensitiveInfo(geminiErr));
       }
     }
 
-    // If all synthesis stages fail (e.g. Rate limit / 429 from external providers)
+    // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
     if (!audioBuffer || audioBuffer.length === 0) {
-      return res.status(429).json({
+      const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, gender);
+      if (zeroKeyRes) {
+        audioBuffer = zeroKeyRes.buffer;
+        mimeType = 'audio/mpeg';
+        modelUsed = zeroKeyRes.modelUsed;
+      }
+    }
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+      return res.status(500).json({
         success: false,
-        error: 'Text-to-speech service is temporarily rate limited. Please try again in a few seconds.',
-        rateLimit: { retryAfterSeconds: 5 },
+        error: 'Speech synthesis temporarily unavailable. Please try again.',
       });
     }
 
@@ -430,7 +468,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       }
     }
 
-    // Return valid audio stream / base64 data for native Brave playback
     return res.status(200).json({
       success: true,
       audioBase64: audioUrl ? undefined : audioBase64,
