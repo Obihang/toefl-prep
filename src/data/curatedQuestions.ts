@@ -34,6 +34,9 @@ export interface ListeningTask {
   speakerGenders?: { A: string; B: string };
   script: string;
   questions: ReadingQuestion[];
+  audioUrl?: string | null;
+  audioClips?: Array<{ speaker: string; url: string }> | null;
+  questionDocId?: string;
 }
 
 export interface ListenRepeatTask {
@@ -44,6 +47,9 @@ export interface ListenRepeatTask {
   sentences: string[];
   speakerName: string;
   speakerGender: 'male' | 'female' | 'unknown';
+  audioUrl?: string | null;
+  audioClips?: Array<{ speaker: string; url: string }> | null;
+  questionDocId?: string;
 }
 
 export interface InterviewQuestionItem {

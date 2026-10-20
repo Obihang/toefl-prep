@@ -4,8 +4,10 @@ import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
 import { playDialogue, stopSpeaking, prefetchSpeechAudio } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
-import { auth } from '../../firebase';
+import { auth, db } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { getAuthHeaders } from '../../utils/apiKey';
+import { updateDoc, doc } from 'firebase/firestore';
 
 interface Props {
   task: ListeningTask;
@@ -24,8 +26,8 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const lines = task.script.split(/\n+/).filter(Boolean);
 
   const seedStr = `${task.title}-${task.script || ''}`;
-  const gA = (task as any).speakerGenders?.A || inferGender(task.speakers?.A || 'A');
-  const gB = (task as any).speakerGenders?.B || inferGender(task.speakers?.B || 'B');
+  const gA = (task as any).speakerGenderA || (task as any).speakerGenders?.A || inferGender(task.speakers?.A || 'A');
+  const gB = (task as any).speakerGenderB || (task as any).speakerGenders?.B || inferGender(task.speakers?.B || 'B');
   const voices = pickDialogueVoices(seedStr, gA, gB);
 
   useEffect(() => {
@@ -46,13 +48,92 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     setActiveLine(0);
 
     try {
-      await playDialogue(
-        lines,
-        voices,
-        (idx) => {
-          setActiveLine(idx);
+      const audioClips = (task as any).audioClips;
+      const audioUrl = (task as any).audioUrl;
+
+      // 1. Play saved audioClips if present
+      if (Array.isArray(audioClips) && audioClips.length > 0) {
+        for (let i = 0; i < audioClips.length; i++) {
+          if (!isPlaying) break;
+          setActiveLine(i);
+          const clipUrl = audioClips[i].url;
+          if (clipUrl && clipUrl.startsWith('https://') && clipUrl.includes('blob.vercel-storage.com')) {
+            await new Promise<void>((resolve) => {
+              const audio = new Audio(clipUrl);
+              audio.onended = () => resolve();
+              audio.onerror = () => resolve();
+              audio.play().catch(() => resolve());
+            });
+          }
         }
-      );
+      } else if (audioUrl && audioUrl.startsWith('https://') && audioUrl.includes('blob.vercel-storage.com')) {
+        // 2. Play single audioUrl if present
+        await new Promise<void>((resolve) => {
+          const audio = new Audio(audioUrl);
+          audio.onended = () => resolve();
+          audio.onerror = () => resolve();
+          audio.play().catch(() => resolve());
+        });
+      } else {
+        // 3. No saved audio -> call /api/tts with getAuthHeaders(), save once, then play
+        let generatedClips: Array<{ speaker: string; url: string }> = [];
+        try {
+          const authHdrs = await getAuthHeaders();
+          const headers = { 'Content-Type': 'application/json', ...authHdrs };
+
+          for (let i = 0; i < lines.length; i++) {
+            setActiveLine(i);
+            const line = lines[i];
+            const isA = i % 2 === 0;
+            const speaker = isA ? (task.speakers?.A || 'A') : (task.speakers?.B || 'B');
+            const voiceName = isA ? voices.A : voices.B;
+
+            const ttsRes = await fetch('/api/tts', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ text: line, voiceName }),
+            });
+            const ttsJson = await ttsRes.json();
+            if (ttsRes.ok && ttsJson.success && ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
+              generatedClips.push({ speaker, url: ttsJson.audioUrl });
+              await new Promise<void>((resolve) => {
+                const audio = new Audio(ttsJson.audioUrl);
+                audio.onended = () => resolve();
+                audio.onerror = () => resolve();
+                audio.play().catch(() => resolve());
+              });
+            } else {
+              // Fallback to Web Speech for this line
+              await playDialogue([line], voices, () => {});
+            }
+          }
+
+          // Save to Firestore if we have generatedClips and questionDocId
+          const docId = (task as any).questionDocId || (task as any).id;
+          if (docId && docId.startsWith('q_') && generatedClips.length > 0) {
+            const firstUrl = generatedClips[0].url;
+            const cappedClips = generatedClips.slice(0, 10);
+            try {
+              // Two separate updateDoc calls because rules allow only one audio field per update
+              await updateDoc(doc(db, 'questions', docId), { audioUrl: firstUrl });
+              await updateDoc(doc(db, 'questions', docId), { audioClips: cappedClips });
+              (task as any).audioUrl = firstUrl;
+              (task as any).audioClips = cappedClips;
+            } catch (saveErr) {
+              console.warn('Failed to save generated audio to question doc:', saveErr);
+            }
+          }
+        } catch (ttsErr) {
+          console.warn('TTS API generation failed, falling back to Web Speech:', ttsErr);
+          await playDialogue(
+            lines,
+            voices,
+            (idx) => {
+              setActiveLine(idx);
+            }
+          );
+        }
+      }
     } catch {
       // Audio completed or stopped
     } finally {

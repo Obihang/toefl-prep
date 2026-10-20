@@ -111,7 +111,7 @@ export async function saveQuestionToBank(params: {
 
   const cleanAudioUrl = isValidBlobUrl(audioUrl) ? audioUrl : null;
   const cleanAudioClips = Array.isArray(audioClips)
-    ? audioClips.filter((c) => isValidBlobUrl(c.url))
+    ? audioClips.filter((c) => isValidBlobUrl(c.url)).slice(0, 10)
     : null;
 
   try {
@@ -240,6 +240,7 @@ export async function fetchUnseenQuestion(
           level: data.level,
           topic: data.topic,
           audioUrl: data.audioUrl || null,
+          audioClips: data.audioClips || null,
           isSharedBank: true,
         };
       }
@@ -334,6 +335,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
                   } catch {}
                 }
                 if (audioClips.length > 0) {
+                  audioClips = audioClips.slice(0, 10);
                   audioUrl = audioClips[0].url;
                 }
               } else if (taskType === 'listen-repeat' && Array.isArray(item.sentences) && item.sentences.length > 0) {
@@ -352,6 +354,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
                   } catch {}
                 }
                 if (audioClips.length > 0) {
+                  audioClips = audioClips.slice(0, 10);
                   audioUrl = audioClips[0].url;
                 }
               } else {

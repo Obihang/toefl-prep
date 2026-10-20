@@ -53,7 +53,7 @@ export const DEFAULT_PURPOSE_MODELS: Record<string, PurposeModels> = {
     generation: 'meta/llama-3.3-70b-instruct',
     evaluation: 'meta/llama-3.3-70b-instruct (hardware accelerated)',
     transcription: 'Whisper STT / Web Speech',
-    tts: 'Web Speech / Kokoro',
+    tts: 'Web Speech',
   },
   openrouter: {
     generation: 'meta-llama/llama-3.3-70b-instruct:free',

@@ -6,6 +6,9 @@ import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import { db } from '../../firebase';
+import { getAuthHeaders } from '../../utils/apiKey';
+import { updateDoc, doc } from 'firebase/firestore';
 
 interface Props {
   task: ListenRepeatTask;
@@ -86,6 +89,95 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     }
     setLoadingAudioIdx(index);
     setAudioErrors((prev) => ({ ...prev, [index]: null }));
+
+    const sentence = task.sentences[index];
+    const audioClips = (task as any).audioClips;
+    const audioUrl = (task as any).audioUrl;
+
+    const savedClipUrl = Array.isArray(audioClips) && audioClips[index]?.url
+      ? audioClips[index].url
+      : (index === 0 ? audioUrl : null);
+
+    if (savedClipUrl && savedClipUrl.startsWith('https://') && savedClipUrl.includes('blob.vercel-storage.com')) {
+      setLoadingAudioIdx(null);
+      setActiveAudioIdx(index);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const audio = new Audio(savedClipUrl);
+          audio.onended = () => {
+            setActiveAudioIdx(null);
+            resolve();
+          };
+          audio.onerror = () => {
+            setActiveAudioIdx(null);
+            reject(new Error('Saved audio playback error'));
+          };
+          audio.play().catch((err) => {
+            setActiveAudioIdx(null);
+            reject(err);
+          });
+        });
+      } catch (err: any) {
+        setActiveAudioIdx(null);
+        setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+      }
+      return;
+    }
+
+    // Try /api/tts with getAuthHeaders()
+    try {
+      const authHdrs = await getAuthHeaders();
+      const headers = { 'Content-Type': 'application/json', ...authHdrs };
+      const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
+      const ttsRes = await fetch('/api/tts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ text: sentence, voiceName }),
+      });
+      const ttsJson = await ttsRes.json();
+      if (ttsRes.ok && ttsJson.success && ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
+        const newUrl = ttsJson.audioUrl;
+        setLoadingAudioIdx(null);
+        setActiveAudioIdx(index);
+
+        const docId = (task as any).questionDocId || (task as any).id;
+        if (docId && docId.startsWith('q_')) {
+          try {
+            if (!audioUrl) {
+              await updateDoc(doc(db, 'questions', docId), { audioUrl: newUrl });
+              (task as any).audioUrl = newUrl;
+            }
+            const currentClips = Array.isArray(task.audioClips) ? [...task.audioClips] : [];
+            currentClips[index] = { speaker: speakerName, url: newUrl };
+            const cappedClips = currentClips.slice(0, 10);
+            await updateDoc(doc(db, 'questions', docId), { audioClips: cappedClips });
+            (task as any).audioClips = cappedClips;
+          } catch (e) {
+            console.warn('Failed to save sentence audio:', e);
+          }
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const audio = new Audio(newUrl);
+          audio.onended = () => {
+            setActiveAudioIdx(null);
+            resolve();
+          };
+          audio.onerror = () => {
+            setActiveAudioIdx(null);
+            reject(new Error('Generated audio playback error'));
+          };
+          audio.play().catch((err) => {
+            setActiveAudioIdx(null);
+            reject(err);
+          });
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn('TTS fetch failed for ListenRepeat sentence, falling back to Web Speech:', e);
+    }
+
     const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
     try {
