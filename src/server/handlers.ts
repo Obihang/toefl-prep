@@ -1,6 +1,7 @@
 import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import admin from 'firebase-admin';
+import * as admin from 'firebase-admin';
+console.log('DEBUG: admin object:', admin);
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -14,7 +15,7 @@ type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
 
 // Initialize firebase admin if not already initialized
-if (!(admin as any).apps.length) {
+if (!(admin as any).getApps().length) {
   const projectId = process.env.FIREBASE_PROJECT_ID || 'authentic-jar-5v9wh';
   try {
     admin.initializeApp({ projectId });
