@@ -2,5 +2,12 @@ node_modules
 dist
 .env
 .env.local
+.env.*.local
 *.log
 .DS_Store
+bun.lock
+bun.lockb
+*.pem
+*.key
+serviceAccountKey.json
+*-credentials.json

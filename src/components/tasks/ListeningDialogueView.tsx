@@ -94,16 +94,19 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               body: JSON.stringify({ text: line, voiceName }),
             });
             const ttsJson = await ttsRes.json();
-            if (ttsRes.ok && ttsJson.success && ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
-              generatedClips.push({ speaker, url: ttsJson.audioUrl });
+            const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
+            if (ttsRes.ok && ttsJson.success && audioSrc) {
+              if (ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
+                generatedClips.push({ speaker, url: ttsJson.audioUrl });
+              }
               await new Promise<void>((resolve) => {
-                const audio = new Audio(ttsJson.audioUrl);
+                const audio = new Audio(audioSrc);
                 audio.onended = () => resolve();
                 audio.onerror = () => resolve();
                 audio.play().catch(() => resolve());
               });
             } else {
-              // Fallback to Web Speech for this line
+              // Fallback to unified playDialogue for this line
               await playDialogue([line], voices, () => {});
             }
           }

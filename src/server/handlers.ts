@@ -4,12 +4,26 @@ import { initializeApp, getApps, getApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getApiConfig } from './apiConfig.ts';
 import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey } from './geminiHandler.ts';
-import { extractErrorMessage, isKeyError, isTransientError, getStatus } from './geminiErrors.ts';
+import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
 import { STT_MODEL } from '../config/models.ts';
+import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { EdgeTTS } from 'node-edge-tts';
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { EdgeTTS as NodeEdgeTTS } from 'node-edge-tts';
+import { inferGender } from '../utils/voices.ts';
+
+// Monkey patch generateSecMsGec to fix 64-bit integer overflow bug in msedge-tts
+if ((MsEdgeTTS as any).generateSecMsGec) {
+  (MsEdgeTTS as any).generateSecMsGec = async function (trustedClientToken: string) {
+    const WINDOWS_FILE_TIME_EPOCH = 11644473600n;
+    const ticks = BigInt(Math.floor(Date.now() / 1000 + Number(WINDOWS_FILE_TIME_EPOCH))) * 10000000n;
+    const roundedTicks = ticks - (ticks % 3000000000n);
+    const strToHash = roundedTicks.toString() + trustedClientToken;
+    return crypto.createHash('sha256').update(strToHash, 'ascii').digest('hex').toUpperCase();
+  };
+}
 
 type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
@@ -23,7 +37,17 @@ function getAdminApp() {
     adminApp = apps[0];
     return adminApp;
   }
-  const projectId = process.env.FIREBASE_PROJECT_ID || 'authentic-jar-5v9wh';
+  let defaultProjectId: string | undefined = undefined;
+  try {
+    const cfgPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(cfgPath)) {
+      const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+      defaultProjectId = raw.projectId;
+    }
+  } catch {
+    // ignore
+  }
+  const projectId = process.env.FIREBASE_PROJECT_ID || defaultProjectId || 'your-firebase-project-id';
   adminApp = initializeApp({ projectId });
   return adminApp;
 }
@@ -43,13 +67,15 @@ async function verifyFirebaseToken(req: Req): Promise<string | null> {
   }
 }
 
-// Allowed Edge voices allowlist
+// Allowed Edge voices allowlist including natural multi-speaker & professor voices
 const ALLOWED_EDGE_VOICES = new Set([
-  'en-US-JennyNeural',
-  'en-US-GuyNeural',
   'en-US-AriaNeural',
-  'en-US-EmmaNeural',
+  'en-US-JennyNeural',
+  'en-US-MichelleNeural',
+  'en-US-GuyNeural',
   'en-US-ChristopherNeural',
+  'en-US-EricNeural',
+  'en-US-EmmaNeural',
   'en-US-SteffanNeural',
   'en-US-RyanNeural',
   'en-US-SoniaNeural',
@@ -74,8 +100,9 @@ export async function handleTestKeyEndpoint(req: Req, res: Res) {
     const result = await handleTestApiKey(config);
     return res.status(200).json(result);
   } catch (error: any) {
+    console.error('Test key error:', redactSensitiveInfo(error));
     const status = getStatus(error) || 400;
-    return res.status(status).json({ success: false, error: extractErrorMessage(error) });
+    return res.status(status).json({ success: false, error: redactSensitiveInfo(extractErrorMessage(error)) });
   }
 }
 
@@ -86,8 +113,9 @@ export async function handleGenerateTaskEndpoint(req: Req, res: Res) {
     const result = await handleGenerateTask(taskType, level, topic, config);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
+    console.error('Generate task error:', redactSensitiveInfo(error));
     const status = getStatus(error) || 500;
-    return res.status(status).json({ success: false, error: extractErrorMessage(error) });
+    return res.status(status).json({ success: false, error: redactSensitiveInfo(extractErrorMessage(error)) });
   }
 }
 
@@ -98,8 +126,9 @@ export async function handleEvaluateResponseEndpoint(req: Req, res: Res) {
     const result = await handleEvaluateResponse(taskType, promptData, studentResponse, config);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
+    console.error('Evaluate response error:', redactSensitiveInfo(error));
     const status = getStatus(error) || 500;
-    return res.status(status).json({ success: false, error: extractErrorMessage(error) });
+    return res.status(status).json({ success: false, error: redactSensitiveInfo(extractErrorMessage(error)) });
   }
 }
 
@@ -157,14 +186,15 @@ export async function handleSttEndpoint(req: Req, res: Res) {
 
       if (!groqRes.ok) {
         const errText = await groqRes.text();
+        console.error('Groq Whisper STT error:', redactSensitiveInfo(errText));
         return res.status(groqRes.status).json({
           success: false,
-          error: `Groq Whisper STT error (${groqRes.status}): ${errText}`,
+          error: redactSensitiveInfo(`Groq Whisper STT error (${groqRes.status}): ${errText}`),
         });
       }
 
       const data: any = await groqRes.json();
-      const words = Array.isArray(data.words)
+      const rawWords = Array.isArray(data.words)
         ? data.words.map((w: any) => ({
             word: String(w.word || '').trim(),
             start: Number(w.start || 0),
@@ -172,9 +202,12 @@ export async function handleSttEndpoint(req: Req, res: Res) {
           }))
         : [];
 
+      const rawTranscript = String(data.text || '').trim();
+      const { transcript, words } = filterWhisperHallucinations(rawTranscript, rawWords);
+
       return res.status(200).json({
         success: true,
-        transcript: String(data.text || '').trim(),
+        transcript,
         words,
         duration: Number(data.duration || 0),
         modelUsed: `Groq ${STT_MODEL}`,
@@ -183,7 +216,8 @@ export async function handleSttEndpoint(req: Req, res: Res) {
       clearTimeout(timeout);
     }
   } catch (error: any) {
-    const msg = error?.message || 'Speech-to-text processing failed';
+    console.error('STT endpoint error:', redactSensitiveInfo(error));
+    const msg = redactSensitiveInfo(error?.message || 'Speech-to-text processing failed');
     return res.status(500).json({ success: false, error: msg });
   }
 }
@@ -208,21 +242,58 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const cleanText = text.trim();
 
-    // Map speaker/gender or validate voiceName against allowlist
+    // Map multi-speaker dialogues, professors, and voices cleanly to natural Microsoft Neural voices:
+    // Female voices: en-US-AriaNeural, en-US-JennyNeural, en-US-MichelleNeural
+    // Male voices: en-US-GuyNeural, en-US-ChristopherNeural, en-US-EricNeural
     let selectedVoice = 'en-US-JennyNeural';
     const lowerVoice = (voiceName || '').toLowerCase();
     const lowerSpeaker = (speaker || '').toLowerCase();
 
-    if (
-      lowerSpeaker.includes('b') ||
+    if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
+      selectedVoice = voiceName;
+    } else if (
       lowerSpeaker.includes('prof') ||
+      lowerSpeaker.includes('instructor') ||
+      lowerSpeaker.includes('dr') ||
+      lowerSpeaker.includes('advisor') ||
+      lowerSpeaker.includes('faculty')
+    ) {
+      // Academic professors & instructors
+      const g = inferGender(speaker);
+      if (g === 'female' || lowerVoice.includes('female') || lowerVoice.includes('aria') || lowerVoice.includes('michelle')) {
+        selectedVoice = lowerVoice.includes('michelle') ? 'en-US-MichelleNeural' : 'en-US-AriaNeural';
+      } else {
+        selectedVoice = 'en-US-ChristopherNeural';
+      }
+    } else if (
+      lowerSpeaker.includes('b') ||
+      lowerSpeaker.includes('student b') ||
       lowerSpeaker.includes('male') ||
       lowerVoice.includes('guy') ||
-      lowerVoice.includes('andrew')
+      lowerVoice.includes('christopher') ||
+      lowerVoice.includes('eric') ||
+      lowerVoice.includes('puck') ||
+      lowerVoice.includes('charon') ||
+      lowerVoice.includes('fenrir') ||
+      lowerVoice.includes('algenib')
     ) {
-      selectedVoice = 'en-US-GuyNeural';
-    } else if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
-      selectedVoice = voiceName;
+      selectedVoice = (lowerSpeaker.includes('eric') || lowerVoice.includes('eric')) ? 'en-US-EricNeural' : 'en-US-GuyNeural';
+    } else if (
+      lowerSpeaker.includes('a') ||
+      lowerSpeaker.includes('student a') ||
+      lowerSpeaker.includes('female') ||
+      lowerVoice.includes('aria') ||
+      lowerVoice.includes('michelle') ||
+      lowerVoice.includes('jenny') ||
+      lowerVoice.includes('kore') ||
+      lowerVoice.includes('aoede')
+    ) {
+      selectedVoice = lowerVoice.includes('michelle')
+        ? 'en-US-MichelleNeural'
+        : (lowerVoice.includes('aria') ? 'en-US-AriaNeural' : 'en-US-JennyNeural');
+    } else {
+      const g = inferGender(speaker || voiceName);
+      selectedVoice = g === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural';
     }
 
     const ratePercent = Math.round((numRate - 1.0) * 100);
@@ -258,17 +329,40 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    // Synthesize using EdgeTTS
-    const tmpPath = path.join('/tmp', `tts_${hash}.mp3`);
-    const edgeTts = new EdgeTTS({
-      voice: selectedVoice,
-      rate: rateStr,
-    });
+    // Synthesize using primary MsEdgeTTS provider (with NodeEdgeTTS fallback)
+    let audioBuffer: Buffer | null = null;
+    const tmpDir = path.join('/tmp', `msedge_${hash}_${Date.now()}`);
 
-    await edgeTts.ttsPromise(cleanText, tmpPath);
-    const audioBuffer = await fs.promises.readFile(tmpPath);
+    try {
+      await fs.promises.mkdir(tmpDir, { recursive: true });
+      const msTts = new MsEdgeTTS();
+      await msTts.setMetadata(selectedVoice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      const fileRes = await msTts.toFile(tmpDir, cleanText);
+      if (fileRes && fileRes.audioFilePath && fs.existsSync(fileRes.audioFilePath)) {
+        audioBuffer = await fs.promises.readFile(fileRes.audioFilePath);
+      }
+      msTts.close();
+    } catch (primaryErr) {
+      console.warn('MsEdgeTTS attempt failed, falling back to NodeEdgeTTS:', redactSensitiveInfo(primaryErr));
+    } finally {
+      fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+    }
+
+    if (!audioBuffer || audioBuffer.length === 0) {
+      const tmpPath = path.join('/tmp', `tts_${hash}.mp3`);
+      try {
+        const nodeTts = new NodeEdgeTTS({
+          voice: selectedVoice,
+          rate: rateStr,
+        });
+        await nodeTts.ttsPromise(cleanText, tmpPath);
+        audioBuffer = await fs.promises.readFile(tmpPath);
+      } finally {
+        fs.promises.unlink(tmpPath).catch(() => {});
+      }
+    }
+
     const audioBase64 = audioBuffer.toString('base64');
-    fs.promises.unlink(tmpPath).catch(() => {});
 
     // Try uploading to Vercel Blob
     if (process.env.BLOB_READ_WRITE_TOKEN) {
@@ -282,11 +376,11 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           audioUrl = blob.url;
         }
       } catch (uploadErr) {
-        console.warn('Vercel Blob upload failed:', uploadErr);
+        console.warn('Vercel Blob upload failed:', redactSensitiveInfo(uploadErr));
       }
     }
 
-    // Note: Never return or save base64 data URL as audioUrl. Only return audioBase64 for immediate playback if blob upload is missing.
+    // Return valid MP3 audio stream / base64 data for native Brave playback without API keys
     return res.status(200).json({
       success: true,
       audioBase64: audioUrl ? undefined : audioBase64,
@@ -297,7 +391,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       cached: false,
     });
   } catch (error: any) {
-    const msg = error?.message || 'TTS synthesis failed';
+    console.error('TTS endpoint error:', redactSensitiveInfo(error));
+    const msg = redactSensitiveInfo(error?.message || 'TTS synthesis failed');
     return res.status(500).json({ success: false, error: msg });
   }
 }

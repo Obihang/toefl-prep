@@ -6,6 +6,7 @@ import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders } from '../../utils/apiKey';
+import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
 
@@ -64,7 +65,7 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
     setEvalError(null);
 
     try {
-      const res = await fetch('/api/evaluate-response', {
+      const json = await safeFetchJson('/api/evaluate-response', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
@@ -84,8 +85,7 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      if (!json.success) {
         throw new Error(json.error || 'Evaluation service unavailable');
       }
 
@@ -352,8 +352,10 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
           {evalResult && (
             <FeedbackComparison
               userResponse={body}
-              exemplarResponse={evalResult.exemplar}
+              exemplarResponse={evalResult.modelBand6Rewrite || evalResult.exemplar}
               corrections={evalResult.corrections || []}
+              topFixes={evalResult.topFixes}
+              modelBand6Rewrite={evalResult.modelBand6Rewrite}
             />
           )}
         </div>

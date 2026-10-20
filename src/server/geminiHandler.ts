@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
 import { generateWithFallback } from './geminiUtils.ts';
-import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError } from './geminiErrors.ts';
+import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
 import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callOpenRouterTts, callWhisperTranscription } from './llmClient.ts';
 import { callChatWithHealing } from './chatHealing.ts';
@@ -13,7 +13,7 @@ import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHe
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
 
-export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError };
+export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo };
 
 export function parseRateLimitFromError(error: any) {
   let kind: 'per-minute' | 'per-day' | 'unknown' = 'per-minute';
@@ -702,7 +702,7 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
           throw firstErr;
         }
-        console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, firstErr?.message || firstErr);
+        console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, redactSensitiveInfo(firstErr?.message || firstErr));
         response = await ai.models.generateContent({
           model,
           contents: fullPrompt,
@@ -769,30 +769,95 @@ ${JSON.stringify(promptData, null, 2)}
 Student's Submission:
 ${JSON.stringify(studentResponse, null, 2)}
 
-Scoring Guidelines:
-- Evaluate using authentic ETS TOEFL rubrics.
-- In the updated TOEFL reporting system, section scores are reported on a 1.0 to 6.0 Band Scale (with 0.5 increments: 1.0 to 6.0, mapped to CEFR A1-C2).
-- The raw task rubric is 0.0 to 5.0 (for Writing tasks) or 0.0 to 4.0 (for Speaking tasks).
-- Provide both:
-  1. The new official TOEFL section Band Score on the 1.0 to 6.0 scale (bandScore6, e.g. 5.0 or 5.5).
-  2. The raw task rubric score (rawRubricScore out of 5.0 or 4.0).
-  3. The legacy scaled score out of 30 (scaledScore, e.g., 27/30).
-- Identify specific grammar, punctuation, or word-choice errors with the original phrase, the corrected version, and a brief pedagogical explanation.
-- Provide a high-scoring exemplar response demonstrating how a native or C1+ level candidate would address the exact same prompt.
-- Suggest 3 concrete, actionable improvement tips.
+2026 TOEFL iBT (1.0–6.0 Band Scale) Scoring Calibration Anchors:
+Do NOT default every response to a 4.0 or 4.5. Strictly calibrate against these official 2026 ETS Band anchors:
+- Band 6.0 (Advanced): Fully addresses the prompt with natural flow, precise vocabulary, complex syntactic structures, and only minor/rare slips that do not obscure meaning.
+- Band 4.0–4.5 (High-Intermediate): Addresses the task clearly with generally good control, though noticeable pauses, minor repetition, or occasional grammatical inaccuracies occur.
+- Band 2.0–3.0 (Low-Intermediate / Basic): Limited development, frequent pauses or grammar errors that sometimes obscure meaning, or incomplete coverage of the prompt.
+- Band 1.0–1.5 (Below Basic): Minimal, largely unintelligible, or non-responsive attempt.
 
-Return valid JSON format:
+Scoring Scale Reference:
+- bandScore6: Official section Band Score on the 1.0 to 6.0 scale in 0.5 increments (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0).
+- rawRubricScore: Raw rubric score out of 5.0 (Writing tasks) or 4.0 (Speaking tasks).
+- scaledScore: Legacy scaled score out of 30 (Band 6.0 = 29-30, Band 5.5 = 27-28, Band 5.0 = 24-26, Band 4.5 = 21-23, Band 4.0 = 18-20, Band 3.0-3.5 = 14-17, Band 2.0-2.5 = 9-13, Band 1.0-1.5 = 0-8).
+- performanceLevel: "Advanced" (5.5-6.0), "High-Intermediate" (4.0-5.0), "Low-Intermediate" (2.5-3.5), or "Basic" (1.0-2.0).
+
+Required Feedback Elements:
+1. Provide a balanced, qualitative feedback summary explaining why this specific Band score was earned.
+2. Identify specific language, syntax, or word-choice errors with original text, corrected text, and brief pedagogical explanation.
+3. Top 2 Actionable Fixes: Exactly 2 highly specific, prioritized corrections the student must make next time to reach the next Band.
+4. Model Band 6.0 Rewrite: A complete, natural exemplar response demonstrating how an Advanced (Band 6.0) candidate would address the exact same prompt with sophisticated transitions, precise vocabulary, and cohesion.
+
+Return valid JSON format matching this schema:
 {
   "bandScore6": 5.0,
   "rawRubricScore": 4.0,
-  "scaledScore": 27,
+  "scaledScore": 25,
+  "performanceLevel": "High-Intermediate",
   "feedbackSummary": "Detailed qualitative feedback paragraph...",
+  "topFixes": [
+    "1. Top actionable fix...",
+    "2. Second actionable fix..."
+  ],
+  "modelBand6Rewrite": "Model Band 6.0 Exemplar response...",
+  "exemplarResponse": "Model Band 6.0 Exemplar response...",
   "errors": [
     {"original": "...", "corrected": "...", "explanation": "..."}
   ],
-  "exemplarResponse": "Model high-scoring response...",
   "tips": ["Tip 1", "Tip 2", "Tip 3"]
 }`;
+
+  const normalizeEvalResult = (parsed: any, modelUsed: string) => {
+    const rawBand = typeof parsed?.bandScore6 === 'number' ? parsed.bandScore6 : (typeof parsed?.bandScore === 'number' ? parsed.bandScore : 4.5);
+    const bandScore6 = Math.min(6.0, Math.max(1.0, Math.round(rawBand * 2) / 2));
+    const rawRubric = typeof parsed?.rawRubricScore === 'number' ? parsed.rawRubricScore : (taskType.includes('speaking') ? 3.0 : 4.0);
+    const scaled = typeof parsed?.scaledScore === 'number' ? parsed.scaledScore : (bandScore6 >= 6.0 ? 30 : bandScore6 >= 5.5 ? 28 : bandScore6 >= 5.0 ? 25 : bandScore6 >= 4.5 ? 22 : bandScore6 >= 4.0 ? 19 : 15);
+    
+    const performanceLevel = parsed?.performanceLevel || (bandScore6 >= 5.5 ? 'Advanced' : bandScore6 >= 4.0 ? 'High-Intermediate' : bandScore6 >= 2.5 ? 'Low-Intermediate' : 'Basic');
+    const summary = String(parsed?.feedbackSummary || parsed?.summary || '').trim();
+    const rewrite = String(parsed?.modelBand6Rewrite || parsed?.exemplarResponse || parsed?.exemplar || '').trim();
+    
+    let topFixes: string[] = [];
+    if (Array.isArray(parsed?.topFixes) && parsed.topFixes.length > 0) {
+      topFixes = parsed.topFixes.map((f: any) => String(f).trim()).filter(Boolean).slice(0, 2);
+    } else if (Array.isArray(parsed?.tips) && parsed.tips.length > 0) {
+      topFixes = parsed.tips.map((t: any) => String(t).trim()).filter(Boolean).slice(0, 2);
+    }
+
+    const errorsList = Array.isArray(parsed?.errors)
+      ? parsed.errors.map((e: any) => ({
+          original: String(e.original || '').trim(),
+          corrected: String(e.corrected || '').trim(),
+          explanation: String(e.explanation || '').trim(),
+        }))
+      : Array.isArray(parsed?.corrections)
+      ? parsed.corrections.map((e: any) => ({
+          original: String(e.original || '').trim(),
+          corrected: String(e.corrected || '').trim(),
+          explanation: String(e.explanation || '').trim(),
+        }))
+      : [];
+
+    const tipsList = Array.isArray(parsed?.tips) ? parsed.tips.map((t: any) => String(t).trim()).filter(Boolean) : topFixes;
+
+    return {
+      bandScore6,
+      bandScore: bandScore6,
+      rawRubricScore: rawRubric,
+      scaledScore: scaled,
+      performanceLevel,
+      feedbackSummary: summary,
+      summary,
+      topFixes,
+      modelBand6Rewrite: rewrite,
+      exemplarResponse: rewrite,
+      exemplar: rewrite,
+      errors: errorsList,
+      corrections: errorsList,
+      tips: tipsList,
+      modelUsed,
+    };
+  };
 
   // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
   if (provider !== 'gemini') {
@@ -809,17 +874,7 @@ Return valid JSON format:
     });
 
     const parsed = cleanAndExtractJson(text);
-    const result = z.object({
-      bandScore6: z.number(),
-      rawRubricScore: z.number(),
-      scaledScore: z.number(),
-      feedbackSummary: z.string(),
-      errors: z.array(z.object({ original: z.string(), corrected: z.string(), explanation: z.string() })),
-      exemplarResponse: z.string(),
-      tips: z.array(z.string()),
-    }).parse(parsed);
-
-    return { ...result, modelUsed };
+    return normalizeEvalResult(parsed, modelUsed);
   }
 
   const ai = getAiClient(customApiKey);
@@ -841,15 +896,7 @@ Return valid JSON format:
 
     const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
     const parsed = cleanAndExtractJson(rawText);
-    return z.object({
-      bandScore6: z.number(),
-      rawRubricScore: z.number(),
-      scaledScore: z.number(),
-      feedbackSummary: z.string(),
-      errors: z.array(z.object({ original: z.string(), corrected: z.string(), explanation: z.string() })),
-      exemplarResponse: z.string(),
-      tips: z.array(z.string()),
-    }).parse(parsed);
+    return normalizeEvalResult(parsed, model);
   });
 
   return { ...result, modelUsed };
@@ -1064,7 +1111,7 @@ export async function handleTranscribeAudio(
       });
       return { transcript: res.transcript, modelUsed: res.modelUsed, durationMs: Date.now() - startTime };
     } catch (err: any) {
-      console.warn(`${provider.toUpperCase()} Whisper transcription failed, checking Gemini fallback:`, err?.message || err);
+      console.warn(`${provider.toUpperCase()} Whisper transcription failed, checking Gemini fallback:`, redactSensitiveInfo(err?.message || err));
     }
   }
 

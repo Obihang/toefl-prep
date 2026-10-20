@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { safeFetchJson } from '../../../utils/apiHelper';
 import {
   User,
   Mic,
@@ -105,7 +106,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
       syncKeys();
 
       // Test key connectivity
-      const res = await fetch('/api/test-key', {
+      const json = await safeFetchJson('/api/test-key', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,10 +119,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
         }),
       });
 
-      const json = await res.json();
       window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
 
-      if (res.ok && json.success) {
+      if (json.success) {
         setTestKeyResult({
           success: true,
           message: `Connected successfully to ${PROVIDERS[targetProvider]?.name || targetProvider}! Key saved locally.`,

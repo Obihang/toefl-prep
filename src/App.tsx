@@ -13,6 +13,7 @@ import {
   reportSharedQuestion,
 } from './utils/sharedQuestions';
 import { getApiHeaders, getStoredApiKey } from './utils/apiKey';
+import { safeFetchJson } from './utils/apiHelper';
 
 import {
   BookOpen,
@@ -451,7 +452,7 @@ export default function App() {
     lastPrefetchTimeRef.current = Date.now();
 
     try {
-      const res = await fetch('/api/generate-task', {
+      const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
@@ -461,8 +462,7 @@ export default function App() {
         }),
       });
 
-      const json = await res.json();
-      if (res.ok && json.success && !json.data.isFallback) {
+      if (json.success && !json.data.isFallback) {
         if (lvl !== levelRef.current || top !== topicRef.current) {
           return;
         }
@@ -487,29 +487,30 @@ export default function App() {
           return nextQueue;
         });
       } else {
-        const status = res.status;
-        const errObj = json?.rateLimit || json?.data || json;
-        const reason = String(json?.data?.fallbackReason || json?.error || '').toLowerCase();
-        
-        if (status === 429 || json?.data?.isQuotaExhausted || reason.includes('429') || reason.includes('quota') || reason.includes('resource_exhausted')) {
-          const pause = evaluateRateLimitPause(errObj, Date.now());
-          setRateLimitPauseState(pause);
-          if (pause.kind === 'per-day') {
-            quotaExhaustedUntilRef.current = Date.now() + 3600 * 1000;
-          } else {
-            quotaExhaustedUntilRef.current = pause.resumeAt;
-          }
-        } else if (status === 401 || reason.includes('invalid api key') || reason.includes('key')) {
-          quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
-        } else if (status === 503) {
-          quotaExhaustedUntilRef.current = Date.now() + 60000;
-        } else {
-          failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
-        }
+        failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
       }
-    } catch (e) {
-      console.debug('Background prefetch notice:', e);
-      quotaExhaustedUntilRef.current = Date.now() + 60000;
+    } catch (err: any) {
+      console.debug('Background prefetch notice:', err);
+      const status = err.status || 500;
+      const json = err.json || {};
+      const errObj = json?.rateLimit || json?.data || json;
+      const reason = String(json?.data?.fallbackReason || json?.error || err.message || '').toLowerCase();
+      
+      if (status === 429 || json?.data?.isQuotaExhausted || reason.includes('429') || reason.includes('quota') || reason.includes('resource_exhausted')) {
+        const pause = evaluateRateLimitPause(errObj, Date.now());
+        setRateLimitPauseState(pause);
+        if (pause.kind === 'per-day') {
+          quotaExhaustedUntilRef.current = Date.now() + 3600 * 1000;
+        } else {
+          quotaExhaustedUntilRef.current = pause.resumeAt;
+        }
+      } else if (status === 401 || reason.includes('invalid api key') || reason.includes('key')) {
+        quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+      } else if (status === 503) {
+        quotaExhaustedUntilRef.current = Date.now() + 60000;
+      } else {
+        failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
+      }
     } finally {
       isPrefetchingRef.current[type] = false;
       inFlightLock.current = false;
@@ -671,7 +672,7 @@ export default function App() {
 
     try {
       const apiKey = getStoredApiKey().trim();
-      const res = await fetch('/api/generate-task', {
+      const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
@@ -681,8 +682,7 @@ export default function App() {
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      if (!json.success) {
         throw new Error(json.error || 'Generation failed');
       }
 

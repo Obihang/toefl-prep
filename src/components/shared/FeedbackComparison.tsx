@@ -10,6 +10,8 @@ interface Props {
   userResponse: string;
   exemplarResponse: string;
   corrections: Correction[];
+  topFixes?: string[];
+  modelBand6Rewrite?: string;
 }
 
 // Simple inline highlighter component
@@ -60,19 +62,46 @@ const HighlightedText: React.FC<{ text: string; corrections: Correction[] }> = (
   return <>{parts}</>;
 };
 
-export const FeedbackComparison: React.FC<Props> = ({ userResponse, exemplarResponse, corrections }) => {
+export const FeedbackComparison: React.FC<Props> = ({ userResponse, exemplarResponse, corrections, topFixes, modelBand6Rewrite }) => {
+  const displayExemplar = modelBand6Rewrite || exemplarResponse;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">Your Response</h4>
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-line">
-          <HighlightedText text={userResponse} corrections={corrections} />
+    <div className="space-y-4">
+      {topFixes && topFixes.length > 0 && (
+        <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[11px] font-bold text-white">
+              ★
+            </span>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+              Top 2 Actionable Fixes (Priority For Next Band)
+            </h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+            {topFixes.slice(0, 2).map((fix, idx) => (
+              <div key={idx} className="bg-white border border-amber-200 rounded-lg p-3 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 font-bold text-xs mt-0.5">
+                  {idx + 1}
+                </span>
+                <span className="leading-snug">{fix.replace(/^[0-9]+[.)]\s*/, '')}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800">Exemplar Response (Band 5+)</h4>
-        <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-4 text-sm leading-relaxed text-teal-950 whitespace-pre-line">
-          {exemplarResponse}
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">Your Response</h4>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-line">
+            <HighlightedText text={userResponse} corrections={corrections} />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800">Model Band 6.0 Rewrite (ETS Exemplar)</h4>
+          <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-4 text-sm leading-relaxed text-teal-950 whitespace-pre-line">
+            {displayExemplar}
+          </div>
         </div>
       </div>
     </div>

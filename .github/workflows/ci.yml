@@ -33,6 +33,7 @@ jobs:
 
       - name: Simulations
         run: |
+          npx tsx scripts/api-import-check.ts
           npx tsx scripts/prefetch-sim.ts
           npx tsx scripts/voices-sim.ts
           npx tsx scripts/llm-sim.ts

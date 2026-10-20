@@ -117,7 +117,59 @@ export function redactKey(text: string): string {
     .replace(/gsk_[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
     .replace(/nvapi-[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
     .replace(/sk-or-[0-9A-Za-z_.-]{10,}/g, '[REDACTED]')
-    .replace(/sk-[0-9A-Za-z_-]{10,}/g, '[REDACTED]');
+    .replace(/sk-[0-9A-Za-z_-]{10,}/g, '[REDACTED]')
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]{8,}=*/gi, 'Bearer [REDACTED]');
+}
+
+export function redactSensitiveInfo(errorOrObj: any): any {
+  if (errorOrObj == null) return errorOrObj;
+
+  if (typeof errorOrObj === 'string') {
+    return redactKey(errorOrObj)
+      .replace(/Bearer\s+[A-Za-z0-9._~+/-]{8,}=*/gi, 'Bearer [REDACTED]')
+      .replace(/([?&](?:key|api_key|token)=)[^&\s"']+/gi, '$1[REDACTED]')
+      .replace(/(?:x-api-key|x-gemini-api-key|x-groq-key|apiKey|api_key|token|authorization|secret)\s*[:=]\s*["']?[^"'\s,;{}]+["']?/gi, (match) => {
+        const prefix = match.split(/[:=]/)[0];
+        return `${prefix}: [REDACTED]`;
+      });
+  }
+
+  if (errorOrObj instanceof Error) {
+    const copy = new Error(redactSensitiveInfo(errorOrObj.message));
+    if (errorOrObj.stack) {
+      copy.stack = redactSensitiveInfo(errorOrObj.stack);
+    }
+    return copy;
+  }
+
+  if (typeof errorOrObj === 'object') {
+    try {
+      const str = JSON.stringify(errorOrObj, (key, value) => {
+        const lowerKey = key.toLowerCase();
+        if (
+          lowerKey === 'authorization' ||
+          lowerKey === 'x-api-key' ||
+          lowerKey === 'x-gemini-api-key' ||
+          lowerKey === 'x-groq-key' ||
+          lowerKey === 'apikey' ||
+          lowerKey === 'api_key' ||
+          lowerKey === 'token' ||
+          lowerKey === 'secret'
+        ) {
+          return '[REDACTED]';
+        }
+        if (typeof value === 'string') {
+          return redactSensitiveInfo(value);
+        }
+        return value;
+      });
+      return JSON.parse(str);
+    } catch {
+      return '[REDACTED_OBJECT]';
+    }
+  }
+
+  return errorOrObj;
 }
 
 export function extractErrorMessage(err: any, explicitProvider?: string): string {
@@ -193,5 +245,5 @@ export function extractErrorMessage(err: any, explicitProvider?: string): string
     rawMsg = 'AI model temporarily unavailable. Please try again in a moment.';
   }
 
-  return redactKey(rawMsg);
+  return redactSensitiveInfo(rawMsg);
 }

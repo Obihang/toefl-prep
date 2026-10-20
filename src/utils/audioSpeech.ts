@@ -2,6 +2,7 @@ import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } 
 import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { inferGender } from './voices';
+import { filterWhisperHallucinations } from './speakingMetrics';
 import {
   recordVoiceEngineFailure,
   recordVoiceEngineSuccess,
@@ -76,27 +77,24 @@ export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kor
     }
   } catch {}
 
-  const hasKey = !!(getStoredApiKey('gemini') || getStoredApiKey('groq') || getStoredApiKey('openrouter') || getStoredApiKey() || getStoredVoiceKey());
-  if (hasKey && !isTtsCircuitBreakerBlocked()) {
-    try {
-      const authHdrs = await getAuthHeaders();
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { ...getApiHeaders(), ...authHdrs },
-        body: JSON.stringify({ text: cleanText, voiceName }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success && json.audioBase64) {
-        incrementTtsQuota();
-        const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/wav');
-        audioBufferMemoryCache.set(cacheKey, audioBuffer);
-        try {
-          const db = await dbPromise;
-          await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: provider }, cacheKey);
-        } catch {}
-      }
-    } catch {}
-  }
+  try {
+    const authHdrs = await getAuthHeaders();
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { ...getApiHeaders(), ...authHdrs },
+      body: JSON.stringify({ text: cleanText, voiceName }),
+    });
+    const json = await res.json();
+    if (res.ok && json.success && json.audioBase64) {
+      incrementTtsQuota();
+      const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/mpeg');
+      audioBufferMemoryCache.set(cacheKey, audioBuffer);
+      try {
+        const db = await dbPromise;
+        await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: json.modelUsed || 'Neural TTS' }, cacheKey);
+      } catch {}
+    }
+  } catch {}
 }
 
 // Pre-cache available browser voices synchronously
@@ -575,20 +573,26 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
     throw new Error('GEMINI_TTS_BLOCKED');
   }
 
-  if (!res.ok || !json.success || !json.audioBase64) {
+  if (!res.ok || !json.success || (!json.audioBase64 && !json.audioUrl)) {
     throw new Error(json.error || 'TTS service failed');
   }
 
   incrementTtsQuota();
 
-  // Decode base64 to Blob
-  const byteCharacters = atob(json.audioBase64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  let blob: Blob;
+  if (json.audioUrl) {
+    const audioRes = await fetch(json.audioUrl);
+    blob = await audioRes.blob();
+  } else {
+    // Decode base64 to Blob
+    const byteCharacters = atob(json.audioBase64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    blob = new Blob([byteArray], { type: json.mimeType || 'audio/mpeg' });
   }
-  const byteArray = new Uint8Array(byteNumbers);
-  const blob = new Blob([byteArray], { type: json.mimeType || 'audio/wav' });
 
   // Store in cache
   try {
@@ -733,29 +737,18 @@ export async function playSpeech(
   const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
   const breakerBlocked = isTtsCircuitBreakerBlocked();
 
-  // Helper 1: Try Cloud Voice
+  // Helper 1: Try Cloud Voice (uses zero-key free neural server TTS as default)
   const tryCloud = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
-    if (!hasKey) {
-      const reason = 'No API key configured for Cloud voice.';
-      console.warn(`Cloud voice skipped: ${reason}`);
-      return { ok: false, reason };
-    }
-    if (breakerBlocked) {
-      const reason = 'Cloud voice: daily limit reached.';
-      console.warn(`Cloud voice skipped: ${reason}`);
-      return { ok: false, reason };
-    }
-
     // Check IndexedDB cache first
     const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
     try {
       const db = await dbPromise;
       const cached = await db.get(STORE_NAME, cacheKey);
       if (cached && cached.base64) {
-        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
+        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/mpeg');
         if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-          options.onStatus?.(`Voice: Cached (${cached.engine || 'Cloud'})`);
-          options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Cloud'})`);
+          options.onStatus?.(`Voice: Cached (${cached.engine || 'Neural TTS'})`);
+          options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Neural TTS'})`);
           options.onStart?.();
           await playDecodedSpeech(audioBuffer, options.onEnd);
           return { ok: true };
@@ -763,8 +756,8 @@ export async function playSpeech(
       }
     } catch {}
 
-    // Cloud fetch with 20 second timeout
-    options.onStatus?.('Generating voice...');
+    // Neural server fetch with 20 second timeout
+    options.onStatus?.('Generating neural voice...');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
 
@@ -783,26 +776,30 @@ export async function playSpeech(
         const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
         const blockDuration = Math.min(retryAfter + 5000, 60000);
         localStorage.setItem(TTS_BLOCKED_UNTIL_KEY, (Date.now() + blockDuration).toString());
-        const reason = 'Cloud voice: daily limit reached.';
+        const reason = 'Voice server busy. Please wait a moment.';
         console.warn(reason);
         return { ok: false, reason };
       }
 
-      if (!res.ok || !json.success || !json.audioBase64) {
-        const reason = json.error || 'Cloud voice synthesis failed.';
-        console.warn(`Cloud voice error: ${reason}`);
+      if (!res.ok || !json.success || (!json.audioBase64 && !json.audioUrl)) {
+        const reason = json.error || 'Server voice synthesis failed.';
+        console.warn(`Voice server error: ${reason}`);
         return { ok: false, reason };
       }
 
       incrementTtsQuota();
-      const engineName = provider === 'groq' ? 'Groq' : 'Gemini';
+      const engineName = json.modelUsed || 'Neural TTS';
 
-      // Always decode and cache immediately so late results are never discarded!
-      const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/wav');
-      try {
-        const db = await dbPromise;
-        await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
-      } catch {}
+      // If audioBase64 returned, decode and cache immediately
+      let audioBuffer: AudioBuffer | null = null;
+      if (json.audioBase64) {
+        const decoded = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/mpeg');
+        audioBuffer = decoded.audioBuffer;
+        try {
+          const db = await dbPromise;
+          await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
+        } catch {}
+      }
 
       // If user is still on this sentence, play it!
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
@@ -810,10 +807,15 @@ export async function playSpeech(
         options.onEngineDetected?.(`Voice: ${engineName}`);
         options.onStart?.();
         try {
-          await playDecodedSpeech(audioBuffer, options.onEnd);
+          if (audioBuffer) {
+            await playDecodedSpeech(audioBuffer, options.onEnd);
+          } else if (json.audioUrl) {
+            await playAudioDataUri(json.audioUrl, false);
+            options.onEnd?.();
+          }
           return { ok: true };
         } catch (playErr: any) {
-          const reason = `Cloud playback failed: ${playErr?.message || playErr}`;
+          const reason = `Voice playback failed: ${playErr?.message || playErr}`;
           console.warn(reason);
           return { ok: false, reason };
         }
@@ -822,8 +824,8 @@ export async function playSpeech(
     } catch (err: any) {
       clearTimeout(timer);
       const isTimeout = err?.name === 'AbortError' || String(err).includes('abort');
-      const reason = isTimeout ? 'Cloud voice: request timed out after 20 seconds.' : (err?.message || 'Cloud voice unavailable.');
-      console.warn(`Cloud voice failed: ${reason}`);
+      const reason = isTimeout ? 'Voice request timed out after 20 seconds.' : (err?.message || 'Voice service unavailable.');
+      console.warn(`Voice synthesis failed: ${reason}`);
       return { ok: false, reason };
     }
   };
@@ -871,10 +873,7 @@ export async function playSpeech(
   };
 
   const policy = getVoiceFallbackPolicy();
-  const stepOrder: Array<'cloud' | 'device'> = [];
-  if (hasKey && !breakerBlocked) {
-    stepOrder.push('cloud');
-  }
+  const stepOrder: Array<'cloud' | 'device'> = ['cloud'];
   const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
   if (englishCount > 0) {
     stepOrder.push('device');
@@ -1431,9 +1430,13 @@ export async function transcribeAudioBlob(blob: Blob): Promise<{ transcript: str
     if (!res.ok || !json.success) {
       throw new Error(json.error || 'Audio transcription failed. Ensure your Groq API key is added in Settings.');
     }
+    const rawTranscript = json.transcript || '';
+    const rawWords = json.words || [];
+    const { transcript, words } = filterWhisperHallucinations(rawTranscript, rawWords);
+
     return {
-      transcript: json.transcript || '',
-      words: json.words || [],
+      transcript,
+      words,
       durationMs: json.durationMs,
     };
   } catch (err: any) {
@@ -1721,32 +1724,42 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           isRecordingState = true;
           options.onStatusChange?.('listening');
 
-          // Setup SpeechRecognition for real-time live typing if not blocked in session
+          // Setup SpeechRecognition for real-time live typing if not blocked in session (Brave safe)
           if (!isWebSpeechBlocked() && !recognitionInstance) {
-            recognitionInstance = createSpeechRecognizer(
-              (text) => {
-                accumulatedTranscript = text;
-                options.onTranscriptUpdate?.(text);
-              },
-              (status, errorMsg) => {
-                if (status === 'error' && isRecordingState) {
-                  if (errorMsg === 'network' || errorMsg === 'service-not-allowed') {
-                    markWebSpeechBlocked();
-                    if (!hasShownWebSpeechHintThisSession) {
-                      hasShownWebSpeechHintThisSession = true;
-                      options.onNotice?.(WEB_SPEECH_UNAVAILABLE_HINT);
+            try {
+              recognitionInstance = createSpeechRecognizer(
+                (text) => {
+                  accumulatedTranscript = text;
+                  options.onTranscriptUpdate?.(text);
+                },
+                (status, errorMsg) => {
+                  if (status === 'error' && isRecordingState) {
+                    // Brave shields and privacy browsers block Web Speech API servers with network/service-not-allowed
+                    // Do NOT interrupt or fail recording; MediaRecorder captures audio cleanly for /api/stt
+                    if (errorMsg === 'not-allowed') {
+                      options.onStatusChange?.('error', 'Microphone permission denied.');
+                    } else {
+                      markWebSpeechBlocked();
+                      if (!hasShownWebSpeechHintThisSession) {
+                        hasShownWebSpeechHintThisSession = true;
+                        options.onNotice?.(WEB_SPEECH_UNAVAILABLE_HINT);
+                      }
                     }
-                  } else if (errorMsg === 'not-allowed') {
-                    options.onStatusChange?.('error', 'Microphone permission denied.');
                   }
                 }
-              }
-            );
+              );
 
-            if (recognitionInstance) {
-              try {
-                recognitionInstance.start();
-              } catch {}
+              if (recognitionInstance) {
+                try {
+                  recognitionInstance.start();
+                } catch (startErr) {
+                  console.warn('SpeechRecognition.start failed (Brave safe fallback):', startErr);
+                  markWebSpeechBlocked();
+                }
+              }
+            } catch (createErr) {
+              console.warn('SpeechRecognition setup failed (Brave safe fallback):', createErr);
+              markWebSpeechBlocked();
             }
           } else if (!hasShownWebSpeechHintThisSession && isWebSpeechBlocked()) {
             hasShownWebSpeechHintThisSession = true;

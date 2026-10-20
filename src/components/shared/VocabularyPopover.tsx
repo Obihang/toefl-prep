@@ -3,6 +3,7 @@ import { Volume2, BookmarkPlus, Sparkles, X, Check, Loader2 } from 'lucide-react
 import { playSpeech } from '../../utils/audioSpeech';
 import { saveVocabularyWord } from '../../utils/vocabulary';
 import { getApiHeaders } from '../../utils/apiKey';
+import { safeFetchJson } from '../../utils/apiHelper';
 
 interface Props {
   selectedText: string;
@@ -90,7 +91,7 @@ export const VocabularyPopover: React.FC<Props> = ({
   async function handleExplainWithAI(word: string, context: string) {
     setExplainingAI(true);
     try {
-      const res = await fetch('/api/evaluate-response', {
+      const json = await safeFetchJson('/api/evaluate-response', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
@@ -99,7 +100,6 @@ export const VocabularyPopover: React.FC<Props> = ({
           studentResponse: 'Explain the meaning of this word in the given context clearly and concisely with part of speech and 1 example sentence.',
         }),
       });
-      const json = await res.json();
       if (json.success && json.data?.feedbackSummary) {
         setAiExplanation(json.data.feedbackSummary);
       } else {

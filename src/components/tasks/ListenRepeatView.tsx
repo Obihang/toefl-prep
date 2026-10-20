@@ -40,6 +40,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
   const [autoStart, setAutoStart] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
@@ -67,6 +68,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       }
     };
   }, []);
+
+  // Live timer for recording duration
+  useEffect(() => {
+    let interval: any = null;
+    if (micStatus === 'listening') {
+      setRecordingSeconds(0);
+      interval = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    } else {
+      setRecordingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [micStatus]);
 
   // Live timer for transcription duration
   useEffect(() => {
@@ -135,13 +148,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         body: JSON.stringify({ text: sentence, voiceName }),
       });
       const ttsJson = await ttsRes.json();
-      if (ttsRes.ok && ttsJson.success && ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
+      const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
+      if (ttsRes.ok && ttsJson.success && audioSrc) {
         const newUrl = ttsJson.audioUrl;
         setLoadingAudioIdx(null);
         setActiveAudioIdx(index);
 
         const docId = (task as any).questionDocId || (task as any).id;
-        if (docId && docId.startsWith('q_')) {
+        if (docId && docId.startsWith('q_') && newUrl && newUrl.startsWith('https://') && newUrl.includes('blob.vercel-storage.com')) {
           try {
             if (!audioUrl) {
               await updateDoc(doc(db, 'questions', docId), { audioUrl: newUrl });
@@ -158,7 +172,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         }
 
         await new Promise<void>((resolve, reject) => {
-          const audio = new Audio(newUrl);
+          const audio = new Audio(audioSrc);
           audio.onended = () => {
             setActiveAudioIdx(null);
             resolve();
@@ -523,24 +537,32 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
               {/* Input / Dictation Area */}
               <div className="space-y-3">
-                {/* Live input-level meter using AnalyserNode */}
+                {/* Live input-level meter using AnalyserNode and recording timer */}
                 {isRecordingThis && (
-                  <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2 rounded-lg animate-in fade-in flex-wrap">
+                  <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg animate-in fade-in flex-wrap shadow-xs">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
-                      <span className="font-semibold">Recording Active</span>
+                      <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+                      </span>
+                      <span className="font-bold text-rose-900">Recording Active</span>
+                      <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-mono font-bold text-[11px]">
+                        {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                      </span>
                       <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">Speak the sentence aloud</span>
+                      <span className="text-slate-600">Speak clearly. Click Stop when done.</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] font-semibold text-slate-600">Mic Level:</span>
-                      <div className="w-20 h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <span className="text-[11px] font-semibold text-slate-700">Mic Pulse:</span>
+                      <div className="w-24 h-2.5 bg-slate-200 rounded-full overflow-hidden p-0.5 border border-slate-300">
                         <div
-                          className="h-full bg-emerald-600 rounded-full transition-all duration-75"
-                          style={{ width: `${Math.max(4, audioLevel)}%` }}
+                          className={`h-full rounded-full transition-all duration-75 ${
+                            audioLevel > 15 ? 'bg-emerald-500' : audioLevel > 5 ? 'bg-teal-500' : 'bg-slate-400'
+                          }`}
+                          style={{ width: `${Math.max(6, Math.min(100, audioLevel))}%` }}
                         />
                       </div>
-                      <span className="text-[10px] font-mono text-slate-500 w-7">{audioLevel}%</span>
+                      <span className="text-[10px] font-mono font-semibold text-slate-600 w-8 text-right">{audioLevel}%</span>
                     </div>
                   </div>
                 )}

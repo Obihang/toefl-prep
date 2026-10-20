@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { isKeyError, getStatus, isQuotaExhaustedError } from './geminiErrors.ts';
+import { isKeyError, getStatus, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors.ts';
 
 function isTransientServerBusy(err: any): boolean {
   const status = getStatus(err);
@@ -38,7 +38,7 @@ export async function generateWithFallback<T>(
         if (isQuota) {
           console.warn(`Model ${model} quota exhausted (${attempts}/2): switching to next candidate.`);
         } else {
-          console.warn(`Model ${model} attempt ${attempts} failed:`, errMsg.slice(0, 200));
+          console.warn(`Model ${model} attempt ${attempts} failed:`, redactSensitiveInfo(errMsg.slice(0, 200)));
         }
 
         if (isQuota) {

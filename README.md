@@ -6,6 +6,48 @@ An interactive, browser-based TOEFL practice suite designed around the latest te
 
 ---
 
+## 🏗️ System Architecture
+
+```mermaid
+flowchart LR
+    subgraph Client["React Client SPA"]
+        UI["Practice Views\n(8 TOEFL Task Types)"]
+        Settings["BYOK Key Manager\n(Client-Side Storage)"]
+        AudioVis["Audio Visualizer &\nSpeech Player"]
+    end
+
+    subgraph Handlers["Unified Handlers (src/server/handlers.ts)"]
+        ServerEntry["Serverless & Express Entry\n(server.ts / /api/*)"]
+        BYOKRouter["Multi-Provider BYOK Router\n(Fallback Chains & Healing)"]
+        Auth["Firebase Auth\nToken Verification"]
+        STTHandler["Groq Whisper STT Handler\n(/api/stt)"]
+        TTSHandler["Cloud TTS Handler\n(/api/tts)"]
+    end
+
+    subgraph Cloud["External Services & Storage"]
+        LLMHub["Multi-Provider LLMs (BYOK)\n(Gemini / Groq / OpenRouter / NVIDIA)"]
+        GroqWhisper["Groq Whisper STT\n(whisper-large-v3-turbo)"]
+        CloudTTS["Google Cloud & Edge TTS Engine"]
+        VercelBlob[("Vercel Blob\nSHA-256 Audio Cache")]
+        Firestore[("Firebase Firestore\n(Shared Bank & Score Records)")]
+    end
+
+    UI -->|HTTP Requests with BYOK & Auth Headers| ServerEntry
+    Settings -.->|Provides Saved Keys| UI
+    ServerEntry --> BYOKRouter
+    ServerEntry --> STTHandler
+    ServerEntry --> TTSHandler
+
+    BYOKRouter -->|Generate Task & Evaluate Rubric| LLMHub
+    STTHandler -->|Audio Stream & Word Timestamps| GroqWhisper
+    TTSHandler -->|Verify User UID| Auth
+    TTSHandler -->|Check / Store Cached Audio| VercelBlob
+    TTSHandler -->|Synthesize Uncached Speech| CloudTTS
+    UI -->|Fetch Unseen Tasks & Record Stats| Firestore
+```
+
+---
+
 ## 🌟 Key Features
 
 - **Multi-Provider BYOK AI Router & Model Config**: Enter your API keys (Gemini, Groq, OpenRouter, NVIDIA, etc.) securely in Settings. The server routes generation, evaluation, and STT across optimal models with fallback chains, error classification, and retry-after / rate-limit tracking.
@@ -37,7 +79,7 @@ GEMINI_API_KEY=""
 GROQ_API_KEY=""
 OPENROUTER_API_KEY=""
 BLOB_READ_WRITE_TOKEN=""
-FIREBASE_PROJECT_ID="authentic-jar-5v9wh"
+FIREBASE_PROJECT_ID="your-firebase-project-id"
 ```
 
 ### 4. Run Development Server
@@ -57,8 +99,6 @@ npm start
 ## 🧪 Simulation Tests & CI
 Run verification tests and simulations:
 ```bash
-npx tsx scripts/tts-validation-sim.ts
-npx tsx scripts/error-classification-sim.ts
-npx tsx scripts/audiourl-rules-sim.ts
+npm run test:sim
 npm run lint
 ```

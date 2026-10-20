@@ -1,3 +1,5 @@
+import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
+
 export type ModelPurpose = 'generation' | 'evaluation' | 'transcription' | 'tts';
 
 export interface LlmCallOptions {
@@ -356,7 +358,8 @@ export async function callWhisperTranscription(options: {
     }
 
     const data: any = await res.json();
-    const transcript = data.text || '';
+    const rawTranscript = data.text || '';
+    const { transcript } = filterWhisperHallucinations(rawTranscript);
     return { transcript, modelUsed: `${provider}:${model}` };
   } finally {
     clearTimeout(timer);

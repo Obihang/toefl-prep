@@ -35,8 +35,24 @@ export const MALE_VOICES = [
   'Zubenelgenubi',
 ] as const;
 
-export type FemaleVoice = typeof FEMALE_VOICES[number];
-export type MaleVoice = typeof MALE_VOICES[number];
+export const NEURAL_FEMALE_VOICES = [
+  'en-US-AriaNeural',
+  'en-US-JennyNeural',
+  'en-US-MichelleNeural',
+] as const;
+
+export const NEURAL_MALE_VOICES = [
+  'en-US-GuyNeural',
+  'en-US-ChristopherNeural',
+  'en-US-EricNeural',
+] as const;
+
+export type NeuralFemaleVoice = typeof NEURAL_FEMALE_VOICES[number];
+export type NeuralMaleVoice = typeof NEURAL_MALE_VOICES[number];
+export type NeuralVoiceName = NeuralFemaleVoice | NeuralMaleVoice;
+
+export type FemaleVoice = typeof FEMALE_VOICES[number] | NeuralFemaleVoice;
+export type MaleVoice = typeof MALE_VOICES[number] | NeuralMaleVoice;
 export type VoiceName = FemaleVoice | MaleVoice;
 
 const COMMON_FEMALE_NAMES = new Set([

@@ -4,9 +4,10 @@ import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
-import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
+import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
+import { safeFetchJson } from '../../utils/apiHelper';
 import { MicrophoneTestWidget } from '../shared/MicrophoneTestWidget';
 
 interface Props {
@@ -24,6 +25,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [timeLeft, setTimeLeft] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [autoStart, setAutoStart] = useState(false);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
@@ -65,6 +67,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       }
     };
   }, []);
+
+  // Live timer for recording duration
+  useEffect(() => {
+    let interval: any = null;
+    if (isRecording) {
+      setRecordingSeconds(0);
+      interval = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    } else {
+      setRecordingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   // Live timer for transcription duration
   useEffect(() => {
@@ -415,10 +429,11 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       const response = answers[i] || '';
       const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
       const words = response.toLowerCase().match(/\b\w+\b/g) || [];
-      const fillerCount = words.filter(w => fillerWords.includes(w)).length;
+      const metrics = (answers as any)[`metrics_${i}`] as SpeakingMetrics | undefined;
+      const fillerCount = metrics?.fillerWordCount ?? words.filter(w => fillerWords.includes(w)).length;
       const wordCount = words.length;
       const timeInMinutes = (q.responseTimeSeconds || 45) / 60;
-      const wpm = timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0;
+      const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
       
       return {
         question: q.question,
@@ -432,7 +447,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     console.log('[Audio Timing] Starting evaluation at', new Date().toISOString());
 
     try {
-      const res = await fetch('/api/evaluate-response', {
+      const json = await safeFetchJson('/api/evaluate-response', {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify({
@@ -446,8 +461,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
+      if (!json.success) {
         throw new Error(json.error || 'Evaluation service unavailable');
       }
 
@@ -720,24 +734,34 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
           </div>
 
-          {/* Live input-level meter using AnalyserNode */}
+          {/* Live input-level meter using AnalyserNode and recording timer */}
           {isRecording && (
-            <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg flex-wrap animate-in fade-in">
+            <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg flex-wrap animate-in fade-in shadow-xs">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping shrink-0" />
-                <span className="font-semibold">Recording Active</span>
+                <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
+                </span>
+                <span className="font-bold text-rose-900">Recording Active</span>
+                <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-mono font-bold text-[11px]">
+                  {timerMode === 'speaking'
+                    ? `${Math.floor((currentQ.responseTimeSeconds - timeLeft) / 60)}:${String((currentQ.responseTimeSeconds - timeLeft) % 60).padStart(2, '0')} / ${Math.floor(currentQ.responseTimeSeconds / 60)}:${String(currentQ.responseTimeSeconds % 60).padStart(2, '0')}`
+                    : `${Math.floor(recordingSeconds / 60)}:${String(recordingSeconds % 60).padStart(2, '0')}`}
+                </span>
                 <span className="text-slate-400">·</span>
-                <span className="text-slate-600">Speak clearly. Transcript updates below.</span>
+                <span className="text-slate-600">Capturing audio. Speak clearly into your mic.</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-[11px] font-semibold text-slate-600">Input Level:</span>
-                <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                <span className="text-[11px] font-semibold text-slate-700">Mic Pulse:</span>
+                <div className="w-24 h-2.5 bg-slate-200 rounded-full overflow-hidden p-0.5 border border-slate-300">
                   <div
-                    className="h-full bg-emerald-600 rounded-full transition-all duration-75"
-                    style={{ width: `${Math.max(4, audioLevel)}%` }}
+                    className={`h-full rounded-full transition-all duration-75 ${
+                      audioLevel > 15 ? 'bg-emerald-500' : audioLevel > 5 ? 'bg-teal-500' : 'bg-slate-400'
+                    }`}
+                    style={{ width: `${Math.max(6, Math.min(100, audioLevel))}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-mono text-slate-500 w-7">{audioLevel}%</span>
+                <span className="text-[10px] font-mono font-semibold text-slate-600 w-8 text-right">{audioLevel}%</span>
               </div>
             </div>
           )}
@@ -770,16 +794,20 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           {currentAnswer.trim() && !isRecording && !isTranscribing && (
             <div className="flex gap-4 text-xs bg-white border border-slate-200 p-3 rounded-lg text-slate-600">
               {(() => {
+                const metrics = (answers as any)[`metrics_${currentQIndex}`] as SpeakingMetrics | undefined;
                 const words = currentAnswer.toLowerCase().match(/\b\w+\b/g) || [];
                 const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
-                const fillerCount = words.filter(w => fillerWords.includes(w)).length;
+                const fillerCount = metrics?.fillerWordCount ?? words.filter(w => fillerWords.includes(w)).length;
                 const wordCount = words.length;
                 const timeInMinutes = (currentQ.responseTimeSeconds || 45) / 60;
-                const wpm = timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0;
+                const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
                 return (
                   <>
                     <div>Fillers: <span className="font-mono font-bold text-amber-700">{fillerCount}</span></div>
                     <div>WPM: <span className="font-mono font-bold text-teal-700">{wpm}</span></div>
+                    {metrics?.longestPauseSeconds ? (
+                      <div>Longest Pause: <span className="font-mono font-bold text-slate-700">{metrics.longestPauseSeconds}s</span></div>
+                    ) : null}
                   </>
                 );
               })()}
@@ -940,14 +968,38 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
           )}
 
-          {/* High-Scoring Model Response */}
-          {evaluationResult.exemplar && (
+          {/* Top 2 Actionable Fixes */}
+          {evaluationResult.topFixes && evaluationResult.topFixes.length > 0 && (
+            <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[11px] font-bold text-white">
+                  ★
+                </span>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                  Top 2 Actionable Fixes (Priority For Next Band)
+                </h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {evaluationResult.topFixes.slice(0, 2).map((fix: string, idx: number) => (
+                  <div key={idx} className="bg-white border border-amber-200 rounded-lg p-3 text-xs text-slate-800 flex items-start gap-2.5 shadow-2xs">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 font-bold text-xs mt-0.5">
+                      {idx + 1}
+                    </span>
+                    <span className="leading-snug">{fix.replace(/^[0-9]+[.)]\s*/, '')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* High-Scoring Model Response / Model Band 6.0 Rewrite */}
+          {(evaluationResult.modelBand6Rewrite || evaluationResult.exemplar) && (
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800">
-                High-Scoring Exemplar (Band 4.0 / 30 Scale)
+                Model Band 6.0 Rewrite (ETS Advanced Exemplar)
               </h4>
-              <div className="bg-teal-50/50 border border-teal-200/70 p-4 rounded-lg text-xs sm:text-sm text-teal-950 leading-relaxed font-normal">
-                {evaluationResult.exemplar}
+              <div className="bg-teal-50/50 border border-teal-200/70 p-4 rounded-lg text-xs sm:text-sm text-teal-950 leading-relaxed font-normal whitespace-pre-line">
+                {evaluationResult.modelBand6Rewrite || evaluationResult.exemplar}
               </div>
             </div>
           )}
