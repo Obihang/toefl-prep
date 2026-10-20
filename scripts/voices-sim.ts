@@ -1,4 +1,4 @@
-import { inferGender, pickDialogueVoices, pickSingleVoice, FEMALE_VOICES, MALE_VOICES } from '../src/utils/voices';
+import { inferGender, pickDialogueVoices, pickSingleVoice, NEURAL_FEMALE_VOICES, NEURAL_MALE_VOICES } from '../src/utils/voices';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -28,13 +28,13 @@ assert(call1.A === call2.A && call1.B === call2.B, 'Call 1 and 2 must match');
 assert(call2.A === call3.A && call2.B === call3.B, 'Call 2 and 3 must match');
 assert(call1.A !== call1.B, 'Speaker A and B must differ');
 
-assert((FEMALE_VOICES as readonly string[]).includes(call1.A), 'Speaker A must be female voice');
-assert((MALE_VOICES as readonly string[]).includes(call1.B), 'Speaker B must be male voice');
+assert((NEURAL_FEMALE_VOICES as readonly string[]).includes(call1.A), 'Speaker A must be female voice');
+assert((NEURAL_MALE_VOICES as readonly string[]).includes(call1.B), 'Speaker B must be male voice');
 
 const single1 = pickSingleVoice('single-123', 'female');
 const single2 = pickSingleVoice('single-123', 'female');
 assert(single1 === single2, 'Single voice pick must be deterministic');
-assert((FEMALE_VOICES as readonly string[]).includes(single1), 'Single voice must be in FEMALE_VOICES');
+assert((NEURAL_FEMALE_VOICES as readonly string[]).includes(single1), 'Single voice must be in NEURAL_FEMALE_VOICES');
 
 console.log('All voices simulation tests passed successfully!');
 process.exit(0);

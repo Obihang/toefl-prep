@@ -170,26 +170,24 @@ export function detectSpeakerGender(
   if (!combined) return 'unknown';
 
   // 1. Explicit Hints / Keywords First
-  if (/\b(female|woman|girl|ms\.|mrs\.|miss|madam|she|her)\b/i.test(combined)) {
+  if (/\b(female|woman|girl|ms|mrs|miss|madam|she|her)\b/i.test(combined)) {
     return 'female';
   }
-  if (/\b(male|man|boy|mr\.|sir|he|him)\b/i.test(combined)) {
+  if (/\b(male|man|boy|mr|sir|he|him)\b/i.test(combined)) {
     return 'male';
   }
 
   // 2. Common First-Name Dictionary Lookup
-  const cleanedName = speakerName
+  const fullClean = `${speakerName} ${speakerHint}`
     .replace(/\b(dr\.|prof\.|professor|coach|advisor|student|dean|instructor|faculty|librarian|doctor)\b/gi, '')
     .trim();
 
-  const words = cleanedName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const firstWord = words[0] || '';
-
-  if (firstWord) {
-    if (FEMALE_NAMES_SET.has(firstWord) && !MALE_NAMES_SET.has(firstWord)) {
+  const words = fullClean.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (const word of words) {
+    if (FEMALE_NAMES_SET.has(word) && !MALE_NAMES_SET.has(word)) {
       return 'female';
     }
-    if (MALE_NAMES_SET.has(firstWord) && !FEMALE_NAMES_SET.has(firstWord)) {
+    if (MALE_NAMES_SET.has(word) && !FEMALE_NAMES_SET.has(word)) {
       return 'male';
     }
   }
