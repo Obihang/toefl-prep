@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { User as UserIcon, AlertTriangle, X } from 'lucide-react';
 
 interface AuthContextType {
@@ -41,11 +41,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Test connection safely after auth is ready
         try {
-          await getDocFromServer(doc(db, 'test', 'connection'));
-        } catch (e: any) {
-          if (e?.message?.includes('the client is offline')) {
-            console.error('Firestore client is offline.');
-          }
+          await getDoc(doc(db, 'test', 'connection'));
+        } catch {
+          // Ignore offline or connectivity test errors safely
         }
       } else {
         try {

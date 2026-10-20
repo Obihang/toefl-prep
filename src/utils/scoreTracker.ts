@@ -110,14 +110,24 @@ export async function saveTaskCompletion(taskType: string) {
 
 export async function getUserStats() {
   if (!auth.currentUser) return null;
-  const statsSnap = await getDoc(doc(db, 'userStats', auth.currentUser.uid));
-  return statsSnap.exists() ? statsSnap.data() : null;
+  try {
+    const statsSnap = await getDoc(doc(db, 'userStats', auth.currentUser.uid));
+    return statsSnap.exists() ? statsSnap.data() : null;
+  } catch (err) {
+    console.warn('Failed to get userStats from Firestore (offline):', err);
+    return null;
+  }
 }
 
 export async function getCompletedDays() {
   if (!auth.currentUser) return [];
-  const snapshot = await getDocs(collection(db, 'userStats', auth.currentUser.uid, 'completedDays'));
-  return snapshot.docs.map(doc => doc.data().date);
+  try {
+    const snapshot = await getDocs(collection(db, 'userStats', auth.currentUser.uid, 'completedDays'));
+    return snapshot.docs.map(doc => doc.data().date);
+  } catch (err) {
+    console.warn('Failed to get completedDays from Firestore (offline):', err);
+    return [];
+  }
 }
 
 export function clearPracticeHistory() {

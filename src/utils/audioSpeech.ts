@@ -1,7 +1,7 @@
 import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } from './apiKey';
 import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
-import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender } from './voices';
+import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender, getBrowserSpeechPitchAndRate } from './voices';
 import { filterWhisperHallucinations } from './speakingMetrics';
 import {
   recordVoiceEngineFailure,
@@ -857,12 +857,12 @@ export async function playSpeech(
     }
   };
 
-  // Helper 2: Try Device Voice
+  // Helper 2: Try Device Voice (Browser Speech Synthesis)
   const tryDevice = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
     let voices = getVoices();
     if (voices.filter((v) => v.lang.toLowerCase().startsWith('en')).length === 0) {
       await new Promise((r) => {
-        const t = setTimeout(r, 1500);
+        const t = setTimeout(r, 1000);
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
           window.speechSynthesis.onvoiceschanged = () => {
             clearTimeout(t);
@@ -881,13 +881,15 @@ export async function playSpeech(
     }
 
     try {
-      const g = inferGender(voiceName);
+      const spk = options.speaker || voiceName;
+      const g = options.speaker ? detectSpeakerGender(spk, '') : inferGender(voiceName);
       const gender = g === 'male' ? 'male' : 'female';
+      const pitchRate = getBrowserSpeechPitchAndRate(spk, gender);
       const voiceObj = pickBrowserVoiceForGender(gender) || englishVoices[0];
 
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
         options.onStart?.();
-        await speakScriptLineFallback(cleanText, 1.0, voiceObj);
+        await speakScriptLineFallback(cleanText, pitchRate.pitch, voiceObj, pitchRate.rate);
         options.onEnd?.();
         return { ok: true };
       }
@@ -900,9 +902,16 @@ export async function playSpeech(
   };
 
   const policy = getVoiceFallbackPolicy();
-  const stepOrder: Array<'cloud' | 'device'> = ['cloud'];
-  const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
-  if (englishCount > 0) {
+  const stepOrder: Array<'cloud' | 'device'> = [];
+  
+  // Fast path: if no API keys or engine set to device/offline, go straight to device
+  const hasKeys = !!(getStoredApiKey() || getStoredVoiceKey());
+  
+  if (engine === 'device' || engine === 'offline' || (!hasKeys && typeof window !== 'undefined')) {
+    stepOrder.push('device');
+    stepOrder.push('cloud');
+  } else {
+    stepOrder.push('cloud');
     stepOrder.push('device');
   }
 
@@ -976,10 +985,18 @@ export async function playSpeech(
 }
 
 // Browser fallback speech synthesis
-function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: SpeechSynthesisVoice | null): Promise<void> {
+function speakScriptLineFallback(
+  text: string,
+  pitch = 1.0,
+  browserVoice?: SpeechSynthesisVoice | null,
+  rate = 0.95
+): Promise<void> {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     return Promise.resolve();
   }
+
+  const cleanText = stripSpeakerAndFormatting(text);
+  if (!cleanText) return Promise.resolve();
 
   return new Promise((resolve, reject) => {
     let finished = false;
@@ -994,6 +1011,9 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
       activeFallbackCancel = null;
       if (currentUtt) {
         activeUtterances.delete(currentUtt);
+        if ((window as any).__activeUtterance === currentUtt) {
+          (window as any).__activeUtterance = null;
+        }
       }
       if (hasError && !wasStoppedByUser) {
         reject(err || new Error('Browser speech synthesis error'));
@@ -1005,59 +1025,58 @@ function speakScriptLineFallback(text: string, pitch = 1.0, browserVoice?: Speec
     activeFallbackCancel = () => {
       wasStoppedByUser = true;
       try {
-        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
       } catch {}
       cleanup(false);
     };
 
     // Safety timeout in case browser speech synthesis hangs
-    const maxDuration = Math.max(3500, text.length * 100);
+    const maxDuration = Math.max(3500, cleanText.length * 100);
     safetyTimer = setTimeout(() => cleanup(true, new Error('Browser speech synthesis timeout')), maxDuration);
 
-    try {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      const utt = new SpeechSynthesisUtterance(text);
-      currentUtt = utt;
-      activeUtterances.add(utt);
-      utt.lang = 'en-US';
-
-      // Firefox speech engines distort if pitch/rate are modified
-      const isFirefox = typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent);
-      utt.rate = isFirefox ? 1.0 : 0.95;
-      utt.pitch = isFirefox ? 1.0 : pitch;
-
-      if (browserVoice) {
-        const availableVoices = window.speechSynthesis.getVoices();
-        const matched = availableVoices.find((v) => v.name === browserVoice.name || v.voiceURI === browserVoice.voiceURI);
-        if (matched) {
-          utt.voice = matched;
+    const startSpeech = async () => {
+      try {
+        // Fix Chromium/Brave cancel silence bug: only cancel if speaking/pending, and wait 60ms
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+          await new Promise((r) => setTimeout(r, 60));
         }
-      }
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
 
-      utt.onend = () => cleanup(false);
-      utt.onerror = (e) => cleanup(true, e);
+        const utt = new SpeechSynthesisUtterance(cleanText);
+        currentUtt = utt;
+        (window as any).__activeUtterance = utt; // Retain active utterance against garbage collection cutoff
+        activeUtterances.add(utt);
+        utt.lang = 'en-US';
 
-      // Handle Chrome speech engine state cleanly
-      window.speechSynthesis.resume();
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        setTimeout(() => {
-          try {
-            window.speechSynthesis.resume();
-            window.speechSynthesis.speak(utt);
-          } catch (speakErr) {
-            cleanup(true, speakErr);
+        // Firefox speech engines distort if pitch/rate are modified
+        const isFirefox = typeof navigator !== 'undefined' && /firefox/i.test(navigator.userAgent);
+        utt.rate = isFirefox ? 1.0 : rate;
+        utt.pitch = isFirefox ? 1.0 : pitch;
+
+        if (browserVoice) {
+          const availableVoices = window.speechSynthesis.getVoices();
+          const matched = availableVoices.find((v) => v.name === browserVoice.name || v.voiceURI === browserVoice.voiceURI);
+          if (matched) {
+            utt.voice = matched;
           }
-        }, 60);
-      } else {
+        }
+
+        utt.onend = () => cleanup(false);
+        utt.onerror = (e) => cleanup(true, e);
+
+        window.speechSynthesis.resume();
         window.speechSynthesis.speak(utt);
+      } catch (ex) {
+        cleanup(true, ex);
       }
-    } catch (ex) {
-      cleanup(true, ex);
-    }
+    };
+
+    startSpeech();
   });
 }
 
@@ -1195,6 +1214,7 @@ export async function playDialogue(
 
     await playSpeech(parsed.spokenText, {
       voiceName: voiceToUse,
+      speaker: speakerName,
       sessionId: currentSession,
       skipStop: true,
       onStatus: options.onStatus,

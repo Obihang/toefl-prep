@@ -207,6 +207,8 @@ export class DialogueVoiceManager {
   private speakerVoiceMap = new Map<string, string>();
   private usedVoices = new Set<string>();
   private lastAssignedGender: 'male' | 'female' | null = null;
+  private genderCounts: Record<'male' | 'female', number> = { male: 0, female: 0 };
+  private speakerIndexMap = new Map<string, number>();
 
   public getVoiceForSpeaker(speakerName: string, speakerHint: string = ''): string {
     const normKey = (speakerName || 'Speaker').trim().toLowerCase();
@@ -228,11 +230,38 @@ export class DialogueVoiceManager {
     }
 
     this.speakerVoiceMap.set(normKey, selectedVoice);
+    this.speakerIndexMap.set(normKey, this.genderCounts[gender]++);
     this.usedVoices.add(selectedVoice);
     this.lastAssignedGender = gender;
 
     return selectedVoice;
   }
+
+  public getSpeakerIndex(speakerName: string): number {
+    const normKey = (speakerName || 'Speaker').trim().toLowerCase();
+    return this.speakerIndexMap.get(normKey) || 0;
+  }
+}
+
+export function getBrowserSpeechPitchAndRate(
+  speakerName: string,
+  genderInput?: 'female' | 'male' | 'unknown',
+  speakerIndex: number = 0
+): { pitch: number; rate: number } {
+  const gender = genderInput || detectSpeakerGender(speakerName);
+
+  if (gender === 'male') {
+    if (speakerIndex === 0) {
+      return { pitch: 0.85, rate: 0.98 };
+    }
+    return { pitch: 0.75, rate: 0.94 };
+  }
+
+  // Female or unknown
+  if (speakerIndex === 0) {
+    return { pitch: 1.15, rate: 1.00 };
+  }
+  return { pitch: 1.25, rate: 1.03 };
 }
 
 function hashCode(str: string): number {
@@ -256,7 +285,6 @@ function seededRandom(seed: number): () => number {
 
 const dialogueCache = new Map<string, { A: VoiceName; B: VoiceName }>();
 const singleCache = new Map<string, VoiceName>();
-let lastUsedVoice: string | null = null;
 const resolvedSeeds = new Set<string>();
 
 export function pickDialogueVoices(
@@ -301,13 +329,17 @@ export function pickSingleVoice(seedStr: string, gender: 'female' | 'male' | 'un
   return choice;
 }
 
-export function pickBrowserVoiceForGender(gender: 'female' | 'male' | 'unknown'): SpeechSynthesisVoice | null {
+export function pickBrowserVoiceForGender(
+  gender: 'female' | 'male' | 'unknown',
+  speakerIndex: number = 0
+): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
   const voices = window.speechSynthesis.getVoices();
-  if (voices.length === 0) return null;
+  const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+  if (englishVoices.length === 0) return null;
 
   const target = gender === 'male' ? 'male' : 'female';
-  const match = voices.find((v) => {
+  const matches = englishVoices.filter((v) => {
     const name = v.name.toLowerCase();
     if (target === 'female') {
       return (
@@ -316,7 +348,13 @@ export function pickBrowserVoiceForGender(gender: 'female' | 'male' | 'unknown')
         name.includes('samantha') ||
         name.includes('victoria') ||
         name.includes('karen') ||
-        name.includes('moira')
+        name.includes('moira') ||
+        name.includes('tessa') ||
+        name.includes('fiona') ||
+        name.includes('aria') ||
+        name.includes('jenny') ||
+        name.includes('google us english') ||
+        name.includes('google uk english female')
       );
     } else {
       return (
@@ -325,10 +363,19 @@ export function pickBrowserVoiceForGender(gender: 'female' | 'male' | 'unknown')
         name.includes('mark') ||
         name.includes('george') ||
         name.includes('daniel') ||
-        name.includes('oliver')
+        name.includes('oliver') ||
+        name.includes('alex') ||
+        name.includes('fred') ||
+        name.includes('guy') ||
+        name.includes('christopher') ||
+        name.includes('google uk english male')
       );
     }
   });
 
-  return match || voices[0] || null;
+  if (matches.length > 0) {
+    return matches[speakerIndex % matches.length];
+  }
+
+  return englishVoices[speakerIndex % englishVoices.length];
 }
