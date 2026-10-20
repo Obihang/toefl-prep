@@ -10,12 +10,13 @@ import {
   handleEvaluateResponseEndpoint,
   handleSttEndpoint,
   handleTtsEndpoint,
-} from './src/server/handlers';
+} from './src/server/handlers.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function createServer() {
   const app = express();
+  app.set('trust proxy', 1);
 
   app.use(express.json({ limit: '10mb' }));
 
@@ -23,7 +24,7 @@ export async function createServer() {
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true,
+    standardHeaders: 'draft-7', // Modern standardized headers
     legacyHeaders: false,
     message: { success: false, error: 'Too many requests from this IP, please try again after 15 minutes.' },
   });

@@ -1,34 +1,31 @@
 import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { credential } from 'firebase-admin/app';
+import { getApiConfig } from './apiConfig.ts';
+import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey } from './geminiHandler.ts';
+import { extractErrorMessage, isKeyError, isTransientError, getStatus } from './geminiErrors.ts';
+import { STT_MODEL } from '../config/models.ts';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { EdgeTTS } from 'node-edge-tts';
-import { getApiConfig } from './apiConfig';
-import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey } from './geminiHandler';
-import { extractErrorMessage, isKeyError, isTransientError, getStatus } from './geminiErrors';
-import { STT_MODEL } from '../config/models';
 
 type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
 
-// Initialize firebase admin if not already initialized
-if (!getApps().length) {
-  const projectId = process.env.FIREBASE_PROJECT_ID || 'authentic-jar-5v9wh';
-  try {
-    initializeApp({ projectId });
-  } catch {
-    // Fallback credential init for local dev without service account JSON if env vars are present
-    try {
-      initializeApp({
-        projectId,
-        credential: credential.applicationDefault(),
-      });
-    } catch {}
+let adminApp: any = null;
+
+function getAdminApp() {
+  if (adminApp) return adminApp;
+  const apps = getApps();
+  if (apps.length > 0) {
+    adminApp = apps[0];
+    return adminApp;
   }
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'authentic-jar-5v9wh';
+  adminApp = initializeApp({ projectId });
+  return adminApp;
 }
 
 async function verifyFirebaseToken(req: Req): Promise<string | null> {
@@ -38,7 +35,8 @@ async function verifyFirebaseToken(req: Req): Promise<string | null> {
   if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
   const token = parts[1];
   try {
-    const decoded = await getAuth().verifyIdToken(token);
+    const admin = getAdminApp();
+    const decoded = await getAuth(admin).verifyIdToken(token);
     return decoded.uid;
   } catch {
     return null;

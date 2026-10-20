@@ -164,8 +164,17 @@ function cleanAndExtractJson(text: string): any {
       return JSON.parse(objMatch[0]);
     } catch {
       try {
-        const cleaned = objMatch[0].replace(/,\s*([\}\]])/g, '$1');
-        return JSON.parse(cleaned);
+        let repair = objMatch[0].replace(/,\s*([\}\]])/g, '$1');
+        
+        // Count braces to repair truncation
+        let open = (repair.match(/\{/g) || []).length;
+        let closed = (repair.match(/\}/g) || []).length;
+        while (open > closed) {
+          repair += '}';
+          closed++;
+        }
+        
+        return JSON.parse(repair);
       } catch {}
     }
   }
