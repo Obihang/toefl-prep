@@ -1,7 +1,8 @@
 import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
-console.log('DEBUG: admin object:', admin);
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { credential } from 'firebase-admin/app';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -15,16 +16,16 @@ type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
 
 // Initialize firebase admin if not already initialized
-if (!(admin as any).getApps().length) {
+if (!getApps().length) {
   const projectId = process.env.FIREBASE_PROJECT_ID || 'authentic-jar-5v9wh';
   try {
-    admin.initializeApp({ projectId });
+    initializeApp({ projectId });
   } catch {
     // Fallback credential init for local dev without service account JSON if env vars are present
     try {
-      admin.initializeApp({
+      initializeApp({
         projectId,
-        credential: (admin as any).credential.applicationDefault(),
+        credential: credential.applicationDefault(),
       });
     } catch {}
   }
@@ -37,7 +38,7 @@ async function verifyFirebaseToken(req: Req): Promise<string | null> {
   if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
   const token = parts[1];
   try {
-    const decoded = await (admin as any).auth().verifyIdToken(token);
+    const decoded = await getAuth().verifyIdToken(token);
     return decoded.uid;
   } catch {
     return null;
