@@ -1,25 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Mic, Key, CheckCircle2, AlertCircle, Volume2, Cpu, Trash2, ArrowRight, Sparkles } from 'lucide-react';
+import {
+  User,
+  Mic,
+  Key,
+  CheckCircle2,
+  AlertCircle,
+  Volume2,
+  Database,
+  Trash2,
+  Target,
+  Download,
+  Upload,
+  Sparkles,
+} from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getStoredApiKey,
   setStoredApiKey,
   getStoredProvider,
   setStoredProvider,
-  getStoredBaseUrl,
-  setStoredBaseUrl,
-  getStoredModel,
-  setStoredModel,
   disconnectAllApiKeys,
-  hasAnyStoredApiKey,
   PROVIDERS,
   ApiProvider,
 } from '../../../utils/apiKey';
-import { detectProviderFromKey, KeyDetectResult, DEFAULT_PURPOSE_MODELS } from '../../../utils/keyDetect';
+import { detectProviderFromKey, KeyDetectResult } from '../../../utils/keyDetect';
 import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
-import { AIModelsSection } from './settings/AIModelsSection';
+import { getAiStatusInfo } from '../../../utils/aiFallbackChain';
+import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -28,126 +37,74 @@ interface SettingsTabProps {
 export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) => {
   const { displayName, setDisplayName } = useAuth();
   const [nameInput, setNameInput] = useState('');
-  const [provider, setProvider] = useState<ApiProvider>('gemini');
+  const [provider, setProvider] = useState<ApiProvider>('auto');
   const [apiKeyInput, setApiKeyInput] = useState('');
-  const [baseUrlInput, setBaseUrlInput] = useState('');
-  const [modelInput, setModelInput] = useState('');
   const [detected, setDetected] = useState<KeyDetectResult | null>(null);
-  const [activePurposeModels, setActivePurposeModels] = useState<any>(null);
   const [isTestingKey, setIsTestingKey] = useState(false);
-  const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string; model?: string } | null>(null);
-  const [hasAnyApiKey, setHasAnyApiKey] = useState<boolean>(() => hasAnyStoredApiKey());
-  const autoTestedKeyRef = useRef<string>('');
+  const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [dataMessage, setDataMessage] = useState<{ success: boolean; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Per-provider saved keys state for quick BYOK overview
+  const [geminiKey, setGeminiKey] = useState('');
+  const [groqKey, setGroqKey] = useState('');
+  const [openRouterKey, setOpenRouterKey] = useState('');
+
+  const syncKeys = () => {
+    setGeminiKey(getStoredApiKey('gemini') || '');
+    setGroqKey(getStoredApiKey('groq') || '');
+    setOpenRouterKey(getStoredApiKey('openrouter') || '');
+  };
 
   useEffect(() => {
     setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
     const currentProvider = getStoredProvider();
     setProvider(currentProvider);
     setApiKeyInput(getStoredApiKey(currentProvider) || '');
-    setBaseUrlInput(getStoredBaseUrl());
-    setModelInput(getStoredModel());
-    setHasAnyApiKey(hasAnyStoredApiKey());
-    autoTestedKeyRef.current = getStoredApiKey(currentProvider) || '';
+    syncKeys();
   }, [displayName]);
-
-  useEffect(() => {
-    const updateKeyStatus = () => {
-      setHasAnyApiKey(hasAnyStoredApiKey());
-      const currentProvider = getStoredProvider();
-      setProvider(currentProvider);
-      setApiKeyInput(getStoredApiKey(currentProvider) || '');
-    };
-    window.addEventListener('apiKeyUpdated', updateKeyStatus);
-    return () => window.removeEventListener('apiKeyUpdated', updateKeyStatus);
-  }, []);
 
   useEffect(() => {
     const res = detectProviderFromKey(apiKeyInput);
     setDetected(res);
-    const activeKey = res.provider || provider || 'gemini';
-    const models = DEFAULT_PURPOSE_MODELS[activeKey] || DEFAULT_PURPOSE_MODELS.gemini;
-    setActivePurposeModels(models);
-
-    // Auto-detect and switch if provider is auto
-    if (provider === 'auto' && res.complete && res.provider && apiKeyInput.trim() !== autoTestedKeyRef.current) {
-      if (res.provider !== provider) {
-        setProvider(res.provider);
-        setStoredProvider(res.provider);
-        const defBase = PROVIDERS[res.provider]?.defaultBaseUrl || '';
-        const defModel = PROVIDERS[res.provider]?.defaultModel || '';
-        setBaseUrlInput(defBase);
-        setStoredBaseUrl(defBase);
-        setModelInput(defModel);
-        setStoredModel(defModel);
-      }
-      const timer = setTimeout(() => {
-        autoTestedKeyRef.current = apiKeyInput.trim();
-        handleTestKey(res.provider as ApiProvider);
-      }, 600);
-      return () => clearTimeout(timer);
-    }
-  }, [apiKeyInput, provider, modelInput]);
+  }, [apiKeyInput]);
 
   const handleSwitchProvider = (newProvider: ApiProvider) => {
     setProvider(newProvider);
     setStoredProvider(newProvider);
-    const defBase = PROVIDERS[newProvider]?.defaultBaseUrl || '';
-    const defModel = PROVIDERS[newProvider]?.defaultModel || '';
-    setBaseUrlInput(defBase);
-    setStoredBaseUrl(defBase);
-    setModelInput(defModel);
-    setStoredModel(defModel);
+    // Load that provider's saved key into the key box
+    const saved = getStoredApiKey(newProvider) || '';
+    setApiKeyInput(saved);
+    setTestKeyResult(null);
+  };
 
-    // If key is present, save for new provider
-    if (apiKeyInput.trim()) {
-      setStoredApiKey(apiKeyInput.trim(), newProvider);
-      setHasAnyApiKey(true);
-      window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
-      setTestKeyResult({
-        success: true,
-        message: `Switched active provider to ${PROVIDERS[newProvider]?.name || newProvider}.`,
-      });
+  const handleSaveIndividualKey = (targetProvider: ApiProvider, val: string) => {
+    setStoredApiKey(val.trim(), targetProvider);
+    syncKeys();
+    if (provider === targetProvider) {
+      setApiKeyInput(val.trim());
     }
+    window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
   };
 
-  const handleDisconnectKey = () => {
-    disconnectAllApiKeys();
-    setApiKeyInput('');
-    setProvider('gemini');
-    setBaseUrlInput('');
-    setModelInput('');
-    setDetected(null);
-    setHasAnyApiKey(false);
-    autoTestedKeyRef.current = '';
-    setTestKeyResult({
-      success: true,
-      message: 'API disconnected. Stored API keys cleared from localStorage and app API state reset.',
-    });
-    setTimeout(() => setTestKeyResult(null), 5000);
-  };
-
-  const handleTestKey = async (overrideProvider?: ApiProvider) => {
+  const handleTestAndSaveKey = async () => {
     if (!apiKeyInput.trim()) return;
     setIsTestingKey(true);
     setTestKeyResult(null);
 
     const trimmed = apiKeyInput.trim();
-    // Prioritize detected provider if valid
     const targetProvider: ApiProvider =
-      overrideProvider ||
-      (detected?.provider ? (detected.provider as ApiProvider) : provider === 'auto' ? 'gemini' : provider);
+      detected?.provider ? (detected.provider as ApiProvider) : provider === 'auto' ? 'gemini' : provider;
 
     try {
-      setProvider(targetProvider);
-      setStoredProvider(targetProvider);
       setStoredApiKey(trimmed, targetProvider);
+      if (provider !== 'auto') {
+        setProvider(targetProvider);
+        setStoredProvider(targetProvider);
+      }
+      syncKeys();
 
-      const defBase = baseUrlInput.trim() || PROVIDERS[targetProvider]?.defaultBaseUrl || '';
-      const defModel = modelInput.trim() || PROVIDERS[targetProvider]?.defaultModel || '';
-      setStoredBaseUrl(defBase);
-      setStoredModel(defModel);
-
-      // Verify connection against server endpoint
+      // Test key connectivity
       const res = await fetch('/api/test-key', {
         method: 'POST',
         headers: {
@@ -158,7 +115,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
         body: JSON.stringify({
           provider: targetProvider,
           apiKey: trimmed,
-          model: defModel,
         }),
       });
 
@@ -168,11 +124,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
       if (res.ok && json.success) {
         setTestKeyResult({
           success: true,
-          message: `Successfully connected to ${PROVIDERS[targetProvider]?.name || targetProvider}! Purpose models automatically configured.`,
+          message: `Connected successfully to ${PROVIDERS[targetProvider]?.name || targetProvider}! Key saved locally.`,
         });
       } else {
-        const errorMsg = json.error || `Could not verify ${PROVIDERS[targetProvider]?.name || targetProvider} key.`;
-        setTestKeyResult({ success: false, message: errorMsg });
+        setTestKeyResult({
+          success: false,
+          message: json.error || `Could not verify ${targetProvider} key.`,
+        });
       }
     } catch (err: any) {
       setTestKeyResult({ success: false, message: err?.message || 'Connection test failed.' });
@@ -181,40 +139,239 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
     }
   };
 
-  const hasCurrentSavedKey = Boolean(getStoredApiKey(provider));
+  const handleDisconnectAll = () => {
+    disconnectAllApiKeys();
+    setApiKeyInput('');
+    syncKeys();
+    setTestKeyResult({
+      success: true,
+      message: 'All API keys removed from browser localStorage.',
+    });
+    setTimeout(() => setTestKeyResult(null), 4000);
+  };
+
+  // Data section handlers
+  const handleExportData = () => {
+    const history = getPracticeHistory();
+    const exportData = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      history,
+      targetScore: localStorage.getItem('toefl_target_score'),
+      weeklyGoal: localStorage.getItem('WEEKLY_GOAL'),
+      testDate: localStorage.getItem('toefl_test_date'),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `toefl_prep_history_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDataMessage({ success: true, text: 'Study history exported successfully!' });
+  };
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (Array.isArray(parsed.history)) {
+          localStorage.setItem('toefl_practice_history', JSON.stringify(parsed.history));
+        }
+        if (parsed.targetScore) localStorage.setItem('toefl_target_score', parsed.targetScore);
+        if (parsed.weeklyGoal) localStorage.setItem('WEEKLY_GOAL', parsed.weeklyGoal);
+        if (parsed.testDate) localStorage.setItem('toefl_test_date', parsed.testDate);
+
+        setDataMessage({ success: true, text: 'Study history imported successfully!' });
+      } catch {
+        setDataMessage({ success: false, text: 'Failed to import JSON: Invalid file format.' });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleResetData = () => {
+    if (window.confirm('Are you sure you want to reset all test history and practice records? This cannot be undone.')) {
+      resetPracticeHistory();
+      setDataMessage({ success: true, text: 'All practice history has been reset.' });
+    }
+  };
+
+  const aiStatus = getAiStatusInfo();
 
   const sections: AccordionSection[] = [
+    // 1. AI Provider and API Keys
     {
       id: 'ai_provider',
       title: 'AI provider and API keys',
       icon: <Key className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="font-bold text-slate-900 text-sm">Universal AI Key &amp; Purpose Auto-Routing</h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800">
-                  Active: {PROVIDERS[provider]?.name || provider}
+          {/* AI Status Panel */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">Current AI Execution Status</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                BYOK Fallback Chain
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+              <div className="p-2 bg-white rounded-lg border border-slate-200">
+                <span className="text-slate-400 block text-[10px]">Generation</span>
+                <span className="font-bold text-slate-800 truncate block">{aiStatus.generation.provider}</span>
+                <span className="text-[10px] text-teal-600 truncate block">{aiStatus.generation.model}</span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-slate-200">
+                <span className="text-slate-400 block text-[10px]">Evaluation</span>
+                <span className="font-bold text-slate-800 truncate block">{aiStatus.evaluation.provider}</span>
+                <span className="text-[10px] text-teal-600 truncate block">{aiStatus.evaluation.model}</span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-slate-200">
+                <span className="text-slate-400 block text-[10px]">Speech-to-Text</span>
+                <span className="font-bold text-slate-800 truncate block">{aiStatus.stt.provider}</span>
+                <span className="text-[10px] text-teal-600 truncate block">{aiStatus.stt.model}</span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-slate-200">
+                <span className="text-slate-400 block text-[10px]">TTS Audio</span>
+                <span className="font-bold text-slate-800 truncate block">Edge Neural</span>
+                <span className="text-[10px] text-teal-600 truncate block">en-US Neural</span>
+              </div>
+            </div>
+
+            {/* Rate limit status banner */}
+            {Object.keys(aiStatus.rateLimits).length > 0 && (
+              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Rate-limited providers:{' '}
+                  {Object.entries(aiStatus.rateLimits)
+                    .map(([p, info]) => `${p} (${info.remainingSeconds}s wait)`)
+                    .join(', ')}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Paste any key (OpenRouter, Groq, Gemini, NVIDIA, or OpenAI). The system detects the provider and activates task models.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-[11px]">
-              <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" className="text-teal-700 font-semibold hover:text-teal-900 underline">OpenRouter</a>
-              <span className="text-slate-300">·</span>
-              <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-teal-700 underline">Groq</a>
-              <span className="text-slate-300">·</span>
-              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-teal-700 font-semibold hover:text-teal-900 underline">Gemini Free</a>
-              <span className="text-slate-300">·</span>
-              <a href="https://build.nvidia.com" target="_blank" rel="noreferrer" className="text-slate-500 hover:text-teal-700 underline">NVIDIA</a>
+            )}
+          </div>
+
+          {/* Provider selector */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700">Active Routing Provider</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {(['auto', 'gemini', 'groq', 'openrouter'] as ApiProvider[]).map((p) => {
+                const isSelected = provider === p;
+                const pKey = p === 'auto' ? '' : getStoredApiKey(p);
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => handleSwitchProvider(p)}
+                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="capitalize">{p === 'auto' ? '⚡ Auto-Chain' : p}</span>
+                      {p !== 'auto' && (
+                        <span
+                          className={`w-2 h-2 rounded-full ${pKey ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                          title={pKey ? 'Key saved' : 'No key'}
+                        />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Key Input */}
-          <div className="space-y-2">
+          {/* Per-Provider Keys Input Boxes */}
+          <div className="space-y-3 pt-1">
+            <h5 className="text-xs font-bold text-slate-800">Your Provider Keys (Stored in Browser Only)</h5>
+
+            {/* Gemini */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-700">Google Gemini API Key</span>
+                <a
+                  href="https://aistudio.google.com/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-700 hover:underline"
+                >
+                  Get free key
+                </a>
+              </div>
+              <input
+                type="password"
+                value={geminiKey}
+                onChange={(e) => {
+                  setGeminiKey(e.target.value);
+                  handleSaveIndividualKey('gemini', e.target.value);
+                }}
+                placeholder="AIzaSy... (Gemini 2.5 Flash / Flash Lite)"
+                className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+              />
+            </div>
+
+            {/* Groq */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-700">Groq API Key (for Whisper STT &amp; Llama 3.3)</span>
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-700 hover:underline"
+                >
+                  Get free key
+                </a>
+              </div>
+              <input
+                type="password"
+                value={groqKey}
+                onChange={(e) => {
+                  setGroqKey(e.target.value);
+                  handleSaveIndividualKey('groq', e.target.value);
+                }}
+                placeholder="gsk_... (Whisper Large v3 Turbo &amp; Llama 3.3 70B)"
+                className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+              />
+            </div>
+
+            {/* OpenRouter */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-semibold text-slate-700">OpenRouter API Key</span>
+                <a
+                  href="https://openrouter.ai/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-700 hover:underline"
+                >
+                  Get key
+                </a>
+              </div>
+              <input
+                type="password"
+                value={openRouterKey}
+                onChange={(e) => {
+                  setOpenRouterKey(e.target.value);
+                  handleSaveIndividualKey('openrouter', e.target.value);
+                }}
+                placeholder="sk-or-v1-... (Multi-model fallback)"
+                className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+              />
+            </div>
+          </div>
+
+          {/* Quick paste & test bar */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <label className="text-xs font-semibold text-slate-600">Quick Connect &amp; Auto-Detect Key</label>
             <div className="relative">
               <input
                 type="password"
@@ -223,91 +380,66 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
                   setApiKeyInput(e.target.value);
                   setTestKeyResult(null);
                 }}
-                placeholder="Paste your API key here (sk-or-..., gsk_..., AIza..., nvapi-...)"
-                className="w-full text-sm bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20 outline-hidden font-mono pr-28 shadow-2xs"
+                placeholder="Paste any key here to auto-detect and verify..."
+                className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono pr-28 outline-hidden focus:border-teal-600"
               />
               <button
-                onClick={() => handleTestKey()}
+                type="button"
+                onClick={handleTestAndSaveKey}
                 disabled={isTestingKey || !apiKeyInput.trim()}
-                className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
               >
-                <span>{isTestingKey ? 'Connecting...' : 'Connect Key'}</span>
+                {isTestingKey ? 'Verifying...' : 'Test & Save'}
               </button>
             </div>
 
-            {/* Provider Switch Notice Banner */}
-            {detected?.provider && detected.provider !== provider && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs animate-in fade-in">
-                <div className="flex items-center gap-2 text-amber-900 font-medium">
-                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>
-                    Detected <strong>{detected.label}</strong> key format (current provider is <strong>{PROVIDERS[provider]?.name || provider}</strong>).
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchProvider(detected.provider as ApiProvider)}
-                  className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                >
-                  <span>Switch to {detected.label}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+            {detected?.provider && (
+              <p className="text-[11px] text-slate-500">
+                Key format detected: <strong className="text-teal-800">{detected.label}</strong>
+              </p>
+            )}
+
+            {testKeyResult && (
+              <div
+                className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                  testKeyResult.success
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {testKeyResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{testKeyResult.message}</span>
               </div>
             )}
 
-            {/* Key Action & Disconnect Buttons */}
-            <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                {detected?.label && detected.label !== 'Unknown' && (
-                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-mono text-[11px]">
-                    Format: {detected.label}
-                  </span>
-                )}
-              </div>
-
+            <div className="flex justify-end pt-1">
               <button
                 type="button"
-                onClick={handleDisconnectKey}
-                className="px-3.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-300 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Clear stored API key from localStorage and reset API state"
+                onClick={handleDisconnectAll}
+                className="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Disconnect API</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear All Saved Keys
               </button>
             </div>
           </div>
-
-          {testKeyResult && (
-            <div
-              className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-                testKeyResult.success
-                  ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-900 border border-rose-200'
-              }`}
-            >
-              {testKeyResult.success ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              )}
-              <span>{testKeyResult.message}</span>
-            </div>
-          )}
         </div>
       ),
     },
+
+    // 2. Voice and Speech
     {
-      id: 'voice_checking',
-      title: 'Voice Checking',
+      id: 'voice_speech',
+      title: 'Voice and speech',
       icon: <Volume2 className="w-4 h-4 text-teal-700" />,
       content: <VoiceCheckingSection />,
     },
-    {
-      id: 'ai_models',
-      title: 'AI Models',
-      icon: <Cpu className="w-4 h-4 text-teal-700" />,
-      content: <AIModelsSection />,
-    },
+
+    // 3. Microphone
     {
       id: 'microphone',
       title: 'Microphone',
@@ -318,22 +450,110 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
         </div>
       ),
     },
+
+    // 4. Profile
     {
       id: 'profile',
       title: 'Profile',
       icon: <User className="w-4 h-4 text-teal-700" />,
       content: (
-        <div className="space-y-2 pt-2">
-          <label className="text-xs font-semibold text-slate-600">Display Name</label>
-          <input
-            type="text"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onBlur={() => {
-              if (nameInput.trim()) setDisplayName(nameInput.trim());
-            }}
-            className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
-          />
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Display Name</label>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onBlur={() => {
+                if (nameInput.trim()) setDisplayName(nameInput.trim());
+              }}
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
+            />
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h5 className="text-xs font-bold text-slate-800">TOEFL Target Score &amp; Weekly Goals</h5>
+              <p className="text-[11px] text-slate-500">Configure your target band score and weekly test targets.</p>
+            </div>
+            {onConfigureGoals && (
+              <button
+                type="button"
+                onClick={onConfigureGoals}
+                className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Target className="w-3.5 h-3.5" />
+                Configure Study Goals
+              </button>
+            )}
+          </div>
+        </div>
+      ),
+    },
+
+    // 5. Data
+    {
+      id: 'data',
+      title: 'Data',
+      icon: <Database className="w-4 h-4 text-teal-700" />,
+      content: (
+        <div className="space-y-4 pt-2">
+          <p className="text-xs text-slate-600">
+            Export your practice records, rubric scoring evaluations, and study history to a portable JSON file, or restore from a backup.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleExportData}
+              className="px-3.5 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export History (JSON)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Import History
+            </button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImportData}
+              accept=".json"
+              className="hidden"
+            />
+
+            <button
+              type="button"
+              onClick={handleResetData}
+              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              Reset All History
+            </button>
+          </div>
+
+          {dataMessage && (
+            <div
+              className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                dataMessage.success
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}
+            >
+              {dataMessage.success ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              )}
+              <span>{dataMessage.text}</span>
+            </div>
+          )}
         </div>
       ),
     },
@@ -341,48 +561,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
 
   return (
     <div className="space-y-4">
-      {/* Top API Status & Disconnect Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center justify-between gap-3 flex-wrap shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <div className={`p-2 rounded-lg ${hasAnyApiKey ? 'bg-teal-50 text-teal-700' : 'bg-slate-100 text-slate-500'}`}>
-            <Key className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-800">
-                {hasAnyApiKey ? `Active Provider: ${PROVIDERS[provider]?.name || provider}` : 'No Custom API Key Connected'}
-              </span>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  hasAnyApiKey ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {hasAnyApiKey ? 'Connected' : 'Free / Built-in Mode'}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500">
-              {hasAnyApiKey
-                ? 'Your custom API key is active. All generation, scoring, and voice tasks route through this provider.'
-                : 'Using free built-in quota and offline models. Connect a key below for unlimited requests.'}
-            </p>
-          </div>
-        </div>
-
-        {hasAnyApiKey && (
-          <button
-            type="button"
-            onClick={handleDisconnectKey}
-            className="px-3.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-300 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Clear stored API key from localStorage and reset app API state"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-            <span>Disconnect API</span>
-          </button>
-        )}
-      </div>
-
       <Accordion sections={sections} storageKey="dashboard_settings_accordion_open" />
     </div>
   );
 };
-

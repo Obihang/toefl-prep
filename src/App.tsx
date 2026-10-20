@@ -13,7 +13,7 @@ import {
   reportSharedQuestion,
 } from './utils/sharedQuestions';
 import { getApiHeaders, getStoredApiKey } from './utils/apiKey';
-import { attachUserInteractionVoiceInitializer } from './utils/offlineVoice';
+
 import {
   BookOpen,
   Headphones,
@@ -145,9 +145,7 @@ export default function App() {
     localStorage.setItem('toefl_dark_mode', darkMode ? 'true' : 'false');
   }, [darkMode]);
 
-  useEffect(() => {
-    attachUserInteractionVoiceInitializer();
-  }, []);
+
 
   // Listen for API key updates to reset any quota backoff timer
   useEffect(() => {

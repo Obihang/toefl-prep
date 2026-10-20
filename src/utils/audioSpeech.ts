@@ -1,6 +1,5 @@
 import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
-import { isOfflineVoiceEnabled, isOfflineVoiceDownloaded, generateOfflineSpeech } from './offlineVoice';
 import { inferGender } from './voices';
 import {
   recordVoiceEngineFailure,
@@ -76,27 +75,7 @@ export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kor
     }
   } catch {}
 
-  const engine = getVoiceEngine();
-  if (isOfflineVoiceDownloaded() || engine === 'offline') {
-    try {
-      const { generateOfflineSpeech, splitTextIntoChunks } = await import('./offlineVoice');
-      const chunks = splitTextIntoChunks(cleanText, 140);
-      const ctx = getAudioContext();
-
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const chunkCacheKey = `cache_offline_${voiceName}_${chunk}`;
-        if (!audioBufferMemoryCache.has(chunkCacheKey)) {
-          const res = await generateOfflineSpeech(chunk, voiceName);
-          const audioBuffer = await ctx.decodeAudioData(res.arrayBuffer.slice(0));
-          audioBufferMemoryCache.set(chunkCacheKey, audioBuffer);
-        }
-      }
-      return;
-    } catch {}
-  }
-
-  const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
+  const hasKey = !!(getStoredApiKey('gemini') || getStoredApiKey('groq') || getStoredApiKey('openrouter') || getStoredApiKey() || getStoredVoiceKey());
   if (hasKey && !isTtsCircuitBreakerBlocked()) {
     try {
       const res = await fetch('/api/tts', {
@@ -718,6 +697,8 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
 
 export interface PlaySpeechOptions {
   voiceName?: string;
+  speaker?: string;
+  rate?: number;
   onEngineDetected?: (engineLabel: string) => void;
   onStatus?: (statusLabel: string) => void;
   onStart?: () => void;
@@ -885,138 +866,14 @@ export async function playSpeech(
     }
   };
 
-  // Helper 3: Try Offline Voice
-  const tryOffline = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
-    if (!isOfflineVoiceDownloaded()) {
-      const reason = 'Offline voice: model not downloaded.';
-      console.warn(reason);
-      return { ok: false, reason };
-    }
-
-    try {
-      options.onStatus?.('Generating offline voice...');
-      const { generateOfflineSpeech, splitTextIntoChunks } = await import('./offlineVoice');
-      const chunks = splitTextIntoChunks(cleanText, 140);
-      const ctx = getAudioContext();
-      if (ctx && ctx.state === 'suspended') {
-        await ctx.resume().catch(() => {});
-      }
-
-      if (chunks.length === 1) {
-        const chunkCacheKey = `cache_offline_${voiceName}_${chunks[0]}`;
-        let audioBuffer: AudioBuffer | undefined = audioBufferMemoryCache.get(chunkCacheKey);
-
-        if (!audioBuffer) {
-          const offlineRes = await generateOfflineSpeech(chunks[0], voiceName);
-          audioBuffer = await ctx.decodeAudioData(offlineRes.arrayBuffer.slice(0));
-          audioBufferMemoryCache.set(chunkCacheKey, audioBuffer);
-        }
-
-        if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-          options.onStart?.();
-          try {
-            await playDecodedSpeech(audioBuffer, options.onEnd);
-            return { ok: true };
-          } catch (playErr: any) {
-            const reason = `Offline playback failed: ${playErr?.message || playErr}`;
-            console.warn(reason);
-            return { ok: false, reason };
-          }
-        }
-        return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
-      }
-
-      // Pipelined low-latency streaming playback for multi-sentence text
-      let nextChunkPromise: Promise<any> | null = null;
-
-      for (let i = 0; i < chunks.length; i++) {
-        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
-          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
-        }
-
-        const chunk = chunks[i];
-        const chunkCacheKey = `cache_offline_${voiceName}_${chunk}`;
-        let audioBuffer: AudioBuffer | undefined = audioBufferMemoryCache.get(chunkCacheKey);
-
-        if (!audioBuffer) {
-          options.onStatus?.(`Generating offline voice (${i + 1}/${chunks.length})...`);
-          const chunkRes = await (nextChunkPromise || generateOfflineSpeech(chunk, voiceName));
-          audioBuffer = await ctx.decodeAudioData(chunkRes.arrayBuffer.slice(0));
-          audioBufferMemoryCache.set(chunkCacheKey, audioBuffer);
-        }
-
-        // Pipeline next chunk generation in background immediately if not cached
-        if (i + 1 < chunks.length) {
-          const nextChunk = chunks[i + 1];
-          const nextKey = `cache_offline_${voiceName}_${nextChunk}`;
-          if (!audioBufferMemoryCache.has(nextKey)) {
-            nextChunkPromise = generateOfflineSpeech(nextChunk, voiceName);
-          } else {
-            nextChunkPromise = null;
-          }
-        }
-
-        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
-          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
-        }
-
-        if (i === 0) {
-          options.onStart?.();
-        }
-
-        const isLast = i === chunks.length - 1;
-        await playDecodedSpeech(audioBuffer, isLast ? options.onEnd : undefined);
-      }
-
-      return { ok: true };
-    } catch (err: any) {
-      const reason = `Offline voice error: ${err?.message || err}`;
-      console.warn(reason);
-      return { ok: false, reason };
-    }
-  };
-
-  // Determine execution steps based on user's voiceEngine setting and fallback policy
-  const offlineEnabled = isOfflineVoiceEnabled() || engine === 'offline';
-  const offlineDownloaded = isOfflineVoiceDownloaded();
   const policy = getVoiceFallbackPolicy();
-
-  let stepOrder: Array<'cloud' | 'device' | 'offline'> = [];
-
-  if (policy === 'strict') {
-    if (engine === 'offline') {
-      stepOrder = ['offline'];
-    } else if (engine === 'cloud') {
-      stepOrder = ['cloud'];
-    } else if (engine === 'device') {
-      stepOrder = ['device'];
-    } else {
-      if (hasKey && !breakerBlocked) stepOrder.push('cloud');
-      const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
-      if (englishCount > 0) stepOrder.push('device');
-      if (offlineEnabled && offlineDownloaded) stepOrder.push('offline');
-    }
-  } else {
-    if (engine === 'auto') {
-      if (hasKey && !breakerBlocked) {
-        stepOrder.push('cloud');
-      }
-      const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
-      if (englishCount > 0) {
-        stepOrder.push('device');
-      }
-      if (offlineEnabled && offlineDownloaded) {
-        stepOrder.push('offline');
-      }
-    } else if (engine === 'cloud') {
-      stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
-    } else if (engine === 'device') {
-      stepOrder = ['device', (offlineEnabled && offlineDownloaded) ? 'offline' : null, 'cloud'].filter(Boolean) as any;
-    } else if (engine === 'offline') {
-      stepOrder = ['offline', 'device', 'cloud'];
-    } else {
-      stepOrder = ['cloud', 'device', (offlineEnabled && offlineDownloaded) ? 'offline' : null].filter(Boolean) as any;
-    }
+  const stepOrder: Array<'cloud' | 'device'> = [];
+  if (hasKey && !breakerBlocked) {
+    stepOrder.push('cloud');
+  }
+  const englishCount = getVoices().filter((v) => v.lang.toLowerCase().startsWith('en')).length;
+  if (englishCount > 0) {
+    stepOrder.push('device');
   }
 
   const engineFailures: Record<string, string> = {};
@@ -1026,30 +883,21 @@ export async function playSpeech(
 
     const step = stepOrder[i];
     let result: { ok: boolean; reason?: string; cancelled?: boolean } = { ok: false };
-    const label = step === 'cloud' ? 'Cloud' : step === 'device' ? 'Device' : 'Offline Neural (Kokoro)';
+    const label = step === 'cloud' ? 'Cloud' : 'Device';
 
     if (step === 'cloud') {
       result = await tryCloud();
       if (!result.cancelled) {
         if (result.ok) {
-          recordVoiceEngineSuccess('cloud');
-        } else if (engine === 'cloud' || stepOrder[0] === 'cloud') {
+          recordVoiceEngineSuccess();
+        } else {
           recordVoiceEngineFailure('cloud', result.reason);
         }
       }
     } else if (step === 'device') {
       result = await tryDevice();
       if (result.ok) {
-        recordVoiceEngineSuccess('device');
-      }
-    } else if (step === 'offline') {
-      result = await tryOffline();
-      if (!result.cancelled) {
-        if (result.ok) {
-          recordVoiceEngineSuccess('offline');
-        } else if (engine === 'offline' || stepOrder[0] === 'offline') {
-          recordVoiceEngineFailure('offline', result.reason);
-        }
+        recordVoiceEngineSuccess();
       }
     }
 
@@ -1201,7 +1049,7 @@ export function setVoiceEngine(engine: VoiceEngine) {
     localStorage.setItem('toefl_voice_engine', engine);
     window.dispatchEvent(new CustomEvent('toefl_voice_engine_changed', { detail: { engine } }));
   }
-  resetVoiceEngineFailureCounts(engine);
+  resetVoiceEngineFailureCounts();
 }
 
 export type VoiceFallbackPolicy = 'fallback' | 'strict';

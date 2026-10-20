@@ -125,6 +125,8 @@ export function clearPracticeHistory() {
     localStorage.removeItem(STORAGE_KEY);
   }
 }
+
+export const resetPracticeHistory = clearPracticeHistory;
 // ... rest of the file
 
 // Convert 0-30 scaled score to the new TOEFL 1.0 - 6.0 band scale (0.5 increments)

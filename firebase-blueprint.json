@@ -2,17 +2,33 @@
   "entities": {
     "Question": {
       "title": "TOEFL Question",
-      "description": "A generated TOEFL question.",
+      "description": "A shared TOEFL question in the question bank.",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
         "taskType": { "type": "string" },
         "level": { "type": "string" },
         "topic": { "type": "string" },
-        "data": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "content": { "type": "object" },
+        "contentHash": { "type": "string" },
+        "audioUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" },
+        "useCount": { "type": "number" }
       },
-      "required": ["userId", "taskType", "level", "topic", "data", "createdAt"]
+      "required": ["taskType", "level", "topic", "content", "contentHash", "createdBy", "useCount"]
+    },
+    "UserProgress": {
+      "title": "User Progress",
+      "description": "Tracks seen question IDs to prevent repeats.",
+      "type": "object",
+      "properties": {
+        "seenQuestionIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["seenQuestionIds"]
     },
     "TaskCompletion": {
       "title": "Task Completion",
@@ -79,7 +95,11 @@
   "firestore": {
     "/questions/{questionId}": {
       "schema": "Question",
-      "description": "Storage for generated questions."
+      "description": "Storage for shared question bank."
+    },
+    "/userProgress/{userId}": {
+      "schema": "UserProgress",
+      "description": "Tracks seen question IDs per user."
     },
     "/completions/{completionId}": {
       "schema": "TaskCompletion",

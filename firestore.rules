@@ -24,35 +24,33 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Shared Question Bank
     match /questions/{questionId} {
-      // Any signed-in user can read questions if reportCount < 3
-      allow read: if isSignedIn() && (!('reportCount' in resource.data) || resource.data.reportCount < 3);
+      // Authenticated users (including anonymous auth) can read questions
+      allow read: if isSignedIn();
 
-      // On create, require createdByUid == request.auth.uid, valid taskType,
-      // createdByName string of 2-30 characters, reportCount == 0, reportedBy empty list, and data size is reasonable
+      // On create, require valid taskType, contentHash, createdBy, and useCount
       allow create: if isSignedIn()
-        && request.resource.data.createdByUid == request.auth.uid
         && isValidTaskType(request.resource.data.taskType)
-        && request.resource.data.createdByName is string
-        && request.resource.data.createdByName.size() >= 2
-        && request.resource.data.createdByName.size() <= 30
-        && request.resource.data.reportCount == 0
-        && request.resource.data.reportedBy is list
-        && request.resource.data.reportedBy.size() == 0
-        && request.resource.data.data is map
-        && request.resource.data.data.keys().size() >= 1
-        && request.resource.data.data.keys().size() <= 50;
+        && request.resource.data.contentHash is string
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.useCount is number
+        && request.resource.data.content is map;
 
-      // Allow update for reporting: add request.auth.uid to reportedBy and increment reportCount by 1
+      // Only allow incrementing useCount or attaching audioUrl
       allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount', 'reportedBy'])
-        && !(request.auth.uid in resource.data.reportedBy)
-        && request.resource.data.reportedBy == resource.data.reportedBy.concat([request.auth.uid])
-        && request.resource.data.reportCount == resource.data.reportCount + 1
-        && request.resource.data.reportCount < 4;
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useCount', 'audioUrl'])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['useCount'])
+          || request.resource.data.useCount == resource.data.useCount + 1
+        );
 
-      // No client deletes
       allow delete: if false;
+    }
+
+    // Per-User Progress (seen question IDs)
+    match /userProgress/{uid} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
 
     match /completions/{completionId} {
@@ -62,19 +60,11 @@ service cloud.firestore {
     }
 
     match /mistakes/{mistakeId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
+      allow read, delete, create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
     match /vocabulary/{wordId} {
-      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid;
+      allow read, delete, create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
     match /userStats/{uid} {

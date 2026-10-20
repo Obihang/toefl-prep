@@ -38,10 +38,10 @@ export function evaluateRateLimitPause(
 
   if (/(per[-_ ]?day|daily[-_ ]quota|daily[-_ ]limit|generate_content_free_tier_requests|resets at midnight pt)/i.test(errStr)) {
     kind = 'per-day';
-    retryAfterSeconds = 1800;
+    retryAfterSeconds = 3600;
   }
 
-  const durationMs = kind === 'per-day' ? 1800 * 1000 : Math.max(20, (retryAfterSeconds + 2) * 1000);
+  const durationMs = kind === 'per-day' ? 3600 * 1000 : Math.max(20, (retryAfterSeconds + 2) * 1000);
   return {
     kind,
     resumeAt: now + durationMs,
