@@ -1,31 +1,15 @@
-export const GENERATION_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-flash-latest',
-];
+import { GENERATION_MODELS, EVALUATION_MODELS, STT_MODEL, PROVIDER_ORDER } from '../config/models';
 
-export const EVALUATION_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-flash-latest',
-];
-
-export const TTS_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
-];
-
-export const TRANSCRIBE_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-flash-latest',
-];
+export const GENERATION_CHAIN = GENERATION_MODELS.gemini;
+export const EVALUATION_CHAIN = EVALUATION_MODELS.gemini;
+export const TTS_CHAIN = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+export const TRANSCRIBE_CHAIN = GENERATION_MODELS.gemini;
 
 export const MODELS = {
   GENERATION: GENERATION_CHAIN[0],
   EVALUATION: EVALUATION_CHAIN[0],
   TTS: TTS_CHAIN[0],
   TRANSCRIBE_PRIMARY: TRANSCRIBE_CHAIN[0],
-  TRANSCRIBE_FALLBACK: TRANSCRIBE_CHAIN[1] || 'gemini-3.5-flash-lite',
-  TRANSCRIBE_LAST_RESORT: 'gemini-flash-latest',
+  TRANSCRIBE_FALLBACK: TRANSCRIBE_CHAIN[1] || 'gemini-2.5-flash-lite',
+  TRANSCRIBE_LAST_RESORT: 'gemini-2.5-flash',
 };

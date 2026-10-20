@@ -1381,16 +1381,40 @@ export async function requestMicrophoneAccess(): Promise<{ granted: boolean; err
 }
 
 // Send recorded audio to Gemini /api/transcribe fallback with fast base64 and 20s timeout
-export async function transcribeAudioBlob(blob: Blob): Promise<{ transcript: string; durationMs?: number }> {
+export async function transcribeAudioBlob(blob: Blob): Promise<{ transcript: string; words?: Array<{word: string; start: number; end: number}>; durationMs?: number }> {
+  // Client-side size check (max 3 MB, ~90 seconds)
+  if (blob.size > 3 * 1024 * 1024) {
+    throw new Error('Audio recording exceeds 3 MB limit (90 seconds max). Please record a shorter answer.');
+  }
+
   const base64 = await blobToBase64(blob);
+  const groqKey = (typeof localStorage !== 'undefined' ? (localStorage.getItem('toefl_key_groq') || getStoredApiKey('groq')) : '').trim();
+
+  let idToken = '';
+  try {
+    const { auth } = await import('../firebase');
+    if (auth.currentUser) {
+      idToken = await auth.currentUser.getIdToken();
+    }
+  } catch {}
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (groqKey) {
+    headers['x-groq-key'] = groqKey;
+  }
+  if (idToken) {
+    headers['Authorization'] = `Bearer ${idToken}`;
+  }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
 
   try {
-    const res = await fetch('/api/transcribe', {
+    const res = await fetch('/api/stt', {
       method: 'POST',
-      headers: getApiHeaders(),
+      headers,
       body: JSON.stringify({
         audioBase64: base64,
         mimeType: blob.type || 'audio/webm',
@@ -1401,10 +1425,11 @@ export async function transcribeAudioBlob(blob: Blob): Promise<{ transcript: str
 
     const json = await res.json();
     if (!res.ok || !json.success) {
-      throw new Error(json.error || 'Audio transcription failed');
+      throw new Error(json.error || 'Audio transcription failed. Ensure your Groq API key is added in Settings.');
     }
     return {
       transcript: json.transcript || '',
+      words: json.words || [],
       durationMs: json.durationMs,
     };
   } catch (err: any) {
