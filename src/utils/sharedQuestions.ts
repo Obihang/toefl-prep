@@ -1,6 +1,7 @@
 import { db, auth } from '../firebase';
 import { getSectionForTaskType } from '../types/taskTypes';
 import { getAuthHeaders } from './apiKey';
+import { parseDialogueLine, DialogueVoiceManager } from './voices';
 import { stripSpeakerAndFormatting } from './audioSpeech';
 import {
   collection,
@@ -319,17 +320,21 @@ export async function triggerBackgroundPrefetchIfNeeded(
 
               if (taskType === 'listening-dialogue' && Array.isArray(item.turns) && item.turns.length > 0) {
                 audioClips = [];
+                const voiceManager = new DialogueVoiceManager();
                 for (let tIdx = 0; tIdx < item.turns.length; tIdx++) {
                   const turn = item.turns[tIdx];
-                  const speaker = turn.speaker || (tIdx % 2 === 0 ? 'Student A' : 'Student B');
-                  const voiceName = tIdx % 2 === 0 ? 'en-US-JennyNeural' : 'en-US-GuyNeural';
-                  const cleanText = stripSpeakerAndFormatting(turn.text || '');
-                  if (!cleanText) continue;
+                  const rawText = turn.text || '';
+                  const parsed = parseDialogueLine(rawText);
+                  if (!parsed.spokenText) continue;
+
+                  const speaker = parsed.speakerName || turn.speaker || (tIdx % 2 === 0 ? 'Speaker A' : 'Speaker B');
+                  const voiceName = voiceManager.getVoiceForSpeaker(speaker, parsed.speakerHint);
+
                   try {
                     const ttsRes = await fetch('/api/tts', {
                       method: 'POST',
                       headers,
-                      body: JSON.stringify({ text: cleanText, voiceName, speaker }),
+                      body: JSON.stringify({ text: parsed.spokenText, voiceName, speaker }),
                     });
                     const ttsJson = await ttsRes.json();
                     if (ttsJson.success && isValidBlobUrl(ttsJson.audioUrl)) {

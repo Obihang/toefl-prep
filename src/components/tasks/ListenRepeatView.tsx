@@ -1,4 +1,4 @@
-import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
+import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender } from '../../utils/voices';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
@@ -127,7 +127,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     setAudioErrors((prev) => ({ ...prev, [index]: null }));
 
     const rawSentence = task.sentences[index];
-    const cleanSentence = stripSpeakerAndFormatting(rawSentence);
+    const parsed = parseDialogueLine(rawSentence);
+    const cleanSentence = parsed.spokenText || stripSpeakerAndFormatting(rawSentence);
+    const effSpeaker = parsed.speakerName || speakerName;
+    const effGender = detectSpeakerGender(effSpeaker, parsed.speakerHint || speakerGender);
     const audioClips = (task as any).audioClips;
     const audioUrl = (task as any).audioUrl;
 
@@ -175,11 +178,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     try {
       const authHdrs = await getAuthHeaders();
       const headers = { 'Content-Type': 'application/json', ...authHdrs };
-      const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
+      const voiceName = pickSingleVoice(`${task.title}|${effSpeaker}`, effGender);
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: cleanSentence, voiceName, speaker: speakerName }),
+        body: JSON.stringify({ text: cleanSentence, voiceName, speaker: effSpeaker }),
       });
       const ttsJson = await ttsRes.json();
       const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);

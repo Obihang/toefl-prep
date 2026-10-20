@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import { EdgeTTS as NodeEdgeTTS } from 'node-edge-tts';
-import { inferGender } from '../utils/voices.ts';
+import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 
 // Monkey patch generateSecMsGec to fix 64-bit integer overflow bug in msedge-tts
 if ((MsEdgeTTS as any).generateSecMsGec) {
@@ -72,10 +72,12 @@ const ALLOWED_EDGE_VOICES = new Set([
   'en-US-AriaNeural',
   'en-US-JennyNeural',
   'en-US-MichelleNeural',
+  'en-US-AnaNeural',
+  'en-US-EmmaNeural',
   'en-US-GuyNeural',
   'en-US-ChristopherNeural',
   'en-US-EricNeural',
-  'en-US-EmmaNeural',
+  'en-US-RogerNeural',
   'en-US-SteffanNeural',
   'en-US-RyanNeural',
   'en-US-SoniaNeural',
@@ -274,15 +276,10 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       return res.status(400).json({ success: false, error: 'Speech rate must be between 0.7 and 1.3' });
     }
 
-    let effectiveSpeaker = (speaker || '').toString();
-    if (!effectiveSpeaker) {
-      const match = text.match(/^\s*(?:\*\*|__)?\[?\s*([A-Za-z0-9\s.]+?)\s*\]?(?:\s*\([^)]*\))?(?:\*\*|__)?\s*:\s*/);
-      if (match) {
-        effectiveSpeaker = match[1].trim();
-      }
-    }
+    const parsedLine = parseDialogueLine(text);
+    const speakerName = (speaker || parsedLine.speakerName).toString().trim();
+    const cleanText = parsedLine.spokenText || stripSpeakerAndFormatting(text);
 
-    const cleanText = stripSpeakerAndFormatting(text);
     if (!cleanText) {
       return res.status(200).json({
         success: true,
@@ -293,58 +290,19 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    // Map multi-speaker dialogues, professors, and voices cleanly to natural Microsoft Neural voices:
-    // Female voices: en-US-AriaNeural, en-US-JennyNeural, en-US-MichelleNeural
-    // Male voices: en-US-GuyNeural, en-US-ChristopherNeural, en-US-EricNeural
     let selectedVoice = 'en-US-JennyNeural';
-    const lowerVoice = (voiceName || '').toLowerCase();
-    const lowerSpeaker = effectiveSpeaker.toLowerCase();
 
     if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
       selectedVoice = voiceName;
-    } else if (
-      lowerSpeaker.includes('prof') ||
-      lowerSpeaker.includes('instructor') ||
-      lowerSpeaker.includes('dr') ||
-      lowerSpeaker.includes('advisor') ||
-      lowerSpeaker.includes('faculty')
-    ) {
-      // Academic professors & instructors
-      const g = inferGender(speaker);
-      if (g === 'female' || lowerVoice.includes('female') || lowerVoice.includes('aria') || lowerVoice.includes('michelle')) {
-        selectedVoice = lowerVoice.includes('michelle') ? 'en-US-MichelleNeural' : 'en-US-AriaNeural';
-      } else {
-        selectedVoice = 'en-US-ChristopherNeural';
-      }
-    } else if (
-      lowerSpeaker.includes('b') ||
-      lowerSpeaker.includes('student b') ||
-      lowerSpeaker.includes('male') ||
-      lowerVoice.includes('guy') ||
-      lowerVoice.includes('christopher') ||
-      lowerVoice.includes('eric') ||
-      lowerVoice.includes('puck') ||
-      lowerVoice.includes('charon') ||
-      lowerVoice.includes('fenrir') ||
-      lowerVoice.includes('algenib')
-    ) {
-      selectedVoice = (lowerSpeaker.includes('eric') || lowerVoice.includes('eric')) ? 'en-US-EricNeural' : 'en-US-GuyNeural';
-    } else if (
-      lowerSpeaker.includes('a') ||
-      lowerSpeaker.includes('student a') ||
-      lowerSpeaker.includes('female') ||
-      lowerVoice.includes('aria') ||
-      lowerVoice.includes('michelle') ||
-      lowerVoice.includes('jenny') ||
-      lowerVoice.includes('kore') ||
-      lowerVoice.includes('aoede')
-    ) {
-      selectedVoice = lowerVoice.includes('michelle')
-        ? 'en-US-MichelleNeural'
-        : (lowerVoice.includes('aria') ? 'en-US-AriaNeural' : 'en-US-JennyNeural');
     } else {
-      const g = inferGender(speaker || voiceName);
-      selectedVoice = g === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural';
+      const gender = detectSpeakerGender(speakerName, parsedLine.speakerHint);
+      if (gender === 'female') {
+        selectedVoice = 'en-US-AriaNeural';
+      } else if (gender === 'male') {
+        selectedVoice = 'en-US-GuyNeural';
+      } else {
+        selectedVoice = 'en-US-JennyNeural';
+      }
     }
 
     const ratePercent = Math.round((numRate - 1.0) * 100);

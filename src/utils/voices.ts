@@ -1,4 +1,5 @@
 // 30 TTS voices and voice assignment utilities for TOEFL Studio
+
 export const FEMALE_VOICES = [
   'Achernar',
   'Aoede',
@@ -39,12 +40,16 @@ export const NEURAL_FEMALE_VOICES = [
   'en-US-AriaNeural',
   'en-US-JennyNeural',
   'en-US-MichelleNeural',
+  'en-US-AnaNeural',
+  'en-US-EmmaNeural',
 ] as const;
 
 export const NEURAL_MALE_VOICES = [
   'en-US-GuyNeural',
   'en-US-ChristopherNeural',
   'en-US-EricNeural',
+  'en-US-RogerNeural',
+  'en-US-SteffanNeural',
 ] as const;
 
 export type NeuralFemaleVoice = typeof NEURAL_FEMALE_VOICES[number];
@@ -55,79 +60,179 @@ export type FemaleVoice = typeof FEMALE_VOICES[number] | NeuralFemaleVoice;
 export type MaleVoice = typeof MALE_VOICES[number] | NeuralMaleVoice;
 export type VoiceName = FemaleVoice | MaleVoice;
 
-const COMMON_FEMALE_NAMES = new Set([
-  'sarah', 'emily', 'jessica', 'ashley', 'amanda', 'emma', 'olivia', 'sophia', 'isabella', 'ava',
-  'mia', 'charlotte', 'amelia', 'harper', 'evelyn', 'abigail', 'elizabeth', 'sofia', 'avery',
-  'ella', 'scarlett', 'grace', 'chloe', 'victoria', 'riley', 'aria', 'lily', 'aubrey', 'zoey',
-  'hannah', 'addison', 'leah', 'ellie', 'stella', 'natalie', 'zoe', 'hazel', 'violet',
-  'aurora', 'savannah', 'audrey', 'brooklyn', 'bella', 'claire', 'skylar', 'lucy', 'paisley', 'everly',
-  'anna', 'caroline', 'nova', 'genesis', 'emilia', 'kennedy', 'samantha', 'maya', 'willow', 'kinsley',
-  'naomi', 'aaliyah', 'elena', 'ariana', 'allison', 'gabriella', 'alice', 'madelyn', 'cora',
-  'ruby', 'eva', 'serenity', 'autumn', 'adeline', 'hailey', 'gianna', 'valentina', 'isla', 'eliana',
-  'quinn', 'nevada', 'ivy', 'sadie', 'piper', 'lydia', 'alexa', 'josephine', 'emery', 'julia',
-  'delilah', 'arianna', 'vivian', 'kaylee', 'sophie', 'brielle', 'madeline', 'peyton', 'rylee', 'clara',
-  'hadley', 'melanie', 'mackenzie', 'reagan', 'adalynn', 'liliana', 'aubree', 'jade', 'katherine', 'isabelle',
-  'natalia', 'raelynn', 'maria', 'athena', 'ximena', 'arya', 'leilani', 'taylor', 'faith', 'rose',
-  'kylie', 'alexandra', 'mary', 'margaret', 'lyra', 'freya', 'johanna'
+// Distinct Per-Speaker Neural Voice Pools
+export const MALE_VOICE_POOL: readonly string[] = [
+  'en-US-GuyNeural',
+  'en-US-ChristopherNeural',
+  'en-US-EricNeural',
+  'en-US-RogerNeural',
+  'en-US-SteffanNeural',
+];
+
+export const FEMALE_VOICE_POOL: readonly string[] = [
+  'en-US-AriaNeural',
+  'en-US-JennyNeural',
+  'en-US-MichelleNeural',
+  'en-US-AnaNeural',
+  'en-US-EmmaNeural',
+];
+
+export const FEMALE_NAMES_SET = new Set([
+  'sarah', 'emily', 'jessica', 'ashley', 'amanda', 'samantha', 'jennifer', 'elizabeth', 'taylor', 'megan',
+  'hannah', 'lauren', 'olivia', 'emma', 'ava', 'sophia', 'isabella', 'mia', 'charlotte', 'amelia',
+  'harper', 'evelyn', 'abigail', 'ella', 'scarlett', 'grace', 'chloe', 'victoria', 'riley', 'aria',
+  'lily', 'aubrey', 'zoey', 'penelope', 'lillian', 'addison', 'layla', 'natalie', 'camila', 'brooklyn',
+  'zoe', 'nora', 'leah', 'savannah', 'audrey', 'claire', 'eleanor', 'skylar', 'ellie', 'stella',
+  'paisley', 'violet', 'mila', 'allison', 'alexa', 'anna', 'hazel', 'aaliyah', 'ariana', 'lucy',
+  'caroline', 'genesis', 'kennedy', 'sadie', 'gabriella', 'madelyn', 'adeline', 'maya', 'autumn',
+  'aurora', 'piper', 'hailey', 'arianna', 'kaylee', 'ruby', 'seren', 'eva', 'naomi', 'elena',
+  'alice', 'clara', 'vivian', 'maria', 'laura', 'linda', 'lisa', 'nancy', 'karen', 'betty',
+  'helen', 'sandra', 'donna', 'carol', 'ruth', 'sharon', 'michelle', 'diana', 'julie', 'joyce',
+  'kelly', 'christina', 'joan', 'judith', 'cheryl', 'andrea', 'martha', 'teresa', 'gloria', 'sara',
+  'janice', 'julia', 'marie', 'madison', 'judy', 'theresa', 'beverly', 'denise', 'marilyn', 'amber',
+  'danielle', 'brittany', 'priya', 'mei', 'fatima', 'aisha', 'yuki', 'sora', 'minji', 'carmen',
+  'rosa', 'ana', 'sofia', 'lucia', 'claudia', 'nina', 'tara', 'tanya', 'wendy', 'cindy',
+  'becky', 'katie', 'kate', 'jenny', 'liz', 'beth',
 ]);
 
-const COMMON_MALE_NAMES = new Set([
-  'james', 'robert', 'john', 'michael', 'david', 'william', 'richard', 'joseph', 'thomas', 'charles',
+export const MALE_NAMES_SET = new Set([
+  'james', 'john', 'robert', 'michael', 'william', 'david', 'richard', 'joseph', 'thomas', 'charles',
   'christopher', 'daniel', 'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua',
   'kenneth', 'kevin', 'brian', 'george', 'timothy', 'ronald', 'edward', 'jason', 'jeffrey', 'ryan',
   'jacob', 'gary', 'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon',
-  'benjamin', 'samuel', 'gregory', 'alexander', 'frank', 'patrick', 'raymond', 'jack', 'dennis', 'jerry',
+  'benjamin', 'samuel', 'gregory', 'alexander', 'patrick', 'frank', 'raymond', 'jack', 'dennis', 'jerry',
   'tyler', 'aaron', 'jose', 'adam', 'nathan', 'henry', 'zachary', 'douglas', 'peter', 'kyle',
-  'noah', 'ethan', 'jeremy', 'christian', 'keith', 'roger', 'terry', 'gerald', 'harold', 'sean',
-  'austin', 'carl', 'arthur', 'lawrence', 'dylan', 'jesse', 'bryan', 'joe', 'jordan', 'billy',
-  'bruce', 'albert', 'willie', 'gabriel', 'logan', 'alan', 'juan', 'wayne', 'roy', 'ralph',
-  'randy', 'eugene', 'vincent', 'russell', 'louis', 'bobby', 'philip', 'johnny', 'bradley'
+  'noah', 'ethan', 'jeremy', 'walter', 'christian', 'keith', 'roger', 'terry', 'austin', 'sean',
+  'gerald', 'carl', 'harold', 'dylan', 'arthur', 'lawrence', 'jordan', 'jesse', 'bryan', 'billy',
+  'bruce', 'gabriel', 'joe', 'logan', 'alan', 'juan', 'albert', 'willie', 'elijah', 'wayne',
+  'randy', 'vincent', 'mason', 'roy', 'ralph', 'eugene', 'russell', 'bobby', 'victor', 'martin',
+  'ernest', 'phillip', 'todd', 'craig', 'shawn', 'clarence', 'philip', 'chris', 'mike', 'tom',
+  'bob', 'bill', 'jim', 'dan', 'matt', 'steve', 'nick', 'alex', 'sam', 'ben',
+  'luke', 'liam', 'lucas', 'oliver', 'leo', 'jackson', 'aiden', 'carter', 'wyatt', 'jayden',
+  'owen', 'isaac', 'grayson', 'julian', 'levi', 'lincoln', 'mateo', 'jaxon', 'isaiah', 'caleb',
+  'josiah', 'hunter', 'eli', 'connor', 'landon', 'adrian', 'asher', 'cameron', 'theodore', 'jeremiah',
+  'hudson', 'easton', 'nolan', 'ezra', 'colton', 'carlos', 'luis', 'miguel', 'wei', 'raj',
+  'arjun', 'omar', 'tariq', 'kenji', 'hiroshi', 'minho', 'marco', 'luca', 'diego',
 ]);
 
-export function inferGender(nameStr: string): 'female' | 'male' | 'unknown' {
-  if (!nameStr) return 'unknown';
+export interface ParsedDialogueLine {
+  speakerName: string;
+  speakerHint: string;
+  spokenText: string;
+}
 
-  const trimmed = nameStr.trim();
-  const parenMatch = trimmed.match(/\(([^)]+)\)/);
-  const insideParen = parenMatch ? parenMatch[1].trim() : '';
-  const outsideParen = trimmed.replace(/\([^)]*\)/g, '').trim();
+export function stripStageDirectionsAndMarkdown(text: string): string {
+  if (!text) return '';
+  let cleaned = text.trim();
+  cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
+  cleaned = cleaned.replace(
+    /\((?:pauses?|sighs?|laughs?|chuckles?|clears throat|applause|cheering|coughing|sound|music|gasp|whispering|shouting|silence|interrupted)\)/gi,
+    ' '
+  );
+  cleaned = cleaned.replace(/[*_#`>]+/g, ' ');
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
 
-  const testPart = (part: string): 'female' | 'male' | 'unknown' => {
-    if (!part) return 'unknown';
-    const lower = part.toLowerCase();
+export function parseDialogueLine(line: string): ParsedDialogueLine {
+  if (!line || typeof line !== 'string') {
+    return { speakerName: '', speakerHint: '', spokenText: '' };
+  }
+  const raw = line.trim();
 
-    if (lower.startsWith('mr.') || lower.startsWith('mr ') || lower.startsWith('sir ')) {
-      return 'male';
-    }
-    if (lower.startsWith('ms.') || lower.startsWith('ms ') || lower.startsWith('mrs.') || lower.startsWith('mrs ') || lower.startsWith('miss ') || lower.startsWith('madam ')) {
-      return 'female';
-    }
+  const match = raw.match(
+    /^\s*(?:\*\*|__)?\[?\s*([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?\s*\]?(?:\*\*|__)?\s*:\s*(.+)$/i
+  );
 
-    const cleaned = lower.replace(/\b(student|professor|prof|dr|doctor|advisor|lecturer|instructor|academic|assistant)\b/g, '').trim();
-    const tokens = cleaned.split(/[^a-z0-9]+/).filter(Boolean);
+  if (match) {
+    const rawName = (match[1] || '').trim();
+    const hint = (match[2] || '').trim();
+    const body = (match[3] || '').trim();
 
-    for (const token of tokens) {
-      if (COMMON_FEMALE_NAMES.has(token) && !COMMON_MALE_NAMES.has(token)) {
-        return 'female';
-      }
-      if (COMMON_MALE_NAMES.has(token) && !COMMON_FEMALE_NAMES.has(token)) {
-        return 'male';
-      }
-    }
-    return 'unknown';
-  };
-
-  if (insideParen) {
-    const res = testPart(insideParen);
-    if (res !== 'unknown') return res;
+    return {
+      speakerName: rawName,
+      speakerHint: hint,
+      spokenText: stripStageDirectionsAndMarkdown(body),
+    };
   }
 
-  if (outsideParen) {
-    const res = testPart(outsideParen);
-    if (res !== 'unknown') return res;
+  return {
+    speakerName: '',
+    speakerHint: '',
+    spokenText: stripStageDirectionsAndMarkdown(raw),
+  };
+}
+
+export function detectSpeakerGender(
+  speakerName: string,
+  speakerHint: string = ''
+): 'female' | 'male' | 'unknown' {
+  const combined = `${speakerHint} ${speakerName}`.trim().toLowerCase();
+  if (!combined) return 'unknown';
+
+  // 1. Explicit Hints / Keywords First
+  if (/\b(female|woman|girl|ms\.|mrs\.|miss|madam|she|her)\b/i.test(combined)) {
+    return 'female';
+  }
+  if (/\b(male|man|boy|mr\.|sir|he|him)\b/i.test(combined)) {
+    return 'male';
+  }
+
+  // 2. Common First-Name Dictionary Lookup
+  const cleanedName = speakerName
+    .replace(/\b(dr\.|prof\.|professor|coach|advisor|student|dean|instructor|faculty|librarian|doctor)\b/gi, '')
+    .trim();
+
+  const words = cleanedName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const firstWord = words[0] || '';
+
+  if (firstWord) {
+    if (FEMALE_NAMES_SET.has(firstWord) && !MALE_NAMES_SET.has(firstWord)) {
+      return 'female';
+    }
+    if (MALE_NAMES_SET.has(firstWord) && !FEMALE_NAMES_SET.has(firstWord)) {
+      return 'male';
+    }
   }
 
   return 'unknown';
+}
+
+export function inferGender(nameStr: string): 'female' | 'male' | 'unknown' {
+  if (!nameStr) return 'unknown';
+  const parsed = parseDialogueLine(`${nameStr}: dummy`);
+  return detectSpeakerGender(parsed.speakerName || nameStr, parsed.speakerHint);
+}
+
+export class DialogueVoiceManager {
+  private speakerVoiceMap = new Map<string, string>();
+  private usedVoices = new Set<string>();
+  private lastAssignedGender: 'male' | 'female' | null = null;
+
+  public getVoiceForSpeaker(speakerName: string, speakerHint: string = ''): string {
+    const normKey = (speakerName || 'Speaker').trim().toLowerCase();
+    if (this.speakerVoiceMap.has(normKey)) {
+      return this.speakerVoiceMap.get(normKey)!;
+    }
+
+    let gender = detectSpeakerGender(speakerName, speakerHint);
+
+    if (gender === 'unknown') {
+      gender = this.lastAssignedGender === 'female' ? 'male' : 'female';
+    }
+
+    const pool = gender === 'female' ? FEMALE_VOICE_POOL : MALE_VOICE_POOL;
+
+    let selectedVoice = pool.find((v) => !this.usedVoices.has(v));
+    if (!selectedVoice) {
+      selectedVoice = pool[this.speakerVoiceMap.size % pool.length];
+    }
+
+    this.speakerVoiceMap.set(normKey, selectedVoice);
+    this.usedVoices.add(selectedVoice);
+    this.lastAssignedGender = gender;
+
+    return selectedVoice;
+  }
 }
 
 function hashCode(str: string): number {
@@ -141,11 +246,11 @@ function hashCode(str: string): number {
 }
 
 function seededRandom(seed: number): () => number {
-  let t = seed += 0x6D2B79F5;
-  return function() {
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  let t = (seed += 0x6d2b79f5);
+  return function () {
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
@@ -159,74 +264,38 @@ export function pickDialogueVoices(
   genderA: 'female' | 'male' | 'unknown',
   genderB: 'female' | 'male' | 'unknown'
 ): { A: VoiceName; B: VoiceName } {
-  const isRandomizeEnabled = typeof localStorage === 'undefined' || localStorage.getItem('toefl_randomize_voices') !== 'false';
+  const isRandomizeEnabled =
+    typeof localStorage === 'undefined' || localStorage.getItem('toefl_randomize_voices') !== 'false';
   if (!isRandomizeEnabled) {
-    return { A: 'Kore', B: 'Puck' };
+    return { A: 'en-US-JennyNeural', B: 'en-US-GuyNeural' };
   }
 
   if (dialogueCache.has(seedStr)) {
     return dialogueCache.get(seedStr)!;
   }
 
-  const seed = hashCode(seedStr);
-  const rng = seededRandom(seed);
+  const manager = new DialogueVoiceManager();
+  const vA = manager.getVoiceForSpeaker('Speaker A', genderA !== 'unknown' ? genderA : '');
+  const vB = manager.getVoiceForSpeaker('Speaker B', genderB !== 'unknown' ? genderB : '');
 
-  let gA = genderA;
-  let gB = genderB;
-
-  if (gA === 'unknown' && gB === 'unknown') {
-    gA = 'female';
-    gB = 'male';
-  } else if (gA === 'unknown') {
-    gA = gB === 'female' ? 'male' : 'female';
-  } else if (gB === 'unknown') {
-    gB = gA === 'female' ? 'male' : 'female';
-  }
-
-  const poolA = gA === 'female' ? [...FEMALE_VOICES] : [...MALE_VOICES];
-  const filteredA = poolA.filter((v) => v !== lastUsedVoice);
-  const finalPoolA = filteredA.length > 0 ? filteredA : poolA;
-  const choiceA = finalPoolA[Math.floor(rng() * finalPoolA.length)];
-
-  const poolB = gB === 'female' ? [...FEMALE_VOICES] : [...MALE_VOICES];
-  const filteredB = poolB.filter((v) => v !== choiceA && v !== lastUsedVoice);
-  const finalPoolB = filteredB.length > 0 ? filteredB : poolB.filter((v) => v !== choiceA);
-  const backupPoolB = finalPoolB.length > 0 ? finalPoolB : poolB;
-  const choiceB = backupPoolB[Math.floor(rng() * backupPoolB.length)];
-
-  if (!resolvedSeeds.has(seedStr)) {
-    resolvedSeeds.add(seedStr);
-    lastUsedVoice = choiceB;
-  }
-
-  const result = { A: choiceA, B: choiceB };
+  const result = { A: vA as VoiceName, B: vB as VoiceName };
   dialogueCache.set(seedStr, result);
   return result;
 }
 
 export function pickSingleVoice(seedStr: string, gender: 'female' | 'male' | 'unknown'): VoiceName {
-  const isRandomizeEnabled = typeof localStorage === 'undefined' || localStorage.getItem('toefl_randomize_voices') !== 'false';
+  const isRandomizeEnabled =
+    typeof localStorage === 'undefined' || localStorage.getItem('toefl_randomize_voices') !== 'false';
   if (!isRandomizeEnabled) {
-    return gender === 'male' ? 'Puck' : 'Kore';
+    return (gender === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural') as VoiceName;
   }
 
   if (singleCache.has(seedStr)) {
     return singleCache.get(seedStr)!;
   }
 
-  const seed = hashCode(seedStr);
-  const rng = seededRandom(seed);
-
-  const g = gender === 'male' ? 'male' : 'female';
-  const pool = g === 'female' ? [...FEMALE_VOICES] : [...MALE_VOICES];
-  const filtered = pool.filter((v) => v !== lastUsedVoice);
-  const finalPool = filtered.length > 0 ? filtered : pool;
-  const choice = finalPool[Math.floor(rng() * finalPool.length)];
-
-  if (!resolvedSeeds.has(seedStr)) {
-    resolvedSeeds.add(seedStr);
-    lastUsedVoice = choice;
-  }
+  const manager = new DialogueVoiceManager();
+  const choice = manager.getVoiceForSpeaker(seedStr, gender !== 'unknown' ? gender : '') as VoiceName;
 
   singleCache.set(seedStr, choice);
   return choice;
@@ -241,9 +310,23 @@ export function pickBrowserVoiceForGender(gender: 'female' | 'male' | 'unknown')
   const match = voices.find((v) => {
     const name = v.name.toLowerCase();
     if (target === 'female') {
-      return name.includes('female') || name.includes('zira') || name.includes('samantha') || name.includes('victoria') || name.includes('karen') || name.includes('moira');
+      return (
+        name.includes('female') ||
+        name.includes('zira') ||
+        name.includes('samantha') ||
+        name.includes('victoria') ||
+        name.includes('karen') ||
+        name.includes('moira')
+      );
     } else {
-      return name.includes('male') || name.includes('david') || name.includes('mark') || name.includes('george') || name.includes('daniel') || name.includes('oliver');
+      return (
+        name.includes('male') ||
+        name.includes('david') ||
+        name.includes('mark') ||
+        name.includes('george') ||
+        name.includes('daniel') ||
+        name.includes('oliver')
+      );
     }
   });
 

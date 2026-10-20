@@ -1,4 +1,4 @@
-import { pickDialogueVoices, inferGender } from '../../utils/voices';
+import { pickDialogueVoices, inferGender, parseDialogueLine, DialogueVoiceManager } from '../../utils/voices';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
@@ -131,21 +131,22 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           const authHdrs = await getAuthHeaders();
           const headers = { 'Content-Type': 'application/json', ...authHdrs };
 
+          const voiceManager = new DialogueVoiceManager();
+
           for (let i = 0; i < lines.length; i++) {
             if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
             setActiveLine(i);
             const line = lines[i];
-            const isA = i % 2 === 0;
-            const speaker = isA ? (task.speakers?.A || 'A') : (task.speakers?.B || 'B');
-            const voiceName = isA ? voices.A : voices.B;
-            const cleanLineText = stripSpeakerAndFormatting(line);
+            const parsed = parseDialogueLine(line);
+            if (!parsed.spokenText) continue;
 
-            if (!cleanLineText) continue;
+            const speakerName = parsed.speakerName || (i % 2 === 0 ? (task.speakers?.A || 'Speaker A') : (task.speakers?.B || 'Speaker B'));
+            const voiceName = voiceManager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
 
             const ttsRes = await fetch('/api/tts', {
               method: 'POST',
               headers,
-              body: JSON.stringify({ text: cleanLineText, voiceName, speaker }),
+              body: JSON.stringify({ text: parsed.spokenText, voiceName, speaker: speakerName }),
             });
             const ttsJson = await ttsRes.json();
             const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
@@ -154,7 +155,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
 
             if (ttsRes.ok && ttsJson.success && audioSrc) {
               if (ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
-                generatedClips.push({ speaker, url: ttsJson.audioUrl });
+                generatedClips.push({ speaker: speakerName, url: ttsJson.audioUrl });
               }
               await new Promise<void>((resolve) => {
                 if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) {
@@ -178,7 +179,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               });
             } else {
               // Fallback to unified playDialogue for this line
-              await playDialogue([cleanLineText], voices, () => {});
+              await playDialogue([parsed.spokenText], undefined, () => {});
             }
 
             if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;

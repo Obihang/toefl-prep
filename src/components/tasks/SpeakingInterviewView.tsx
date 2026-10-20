@@ -1,4 +1,4 @@
-import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
+import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender } from '../../utils/voices';
 import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
@@ -115,10 +115,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     stopSpeaking();
     setIsPlayingAudio(true);
     setAudioError(null);
-    const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
-    const browserVoice = pickBrowserVoiceForGender(interviewerGender);
+    const parsed = parseDialogueLine(currentQ.question);
+    const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(currentQ.question);
+    const effInterviewer = parsed.speakerName || interviewerName;
+    const effGender = detectSpeakerGender(effInterviewer, parsed.speakerHint || interviewerGender);
+    const voiceName = pickSingleVoice(`${task.title}|${effInterviewer}`, effGender);
+    const browserVoice = pickBrowserVoiceForGender(effGender);
     try {
-      const cleanQ = stripSpeakerAndFormatting(currentQ.question);
       await speakScriptLine(cleanQ, {
         rate: 0.95,
         voiceName,

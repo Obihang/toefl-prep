@@ -1,7 +1,7 @@
 import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } from './apiKey';
 import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
-import { inferGender } from './voices';
+import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender } from './voices';
 import { filterWhisperHallucinations } from './speakingMetrics';
 import {
   recordVoiceEngineFailure,
@@ -1167,7 +1167,7 @@ export async function speakScriptLine(
 // Play multi-line dialogue line by line in order using unified playSpeech pipeline
 export async function playDialogue(
   lines: string[],
-  voiceMapping: { A: string; B: string } = { A: 'Puck', B: 'Kore' },
+  voiceMapping?: { A?: string; B?: string },
   onLineChange?: (lineIndex: number) => void,
   options: {
     onStatus?: (status: string) => void;
@@ -1177,6 +1177,7 @@ export async function playDialogue(
   stopSpeaking();
   isAudioPlayingState = true;
   const currentSession = ++currentDialogueSessionId;
+  const manager = new DialogueVoiceManager();
 
   for (let i = 0; i < lines.length; i++) {
     if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
@@ -1186,26 +1187,13 @@ export async function playDialogue(
 
     onLineChange?.(i);
 
-    let speakerLabel = '';
-    const colonIdx = rawLine.indexOf(':');
-    if (colonIdx > 0 && colonIdx < 35) {
-      speakerLabel = rawLine.substring(0, colonIdx).trim().toLowerCase();
-    }
-    const cleanText = stripSpeakerAndFormatting(rawLine);
+    const parsed = parseDialogueLine(rawLine);
+    if (!parsed.spokenText) continue;
 
-    const isSpeakerA =
-      speakerLabel.includes('a') ||
-      speakerLabel.includes('professor') ||
-      speakerLabel.includes('advisor') ||
-      speakerLabel.includes('dr.') ||
-      speakerLabel.includes('doctor') ||
-      speakerLabel.includes('faculty') ||
-      speakerLabel.includes('interviewer') ||
-      (!speakerLabel && i % 2 === 0);
+    const speakerName = parsed.speakerName || (i % 2 === 0 ? 'Speaker A' : 'Speaker B');
+    const voiceToUse = manager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
 
-    const voiceToUse = isSpeakerA ? voiceMapping.A : voiceMapping.B;
-
-    await playSpeech(cleanText, {
+    await playSpeech(parsed.spokenText, {
       voiceName: voiceToUse,
       sessionId: currentSession,
       skipStop: true,
