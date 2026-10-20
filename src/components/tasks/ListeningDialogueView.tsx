@@ -1,8 +1,8 @@
 import { pickDialogueVoices, inferGender } from '../../utils/voices';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
-import { playDialogue, stopSpeaking, prefetchSpeechAudio } from '../../utils/audioSpeech';
+import { playDialogue, stopSpeaking, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth, db } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
@@ -23,6 +23,10 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
 
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackSessionIdRef = useRef<number>(0);
+  const isPausedRef = useRef<boolean>(false);
+
   const lines = task.script.split(/\n+/).filter(Boolean);
 
   const seedStr = `${task.title}-${task.script || ''}`;
@@ -30,19 +34,36 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const gB = (task as any).speakerGenderB || (task as any).speakerGenders?.B || inferGender(task.speakers?.B || 'B');
   const voices = pickDialogueVoices(seedStr, gA, gB);
 
+  const stopAllAudio = useCallback(() => {
+    playbackSessionIdRef.current++;
+    isPausedRef.current = true;
+    if (activeAudioRef.current) {
+      try {
+        activeAudioRef.current.pause();
+        activeAudioRef.current.currentTime = 0;
+        activeAudioRef.current.src = '';
+      } catch {}
+      activeAudioRef.current = null;
+    }
+    stopSpeaking();
+  }, []);
+
   useEffect(() => {
     // Silent background pre-synthesis of dialogue lines
     lines.forEach((line, i) => {
       const isA = i % 2 === 0;
-      prefetchSpeechAudio(line, isA ? voices.A : voices.B).catch(() => {});
+      const cleanLine = stripSpeakerAndFormatting(line);
+      prefetchSpeechAudio(cleanLine, isA ? voices.A : voices.B).catch(() => {});
     });
     return () => {
-      stopSpeaking();
+      stopAllAudio();
     };
-  }, [task.id, task.title]);
+  }, [task.id, task.title, stopAllAudio]);
 
   const startPlayback = async () => {
-    stopSpeaking();
+    stopAllAudio();
+    const currentSession = ++playbackSessionIdRef.current;
+    isPausedRef.current = false;
     setIsPlaying(true);
     setPlayCount((prev) => prev + 1);
     setActiveLine(0);
@@ -54,25 +75,54 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
       // 1. Play saved audioClips if present
       if (Array.isArray(audioClips) && audioClips.length > 0) {
         for (let i = 0; i < audioClips.length; i++) {
-          if (!isPlaying) break;
+          if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
           setActiveLine(i);
           const clipUrl = audioClips[i].url;
-          if (clipUrl && clipUrl.startsWith('https://') && clipUrl.includes('blob.vercel-storage.com')) {
+          if (clipUrl) {
             await new Promise<void>((resolve) => {
+              if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) {
+                resolve();
+                return;
+              }
               const audio = new Audio(clipUrl);
-              audio.onended = () => resolve();
-              audio.onerror = () => resolve();
-              audio.play().catch(() => resolve());
+              activeAudioRef.current = audio;
+              audio.onended = () => {
+                if (activeAudioRef.current === audio) activeAudioRef.current = null;
+                resolve();
+              };
+              audio.onerror = () => {
+                if (activeAudioRef.current === audio) activeAudioRef.current = null;
+                resolve();
+              };
+              audio.play().catch(() => {
+                if (activeAudioRef.current === audio) activeAudioRef.current = null;
+                resolve();
+              });
             });
           }
+          if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
         }
       } else if (audioUrl && audioUrl.startsWith('https://') && audioUrl.includes('blob.vercel-storage.com')) {
         // 2. Play single audioUrl if present
         await new Promise<void>((resolve) => {
+          if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) {
+            resolve();
+            return;
+          }
           const audio = new Audio(audioUrl);
-          audio.onended = () => resolve();
-          audio.onerror = () => resolve();
-          audio.play().catch(() => resolve());
+          activeAudioRef.current = audio;
+          audio.onended = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            resolve();
+          };
+          audio.onerror = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            resolve();
+          };
+          audio.play().catch(() => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            resolve();
+          });
         });
       } else {
         // 3. No saved audio -> call /api/tts with getAuthHeaders(), save once, then play
@@ -82,33 +132,56 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           const headers = { 'Content-Type': 'application/json', ...authHdrs };
 
           for (let i = 0; i < lines.length; i++) {
+            if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
             setActiveLine(i);
             const line = lines[i];
             const isA = i % 2 === 0;
             const speaker = isA ? (task.speakers?.A || 'A') : (task.speakers?.B || 'B');
             const voiceName = isA ? voices.A : voices.B;
+            const cleanLineText = stripSpeakerAndFormatting(line);
+
+            if (!cleanLineText) continue;
 
             const ttsRes = await fetch('/api/tts', {
               method: 'POST',
               headers,
-              body: JSON.stringify({ text: line, voiceName }),
+              body: JSON.stringify({ text: cleanLineText, voiceName, speaker }),
             });
             const ttsJson = await ttsRes.json();
             const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
+
+            if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
+
             if (ttsRes.ok && ttsJson.success && audioSrc) {
               if (ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
                 generatedClips.push({ speaker, url: ttsJson.audioUrl });
               }
               await new Promise<void>((resolve) => {
+                if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) {
+                  resolve();
+                  return;
+                }
                 const audio = new Audio(audioSrc);
-                audio.onended = () => resolve();
-                audio.onerror = () => resolve();
-                audio.play().catch(() => resolve());
+                activeAudioRef.current = audio;
+                audio.onended = () => {
+                  if (activeAudioRef.current === audio) activeAudioRef.current = null;
+                  resolve();
+                };
+                audio.onerror = () => {
+                  if (activeAudioRef.current === audio) activeAudioRef.current = null;
+                  resolve();
+                };
+                audio.play().catch(() => {
+                  if (activeAudioRef.current === audio) activeAudioRef.current = null;
+                  resolve();
+                });
               });
             } else {
               // Fallback to unified playDialogue for this line
-              await playDialogue([line], voices, () => {});
+              await playDialogue([cleanLineText], voices, () => {});
             }
+
+            if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
           }
 
           // Save to Firestore if we have generatedClips and questionDocId
@@ -117,7 +190,6 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             const firstUrl = generatedClips[0].url;
             const cappedClips = generatedClips.slice(0, 10);
             try {
-              // Two separate updateDoc calls because rules allow only one audio field per update
               await updateDoc(doc(db, 'questions', docId), { audioUrl: firstUrl });
               await updateDoc(doc(db, 'questions', docId), { audioClips: cappedClips });
               (task as any).audioUrl = firstUrl;
@@ -140,19 +212,29 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     } catch {
       // Audio completed or stopped
     } finally {
-      setIsPlaying(false);
-      setActiveLine(null);
+      if (playbackSessionIdRef.current === currentSession) {
+        setIsPlaying(false);
+        setActiveLine(null);
+      }
     }
   };
 
   const handlePauseAudio = () => {
+    isPausedRef.current = true;
+    playbackSessionIdRef.current++;
+    if (activeAudioRef.current) {
+      try {
+        activeAudioRef.current.pause();
+      } catch {}
+      activeAudioRef.current = null;
+    }
     stopSpeaking();
     setIsPlaying(false);
     setActiveLine(null);
   };
 
   const handleRestartAudio = () => {
-    stopSpeaking();
+    stopAllAudio();
     setIsPlaying(false);
     setActiveLine(null);
     startPlayback();

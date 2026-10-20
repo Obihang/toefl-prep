@@ -1,6 +1,7 @@
 import { db, auth } from '../firebase';
 import { getSectionForTaskType } from '../types/taskTypes';
 import { getAuthHeaders } from './apiKey';
+import { stripSpeakerAndFormatting } from './audioSpeech';
 import {
   collection,
   doc,
@@ -320,13 +321,15 @@ export async function triggerBackgroundPrefetchIfNeeded(
                 audioClips = [];
                 for (let tIdx = 0; tIdx < item.turns.length; tIdx++) {
                   const turn = item.turns[tIdx];
-                  const speaker = turn.speaker || (tIdx % 2 === 0 ? 'Student' : 'Professor');
+                  const speaker = turn.speaker || (tIdx % 2 === 0 ? 'Student A' : 'Student B');
                   const voiceName = tIdx % 2 === 0 ? 'en-US-JennyNeural' : 'en-US-GuyNeural';
+                  const cleanText = stripSpeakerAndFormatting(turn.text || '');
+                  if (!cleanText) continue;
                   try {
                     const ttsRes = await fetch('/api/tts', {
                       method: 'POST',
                       headers,
-                      body: JSON.stringify({ text: turn.text, voiceName }),
+                      body: JSON.stringify({ text: cleanText, voiceName, speaker }),
                     });
                     const ttsJson = await ttsRes.json();
                     if (ttsJson.success && isValidBlobUrl(ttsJson.audioUrl)) {
@@ -341,11 +344,13 @@ export async function triggerBackgroundPrefetchIfNeeded(
               } else if (taskType === 'listen-repeat' && Array.isArray(item.sentences) && item.sentences.length > 0) {
                 audioClips = [];
                 for (const sentence of item.sentences) {
+                  const cleanSentence = stripSpeakerAndFormatting(sentence || '');
+                  if (!cleanSentence) continue;
                   try {
                     const ttsRes = await fetch('/api/tts', {
                       method: 'POST',
                       headers,
-                      body: JSON.stringify({ text: sentence, voiceName: 'en-US-JennyNeural' }),
+                      body: JSON.stringify({ text: cleanSentence, voiceName: 'en-US-JennyNeural', speaker: 'Narrator' }),
                     });
                     const ttsJson = await ttsRes.json();
                     if (ttsJson.success && isValidBlobUrl(ttsJson.audioUrl)) {
@@ -358,7 +363,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
                   audioUrl = audioClips[0].url;
                 }
               } else {
-                const textToSpeak = item.script || (Array.isArray(item.sentences) ? item.sentences.join(' ') : '');
+                const textToSpeak = stripSpeakerAndFormatting(item.script || (Array.isArray(item.sentences) ? item.sentences.join(' ') : ''));
                 if (textToSpeak) {
                   const ttsRes = await fetch('/api/tts', {
                     method: 'POST',
@@ -366,6 +371,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
                     body: JSON.stringify({
                       text: textToSpeak,
                       voiceName: item.speakerGender === 'female' ? 'en-US-JennyNeural' : 'en-US-GuyNeural',
+                      speaker: item.speakerName || 'Narrator',
                     }),
                   });
                   const ttsJson = await ttsRes.json();

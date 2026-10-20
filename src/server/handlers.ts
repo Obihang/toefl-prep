@@ -3,7 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp, getApps, getApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getApiConfig } from './apiConfig.ts';
-import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey } from './geminiHandler.ts';
+import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey, handleSynthesizeSpeech } from './geminiHandler.ts';
 import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
 import { STT_MODEL } from '../config/models.ts';
 import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
@@ -83,6 +83,40 @@ const ALLOWED_EDGE_VOICES = new Set([
   'en-US-BrianNeural',
   'en-US-AvaNeural',
 ]);
+
+export function stripSpeakerAndFormatting(text: string): string {
+  if (!text) return '';
+  let cleaned = text.trim();
+
+  // 1. Strip explicit speaker label prefixes (e.g. Speaker A, Student 1, Professor, Narrator, Woman, Man)
+  cleaned = cleaned.replace(
+    /^\s*(?:\*\*|__)?\[?\s*(?:Speaker\s*[A-Z0-9]*|Student\s*[A-Z0-9]*|Professor|Prof\.?\s*\w*|Doctor\s*\w*|Dr\.?\s*\w*|Narrator|Man|Woman|Male|Female|Interviewer|Participant|Person\s*[A-Z0-9]*|Faculty|Instructor|Advisor)\s*\]?(?:\s*\([^)]*\))?(?:\*\*|__)?\s*:\s*/gim,
+    ''
+  );
+
+  // 2. Strip generic [Role]: or **Role**: if colon exists near start
+  cleaned = cleaned.replace(/^\s*(?:\*\*|__)?\[?[A-Za-z0-9\s.]{1,30}\]?(?:\*\*|__)?\s*:\s*/, (match) => {
+    if (
+      /speaker|student|professor|prof|narrator|man|woman|male|female|interviewer|participant|advisor|instructor|dr\.|doctor|person/i.test(match) ||
+      /^[A-Z0-9\s.]+:\s*$/.test(match)
+    ) {
+      return '';
+    }
+    return match;
+  });
+
+  // 3. Strip bracketed stage directions e.g. [laughs], [sighs], [applause], [pauses]
+  cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
+
+  // 4. Strip parenthesized stage directions e.g. (pauses), (laughs), (clears throat)
+  cleaned = cleaned.replace(/\((?:pauses?|sighs?|laughs?|chuckles?|clears throat|applause|cheering|coughing|sound|music|gasp|whispering|shouting|silence|interrupted)\)/gi, ' ');
+
+  // 5. Strip markdown formatting (*, **, _, __, #, `, >)
+  cleaned = cleaned.replace(/[*_#`>]+/g, ' ');
+
+  // 6. Clean up whitespace
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
 
 const BLOB_DOMAIN_SUFFIX = 'blob.vercel-storage.com';
 
@@ -240,14 +274,31 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       return res.status(400).json({ success: false, error: 'Speech rate must be between 0.7 and 1.3' });
     }
 
-    const cleanText = text.trim();
+    let effectiveSpeaker = (speaker || '').toString();
+    if (!effectiveSpeaker) {
+      const match = text.match(/^\s*(?:\*\*|__)?\[?\s*([A-Za-z0-9\s.]+?)\s*\]?(?:\s*\([^)]*\))?(?:\*\*|__)?\s*:\s*/);
+      if (match) {
+        effectiveSpeaker = match[1].trim();
+      }
+    }
+
+    const cleanText = stripSpeakerAndFormatting(text);
+    if (!cleanText) {
+      return res.status(200).json({
+        success: true,
+        audioBase64: '',
+        audioUrl: undefined,
+        mimeType: 'audio/mpeg',
+        modelUsed: 'Empty text',
+      });
+    }
 
     // Map multi-speaker dialogues, professors, and voices cleanly to natural Microsoft Neural voices:
     // Female voices: en-US-AriaNeural, en-US-JennyNeural, en-US-MichelleNeural
     // Male voices: en-US-GuyNeural, en-US-ChristopherNeural, en-US-EricNeural
     let selectedVoice = 'en-US-JennyNeural';
     const lowerVoice = (voiceName || '').toLowerCase();
-    const lowerSpeaker = (speaker || '').toLowerCase();
+    const lowerSpeaker = effectiveSpeaker.toLowerCase();
 
     if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
       selectedVoice = voiceName;
@@ -329,10 +380,16 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    // Synthesize using primary MsEdgeTTS provider (with NodeEdgeTTS fallback)
+    // Synthesize using 3-stage pipeline:
+    // Stage 1: Primary MsEdgeTTS
+    // Stage 2: Secondary NodeEdgeTTS
+    // Stage 3: Gemini Cloud TTS fallback
     let audioBuffer: Buffer | null = null;
-    const tmpDir = path.join('/tmp', `msedge_${hash}_${Date.now()}`);
+    let mimeType = 'audio/mpeg';
+    let modelUsed = `EdgeTTS (${selectedVoice})`;
 
+    // Stage 1: MsEdgeTTS
+    const tmpDir = path.join('/tmp', `msedge_${hash}_${Date.now()}`);
     try {
       await fs.promises.mkdir(tmpDir, { recursive: true });
       const msTts = new MsEdgeTTS();
@@ -348,6 +405,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
 
+    // Stage 2: NodeEdgeTTS
     if (!audioBuffer || audioBuffer.length === 0) {
       const tmpPath = path.join('/tmp', `tts_${hash}.mp3`);
       try {
@@ -356,10 +414,44 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           rate: rateStr,
         });
         await nodeTts.ttsPromise(cleanText, tmpPath);
-        audioBuffer = await fs.promises.readFile(tmpPath);
+        if (fs.existsSync(tmpPath)) {
+          audioBuffer = await fs.promises.readFile(tmpPath);
+        }
+      } catch (secondaryErr) {
+        console.warn('NodeEdgeTTS attempt failed:', redactSensitiveInfo(secondaryErr));
       } finally {
         fs.promises.unlink(tmpPath).catch(() => {});
       }
+    }
+
+    // Stage 3: Gemini Cloud TTS fallback
+    if (!audioBuffer || audioBuffer.length === 0) {
+      try {
+        const userApiKey = (req.headers['x-api-key'] || req.headers['x-gemini-api-key'] || '').toString();
+        const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString();
+        const provider = (req.headers['x-api-provider'] || '').toString();
+        const geminiRes = await handleSynthesizeSpeech(cleanText, selectedVoice, {
+          apiKey: userApiKey,
+          voiceApiKey,
+          provider: provider as any,
+        });
+        if (geminiRes && geminiRes.audioBase64) {
+          audioBuffer = Buffer.from(geminiRes.audioBase64, 'base64');
+          mimeType = geminiRes.mimeType || 'audio/wav';
+          modelUsed = geminiRes.modelUsed || 'Gemini Cloud TTS';
+        }
+      } catch (geminiErr) {
+        console.warn('Gemini TTS fallback attempt failed:', redactSensitiveInfo(geminiErr));
+      }
+    }
+
+    // If all synthesis stages fail (e.g. Rate limit / 429 from external providers)
+    if (!audioBuffer || audioBuffer.length === 0) {
+      return res.status(429).json({
+        success: false,
+        error: 'Text-to-speech service is temporarily rate limited. Please try again in a few seconds.',
+        rateLimit: { retryAfterSeconds: 5 },
+      });
     }
 
     const audioBase64 = audioBuffer.toString('base64');
@@ -380,13 +472,13 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       }
     }
 
-    // Return valid MP3 audio stream / base64 data for native Brave playback without API keys
+    // Return valid audio stream / base64 data for native Brave playback
     return res.status(200).json({
       success: true,
       audioBase64: audioUrl ? undefined : audioBase64,
       audioUrl: audioUrl,
-      mimeType: 'audio/mpeg',
-      modelUsed: `EdgeTTS (${selectedVoice})`,
+      mimeType,
+      modelUsed,
       hash,
       cached: false,
     });

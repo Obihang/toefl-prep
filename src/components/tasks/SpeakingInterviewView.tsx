@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw } from 'lucide-react';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
@@ -65,8 +65,15 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       if (voiceSessionRef.current) {
         voiceSessionRef.current.abort();
       }
+      stopSpeaking();
     };
   }, []);
+
+  // Stop audio when changing questions
+  useEffect(() => {
+    stopSpeaking();
+    setIsPlayingAudio(false);
+  }, [currentQIndex, task.id]);
 
   // Live timer for recording duration
   useEffect(() => {
@@ -111,7 +118,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     const voiceName = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
     const browserVoice = pickBrowserVoiceForGender(interviewerGender);
     try {
-      await speakScriptLine(currentQ.question, {
+      const cleanQ = stripSpeakerAndFormatting(currentQ.question);
+      await speakScriptLine(cleanQ, {
         rate: 0.95,
         voiceName,
         browserVoice,

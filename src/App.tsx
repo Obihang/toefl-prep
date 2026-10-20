@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { getPracticeHistory } from './utils/scoreTracker';
 import { getRecommendedLevel, DifficultyLevel } from './utils/difficulty';
 import { useAuth } from './context/AuthContext';
+import { stopSpeaking } from './utils/audioSpeech';
 import {
   saveSharedQuestion,
   fetchRandomSharedQuestion,
@@ -105,6 +106,14 @@ export default function App() {
   const [lastModelUsed, setLastModelUsed] = useState<string | null>(null);
   const [isMockTest, setIsMockTest] = useState(false);
   const [reportedQuestionId, setReportedQuestionId] = useState<string | null>(null);
+
+  // Stop all playing audio whenever the user switches task types or enters/exits mock test mode
+  useEffect(() => {
+    stopSpeaking();
+    return () => {
+      stopSpeaking();
+    };
+  }, [currentTaskType, isMockTest]);
 
   // Active task payload per type
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});

@@ -14,6 +14,7 @@ import { ListeningDialogueView } from './ListeningDialogueView';
 import { SpeakingInterviewView } from './SpeakingInterviewView';
 import { AcademicDiscussionView } from './AcademicDiscussionView';
 import { savePracticeRecord, calculateToeflEstimate } from '../../utils/scoreTracker';
+import { stopSpeaking } from '../../utils/audioSpeech';
 import { Clock, ArrowRight, Award } from 'lucide-react';
 
 const SECTIONS = [
@@ -37,6 +38,14 @@ export const MockTestView: React.FC = () => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(SECTIONS[0].time);
   const [isTestComplete, setIsTestComplete] = useState(false);
+
+  // Stop all playing audio whenever section changes or test starts/completes
+  useEffect(() => {
+    stopSpeaking();
+    return () => {
+      stopSpeaking();
+    };
+  }, [currentSectionIndex, isStarted, isTestComplete]);
   
   // Real section scores and completion tracking
   const [sectionScores, setSectionScores] = useState<Record<'Reading' | 'Listening' | 'Speaking' | 'Writing', number>>({

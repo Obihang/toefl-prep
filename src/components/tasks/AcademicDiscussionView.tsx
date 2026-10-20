@@ -8,7 +8,7 @@ import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
-import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
+import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 
 interface Props {
   task: AcademicDiscussionTask;
@@ -183,7 +183,7 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
                     setIsLoadingProfAudio(false);
                   } else {
                     setIsLoadingProfAudio(true);
-                    playSpeech(task.professorPrompt, {
+                    playSpeech(stripSpeakerAndFormatting(task.professorPrompt), {
                       voiceName: 'Puck',
                       onStart: () => {
                         setIsLoadingProfAudio(false);

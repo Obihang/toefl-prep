@@ -1,9 +1,9 @@
 import { pickSingleVoice, inferGender, pickBrowserVoiceForGender } from '../../utils/voices';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw } from 'lucide-react';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { db } from '../../firebase';
@@ -47,7 +47,28 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [transcribeErrors, setTranscribeErrors] = useState<Record<number, string | null>>({});
   const [audioErrors, setAudioErrors] = useState<Record<number, string | null>>({});
 
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const playbackSessionIdRef = useRef<number>(0);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
+
+  const stopAllAudio = useCallback(() => {
+    playbackSessionIdRef.current++;
+    if (activeAudioRef.current) {
+      try {
+        activeAudioRef.current.pause();
+        activeAudioRef.current.currentTime = 0;
+        activeAudioRef.current.src = '';
+      } catch {}
+      activeAudioRef.current = null;
+    }
+    stopSpeaking();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopAllAudio();
+    };
+  }, [task.id, stopAllAudio]);
 
   const speakerName = (task as any).speakerName || 'Sarah (student)';
   const speakerGender = (task as any).speakerGender || inferGender(speakerName);
@@ -94,8 +115,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, [micStatus]);
 
   const handlePlay = async (index: number) => {
+    stopAllAudio();
+    const currentSession = ++playbackSessionIdRef.current;
+
     if (activeAudioIdx === index || loadingAudioIdx === index) {
-      stopSpeaking();
       setActiveAudioIdx(null);
       setLoadingAudioIdx(null);
       return;
@@ -103,7 +126,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     setLoadingAudioIdx(index);
     setAudioErrors((prev) => ({ ...prev, [index]: null }));
 
-    const sentence = task.sentences[index];
+    const rawSentence = task.sentences[index];
+    const cleanSentence = stripSpeakerAndFormatting(rawSentence);
     const audioClips = (task as any).audioClips;
     const audioUrl = (task as any).audioUrl;
 
@@ -116,23 +140,33 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       setActiveAudioIdx(index);
       try {
         await new Promise<void>((resolve, reject) => {
+          if (playbackSessionIdRef.current !== currentSession) {
+            resolve();
+            return;
+          }
           const audio = new Audio(savedClipUrl);
+          activeAudioRef.current = audio;
           audio.onended = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
             setActiveAudioIdx(null);
             resolve();
           };
           audio.onerror = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
             setActiveAudioIdx(null);
             reject(new Error('Saved audio playback error'));
           };
           audio.play().catch((err) => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
             setActiveAudioIdx(null);
             reject(err);
           });
         });
       } catch (err: any) {
-        setActiveAudioIdx(null);
-        setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+        if (playbackSessionIdRef.current === currentSession) {
+          setActiveAudioIdx(null);
+          setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+        }
       }
       return;
     }
@@ -145,10 +179,13 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: sentence, voiceName }),
+        body: JSON.stringify({ text: cleanSentence, voiceName, speaker: speakerName }),
       });
       const ttsJson = await ttsRes.json();
       const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
+
+      if (playbackSessionIdRef.current !== currentSession) return;
+
       if (ttsRes.ok && ttsJson.success && audioSrc) {
         const newUrl = ttsJson.audioUrl;
         setLoadingAudioIdx(null);
@@ -172,16 +209,24 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         }
 
         await new Promise<void>((resolve, reject) => {
+          if (playbackSessionIdRef.current !== currentSession) {
+            resolve();
+            return;
+          }
           const audio = new Audio(audioSrc);
+          activeAudioRef.current = audio;
           audio.onended = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
             setActiveAudioIdx(null);
             resolve();
           };
           audio.onerror = () => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
             setActiveAudioIdx(null);
             reject(new Error('Generated audio playback error'));
           };
           audio.play().catch((err) => {
+            if (activeAudioRef.current === audio) activeAudioRef.current = null;
             setActiveAudioIdx(null);
             reject(err);
           });
@@ -192,31 +237,41 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       console.warn('TTS fetch failed for ListenRepeat sentence, falling back to Web Speech:', e);
     }
 
+    if (playbackSessionIdRef.current !== currentSession) return;
+
     const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
     try {
-      await speakScriptLine(task.sentences[index], {
+      await speakScriptLine(cleanSentence, {
         rate: 0.9,
         voiceName,
         browserVoice,
         onStart: () => {
-          setLoadingAudioIdx(null);
-          setActiveAudioIdx(index);
+          if (playbackSessionIdRef.current === currentSession) {
+            setLoadingAudioIdx(null);
+            setActiveAudioIdx(index);
+          }
         },
         onEnd: () => {
-          setActiveAudioIdx(null);
-          setLoadingAudioIdx(null);
+          if (playbackSessionIdRef.current === currentSession) {
+            setActiveAudioIdx(null);
+            setLoadingAudioIdx(null);
+          }
         },
         onError: (err) => {
-          setActiveAudioIdx(null);
-          setLoadingAudioIdx(null);
-          setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+          if (playbackSessionIdRef.current === currentSession) {
+            setActiveAudioIdx(null);
+            setLoadingAudioIdx(null);
+            setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+          }
         },
       });
     } catch (err: any) {
-      setActiveAudioIdx(null);
-      setLoadingAudioIdx(null);
-      setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+      if (playbackSessionIdRef.current === currentSession) {
+        setActiveAudioIdx(null);
+        setLoadingAudioIdx(null);
+        setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+      }
     }
   };
 

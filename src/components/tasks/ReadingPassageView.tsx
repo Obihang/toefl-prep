@@ -4,7 +4,7 @@ import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCirc
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
+import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 
 interface Props {
   task: ReadingPassageTask;
@@ -33,7 +33,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
     } else {
       setIsPlayingAudio(true);
       setAudioStatus('Starting passage audio...');
-      playSpeech(task.passage, {
+      playSpeech(stripSpeakerAndFormatting(task.passage), {
         voiceName: 'Kore',
         onStart: () => setAudioStatus('Playing audio...'),
         onStatus: (st) => setAudioStatus(st),

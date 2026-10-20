@@ -48,16 +48,46 @@ const dbPromise =
       })
     : Promise.resolve(null as any);
 
+export function stripSpeakerAndFormatting(text: string): string {
+  if (!text) return '';
+  let cleaned = text.trim();
+
+  // 1. Strip explicit speaker label prefixes (e.g. Speaker A, Student 1, Professor, Narrator, Woman, Man)
+  cleaned = cleaned.replace(
+    /^\s*(?:\*\*|__)?\[?\s*(?:Speaker\s*[A-Z0-9]*|Student\s*[A-Z0-9]*|Professor|Prof\.?\s*\w*|Doctor\s*\w*|Dr\.?\s*\w*|Narrator|Man|Woman|Male|Female|Interviewer|Participant|Person\s*[A-Z0-9]*|Faculty|Instructor|Advisor)\s*\]?(?:\s*\([^)]*\))?(?:\*\*|__)?\s*:\s*/gim,
+    ''
+  );
+
+  // 2. Strip generic [Role]: or **Role**: if colon exists near start
+  cleaned = cleaned.replace(/^\s*(?:\*\*|__)?\[?[A-Za-z0-9\s.]{1,30}\]?(?:\*\*|__)?\s*:\s*/, (match) => {
+    if (
+      /speaker|student|professor|prof|narrator|man|woman|male|female|interviewer|participant|advisor|instructor|dr\.|doctor|person/i.test(match) ||
+      /^[A-Z0-9\s.]+:\s*$/.test(match)
+    ) {
+      return '';
+    }
+    return match;
+  });
+
+  // 3. Strip bracketed stage directions e.g. [laughs], [sighs], [applause], [pauses]
+  cleaned = cleaned.replace(/\[[^\]]*\]/g, ' ');
+
+  // 4. Strip parenthesized stage directions e.g. (pauses), (laughs), (clears throat)
+  cleaned = cleaned.replace(/\((?:pauses?|sighs?|laughs?|chuckles?|clears throat|applause|cheering|coughing|sound|music|gasp|whispering|shouting|silence|interrupted)\)/gi, ' ');
+
+  // 5. Strip markdown formatting (*, **, _, __, #, `, >)
+  cleaned = cleaned.replace(/[*_#`>]+/g, ' ');
+
+  // 6. Clean up whitespace
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
+
 const audioBufferMemoryCache = new Map<string, AudioBuffer>();
 
 // Pre-fetch speech audio silently in the background
 export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kore'): Promise<void> {
   if (typeof window === 'undefined') return;
-  let cleanText = text.trim();
-  const colonIdx = cleanText.indexOf(':');
-  if (colonIdx > 0 && colonIdx < 35) {
-    cleanText = cleanText.substring(colonIdx + 1).trim();
-  }
+  const cleanText = stripSpeakerAndFormatting(text);
   if (!cleanText) return;
 
   const provider = getStoredProvider();
@@ -727,11 +757,8 @@ export async function playSpeech(
 
   const provider = getStoredProvider();
   const voiceName = options.voiceName || 'Kore';
-  let cleanText = text.trim();
-  const colonIdx = cleanText.indexOf(':');
-  if (colonIdx > 0 && colonIdx < 35) {
-    cleanText = cleanText.substring(colonIdx + 1).trim();
-  }
+  const cleanText = stripSpeakerAndFormatting(text);
+  if (!cleanText) return;
 
   const engine = getVoiceEngine();
   const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
@@ -1159,15 +1186,12 @@ export async function playDialogue(
 
     onLineChange?.(i);
 
-    let cleanText = rawLine;
     let speakerLabel = '';
     const colonIdx = rawLine.indexOf(':');
     if (colonIdx > 0 && colonIdx < 35) {
       speakerLabel = rawLine.substring(0, colonIdx).trim().toLowerCase();
-      cleanText = rawLine.substring(colonIdx + 1).trim();
-    } else {
-      cleanText = rawLine.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
     }
+    const cleanText = stripSpeakerAndFormatting(rawLine);
 
     const isSpeakerA =
       speakerLabel.includes('a') ||
