@@ -1,4 +1,5 @@
-import { callOpenAiCompatibleChat, LlmCallOptions } from './llmClient.ts';
+import { callOpenAiCompatibleChat } from './llmClient.ts';
+import type { LlmCallOptions } from './llmClient.ts';
 import { getRoleModels } from './modelRoles.ts';
 
 const FALLBACK_MODELS_BY_PROVIDER: Record<string, string[]> = {

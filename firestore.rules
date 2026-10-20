@@ -2,7 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // EDIT THIS CONSTANT TO MATCH YOUR VERCEL BLOB DOMAIN
-    const BLOB_DOMAIN = 'blob.vercel-storage.com';
+    function blobHostSuffix() {
+      return '.blob.vercel-storage.com';
+    }
 
     function isSignedIn() {
       return request.auth != null;
@@ -24,7 +26,32 @@ service cloud.firestore {
     }
 
     function isValidUrl(url) {
-      return url is string && url.matches('^https://.*' + BLOB_DOMAIN + '/.*$');
+      return url is string && url.matches('^https://[a-zA-Z0-9-]+(\\.[a-zA-Z0-9-]+)*\\.blob\\.vercel-storage\\.com/[^?#]*$');
+    }
+
+    function isValidAudioClip(clip) {
+      return clip is map
+        && clip.keys().hasAll(['speaker', 'url'])
+        && clip.speaker is string
+        && clip.speaker.size() <= 40
+        && clip.url is string
+        && isValidUrl(clip.url);
+    }
+
+    function isValidAudioClips(clips) {
+      return clips is list
+        && clips.size() > 0
+        && clips.size() <= 10
+        && isValidAudioClip(clips[0])
+        && (clips.size() <= 1 || isValidAudioClip(clips[1]))
+        && (clips.size() <= 2 || isValidAudioClip(clips[2]))
+        && (clips.size() <= 3 || isValidAudioClip(clips[3]))
+        && (clips.size() <= 4 || isValidAudioClip(clips[4]))
+        && (clips.size() <= 5 || isValidAudioClip(clips[5]))
+        && (clips.size() <= 6 || isValidAudioClip(clips[6]))
+        && (clips.size() <= 7 || isValidAudioClip(clips[7]))
+        && (clips.size() <= 8 || isValidAudioClip(clips[8]))
+        && (clips.size() <= 9 || isValidAudioClip(clips[9]));
     }
 
     match /{document=**} {
@@ -44,7 +71,7 @@ service cloud.firestore {
         && request.resource.data.content is map
         && request.resource.data.contentHash.size() <= 200
         && (!request.resource.data.keys().hasAll(['audioUrl']) || (request.resource.data.audioUrl is string && isValidUrl(request.resource.data.audioUrl)))
-        && (!request.resource.data.keys().hasAll(['audioClips']) || (request.resource.data.audioClips is list && request.resource.data.audioClips.size() <= 10));
+        && (!request.resource.data.keys().hasAll(['audioClips']) || isValidAudioClips(request.resource.data.audioClips));
 
       allow update: if isSignedIn()
         && request.resource.data.createdBy == resource.data.createdBy
@@ -60,11 +87,12 @@ service cloud.firestore {
             (!resource.data.keys().hasAll(['audioUrl']) || resource.data.audioUrl == null || resource.data.audioUrl == '')
             && request.resource.data.audioUrl is string
             && isValidUrl(request.resource.data.audioUrl)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['audioUrl'])
           ) ||
           (
             (!resource.data.keys().hasAll(['audioClips']) || resource.data.audioClips == null || resource.data.audioClips.size() == 0)
-            && request.resource.data.audioClips is list
-            && request.resource.data.audioClips.size() <= 10
+            && isValidAudioClips(request.resource.data.audioClips)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['audioClips'])
           )
         );
 
