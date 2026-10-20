@@ -65,8 +65,8 @@ export function isKeyError(err: any): boolean {
 
 export function isTransientError(err: any): boolean {
   const status = getStatus(err);
-  // Transient are 429/500/503/404
-  if (status === 429 || status === 500 || status === 503 || status === 404) return true;
+  // Transient are 429/500/502/503/504/404
+  if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 404) return true;
 
   // Only if no status is found, fall back to checking text such as "UNAVAILABLE", "RESOURCE_EXHAUSTED", "quota"
   if (!status) {

@@ -1,5 +1,6 @@
 // Diagnostic utility for Web Speech API and Neural Voice detection troubleshooting
 import { getStoredApiKey } from './apiKey';
+import { getAuthHeaders } from './apiKey';
 
 export interface VoiceDiagnosticResult {
   hasSpeechSynthesis: boolean;
@@ -72,14 +73,15 @@ export async function runVoiceDiagnostic(): Promise<VoiceDiagnosticResult> {
 }
 
 export async function runFullVoiceDiagnostic(): Promise<FullVoiceDiagnosticResult> {
-  const cloudApiKeyPresent = !!(getStoredApiKey('gemini') || getStoredApiKey('groq'));
+  const cloudApiKeyPresent = !!(getStoredApiKey('gemini') || getStoredApiKey('groq') || getStoredApiKey('openrouter'));
   let cloudEndpointReachable = false;
   let cloudTtsAuthenticatedAndWorking = false;
 
   try {
+    const authHdrs = await getAuthHeaders();
     const res = await fetch('/api/tts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHdrs },
       body: JSON.stringify({ text: 'Hello', voiceName: 'en-US-JennyNeural' }),
     });
     cloudEndpointReachable = true;
@@ -100,7 +102,7 @@ export async function runFullVoiceDiagnostic(): Promise<FullVoiceDiagnosticResul
     englishVoicesCount = voices.filter((v) => v.lang.toLowerCase().startsWith('en')).length;
   }
 
-  const summary = `Neural TTS Reachable: ${cloudEndpointReachable ? 'Yes' : 'No'} | Working: ${cloudTtsAuthenticatedAndWorking ? 'Yes' : 'No'} | Device Voices (EN): ${englishVoicesCount}`;
+  const summary = `AI Voice Reachable: ${cloudEndpointReachable ? 'Yes' : 'No'} | Working: ${cloudTtsAuthenticatedAndWorking ? 'Yes' : 'No'} | Web Speech Voices (EN): ${englishVoicesCount}`;
 
   return {
     cloudApiKeyPresent,
@@ -113,37 +115,32 @@ export async function runFullVoiceDiagnostic(): Promise<FullVoiceDiagnosticResul
 }
 
 export interface VoiceFallbackEventDetail {
-  failedEngine: 'AI Voice' | 'Kokoro' | 'Neural TTS';
+  failedEngine: 'AI Voice' | 'Web Speech';
   fallbackEngine: 'Web Speech';
   attempts: number;
   reason: string;
   timestamp: number;
 }
 
-let kokoroConsecutiveFailures = 0;
 let aiVoiceConsecutiveFailures = 0;
 
-export function normalizeEngineName(engine: string): 'Kokoro' | 'AI Voice' | 'Web Speech' {
+export function normalizeEngineName(engine: string): 'AI Voice' | 'Web Speech' {
   const lower = (engine || '').toLowerCase().trim();
-  if (lower === 'kokoro' || lower === 'offline') return 'Kokoro';
   if (lower === 'device' || lower === 'webspeech') return 'Web Speech';
   return 'AI Voice';
 }
 
 export function getVoiceEngineFailureCount(engine: string): number {
   const norm = normalizeEngineName(engine);
-  if (norm === 'Kokoro') return kokoroConsecutiveFailures;
   if (norm === 'AI Voice') return aiVoiceConsecutiveFailures;
   return 0;
 }
 
 export function resetVoiceEngineFailureCounts(): void {
-  kokoroConsecutiveFailures = 0;
   aiVoiceConsecutiveFailures = 0;
 }
 
 export function recordVoiceEngineSuccess(_engine?: string): void {
-  kokoroConsecutiveFailures = 0;
   aiVoiceConsecutiveFailures = 0;
 }
 
@@ -156,19 +153,12 @@ export function recordVoiceEngineFailure(
     return { triggeredFallback: false, attempts: 0 };
   }
 
-  let attempts = 0;
-  if (norm === 'Kokoro') {
-    kokoroConsecutiveFailures += 1;
-    attempts = kokoroConsecutiveFailures;
-  } else {
-    aiVoiceConsecutiveFailures += 1;
-    attempts = aiVoiceConsecutiveFailures;
-  }
+  aiVoiceConsecutiveFailures += 1;
+  const attempts = aiVoiceConsecutiveFailures;
   const cleanReason = reason || 'Audio initialization or playback failed';
 
   if (attempts >= 3) {
-    if (norm === 'Kokoro') kokoroConsecutiveFailures = 0;
-    else aiVoiceConsecutiveFailures = 0;
+    aiVoiceConsecutiveFailures = 0;
     triggerVoiceEngineFallback(norm, cleanReason);
     return { triggeredFallback: true, attempts };
   }
@@ -176,7 +166,7 @@ export function recordVoiceEngineFailure(
   return { triggeredFallback: false, attempts };
 }
 
-export function triggerVoiceEngineFallback(failedEngine: 'AI Voice' | 'Kokoro' | 'Neural TTS', reason?: string): void {
+export function triggerVoiceEngineFallback(failedEngine: 'AI Voice' | 'Web Speech', reason?: string): void {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('toefl_voice_engine', 'device');
   }

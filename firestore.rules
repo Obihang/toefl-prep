@@ -1,6 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // EDIT THIS CONSTANT TO MATCH YOUR VERCEL BLOB DOMAIN
+    const BLOB_DOMAIN = 'blob.vercel-storage.com';
+
     function isSignedIn() {
       return request.auth != null;
     }
@@ -20,29 +23,49 @@ service cloud.firestore {
       ];
     }
 
+    function isValidUrl(url) {
+      return url is string && url.matches('^https://.*' + BLOB_DOMAIN + '/.*$');
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
 
     // Shared Question Bank
     match /questions/{questionId} {
-      // Authenticated users (including anonymous auth) can read questions
       allow read: if isSignedIn();
 
-      // On create, require valid taskType, contentHash, createdBy, and useCount
       allow create: if isSignedIn()
         && isValidTaskType(request.resource.data.taskType)
         && request.resource.data.contentHash is string
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.useCount is number
-        && request.resource.data.content is map;
+        && request.resource.data.useCount >= 0
+        && request.resource.data.content is map
+        && request.resource.data.contentHash.size() <= 200
+        && (!request.resource.data.keys().hasAll(['audioUrl']) || (request.resource.data.audioUrl is string && isValidUrl(request.resource.data.audioUrl)))
+        && (!request.resource.data.keys().hasAll(['audioClips']) || (request.resource.data.audioClips is list && request.resource.data.audioClips.size() <= 10));
 
-      // Only allow incrementing useCount or attaching audioUrl
       allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useCount', 'audioUrl'])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.taskType == resource.data.taskType
+        && request.resource.data.contentHash == resource.data.contentHash
+        && request.resource.data.content == resource.data.content
         && (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['useCount'])
-          || request.resource.data.useCount == resource.data.useCount + 1
+          (
+            request.resource.data.useCount == resource.data.useCount + 1
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['useCount'])
+          ) ||
+          (
+            (!resource.data.keys().hasAll(['audioUrl']) || resource.data.audioUrl == null || resource.data.audioUrl == '')
+            && request.resource.data.audioUrl is string
+            && isValidUrl(request.resource.data.audioUrl)
+          ) ||
+          (
+            (!resource.data.keys().hasAll(['audioClips']) || resource.data.audioClips == null || resource.data.audioClips.size() == 0)
+            && request.resource.data.audioClips is list
+            && request.resource.data.audioClips.size() <= 10
+          )
         );
 
       allow delete: if false;
@@ -60,11 +83,15 @@ service cloud.firestore {
     }
 
     match /mistakes/{mistakeId} {
-      allow read, delete, create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
     }
 
     match /vocabulary/{wordId} {
-      allow read, delete, create, update: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
     }
 
     match /userStats/{uid} {

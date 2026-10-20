@@ -1,4 +1,16 @@
 import { resetTtsQuotaBlock } from './audioSpeech';
+import { auth } from '../firebase';
+
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const user = auth.currentUser;
+    if (!user) return {};
+    const token = await user.getIdToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 export type ApiProvider = 'auto' | 'gemini' | 'nvidia' | 'groq' | 'openrouter' | 'openai' | 'deepseek' | 'xai' | 'anthropic' | 'custom';
 

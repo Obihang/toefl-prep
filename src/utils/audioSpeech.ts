@@ -1,4 +1,5 @@
 import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } from './apiKey';
+import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { inferGender } from './voices';
 import {
@@ -78,9 +79,10 @@ export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kor
   const hasKey = !!(getStoredApiKey('gemini') || getStoredApiKey('groq') || getStoredApiKey('openrouter') || getStoredApiKey() || getStoredVoiceKey());
   if (hasKey && !isTtsCircuitBreakerBlocked()) {
     try {
+      const authHdrs = await getAuthHeaders();
       const res = await fetch('/api/tts', {
         method: 'POST',
-        headers: getApiHeaders(),
+        headers: { ...getApiHeaders(), ...authHdrs },
         body: JSON.stringify({ text: cleanText, voiceName }),
       });
       const json = await res.json();
@@ -552,9 +554,10 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
   let res: Response;
   let json: any;
   try {
+    const authHdrs = await getAuthHeaders();
     res = await fetch('/api/tts', {
       method: 'POST',
-      headers: getApiHeaders(),
+      headers: { ...getApiHeaders(), ...authHdrs },
       body: JSON.stringify({ text, voiceName }),
       signal: controller.signal,
     });
@@ -766,9 +769,10 @@ export async function playSpeech(
     const timer = setTimeout(() => controller.abort(), 20000);
 
     try {
+      const authHdrs = await getAuthHeaders();
       const res = await fetch('/api/tts', {
         method: 'POST',
-        headers: getApiHeaders(),
+        headers: { ...getApiHeaders(), ...authHdrs },
         body: JSON.stringify({ text: cleanText, voiceName }),
         signal: controller.signal,
       });

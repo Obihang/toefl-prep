@@ -4,6 +4,7 @@ import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
+import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 
 interface Props {
@@ -11,11 +12,14 @@ interface Props {
   onNextTask?: () => void;
 }
 
+import { SpeakingMetrics } from '../../utils/speakingMetrics';
+
 interface SentenceState {
   userInput: string;
   isRecording: boolean;
   scorePercent?: number;
   wordBreakdown?: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
+  metrics?: SpeakingMetrics;
   checked: boolean;
 }
 
@@ -269,11 +273,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     setMicStatus('transcribing');
     setMicError(null);
     try {
-      const { transcript } = await transcribeAudioBlob(blob);
+      const { transcript, words, durationMs } = await transcribeAudioBlob(blob);
       if (transcript.trim()) {
+        const metrics = calculateSpeakingMetrics(words, transcript, (durationMs || 0) / 1000);
         setStates((prev) => {
           const next = [...prev];
-          next[index] = { ...next[index], userInput: transcript.trim() };
+          next[index] = { ...next[index], userInput: transcript.trim(), metrics };
           return next;
         });
         setTranscribeErrors((prev) => ({ ...prev, [index]: null }));

@@ -1,5 +1,6 @@
 import { db, auth } from '../firebase';
 import { getSectionForTaskType } from '../types/taskTypes';
+import { getAuthHeaders } from './apiKey';
 import {
   collection,
   doc,
@@ -82,9 +83,16 @@ export interface SharedQuestionRecord {
   content: any;
   contentHash: string;
   audioUrl?: string | null;
+  audioClips?: Array<{ speaker: string; url: string }> | null;
   createdAt?: any;
   createdBy: string;
   useCount: number;
+}
+
+const BLOB_DOMAIN_SUFFIX = 'blob.vercel-storage.com';
+function isValidBlobUrl(url: any): boolean {
+  if (typeof url !== 'string') return false;
+  return url.startsWith('https://') && url.includes(BLOB_DOMAIN_SUFFIX);
 }
 
 /**
@@ -96,9 +104,15 @@ export async function saveQuestionToBank(params: {
   topic: string;
   content: any;
   audioUrl?: string | null;
+  audioClips?: Array<{ speaker: string; url: string }> | null;
 }): Promise<string | null> {
-  const { taskType, level, topic, content, audioUrl = null } = params;
+  const { taskType, level, topic, content, audioUrl = null, audioClips = null } = params;
   const contentHash = await computeContentHash(taskType, content);
+
+  const cleanAudioUrl = isValidBlobUrl(audioUrl) ? audioUrl : null;
+  const cleanAudioClips = Array.isArray(audioClips)
+    ? audioClips.filter((c) => isValidBlobUrl(c.url))
+    : null;
 
   try {
     // 1. Check for existing duplicate by contentHash
@@ -122,7 +136,8 @@ export async function saveQuestionToBank(params: {
       topic,
       content,
       contentHash,
-      audioUrl: audioUrl || null,
+      audioUrl: cleanAudioUrl,
+      audioClips: cleanAudioClips && cleanAudioClips.length > 0 ? cleanAudioClips : null,
       createdAt: serverTimestamp(),
       createdBy: auth?.currentUser?.uid || 'anonymous',
       useCount: 0,
@@ -285,39 +300,92 @@ export async function triggerBackgroundPrefetchIfNeeded(
 
   try {
     const items = await generateBatchFn(taskType, level, topic);
-    for (const item of items) {
-      let audioUrl: string | null = null;
+    
+    // Process items with max concurrency of 2
+    const chunkLimit = 2;
+    for (let i = 0; i < items.length; i += chunkLimit) {
+      const chunk = items.slice(i, i + chunkLimit);
+      await Promise.all(
+        chunk.map(async (item) => {
+          let audioUrl: string | null = null;
+          let audioClips: Array<{ speaker: string; url: string }> | null = null;
 
-      // Pre-synthesize audio for Listening and Listen & Repeat
-      if (taskType === 'listening-dialogue' || taskType === 'listen-repeat') {
-        try {
-          const textToSpeak = item.script || (Array.isArray(item.sentences) ? item.sentences.join(' ') : '');
-          if (textToSpeak) {
-            const ttsRes = await fetch('/api/tts', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                text: textToSpeak,
-                voiceName: item.speakerGender === 'female' ? 'en-US-JennyNeural' : 'en-US-GuyNeural',
-              }),
-            });
-            const ttsJson = await ttsRes.json();
-            if (ttsJson.audioUrl) {
-              audioUrl = ttsJson.audioUrl;
+          if (taskType === 'listening-dialogue' || taskType === 'listen-repeat') {
+            try {
+              const authHdrs = await getAuthHeaders();
+              const headers = { 'Content-Type': 'application/json', ...authHdrs };
+
+              if (taskType === 'listening-dialogue' && Array.isArray(item.turns) && item.turns.length > 0) {
+                audioClips = [];
+                for (let tIdx = 0; tIdx < item.turns.length; tIdx++) {
+                  const turn = item.turns[tIdx];
+                  const speaker = turn.speaker || (tIdx % 2 === 0 ? 'Student' : 'Professor');
+                  const voiceName = tIdx % 2 === 0 ? 'en-US-JennyNeural' : 'en-US-GuyNeural';
+                  try {
+                    const ttsRes = await fetch('/api/tts', {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({ text: turn.text, voiceName }),
+                    });
+                    const ttsJson = await ttsRes.json();
+                    if (ttsJson.success && isValidBlobUrl(ttsJson.audioUrl)) {
+                      audioClips.push({ speaker, url: ttsJson.audioUrl });
+                    }
+                  } catch {}
+                }
+                if (audioClips.length > 0) {
+                  audioUrl = audioClips[0].url;
+                }
+              } else if (taskType === 'listen-repeat' && Array.isArray(item.sentences) && item.sentences.length > 0) {
+                audioClips = [];
+                for (const sentence of item.sentences) {
+                  try {
+                    const ttsRes = await fetch('/api/tts', {
+                      method: 'POST',
+                      headers,
+                      body: JSON.stringify({ text: sentence, voiceName: 'en-US-JennyNeural' }),
+                    });
+                    const ttsJson = await ttsRes.json();
+                    if (ttsJson.success && isValidBlobUrl(ttsJson.audioUrl)) {
+                      audioClips.push({ speaker: 'Narrator', url: ttsJson.audioUrl });
+                    }
+                  } catch {}
+                }
+                if (audioClips.length > 0) {
+                  audioUrl = audioClips[0].url;
+                }
+              } else {
+                const textToSpeak = item.script || (Array.isArray(item.sentences) ? item.sentences.join(' ') : '');
+                if (textToSpeak) {
+                  const ttsRes = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                      text: textToSpeak,
+                      voiceName: item.speakerGender === 'female' ? 'en-US-JennyNeural' : 'en-US-GuyNeural',
+                    }),
+                  });
+                  const ttsJson = await ttsRes.json();
+                  if (ttsJson.success && isValidBlobUrl(ttsJson.audioUrl)) {
+                    audioUrl = ttsJson.audioUrl;
+                  }
+                }
+              }
+            } catch (audioErr) {
+              console.warn('Background audio pre-synthesis skipped:', audioErr);
             }
           }
-        } catch (audioErr) {
-          console.warn('Background audio pre-synthesis skipped:', audioErr);
-        }
-      }
 
-      await saveQuestionToBank({
-        taskType,
-        level,
-        topic,
-        content: item,
-        audioUrl,
-      });
+          await saveQuestionToBank({
+            taskType,
+            level,
+            topic,
+            content: item,
+            audioUrl,
+            audioClips,
+          });
+        })
+      );
     }
   } catch (err) {
     console.warn('Background question prefetch failed:', err);

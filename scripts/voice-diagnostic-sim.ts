@@ -54,40 +54,38 @@ let lastDispatchedEngine: string | null = null;
 };
 
 // 1. Normalization tests
-assert(normalizeEngineName('kokoro') === 'Kokoro', 'normalizeEngineName maps kokoro to Kokoro');
-assert(normalizeEngineName('offline') === 'Kokoro', 'normalizeEngineName maps offline to Kokoro');
 assert(normalizeEngineName('aivoice') === 'AI Voice', 'normalizeEngineName maps aivoice to AI Voice');
 assert(normalizeEngineName('cloud') === 'AI Voice', 'normalizeEngineName maps cloud to AI Voice');
 assert(normalizeEngineName('device') === 'Web Speech', 'normalizeEngineName maps device to Web Speech');
 
-// 2. Incremental failure tracking for Kokoro
+// 2. Incremental failure tracking for AI Voice
 resetVoiceEngineFailureCounts();
-storage['toefl_voice_engine'] = 'offline';
+storage['toefl_voice_engine'] = 'cloud';
 lastDispatchedToast = null;
 
-const f1 = recordVoiceEngineFailure('kokoro', 'WASM worker failed to load');
+const f1 = recordVoiceEngineFailure('aivoice', 'API error');
 assert(f1.triggeredFallback === false, 'First failure does not trigger fallback');
 assert(f1.attempts === 1, 'First failure records attempt #1');
-assert(getVoiceEngineFailureCount('kokoro') === 1, 'getVoiceEngineFailureCount returns 1');
-assert(storage['toefl_voice_engine'] === 'offline', 'Engine setting is still offline after 1 failure');
+assert(getVoiceEngineFailureCount('aivoice') === 1, 'getVoiceEngineFailureCount returns 1');
+assert(storage['toefl_voice_engine'] === 'cloud', 'Engine setting is still cloud after 1 failure');
 
-const f2 = recordVoiceEngineFailure('kokoro', 'Model weights corrupted');
+const f2 = recordVoiceEngineFailure('aivoice', 'Network timeout');
 assert(f2.triggeredFallback === false, 'Second failure does not trigger fallback');
 assert(f2.attempts === 2, 'Second failure records attempt #2');
-assert(getVoiceEngineFailureCount('kokoro') === 2, 'getVoiceEngineFailureCount returns 2');
-assert(storage['toefl_voice_engine'] === 'offline', 'Engine setting is still offline after 2 failures');
+assert(getVoiceEngineFailureCount('aivoice') === 2, 'getVoiceEngineFailureCount returns 2');
+assert(storage['toefl_voice_engine'] === 'cloud', 'Engine setting is still cloud after 2 failures');
 
 // 3. Third failure triggers automatic fallback
-const f3 = recordVoiceEngineFailure('kokoro', 'Audio decode error');
+const f3 = recordVoiceEngineFailure('aivoice', 'Audio decode error');
 assert(f3.triggeredFallback === true, 'Third consecutive failure triggers fallback');
 assert(f3.attempts === 3, 'Third failure records attempt #3');
 assert(storage['toefl_voice_engine'] === 'device', 'Engine setting automatically toggled to device (Web Speech)');
 assert(lastDispatchedToast !== null, 'Toast notification event dispatched');
-assert(lastDispatchedToast?.failedEngine === 'Kokoro', 'Toast indicates Kokoro as failed engine');
+assert(lastDispatchedToast?.failedEngine === 'AI Voice', 'Toast indicates AI Voice as failed engine');
 assert(lastDispatchedToast?.fallbackEngine === 'Web Speech', 'Toast indicates Web Speech as fallback engine');
 assert(lastDispatchedToast?.attempts === 3, 'Toast details specify 3 attempts');
 assert(lastDispatchedEngine === 'device', 'Engine change event dispatched for UI synchronization');
-assert(getVoiceEngineFailureCount('kokoro') === 0, 'Failure counter resets to 0 after triggering fallback');
+assert(getVoiceEngineFailureCount('aivoice') === 0, 'Failure counter resets to 0 after triggering fallback');
 
 // 4. Success resets counter before reaching 3
 resetVoiceEngineFailureCounts();
@@ -97,17 +95,14 @@ lastDispatchedToast = null;
 recordVoiceEngineFailure('cloud', 'API 429 Rate limit');
 recordVoiceEngineFailure('cloud', 'Network timeout');
 assert(getVoiceEngineFailureCount('cloud') === 2, 'AI Voice failure count is 2');
-
-recordVoiceEngineSuccess('cloud');
+recordVoiceEngineSuccess();
 assert(getVoiceEngineFailureCount('cloud') === 0, 'recordVoiceEngineSuccess resets counter to 0');
 assert(storage['toefl_voice_engine'] === 'cloud', 'Engine remains cloud after recovery');
 
-// 5. 3 consecutive AI Voice failures trigger fallback
-recordVoiceEngineFailure('cloud', 'Invalid key');
-recordVoiceEngineFailure('cloud', 'Model unavailable');
-const fCloud3 = recordVoiceEngineFailure('cloud', '503 Service unavailable');
-
-assert(fCloud3.triggeredFallback === true, 'Third AI Voice failure triggers fallback');
+// 5. Subsequent failures trigger fallback again
+recordVoiceEngineFailure('cloud', 'API error');
+recordVoiceEngineFailure('cloud', 'Network timeout');
+recordVoiceEngineFailure('cloud', 'Model busy');
 assert(storage['toefl_voice_engine'] === 'device', 'Engine setting automatically toggled to device (Web Speech)');
 assert(lastDispatchedToast?.failedEngine === 'AI Voice', 'Toast indicates AI Voice as failed engine');
 assert(lastDispatchedToast?.fallbackEngine === 'Web Speech', 'Toast indicates Web Speech as fallback engine');

@@ -4,6 +4,7 @@ import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio } from '../../utils/audioSpeech';
+import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
 import { MicrophoneTestWidget } from '../shared/MicrophoneTestWidget';
@@ -135,11 +136,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: true }));
     console.log(`[Audio Timing] Starting background transcription for question ${qIndex + 1}...`);
     const p = transcribeAudioBlob(blob)
-      .then(({ transcript, durationMs }) => {
+      .then(({ transcript, words, durationMs }) => {
         if (transcript.trim()) {
+          const metrics = calculateSpeakingMetrics(words, transcript, (durationMs || 0) / 1000, currentQ.responseTimeSeconds);
           setAnswers((prev) => ({
             ...prev,
             [qIndex]: transcript.trim(),
+            [`metrics_${qIndex}`]: metrics,
           }));
           setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
         }

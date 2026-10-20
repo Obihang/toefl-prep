@@ -15,12 +15,14 @@ type Res = ExpressRes | VercelResponse;
 
 // Initialize firebase admin if not already initialized
 if (!(admin as any).apps.length) {
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'authentic-jar-5v9wh';
   try {
-    admin.initializeApp();
+    admin.initializeApp({ projectId });
   } catch {
     // Fallback credential init for local dev without service account JSON if env vars are present
     try {
       admin.initializeApp({
+        projectId,
         credential: (admin as any).credential.applicationDefault(),
       });
     } catch {}
