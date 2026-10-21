@@ -1,177 +1,611 @@
 [
   {
     "id": "bs-curated-1",
-    "title": "Advanced Academic Sentence Structure: Neural Plasticity",
+    "title": "Neuroscience: Synaptic Plasticity and Long-Term Memory",
     "level": "advanced",
     "topic": "science-tech",
     "items": [
       {
-        "context": "Arrange the scrambled words into a grammatically correct academic sentence explaining neural adaptation.",
+        "context": "Explain how empirical research supports the biological concept of neural adaptation.",
         "words": [
-          "Substantial",
+          "regarding",
+          "the",
+          "supports",
+          "neural",
           "empirical",
           "evidence",
-          "supports",
-          "the",
           "hypothesis",
-          "regarding",
-          "neural",
-          "plasticity"
+          "plasticity",
+          "Substantial"
         ],
         "answer": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
-        "explanation": "Subject noun phrase (\"Substantial empirical evidence\") + transitive verb (\"supports\") + direct object (\"the hypothesis\") + modifying prepositional phrase (\"regarding neural plasticity\")."
+        "explanation": "Subject noun phrase ('Substantial empirical evidence') + transitive verb ('supports') + direct object ('the hypothesis') + modifying prepositional phrase ('regarding neural plasticity')."
+      },
+      {
+        "context": "Describe how dendritic spines alter their physical morphology following stimulation.",
+        "words": [
+          "rapid",
+          "stimulation",
+          "Repetitive",
+          "changes",
+          "dendritic",
+          "structural",
+          "electrical",
+          "in",
+          "spines",
+          "induces"
+        ],
+        "answer": "Repetitive electrical stimulation induces rapid structural changes in dendritic spines.",
+        "explanation": "Subject ('Repetitive electrical stimulation') + verb ('induces') + object ('rapid structural changes') + prepositional locator ('in dendritic spines')."
+      },
+      {
+        "context": "State the cognitive consequence of long-term potentiation in mammalian brains.",
+        "words": [
+          "synaptic",
+          "efficient",
+          "across",
+          "transmission",
+          "neural",
+          "information",
+          "Enhanced",
+          "facilitates",
+          "storage",
+          "circuits"
+        ],
+        "answer": "Enhanced synaptic transmission facilitates efficient information storage across neural circuits.",
+        "explanation": "Modified subject ('Enhanced synaptic transmission') + verb ('facilitates') + direct object with prepositional extension ('efficient information storage across neural circuits')."
       }
     ]
   },
   {
     "id": "bs-curated-2",
-    "title": "Macroeconomic Market Dynamics and Supply Chain Resilience",
+    "title": "Macroeconomics: Global Supply Chains and Market Volatility",
     "level": "upper-intermediate",
     "topic": "business-economics",
     "items": [
       {
-        "context": "Arrange the scrambled words into a coherent analytical statement regarding international commerce.",
+        "context": "Describe how corporations minimize financial vulnerability across international markets.",
         "words": [
-          "Diversified",
-          "supply",
-          "chains",
           "mitigate",
           "the",
-          "risk",
-          "of",
-          "unexpected",
-          "global",
+          "disruptions",
+          "chains",
+          "supply",
           "economic",
-          "disruptions"
+          "of",
+          "risk",
+          "Diversified",
+          "global",
+          "unexpected"
         ],
         "answer": "Diversified supply chains mitigate the risk of unexpected global economic disruptions.",
-        "explanation": "Subject (\"Diversified supply chains\") + present tense transitive verb (\"mitigate\") + object noun phrase with nested prepositional modifiers (\"the risk of unexpected global economic disruptions\")."
+        "explanation": "Subject ('Diversified supply chains') + present tense verb ('mitigate') + complex object ('the risk of unexpected global economic disruptions')."
+      },
+      {
+        "context": "Explain the policy response of monetary authorities facing rapid consumer inflation.",
+        "words": [
+          "interest",
+          "raise",
+          "frequently",
+          "curb",
+          "Central",
+          "rates",
+          "to",
+          "pressures",
+          "excessive",
+          "inflationary",
+          "banks"
+        ],
+        "answer": "Central banks frequently raise interest rates to curb excessive inflationary pressures.",
+        "explanation": "Subject ('Central banks') + frequency adverb ('frequently') + transitive verb ('raise') + direct object ('interest rates') + infinitive purpose clause ('to curb excessive inflationary pressures')."
+      },
+      {
+        "context": "State how fluctuating currency exchange rates impact international trade balances.",
+        "words": [
+          "of",
+          "the",
+          "foreign",
+          "competitiveness",
+          "significantly",
+          "rates",
+          "exports",
+          "exchange",
+          "influence",
+          "Volatile",
+          "domestic"
+        ],
+        "answer": "Volatile foreign exchange rates significantly influence the competitiveness of domestic exports.",
+        "explanation": "Subject ('Volatile foreign exchange rates') + adverb ('significantly') + verb ('influence') + object noun phrase ('the competitiveness of domestic exports')."
       }
     ]
   },
   {
     "id": "bs-curated-3",
-    "title": "Evolutionary Biology: Morphological Convergence",
+    "title": "Marine Biology: Morphological Convergence and Hydrodynamics",
     "level": "intermediate",
     "topic": "science-tech",
     "items": [
       {
-        "context": "Construct a grammatically sound sentence discussing evolutionary adaptations across marine organisms.",
+        "context": "Explain why different aquatic animals share identical anatomical contours.",
         "words": [
-          "Unrelated",
-          "marine",
-          "species",
+          "body",
           "frequently",
+          "Unrelated",
           "develop",
+          "marine",
           "similar",
           "streamlined",
-          "body",
+          "species",
           "shapes"
         ],
         "answer": "Unrelated marine species frequently develop similar streamlined body shapes.",
-        "explanation": "Subject (\"Unrelated marine species\") + frequency adverb (\"frequently\") + verb (\"develop\") + complex object (\"similar streamlined body shapes\")."
+        "explanation": "Subject ('Unrelated marine species') + frequency adverb ('frequently') + verb ('develop') + direct object ('similar streamlined body shapes')."
+      },
+      {
+        "context": "Describe the physical advantage of streamlined anatomical contours in water.",
+        "words": [
+          "during",
+          "water",
+          "substantially",
+          "swimming",
+          "Hydrodynamic",
+          "turbulent",
+          "rapid",
+          "reduce",
+          "resistance",
+          "profiles"
+        ],
+        "answer": "Hydrodynamic profiles substantially reduce turbulent water resistance during rapid swimming.",
+        "explanation": "Subject ('Hydrodynamic profiles') + adverb ('substantially') + transitive verb ('reduce') + object with prepositional modifier ('turbulent water resistance during rapid swimming')."
+      },
+      {
+        "context": "Identify how natural selection guides convergent evolution in predator species.",
+        "words": [
+          "environmental",
+          "in",
+          "favor",
+          "pelagic",
+          "locomotion",
+          "environments",
+          "efficient",
+          "hunting",
+          "pressures",
+          "Selective"
+        ],
+        "answer": "Selective environmental pressures favor efficient locomotion in pelagic hunting environments.",
+        "explanation": "Compound subject ('Selective environmental pressures') + verb ('favor') + direct object and prepositional phrase ('efficient locomotion in pelagic hunting environments')."
       }
     ]
   },
   {
     "id": "bs-curated-4",
-    "title": "Sociological Urbanization: Public Infrastructure Investments",
+    "title": "Urban Sociology: Municipal Public Transit Infrastructure",
     "level": "intermediate",
     "topic": "social-sciences",
     "items": [
       {
-        "context": "Formulate a clear academic thesis regarding metropolitan mass transit accessibility.",
+        "context": "State the social impact of equitable metropolitan transit systems.",
         "words": [
+          "significantly",
+          "urban",
+          "enhances",
           "Accessible",
           "public",
-          "transportation",
-          "significantly",
-          "enhances",
-          "socioeconomic",
-          "mobility",
+          "residents",
           "for",
-          "urban",
-          "residents"
+          "mobility",
+          "socioeconomic",
+          "transportation"
         ],
         "answer": "Accessible public transportation significantly enhances socioeconomic mobility for urban residents.",
-        "explanation": "Compound subject (\"Accessible public transportation\") + adverbial intensifier + verb (\"significantly enhances\") + direct object and prepositional phrase (\"socioeconomic mobility for urban residents\")."
+        "explanation": "Subject ('Accessible public transportation') + adverb + verb ('significantly enhances') + object phrase ('socioeconomic mobility for urban residents')."
+      },
+      {
+        "context": "Explain how dedicated bus rapid transit corridors affect traffic congestion.",
+        "words": [
+          "bus",
+          "hours",
+          "lanes",
+          "Dedicated",
+          "commuting",
+          "effectively",
+          "during",
+          "peak",
+          "alleviate",
+          "traffic",
+          "severe",
+          "congestion"
+        ],
+        "answer": "Dedicated bus lanes effectively alleviate severe traffic congestion during peak commuting hours.",
+        "explanation": "Subject ('Dedicated bus lanes') + adverb ('effectively') + verb ('alleviate') + object with temporal phrase ('severe traffic congestion during peak commuting hours')."
+      },
+      {
+        "context": "Describe the broader economic benefit of municipal transit investments.",
+        "words": [
+          "previously",
+          "attract",
+          "Reliable",
+          "neighborhoods",
+          "transit",
+          "commercial",
+          "development",
+          "neglected",
+          "networks",
+          "to"
+        ],
+        "answer": "Reliable transit networks attract commercial development to previously neglected neighborhoods.",
+        "explanation": "Subject ('Reliable transit networks') + verb ('attract') + direct object ('commercial development') + directional prepositional phrase ('to previously neglected neighborhoods')."
       }
     ]
   },
   {
     "id": "bs-curated-5",
-    "title": "Artistic Preservation: Archaeological Restoration Ethics",
+    "title": "Art History: Conservation Ethics and Reversibility",
     "level": "upper-intermediate",
     "topic": "arts-humanities",
     "items": [
       {
-        "context": "Assemble the scrambled elements into an ethical guideline for museum artifact conservation.",
+        "context": "State the core ethical rule guiding modern museum conservators.",
         "words": [
+          "artifacts",
+          "prioritize",
           "Modern",
           "conservators",
-          "prioritize",
-          "reversible",
-          "techniques",
+          "cultural",
           "when",
           "restoring",
           "ancient",
-          "cultural",
-          "artifacts"
+          "techniques",
+          "reversible"
         ],
         "answer": "Modern conservators prioritize reversible techniques when restoring ancient cultural artifacts.",
-        "explanation": "Main clause (\"Modern conservators prioritize reversible techniques\") followed by a temporal participial clause (\"when restoring ancient cultural artifacts\")."
+        "explanation": "Main clause ('Modern conservators prioritize reversible techniques') followed by a subordinate temporal clause ('when restoring ancient cultural artifacts')."
+      },
+      {
+        "context": "Explain why chemical solvents must be thoroughly analyzed before application.",
+        "words": [
+          "irreversible",
+          "pigment",
+          "tested",
+          "be",
+          "solvents",
+          "degradation",
+          "to",
+          "prevent",
+          "Chemical",
+          "scrupulously",
+          "must"
+        ],
+        "answer": "Chemical solvents must be scrupulously tested to prevent irreversible pigment degradation.",
+        "explanation": "Passive modal verb phrase ('must be scrupulously tested') + infinitive clause of purpose ('to prevent irreversible pigment degradation')."
+      },
+      {
+        "context": "Describe how non-invasive digital scanning assists preservation decisions.",
+        "words": [
+          "preparatory",
+          "fragile",
+          "analysis",
+          "Spectroscopic",
+          "reveals",
+          "damaging",
+          "without",
+          "sketches",
+          "canvas",
+          "fibers",
+          "underlying"
+        ],
+        "answer": "Spectroscopic analysis reveals underlying preparatory sketches without damaging fragile canvas fibers.",
+        "explanation": "Subject ('Spectroscopic analysis') + verb ('reveals') + object ('underlying preparatory sketches') + prepositional phrase with gerund ('without damaging fragile canvas fibers')."
       }
     ]
   },
   {
     "id": "bs-curated-6",
-    "title": "Collegiate Academic Integrity and Collaborative Scholarship",
+    "title": "Campus Life: Academic Integrity and Research Authorship",
     "level": "intermediate",
     "topic": "campus-life",
     "items": [
       {
-        "context": "Order the words to state an essential university research standard.",
+        "context": "State an essential bibliographic standard for undergraduate theses.",
         "words": [
-          "Undergraduate",
-          "scholars",
-          "must",
-          "scrupulously",
-          "attribute",
-          "all",
           "secondary",
+          "scrupulously",
+          "all",
+          "theses",
           "sources",
-          "in",
+          "scholars",
+          "attribute",
           "formal",
-          "theses"
+          "in",
+          "Undergraduate",
+          "must"
         ],
         "answer": "Undergraduate scholars must scrupulously attribute all secondary sources in formal theses.",
-        "explanation": "Modal verb structure (\"must scrupulously attribute\") connecting academic subject to secondary sources and location context."
+        "explanation": "Subject ('Undergraduate scholars') + modal auxiliary with adverb ('must scrupulously attribute') + object ('all secondary sources') + prepositional phrase ('in formal theses')."
+      },
+      {
+        "context": "Explain what students must do before engaging in collaborative research.",
+        "words": [
+          "drafting",
+          "Research",
+          "before",
+          "guidelines",
+          "contribution",
+          "should",
+          "clear",
+          "manuscripts",
+          "establish",
+          "collaborators"
+        ],
+        "answer": "Research collaborators should establish clear contribution guidelines before drafting manuscripts.",
+        "explanation": "Subject ('Research collaborators') + modal verb ('should establish') + object ('clear contribution guidelines') + temporal gerund phrase ('before drafting manuscripts')."
+      },
+      {
+        "context": "Describe university sanctions imposed for deliberate intellectual plagiarism.",
+        "words": [
+          "serious",
+          "intellectual",
+          "probation",
+          "tribunals",
+          "may",
+          "misconduct",
+          "for",
+          "disciplinary",
+          "impose",
+          "Academic"
+        ],
+        "answer": "Academic tribunals may impose disciplinary probation for serious intellectual misconduct.",
+        "explanation": "Subject ('Academic tribunals') + modal ('may impose') + object ('disciplinary probation') + causal prepositional modifier ('for serious intellectual misconduct')."
       }
     ]
   },
   {
     "id": "bs-curated-7",
-    "title": "Climatology and Renewable Solar Grid Integration",
+    "title": "Climatology: Photovoltaic Systems and Grid Integration",
     "level": "advanced",
     "topic": "science-tech",
     "items": [
       {
-        "context": "Construct an advanced scientific observation on modern renewable power transmission networks.",
+        "context": "Explain why intermittent solar power requires energy storage infrastructure.",
         "words": [
+          "grids",
           "Decentralized",
-          "photovoltaic",
           "arrays",
-          "require",
-          "sophisticated",
-          "battery",
-          "storage",
-          "to",
-          "stabilize",
           "electrical",
-          "grids"
+          "to",
+          "storage",
+          "sophisticated",
+          "photovoltaic",
+          "stabilize",
+          "battery",
+          "require"
         ],
         "answer": "Decentralized photovoltaic arrays require sophisticated battery storage to stabilize electrical grids.",
-        "explanation": "Subject (\"Decentralized photovoltaic arrays\") + verb and object (\"require sophisticated battery storage\") + infinitive clause of purpose (\"to stabilize electrical grids\")."
+        "explanation": "Subject ('Decentralized photovoltaic arrays') + verb and direct object ('require sophisticated battery storage') + infinitive purpose clause ('to stabilize electrical grids')."
+      },
+      {
+        "context": "Describe how smart grid technology balances seasonal supply fluctuations.",
+        "words": [
+          "surplus",
+          "consumers",
+          "electricity",
+          "Automated",
+          "route",
+          "algorithms",
+          "dynamically",
+          "renewable",
+          "industrial",
+          "distribution",
+          "to"
+        ],
+        "answer": "Automated distribution algorithms dynamically route surplus renewable electricity to industrial consumers.",
+        "explanation": "Subject ('Automated distribution algorithms') + adverb ('dynamically') + verb ('route') + object and destination phrase ('surplus renewable electricity to industrial consumers')."
+      },
+      {
+        "context": "State the macroeconomic outcome of decreasing levelized cost of energy.",
+        "words": [
+          "clean",
+          "accelerate",
+          "Declining",
+          "of",
+          "technologies",
+          "the",
+          "manufacturing",
+          "adoption",
+          "costs",
+          "widespread",
+          "energy"
+        ],
+        "answer": "Declining manufacturing costs accelerate the widespread adoption of clean energy technologies.",
+        "explanation": "Participial subject ('Declining manufacturing costs') + verb ('accelerate') + direct object with prepositional modifiers ('the widespread adoption of clean energy technologies')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-8",
+    "title": "Sociology: Demographic Aging and Pension Sustainability",
+    "level": "upper-intermediate",
+    "topic": "social-sciences",
+    "items": [
+      {
+        "context": "Describe how shifting age demographics pressure national entitlement budgets.",
+        "words": [
+          "statutory",
+          "place",
+          "retirement",
+          "financial",
+          "populations",
+          "schemes",
+          "strains",
+          "pension",
+          "Aging",
+          "on",
+          "unprecedented"
+        ],
+        "answer": "Aging populations place unprecedented financial strains on statutory retirement pension schemes.",
+        "explanation": "Subject ('Aging populations') + verb ('place') + direct object ('unprecedented financial strains') + prepositional recipient phrase ('on statutory retirement pension schemes')."
+      },
+      {
+        "context": "Explain why labor economists advocate for gradual increases in retirement age.",
+        "words": [
+          "tax",
+          "reducing",
+          "revenues",
+          "working",
+          "aggregate",
+          "Extending",
+          "benefit",
+          "lives",
+          "outlays",
+          "income",
+          "bolsters",
+          "while"
+        ],
+        "answer": "Extending working lives bolsters income tax revenues while reducing aggregate benefit outlays.",
+        "explanation": "Gerund subject phrase ('Extending working lives') + verb and object ('bolsters income tax revenues') + contrasting participial clause ('while reducing aggregate benefit outlays')."
+      },
+      {
+        "context": "State how immigration policy affects domestic dependency ratios.",
+        "words": [
+          "effectively",
+          "rejuvenates",
+          "workforce",
+          "skilled",
+          "Targeted",
+          "nations",
+          "active",
+          "the",
+          "immigration",
+          "industrialized",
+          "in"
+        ],
+        "answer": "Targeted skilled immigration effectively rejuvenates the active workforce in industrialized nations.",
+        "explanation": "Subject ('Targeted skilled immigration') + adverb + verb ('effectively rejuvenates') + object ('the active workforce in industrialized nations')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-9",
+    "title": "Economics: Behavioral Biases in Retail Financial Markets",
+    "level": "advanced",
+    "topic": "business-economics",
+    "items": [
+      {
+        "context": "Explain how loss aversion skews individual portfolio investment choices.",
+        "words": [
+          "biases",
+          "retail",
+          "depreciating",
+          "frequently",
+          "to",
+          "assets",
+          "investors",
+          "hold",
+          "lead",
+          "unnecessarily",
+          "Cognitive"
+        ],
+        "answer": "Cognitive biases frequently lead retail investors to hold depreciating assets unnecessarily.",
+        "explanation": "Subject ('Cognitive biases') + frequency adverb + verb and object ('lead retail investors') + infinitive clause ('to hold depreciating assets unnecessarily')."
+      },
+      {
+        "context": "Describe the psychological phenomenon of herd behavior during speculative bubbles.",
+        "words": [
+          "euphoria",
+          "social",
+          "exacerbates",
+          "of",
+          "bubbles",
+          "during",
+          "periods",
+          "speculative",
+          "Uncritical",
+          "asset",
+          "market",
+          "imitation"
+        ],
+        "answer": "Uncritical social imitation exacerbates speculative asset bubbles during periods of market euphoria.",
+        "explanation": "Compound subject ('Uncritical social imitation') + verb ('exacerbates') + direct object with temporal phrase ('speculative asset bubbles during periods of market euphoria')."
+      },
+      {
+        "context": "State how automated algorithmic nudges help consumers save more prudently.",
+        "words": [
+          "among",
+          "savings",
+          "Default",
+          "programs",
+          "increase",
+          "enrollment",
+          "long-term",
+          "wealth",
+          "substantially",
+          "accumulation",
+          "wage-earners"
+        ],
+        "answer": "Default savings enrollment programs substantially increase long-term wealth accumulation among wage-earners.",
+        "explanation": "Subject ('Default savings enrollment programs') + adverb + verb ('substantially increase') + complex object ('long-term wealth accumulation among wage-earners')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-10",
+    "title": "Campus Orientation: Laboratory Protocols and Biosafety Tiers",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "items": [
+      {
+        "context": "State the mandatory safety equipment requirement for biosafety level two labs.",
+        "words": [
+          "researchers",
+          "and",
+          "laboratory",
+          "protective",
+          "coats",
+          "wear",
+          "at",
+          "times",
+          "Student",
+          "all",
+          "must",
+          "eyewear"
+        ],
+        "answer": "Student researchers must wear protective eyewear and laboratory coats at all times.",
+        "explanation": "Subject ('Student researchers') + modal verb ('must wear') + compound direct object ('protective eyewear and laboratory coats') + adverbial temporal phrase ('at all times')."
+      },
+      {
+        "context": "Explain the procedure for disposing of hazardous chemical waste reagents.",
+        "words": [
+          "glassware",
+          "in",
+          "must",
+          "before",
+          "designated",
+          "receptacles",
+          "neutralized",
+          "Contaminated",
+          "placement",
+          "disposal",
+          "be"
+        ],
+        "answer": "Contaminated glassware must be neutralized before placement in designated disposal receptacles.",
+        "explanation": "Passive modal verb phrase ('must be neutralized') + temporal prepositional phrase ('before placement in designated disposal receptacles')."
+      },
+      {
+        "context": "Describe what actions must be taken during accidental chemical exposure incidents.",
+        "words": [
+          "eyewash",
+          "damage",
+          "stations",
+          "potential",
+          "emergency",
+          "minimizes",
+          "Immediate",
+          "at",
+          "tissue",
+          "irrigation"
+        ],
+        "answer": "Immediate irrigation at emergency eyewash stations minimizes potential tissue damage.",
+        "explanation": "Subject with prepositional phrase ('Immediate irrigation at emergency eyewash stations') + verb ('minimizes') + object ('potential tissue damage')."
       }
     ]
   }

@@ -45,8 +45,9 @@ export function isHighQualityTask(task: any, taskType: string): boolean {
       return passageWords >= 150 && questions.length >= 3;
     }
 
-    case 'listening-dialogue': {
-      const script = String(task.script || task.text || '');
+    case 'listening-dialogue':
+    case 'listening-lecture': {
+      const script = String(task.script || task.text || task.lecture || '');
       const scriptWords = countWords(script);
       const questions = Array.isArray(task.questions) ? task.questions : [];
       return scriptWords >= 120 && questions.length >= 3;

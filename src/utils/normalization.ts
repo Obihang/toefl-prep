@@ -72,12 +72,16 @@ export function normalizeTaskData(task: any, taskType: string): any {
 
     case 'build-sentence':
       result.items = Array.isArray(task.items) && task.items.length > 0
-        ? task.items.map((i: any) => ({
-            context: String(i?.context || ''),
-            words: Array.isArray(i?.words) ? i.words.map((w: any) => String(w || '')) : [],
-            answer: String(i?.answer || ''),
-            explanation: String(i?.explanation || ''),
-          }))
+        ? task.items.map((i: any) => {
+            const rawWords = Array.isArray(i?.words) ? i.words.map((w: any) => String(w || '')) : [];
+            const ans = String(i?.answer || '');
+            return {
+              context: String(i?.context || ''),
+              words: shuffleWordsIfMatching(rawWords, ans),
+              answer: ans,
+              explanation: String(i?.explanation || ''),
+            };
+          })
         : fallback.items;
       break;
 
@@ -218,3 +222,36 @@ function getFallbackTask(taskType: string): any {
       };
   }
 }
+
+function shuffleWordsIfMatching(words: string[], answer: string): string[] {
+  if (!Array.isArray(words) || words.length <= 1) return [...(words || [])];
+  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  const targetClean = answer ? clean(answer) : '';
+
+  const currentClean = clean(words.join(' '));
+  if (targetClean && !currentClean.startsWith(targetClean.slice(0, 15)) && currentClean !== targetClean) {
+    return [...words];
+  }
+
+  const shuffled = [...words];
+  let attempts = 0;
+  do {
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    attempts++;
+  } while (
+    attempts < 15 &&
+    targetClean &&
+    clean(shuffled.join(' ')).startsWith(targetClean.slice(0, 15))
+  );
+
+  if (targetClean && clean(shuffled.join(' ')) === targetClean && shuffled.length > 1) {
+    const mid = Math.floor(shuffled.length / 2);
+    [shuffled[0], shuffled[mid]] = [shuffled[mid], shuffled[0]];
+  }
+
+  return shuffled;
+}
+

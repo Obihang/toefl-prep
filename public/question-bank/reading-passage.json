@@ -369,5 +369,164 @@
         "explanation": "Paragraph 3 notes that scribes mounted legal resistance, alleging that machine-printed volumes degraded spiritual devotion and compromised grammatical orthography."
       }
     ]
+  },
+  {
+    "id": "rp-curated-8",
+    "title": "Tectonic Subduction and Volcanic Arc Petrology",
+    "level": "advanced",
+    "topic": "science-tech",
+    "passage": "The geological genesis of volcanic island arcs represents one of the foundational dynamics of plate tectonic theory. When an oceanic lithospheric plate converges with a denser or older plate, it plunges downward into the asthenosphere along a steeply inclined subduction zone. As the descending slab descends beneath increasing lithospheric pressure and geothermal temperatures, hydrous minerals such as serpentine and amphibole undergo metamorphic dehydration reactions. This released water migrates upward into the overlying mantle wedge, substantially lowering the solidus melting point of the surrounding peridotite rock in a process geophysicists termed flux melting.\n\nThe resulting basaltic and andesitic magmas, possessing lower density than the surrounding solid mantle, rise buoyantly through convective conduits toward the Earth's crust. As these magmas ascend, fractional crystallization and crustal assimilation progressively alter their geochemical composition, enriching the melt with silica, potassium, and volatile gases. Upon reaching the oceanic floor or continental margin, repeated eruptive cycles construct composite stratovolcanoes characterized by explosive vulcanian eruptions. These volcanic chains, exemplified by the Pacific Ring of Fire, not only generate new continental crust over geological epochs but also regulate global carbon geochemical cycles by recycling subducted carbonate sediments back into the atmosphere.",
+    "questions": [
+      {
+        "q": "What causes flux melting in the mantle wedge above a subduction zone?",
+        "options": [
+          "Water released by dehydrating minerals lowers the melting point of mantle peridotite.",
+          "Friction from descending tectonic plates directly melts the oceanic trench sediment.",
+          "Excessive atmospheric pressure forces molten basalt down into the asthenosphere.",
+          "Volcanic ash cooling on the ocean surface triggers spontaneous thermal liquefaction."
+        ],
+        "answer": 0,
+        "explanation": "Paragraph 1 explains that dehydrating minerals release water into the overlying mantle wedge, lowering the solidus melting point of surrounding peridotite rock."
+      },
+      {
+        "q": "The word \"buoyantly\" in paragraph 2 is closest in meaning to:",
+        "options": [
+          "upward with low density",
+          "erratically under pressure",
+          "horizontally across faults",
+          "gradually through freezing"
+        ],
+        "answer": 0,
+        "explanation": "Buoyantly indicates rising naturally because of lower density relative to the surrounding medium."
+      },
+      {
+        "q": "How does fractional crystallization affect ascending magma?",
+        "options": [
+          "It strips all silica and volatile gases from the volcanic magma chambers.",
+          "It progressively enriches the rising melt with silica and dissolved volatiles.",
+          "It prevents the magma from ever reaching the surface of stratovolcanoes.",
+          "It forces the volcanic arc to cool and sink permanently beneath the oceanic floor."
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 2 states that fractional crystallization and crustal assimilation enrich the ascending melt with silica, potassium, and volatile gases."
+      },
+      {
+        "q": "Which of the following describes the broader planetary role of volcanic island arcs?",
+        "options": [
+          "They prevent tectonic plates from moving across the asthenosphere.",
+          "They construct new continental crust and recycle subducted carbon into the atmosphere.",
+          "They eliminate all seismological activity along convergent oceanic boundaries.",
+          "They drain subterranean aquifers into deep ocean trenches."
+        ],
+        "answer": 1,
+        "explanation": "The final sentence notes that volcanic chains generate new continental crust and regulate global carbon cycles by recycling subducted carbonates."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-9",
+    "title": "Behavioral Economics: Heuristics in Consumer Financial Decisions",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "passage": "Traditional neoclassical economic theory presupposed that human market participants behave as rational agents, systematically calculating subjective expected utilities before arriving at transactional decisions. However, pioneering empirical experiments conducted by cognitive psychologists Daniel Kahneman and Amos Tversky challenged this foundational axiom. Their prospect theory demonstrated that individual financial decision-making is systematically distorted by cognitive heuristics—mental shortcuts developed through evolutionary pressures to expedite choice under conditions of environmental uncertainty.\n\nAmong the most robust phenomena identified in behavioral finance is loss aversion, the observation that human beings experience the psychological pain of a monetary loss roughly twice as intensely as the pleasure derived from an equivalent monetary gain. Consequently, retail investors frequently display an irrational reluctance to sell depreciating securities, holding unprofitable stocks in the vain hope of breaking even, while prematurely liquidating winning assets to lock in minor profits. Furthermore, cognitive framing profoundly dictates economic outcomes; identical financial propositions elicit diametrically opposed responses depending on whether alternatives are presented in terms of potential gains or avoided losses. By incorporating these psychological realities, contemporary behavioral economists provide more accurate predictive models of financial market volatility and consumer debt accumulation.",
+    "questions": [
+      {
+        "q": "How did Kahneman and Tversky's research challenge neoclassical economic theory?",
+        "options": [
+          "They proved that financial markets always operate in perfect rational equilibrium.",
+          "They demonstrated that human choices are systematically biased by cognitive heuristics.",
+          "They showed that mathematical computation eliminates all risk in financial investments.",
+          "They argued that government central banks should dictate all consumer prices."
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 1 states that their research challenged the assumption of rational agents by demonstrating choices are distorted by cognitive heuristics."
+      },
+      {
+        "q": "According to paragraph 2, what behavior typically results from loss aversion?",
+        "options": [
+          "Investors immediately sell all declining securities to accept reality.",
+          "Investors hold losing stocks too long while selling winning stocks too early.",
+          "Consumers refuse to participate in any forms of banking or electronic currency.",
+          "Individuals evaluate financial losses with complete emotional indifference."
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 2 explicitly states that investors display an irrational reluctance to sell depreciating securities while prematurely liquidating winning assets."
+      },
+      {
+        "q": "The term \"heuristics\" in paragraph 1 refers to:",
+        "options": [
+          "complex algebraic equations used by financial software",
+          "mental shortcuts that speed up decision-making under uncertainty",
+          "statutory regulations enforced by international banking commissions",
+          "unconscious mathematical calculations of total portfolio variance"
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 1 defines heuristics as mental shortcuts developed through evolutionary pressures to expedite choice under uncertainty."
+      },
+      {
+        "q": "What does the author conclude about the value of behavioral economics?",
+        "options": [
+          "It generates more accurate models of market volatility and consumer behavior.",
+          "It eliminates the necessity for empirical testing in psychological research.",
+          "It demonstrates that traditional market predictions were completely flawless.",
+          "It encourages retail investors to abandon long-term retirement savings plans."
+        ],
+        "answer": 0,
+        "explanation": "The passage ends by stating that incorporating psychological realities allows economists to provide more accurate predictive models."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-10",
+    "title": "The Social Dynamics of Agrarian Communal Irrigation in Medieval Spain",
+    "level": "intermediate",
+    "topic": "social-sciences",
+    "passage": "Following the eighth-century expansion of Moorish agricultural engineering across the Iberian Peninsula, peasant communities in Valencia and Murcia developed sophisticated communal irrigation systems known as acequias. These gravity-fed networks diverted mountain river waters through networks of masonry canals, irrigating arid river valleys that had previously supported only sparse dryland farming. Because water availability fluctuated dramatically between seasonal winter rains and intense summer droughts, community members established cooperative self-governing institutions to regulate equitable distribution.\n\nCentral to this hydraulic governance was the Water Tribunal (Tribunal de las Aguas), a decentralized customary court comprised of elected farmer-representatives from each primary canal district. Convening weekly at the public cathedral plaza, the tribunal resolved disputes regarding unauthorized water diversion, canal maintenance responsibilities, and rotational scheduling without requiring formal attorneys or written legal briefs. Decisions were pronounced orally and enforced through peer consensus and temporary suspension of irrigation rights. Sociologists and legal scholars emphasize that these centuries-old acequia systems exemplify successful common-pool resource management, demonstrating that autonomous grassroots communities can sustainably allocate scarce shared resources without relying on centralized state coercion or private market pricing.",
+    "questions": [
+      {
+        "q": "What was the primary function of medieval acequias in Spain?",
+        "options": [
+          "To channel river waters through gravity-fed canals to irrigate arid valleys",
+          "To drain surplus groundwater from swampy coastal salt marshes",
+          "To transport commercial merchant barges between urban centers",
+          "To defend agricultural settlements against sudden enemy sieges"
+        ],
+        "answer": 0,
+        "explanation": "Paragraph 1 notes that acequias diverted mountain river waters through networks of masonry canals, irrigating arid river valleys."
+      },
+      {
+        "q": "How did the Water Tribunal resolve agricultural water disputes?",
+        "options": [
+          "Through costly civil court litigation presided over by imperial judges",
+          "Through weekly oral peer-adjudication led by elected farmer-representatives",
+          "By auctioning surplus water rights to the highest municipal bidder",
+          "By deploying armed municipal guards to seize non-compliant farms"
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 2 states the tribunal convened weekly at the plaza to resolve disputes orally through peer consensus and elected farmer-representatives."
+      },
+      {
+        "q": "The word \"equitable\" in paragraph 1 is closest in meaning to:",
+        "options": [
+          "fair and impartial",
+          "rapid and unpredictable",
+          "profitable and costly",
+          "intermittent and seasonal"
+        ],
+        "answer": 0,
+        "explanation": "\"Equitable\" means just, fair, or impartial in distribution."
+      },
+      {
+        "q": "What broader sociological lesson do modern scholars draw from the acequia institutions?",
+        "options": [
+          "Cooperative grassroots communities can manage common resources sustainably without state control.",
+          "Irrigation systems inevitably collapse unless managed by centralized authoritarian governments.",
+          "Agricultural communities require written legal statutes to prevent internal conflict.",
+          "Private corporate monopolies are the only reliable mechanism for water conservation."
+        ],
+        "answer": 0,
+        "explanation": "The conclusion explains that acequia systems show grassroots communities can sustainably allocate scarce shared resources without centralized coercion."
+      }
+    ]
   }
 ]

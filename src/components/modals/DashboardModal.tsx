@@ -28,6 +28,7 @@ interface Props {
   openHistory: () => void;
   openRubrics: () => void;
   defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
+  currentTaskType?: string;
 }
 
 export const DashboardModal: React.FC<Props> = ({
@@ -36,6 +37,7 @@ export const DashboardModal: React.FC<Props> = ({
   openHistory,
   openRubrics,
   defaultTab = 'dashboard',
+  currentTaskType,
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab || 'dashboard');
   const [stats, setStats] = useState<any>(null);
@@ -247,7 +249,7 @@ export const DashboardModal: React.FC<Props> = ({
               handleSaveGoals={handleSaveGoals}
             />
           )}
-          {activeTab === 'settings' && <SettingsTab />}
+          {activeTab === 'settings' && <SettingsTab currentTaskType={currentTaskType} />}
           {activeTab === 'vocabulary' && (
             <VocabularyTab
               vocab={vocab}

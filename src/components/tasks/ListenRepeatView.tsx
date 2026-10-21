@@ -745,12 +745,27 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                 {/* Live Transcript / Word Accuracy Diff */}
                 {state.checked && (
                   <div className="pt-3 border-t border-slate-200/80 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">
+                          Accuracy Match: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          (state.scorePercent ?? 0) >= 85
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : (state.scorePercent ?? 0) >= 65
+                            ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}>
+                          {(state.scorePercent ?? 0) >= 85
+                            ? 'Band 6.0 Exemplar Match'
+                            : (state.scorePercent ?? 0) >= 65
+                            ? 'Band 5.0 Competent Match'
+                            : 'Needs Refinement'}
+                        </span>
+                      </div>
                       <span className="text-slate-500">
-                        Accuracy Match: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
-                      </span>
-                      <span className="text-slate-500">
-                        Target sentence: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
+                        Band 6.0 Target: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
                       </span>
                     </div>
 

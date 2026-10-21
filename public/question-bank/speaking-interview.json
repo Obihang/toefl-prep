@@ -159,5 +159,74 @@
     ],
     "modelResponse": "I substantially agree with the assessment that social media has eroded the depth of interpersonal relationships. Although digital platforms facilitate instantaneous global connectivity, they fundamentally prioritize superficial engagement metrics like follower counts and algorithmic likes over genuine emotional intimacy. Communicating through curated profiles encourages individuals to project idealized personas, which discourages vulnerable, authentic self-expression. Furthermore, rapid text messaging lacks the nuanced vocal inflections, facial micro-expressions, and empathetic eye contact that anchor deep human bonding. Consequently, while social media expands broad acquaintance networks, it often leaves people feeling paradoxically more isolated and disconnected from meaningful relationships.",
     "sampleAnswer": "Band 6.0 exemplar: Eloquent conceptual vocabulary ('superficial engagement metrics', 'idealized personas', 'paradoxically more isolated'), precise structural flow, and poignant conclusion."
+  },
+  {
+    "id": "si-curated-8",
+    "title": "University Governance: Student Representation on Advisory Boards",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "context": "A university governance committee member asks about student voting rights on administrative boards.",
+    "interviewerName": "Dean Henderson (Male)",
+    "interviewerGender": "male",
+    "questions": [
+      {
+        "question": "Should universities allocate voting seats to undergraduate student representatives on governing trustee boards? Explain your perspective with reasons.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "State clear position supporting or opposing student representation",
+          "Discuss student accountability and unique campus insights",
+          "Address potential concerns regarding fiduciary experience"
+        ]
+      }
+    ],
+    "modelResponse": "I firmly believe that universities should allocate voting seats to undergraduate student representatives on governing trustee boards. Students are the primary stakeholders of higher education, and institutional decisions regarding tuition increases, campus mental health facilities, and housing policies directly affect their daily lives. By including student trustees, governing boards gain invaluable frontline perspectives that administrative executives often overlook. While critics may argue that undergraduates lack complex fiduciary experience, student representatives can receive financial orientation before voting. Ultimately, incorporating democratic student representation fosters transparency, strengthens institutional trust, and ensures university policies genuinely reflect the academic community's needs.",
+    "sampleAnswer": "Band 6.0 exemplar: Decisive opening stance, strong contrastive discourse markers ('while critics may argue', 'ultimately'), and dual reasoning linking campus transparency to stakeholder representation."
+  },
+  {
+    "id": "si-curated-9",
+    "title": "Economics & Technology: Cashless Societies and Financial Inclusion",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "context": "A central bank research fellow asks your view on digital-only payment mandates.",
+    "interviewerName": "Dr. Bradley (Female)",
+    "interviewerGender": "female",
+    "questions": [
+      {
+        "question": "Many retailers are transitioning to completely cashless payment systems. Do you believe eliminating physical cash benefits or harms modern society? Explain why.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "State clear position on the transition to cashless transactions",
+          "Examine transaction speed, security, and tax compliance",
+          "Address the vulnerability of unbanked populations and privacy risks"
+        ]
+      }
+    ],
+    "modelResponse": "In my view, while cashless payments offer undeniable speed and administrative convenience, completely eliminating physical cash harms vulnerable segments of society. Digital mobile payments certainly streamline commercial checkout lines and reduce accounting overhead for retail merchants. However, transitioning to a cashless system disenfranchises elderly citizens, unbanked low-income families, and undocumented individuals who lack bank accounts or smartphones. Furthermore, purely digital transactions expose consumers to surveillance and vulnerabilities during power outages or cyber disruptions. Therefore, while modern economies should encourage digital payment innovations, maintaining cash as legal tender is essential to protect financial inclusion and social equity.",
+    "sampleAnswer": "Band 6.0 exemplar: Balanced thesis balancing convenience with societal drawbacks, clear transitional connectors ('however', 'furthermore', 'therefore'), and strong socioeconomic reasoning."
+  },
+  {
+    "id": "si-curated-10",
+    "title": "Bioethics: Genetic Editing in Agriculture and Human Healthcare",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "A bioethics seminar coordinator asks your opinion on CRISPR genetic editing applications.",
+    "interviewerName": "Professor Vance (Male)",
+    "interviewerGender": "male",
+    "questions": [
+      {
+        "question": "CRISPR gene editing offers immense potential to eradicate congenital diseases and enhance crop resilience. Should governments promote or restrict genetic editing technologies?",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "Take a nuanced position distinguishing somatic therapeutic editing from germline enhancement",
+          "Highlight humanitarian benefits for food security and hereditary diseases",
+          "Address ecological risks and ethical concerns regarding genetic inequality"
+        ]
+      }
+    ],
+    "modelResponse": "I believe governments should actively promote somatic genetic editing for therapeutic medical treatments and agricultural resilience, while enforcing strict international moratoria on human germline modifications. Utilizing CRISPR to cure debilitating genetic disorders like sickle-cell anemia or to bioengineer drought-tolerant staple crops provides immense humanitarian benefits that can alleviate starvation and suffering worldwide. However, allowing heritable germline alterations raises terrifying ethical concerns regarding genetic inequality and unpredictable mutations across future generations. By establishing rigorous regulatory oversight that permits therapeutic and agricultural applications while prohibiting non-medical cosmetic enhancements, society can harness the profound benefits of genetic engineering safely and ethically.",
+    "sampleAnswer": "Band 6.0 exemplar: Highly sophisticated conceptual distinction between somatic and germline editing, clear academic terminology ('heritable alterations', 'drought-tolerant staple crops'), and nuanced ethical resolution."
   }
 ]

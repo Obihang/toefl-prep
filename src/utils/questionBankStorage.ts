@@ -182,10 +182,10 @@ export async function setCachedAudio(cacheKey: string, audioUrl: string): Promis
 }
 
 /**
- * Export all questions as JSON
+ * Export all questions as JSON (merging local IndexedDB stored questions with curated shards)
  */
 export async function exportQuestionBankJson(): Promise<string> {
-  const items: any[] = [];
+  const dbItems: any[] = [];
   try {
     const dbInstance = await openIndexedDB();
     const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
@@ -193,12 +193,45 @@ export async function exportQuestionBankJson(): Promise<string> {
     const req = store.getAll();
     await new Promise((resolve) => {
       req.onsuccess = () => {
-        if (Array.isArray(req.result)) items.push(...req.result);
+        if (Array.isArray(req.result)) dbItems.push(...req.result);
         resolve(null);
       };
       req.onerror = () => resolve(null);
     });
   } catch {}
 
-  return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), questions: items }, null, 2);
+  const curatedShards: Record<string, any[]> = {};
+  const shardFiles = [
+    'academic-discussion',
+    'build-sentence',
+    'complete-words',
+    'listening-dialogue',
+    'listening-lecture',
+    'listen-repeat',
+    'reading-passage',
+    'speaking-interview',
+    'write-email',
+  ];
+
+  for (const shard of shardFiles) {
+    try {
+      const res = await fetch(`/question-bank/${shard}.json`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          curatedShards[shard] = data;
+        }
+      }
+    } catch {}
+  }
+
+  const exportPayload = {
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    totalSavedInIndexedDb: dbItems.length,
+    newlySeededQuestions: dbItems,
+    curatedQuestionBank: curatedShards,
+  };
+
+  return JSON.stringify(exportPayload, null, 2);
 }

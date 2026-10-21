@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BuildSentenceTask, BuildSentenceItem } from '../../data/curatedQuestions';
 import { RotateCcw, CheckCircle2, ArrowRight, HelpCircle } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
@@ -17,14 +17,51 @@ interface ItemState {
   checked: boolean;
 }
 
+function shuffleWords(words: string[], answer?: string): string[] {
+  if (!Array.isArray(words) || words.length <= 1) return [...(words || [])];
+  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  const targetClean = answer ? clean(answer) : '';
+
+  let shuffled = [...words];
+  let attempts = 0;
+  do {
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    attempts++;
+  } while (
+    attempts < 15 &&
+    targetClean &&
+    clean(shuffled.join(' ')).startsWith(targetClean.slice(0, 15))
+  );
+
+  if (targetClean && clean(shuffled.join(' ')) === targetClean && shuffled.length > 1) {
+    const mid = Math.floor(shuffled.length / 2);
+    [shuffled[0], shuffled[mid]] = [shuffled[mid], shuffled[0]];
+  }
+
+  return shuffled;
+}
+
 export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask }) => {
   const [states, setStates] = useState<ItemState[]>(() =>
-    task.items.map((item) => ({
+    (task.items || []).map((item) => ({
       builtWords: [],
-      remainingWords: [...item.words].sort(() => Math.random() - 0.5),
+      remainingWords: shuffleWords(item.words, item.answer),
       checked: false,
     }))
   );
+
+  useEffect(() => {
+    setStates(
+      (task.items || []).map((item) => ({
+        builtWords: [],
+        remainingWords: shuffleWords(item.words, item.answer),
+        checked: false,
+      }))
+    );
+  }, [task.id, task.title]);
 
   const normalize = (s: string) =>
     s
@@ -73,7 +110,7 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask }) => {
       const original = task.items[itemIdx].words;
       next[itemIdx] = {
         builtWords: [],
-        remainingWords: [...original].sort(() => Math.random() - 0.5),
+        remainingWords: shuffleWords(original, task.items[itemIdx].answer),
         checked: false,
       };
       return next;

@@ -1,0 +1,432 @@
+[
+  {
+    "id": "ll-curated-1",
+    "title": "Astronomy: Stellar Nucleosynthesis and Heavy Element Formation",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "An astrophysics professor lectures on nuclear fusion cycles in massive stars and supernova explosions.",
+    "script": "Professor Davis (Male): Good morning, class. Today we are continuing our discussion of stellar nucleosynthesis—the cosmic forge where chemical elements are created. In young, main-sequence stars like our Sun, hydrogen fusion produces helium through the proton-proton chain. However, when massive stars exhaust their core hydrogen, gravitational contraction increases core temperatures to over one hundred million Kelvin, initiating helium burning via the triple-alpha process to synthesize carbon and oxygen. In truly massive stars—those exceeding eight solar masses—this nucleosynthetic ladder continues through successive layers: carbon burns to neon, neon to oxygen, oxygen to silicon, until the stellar core is packed with iron-56. Now, iron represents an absolute thermodynamic dead-end. Fusing iron requires more energy than it releases. Once the iron core reaches the Chandrasekhar limit, electron degeneracy pressure fails, triggering a catastrophic gravitational collapse in fractions of a second. The resulting supernova shockwave produces intense neutron fluxes, initiating the rapid neutron-capture process, or r-process, which synthesizes the universe's heaviest elements, including gold, platinum, and uranium.",
+    "questions": [
+      {
+        "q": "Why is the formation of iron considered a thermodynamic dead-end in massive stars?",
+        "options": [
+          "Iron immediately absorbs all helium atoms in the surrounding stellar atmosphere.",
+          "Fusing iron consumes more energy than the nuclear reaction releases.",
+          "Iron expands rapidly and extinguishes all convection currents in the outer layers.",
+          "Iron converts gravitational force into magnetic repulsion."
+        ],
+        "answer": 1,
+        "explanation": "The professor states that iron is a thermodynamic dead-end because fusing iron requires more energy than it releases."
+      },
+      {
+        "q": "What causes the core of a massive star to collapse catastrophically?",
+        "options": [
+          "Excessive solar wind blows away the outer gravitational field.",
+          "The core exceeds the Chandrasekhar limit and electron degeneracy pressure fails.",
+          "Helium fusion accelerates uncontrollably into hydrogen fission.",
+          "Surrounding planets fall into the core due to orbital decay."
+        ],
+        "answer": 1,
+        "explanation": "The lecture explicitly explains that once the iron core reaches the Chandrasekhar limit, electron degeneracy pressure fails, causing collapse."
+      },
+      {
+        "q": "How are elements heavier than iron, such as gold and platinum, formed in the universe?",
+        "options": [
+          "Through gradual radioactive decay inside cooling white dwarf stars.",
+          "Through the rapid neutron-capture process during supernova shockwaves.",
+          "Through routine proton-proton chain reactions in small planetary nebulae.",
+          "Through tidal friction between orbiting binary asteroids."
+        ],
+        "answer": 1,
+        "explanation": "The professor clarifies that the supernova shockwave produces intense neutron fluxes initiating the r-process, synthesizing heavy elements."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-2",
+    "title": "Archaeology: Paleoclimatology and Mayan Agricultural Collapse",
+    "level": "upper-intermediate",
+    "topic": "social-sciences",
+    "context": "An archaeology professor lectures on hydrological proxies and the Classic Maya abandonment.",
+    "script": "Professor Martinez (Female): Today we are examining the collapse of Classic Maya civilization in the southern lowlands during the ninth century. For decades, archaeologists debated whether warfare, peasant revolt, or epidemic disease triggered the abandonment of grand urban centers like Tikal and Copán. Recent paleoclimatic breakthroughs using sediment cores from Lake Chichancanab and speleothem records from regional limestone caves have provided definitive evidence: the Maya collapse coincided with the most severe megadrought in seven thousand years. Now, why were the Maya so extraordinarily vulnerable to drought? Unlike northern settlements with subterranean cenotes, the southern lowlands sat atop deep porous limestone with no perennial rivers. The Maya relied on vast artificial reservoirs lined with plaster to capture rainwater during the four-month rainy season. When consecutive multi-year droughts struck, these reservoirs ran dry. Compounding this hydrological crisis was rampant anthropogenic deforestation. To produce the plaster needed for monumental stone temples, the Maya burned colossal quantities of green timber. Climate modeling demonstrates that clearing the tropical canopy reduced regional evapotranspiration, suppressing local rainfall by up to fifteen percent and amplifying the drought.",
+    "questions": [
+      {
+        "q": "What new evidence revolutionized archaeologists' understanding of the Maya collapse?",
+        "options": [
+          "Deciphered hieroglyphic codices describing dynastic civil warfare",
+          "Lake sediment cores and speleothem records revealing a severe megadrought",
+          "Discovery of mass burial grounds containing antibiotic-resistant pathogens",
+          "Excavated bronze agricultural tools imported from South America"
+        ],
+        "answer": 1,
+        "explanation": "The professor explains that sediment cores from Lake Chichancanab and speleothem cave records proved a severe megadrought occurred."
+      },
+      {
+        "q": "Why were the southern Maya lowlands especially vulnerable to rainfall shortages?",
+        "options": [
+          "They possessed no natural perennial rivers and relied on artificial rainwater reservoirs.",
+          "Their agricultural crops could only grow in flooded swamp environments.",
+          "They lacked masonry technology to construct water storage cisterns.",
+          "Their religious laws strictly prohibited drinking groundwater."
+        ],
+        "answer": 0,
+        "explanation": "The lecture notes that the southern lowlands sat on porous limestone with no natural rivers, forcing reliance on plaster reservoirs."
+      },
+      {
+        "q": "How did monumental temple construction contribute to the environmental crisis?",
+        "options": [
+          "Large stone quarries blocked seasonal trade routes across the peninsula.",
+          "Burning vast amounts of timber for plaster caused deforestation that reduced rainfall.",
+          "Temple foundations poisoned the underlying subterranean aquifers with sulfur.",
+          "Monuments diverted river water away from subsistence maize terraces."
+        ],
+        "answer": 1,
+        "explanation": "The professor states that burning timber for plaster caused deforestation, which reduced evapotranspiration and suppressed rainfall."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-3",
+    "title": "Art History: The Dutch Golden Age and Trompe-l'œil Still Life",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "context": "An art history professor discusses realism and symbolism in seventeenth-century Dutch vanitas paintings.",
+    "script": "Professor Van Der Berg (Male): In seventeenth-century Holland, rapid commercial expansion fostered an affluent merchant class eager to patronize the visual arts. Rather than commissioning grandiose religious murals for Catholic churches, Protestant Dutch burghers purchased intimate, finely detailed easel paintings for their domestic townhouses. Among the most culturally resonant genres to emerge was the vanitas still life. At first glance, a masterwork by Pieter Claesz or Willem Kalf appears to be a dazzling celebration of worldly prosperity: gleaming silver goblets, exotic Turkish carpets, imported citrus fruits with painstakingly rendered peeling rinds. But look closer, and the painting reveals a profound moral sermon. Interspliced among luxury commodities are deliberate emblems of mortality: an hourglass with dwindling sand grains, an extinguished candle with a wisp of curling smoke, a cracked walnut, or a human skull. These optical illusions, often rendered with breathtaking trompe-l'œil verisimilitude, reminded viewers of the transience of earthly possessions—the Latin phrase memento mori, or 'remember that you must die.' Thus, Dutch still lifes functioned simultaneously as displays of artistic virtuosity and didactic instruments warning against spiritual vanity.",
+    "questions": [
+      {
+        "q": "Why did seventeenth-century Dutch art buyers favor domestic still lifes over religious murals?",
+        "options": [
+          "Protestant merchants wanted intimate paintings to decorate private townhouses.",
+          "The Dutch government legally prohibited the manufacture of oil paints.",
+          "Artists were banned from painting human figures by municipal guilds.",
+          "Foreign invasions destroyed all domestic linen canvas supplies."
+        ],
+        "answer": 0,
+        "explanation": "The lecture explains that Protestant Dutch burghers purchased intimate easel paintings for domestic homes rather than Catholic church murals."
+      },
+      {
+        "q": "What was the symbolic purpose of items like skulls and extinguished candles in vanitas paintings?",
+        "options": [
+          "To advertise imported medical instruments sold by Dutch merchant guilds",
+          "To remind viewers of human mortality and the transience of earthly wealth",
+          "To demonstrate the artist's inability to paint living human subjects",
+          "To celebrate scientific discoveries made during the optical revolution"
+        ],
+        "answer": 1,
+        "explanation": "The professor points out that mortality emblems reminded viewers of the transience of worldly possessions (memento mori)."
+      },
+      {
+        "q": "The artistic term \"trompe-l'œil\" refers to:",
+        "options": [
+          "an optical illusion that deceives the eye into perceiving painted objects as real",
+          "a chemical method for varnishing wooden panels against insect damage",
+          "a structural framing technique using imported timber from the Baltic",
+          "a quick watercolor sketching method used by apprentices"
+        ],
+        "answer": 0,
+        "explanation": "Trompe-l'œil is an optical illusion technique creating breathtaking verisimilitude where objects appear physically real."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-4",
+    "title": "Economics: Schumpeterian Creative Destruction and Innovation",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "context": "A business professor lectures on Joseph Schumpeter's theory of dynamic economic transformation.",
+    "script": "Professor Alvarez (Female): When we study modern market economies, neoclassical equilibrium models often treat competition as simple price competition between firms producing identical goods. But Austrian economist Joseph Schumpeter offered a far more dynamic perspective in his landmark 1942 treatise. Schumpeter argued that the fundamental impulse that sets and keeps the capitalist engine in motion is not price competition, but the continuous introduction of new consumer goods, new production methods, new transportation markets, and new forms of industrial organization. He coined the famous phrase 'creative destruction' to describe the biological-like process of industrial mutation that incessantly revolutionizes the economic structure from within, incessantly destroying the old one, incessantly creating a new one. Think about how digital photography dismantled Kodak, or how e-commerce disrupted brick-and-mortar department stores. In Schumpeter's view, temporary monopolies are not market failures; rather, the outsized entrepreneurial profits earned by innovators provide the essential incentive for undertaking risky technological investments. Therefore, attempting to preserve dying industries through subsidies merely suppresses economic dynamism.",
+    "questions": [
+      {
+        "q": "According to Schumpeter, what is the primary driver of capitalistic economic progress?",
+        "options": [
+          "Price discounting on standardized manufactured commodities",
+          "Continuous technological and organizational innovation that replaces old industries",
+          "State-directed agricultural subsidies protecting legacy family farms",
+          "Permanent stabilization of interest rates by international central banks"
+        ],
+        "answer": 1,
+        "explanation": "Schumpeter argued that the introduction of new goods, methods, and industrial organizations (creative destruction) drives the economy."
+      },
+      {
+        "q": "What does Schumpeter's concept of \"creative destruction\" describe?",
+        "options": [
+          "A process where new innovations continuously dismantle outdated economic structures",
+          "The deliberate physical destruction of factory machinery by labor movements",
+          "The inevitable collapse of all democratic political systems under debt",
+          "Environmental degradation caused by unregulated industrial manufacturing"
+        ],
+        "answer": 0,
+        "explanation": "The professor defines creative destruction as industrial mutation that incessantly destroys the old structure while creating a new one."
+      },
+      {
+        "q": "How did Schumpeter view temporary monopoly profits earned by innovative firms?",
+        "options": [
+          "As criminal exploitation that must be dismantled by antitrust regulators",
+          "As necessary incentives that reward high-risk entrepreneurial investments",
+          "As mathematical accounting errors caused by inflationary monetary policy",
+          "As evidence that consumer sovereignty has been permanently extinguished"
+        ],
+        "answer": 1,
+        "explanation": "Schumpeter viewed outsized profits as the essential incentive that motivates entrepreneurs to take risky technological bets."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-5",
+    "title": "Biology: Epigenetics and Histone Acetylation",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "A molecular biology professor explains chromatin remodeling and gene expression regulation.",
+    "script": "Professor Henderson (Male): For over half a century following Watson and Crick's structural discovery of DNA, the central dogma of biology assumed that genetic inheritance was dictated entirely by nucleotide sequence order. However, the burgeoning discipline of epigenetics has revealed an intricate layer of biochemical regulation operating above the static DNA sequence. In eukaryotic nuclei, two meters of genomic DNA is tightly wound around octamers of alkaline histone proteins, forming repeating subunits termed nucleosomes. When chromatin is condensed into heterochromatin, transcription factors and RNA polymerase enzymes are physically barred from accessing gene promoter regions, silencing transcription. To activate gene expression, specialized histone acetyltransferase enzymes catalyze the transfer of acetyl groups onto lysine residues along histone amino tails. This neutralizes the positive electrical charge of the lysines, weakening their electrostatic attraction to the negatively charged DNA phosphate backbone. The chromatin relaxes into open euchromatin, allowing transcription machinery to bind. Crucially, environmental factors such as chronic stress, nutritional deficits, and toxin exposure can alter histone acetylation patterns, producing persistent phenotypic changes that can even be transmitted across generations without mutating a single base pair.",
+    "questions": [
+      {
+        "q": "What is the primary function of histone acetyltransferase enzymes in gene regulation?",
+        "options": [
+          "They permanently excise mutated nucleotide segments from the genome.",
+          "They transfer acetyl groups to lysine residues, relaxing chromatin to enable transcription.",
+          "They fold open euchromatin into tightly packed heterochromatin to silence genes.",
+          "They synthesize ribosomal RNA subunits inside the cellular nucleolus."
+        ],
+        "answer": 1,
+        "explanation": "The lecture states that acetyltransferases transfer acetyl groups onto lysines, neutralizing positive charges and relaxing chromatin."
+      },
+      {
+        "q": "Why is transcription machinery unable to access DNA in heterochromatin?",
+        "options": [
+          "The DNA is physically occluded because chromatin is tightly condensed.",
+          "RNA polymerase is chemically decomposed by alkaline histone proteins.",
+          "The nuclear membrane rejects all incoming transcriptional enzymes.",
+          "Nucleotides in heterochromatin lack adenine and thymine bases."
+        ],
+        "answer": 0,
+        "explanation": "In heterochromatin, the tight packing physically blocks transcription factors and RNA polymerase from accessing promoters."
+      },
+      {
+        "q": "What revolutionary insight does epigenetic inheritance provide regarding environmental influences?",
+        "options": [
+          "Environmental stressors immediately rewrite the underlying nucleotide genetic code.",
+          "Epigenetic modifications can produce persistent traits without altering the DNA sequence.",
+          "Epigenetic changes are erased completely during every single cell division cycle.",
+          "Only laboratory radiation can induce alterations in chromatin packaging."
+        ],
+        "answer": 1,
+        "explanation": "The professor concludes that environmental factors alter acetylation patterns, producing persistent changes without mutating base pairs."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-6",
+    "title": "Environmental Science: Oceanic Acidification and Coral Calcification",
+    "level": "intermediate",
+    "topic": "science-tech",
+    "context": "A marine ecology professor lectures on carbonate chemistry in warming oceans.",
+    "script": "Professor Simmons (Female): Marine calcifying organisms—such as reef-building scleractinian corals, pteropods, and coccolithophores—are facing an unprecedented chemical threat known as ocean acidification. Since the dawn of the Industrial Revolution, the world's oceans have absorbed roughly thirty percent of anthropogenic carbon dioxide emissions. When carbon dioxide dissolves in seawater, it reacts with water molecules to form carbonic acid, which rapidly dissociates into hydrogen ions and bicarbonate ions. The surge in free hydrogen ions lowers ocean pH and, crucially, bonds with carbonate ions to produce additional bicarbonate. Now, why is this biochemical reaction catastrophic for corals? Coral polyps build their calcium carbonate aragonite skeletons by extracting dissolved calcium and carbonate ions directly from seawater. But because surplus hydrogen ions aggressively scavenge carbonate ions, the saturation state of aragonite plummets. Under lower saturation conditions, corals must expend substantially more metabolic energy just to maintain skeletal calcification, leading to fragile, porous reef structures that crumble under wave action. At extreme acidification thresholds, existing calcium carbonate structures literally begin to dissolve.",
+    "questions": [
+      {
+        "q": "How does dissolving carbon dioxide reduce carbonate ion availability in seawater?",
+        "options": [
+          "Carbon dioxide transforms all marine calcium into toxic gaseous chlorine.",
+          "Released hydrogen ions bond with carbonate ions to form bicarbonate.",
+          "Carbon dioxide evaporates seawater, concentrating solid salt crystals on coral polyps.",
+          "Marine bacteria consume all carbonate ions during photosynthesis."
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 1 explains that excess free hydrogen ions scavenge and bond with carbonate ions, reducing their availability."
+      },
+      {
+        "q": "What physical consequence does reduced aragonite saturation have on coral reefs?",
+        "options": [
+          "Corals construct brittle, porous skeletons that are prone to mechanical erosion.",
+          "Corals grow at four times their historical calcification rate.",
+          "Coral reefs transform into deep subterranean granite canyons.",
+          "Reefs become completely immune to tropical cyclone wave damage."
+        ],
+        "answer": 0,
+        "explanation": "The professor states that lower saturation forces corals to expend more energy, resulting in fragile, porous reef structures that crumble."
+      },
+      {
+        "q": "Approximately what percentage of anthropogenic carbon dioxide emissions have the oceans absorbed?",
+        "options": [
+          "Around five percent",
+          "Roughly thirty percent",
+          "Nearly eighty-five percent",
+          "One hundred percent"
+        ],
+        "answer": 1,
+        "explanation": "The lecture explicitly mentions that the world's oceans have absorbed roughly thirty percent of anthropogenic CO2 emissions."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-7",
+    "title": "Linguistics: Historical Dialectology and the Great Vowel Shift",
+    "level": "upper-intermediate",
+    "topic": "arts-humanities",
+    "context": "A historical linguistics professor explains phonetic transformations in Early Modern English.",
+    "script": "Professor Clark (Male): If you have ever wondered why English spelling seems so maddeningly inconsistent with modern pronunciation, the historical culprit is a massive phonological upheaval known as the Great Vowel Shift. Between approximately 1400 and 1700, all long vowels in Middle English underwent a systematic upward shift in their place of articulation in the vocal tract. The highest long vowels, Middle English /i:/ and /u:/—as in the words 'bite' and 'out'—could not be raised any higher without touching the roof of the mouth, so they broke into diphthongs, becoming /aɪ/ and /aʊ/. Meanwhile, all the lower long vowels shifted upward to occupy the newly vacated phonetic spaces. For example, the Middle English word 'beet,' pronounced something like modern 'bait,' shifted upward to become /i:/. Now, what makes this phonetic transformation historically fascinating is its timing relative to the printing press. William Caxton established England's first movable-type printing press in Westminster in 1476, right in the middle of this vowel transition. Printers codified and standardized Middle English orthography on paper just as speech pronunciations were mutating rapidly across southern England. The result is our contemporary linguistic inheritance: sixteenth-century spelling frozen in time, preserving a phonetic reality that vanished centuries ago.",
+    "questions": [
+      {
+        "q": "What physical shift occurred to long vowels during the Great Vowel Shift?",
+        "options": [
+          "They were articulated systematically higher up in the oral cavity.",
+          "They were dropped completely from spoken vocabulary across England.",
+          "They shifted backward into nasal consonants.",
+          "They were replaced entirely by borrowed Norman French consonants."
+        ],
+        "answer": 0,
+        "explanation": "The professor explains that long vowels underwent a systematic upward shift in their place of articulation in the vocal tract."
+      },
+      {
+        "q": "What happened to the highest Middle English vowels /i:/ and /u:/?",
+        "options": [
+          "They became silent consonants at the end of syllables.",
+          "They broke into diphthongs because they could not be raised any higher.",
+          "They merged into short unrounded vowel sounds.",
+          "They were preserved exclusively in legal Latin manuscripts."
+        ],
+        "answer": 1,
+        "explanation": "The lecture states that because they could not be raised higher, they broke into diphthongs like /aɪ/ and /aʊ/."
+      },
+      {
+        "q": "Why is modern English spelling inconsistent with contemporary pronunciation?",
+        "options": [
+          "The printing press standardized spelling before pronunciation shifts finished.",
+          "Early printers could not afford lead alloy letters representing vowel sounds.",
+          "Government edicts mandated phonetic deception to confuse foreign spies.",
+          "Modern dictionaries intentionally preserved regional Scottish dialects."
+        ],
+        "answer": 0,
+        "explanation": "The professor points out that printers codified Middle English orthography just as speech sounds were mutating rapidly."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-8",
+    "title": "Sociology: Urban Sociology and the Chicago School Ecological Model",
+    "level": "intermediate",
+    "topic": "social-sciences",
+    "context": "A sociology professor introduces Ernest Burgess's concentric zone model of metropolitan expansion.",
+    "script": "Professor Ramirez (Female): In the 1920s, sociologists at the University of Chicago pioneered urban sociology by applying ecological principles from botany and zoology to human cities. Theorists Robert Park and Ernest Burgess argued that modern metropolitan growth is not random; rather, it follows structured spatial dynamics driven by economic competition and social invasion-succession cycles. Burgess formulated the famous Concentric Zone Model, conceptualizing Chicago as a series of five nested radial rings radiating outward from the central business district. At the core sits Zone One, the commercial and financial engine. Encircling the core is Zone Two, the 'zone in transition.' This was a precarious, densely packed sector characterized by deteriorating tenement housing, light manufacturing, and incoming immigrant enclaves. Landlords in Zone Two deliberately neglected building maintenance, speculating that expanding commercial office towers would soon buy up the land at inflated prices. Further outward lay Zone Three, inhabited by established working-class families; Zone Four, populated by middle-class suburban residential homes; and finally Zone Five, the commuter perimeter. While later theorists criticized the model for overlooking spatial barriers like lakes and industrial transportation corridors, the Chicago School laid the intellectual groundwork for understanding urban segregation.",
+    "questions": [
+      {
+        "q": "How did the Chicago School sociologists conceptualize metropolitan urban growth?",
+        "options": [
+          "As structured spatial patterns governed by competition and ecological invasion-succession",
+          "As deliberate socialist urban planning directed by federal housing authorities",
+          "As completely chaotic expansions with no identifiable demographic regularities",
+          "As aesthetic landscape architectural projects designed around royal parks"
+        ],
+        "answer": 0,
+        "explanation": "The lecture states that Park and Burgess viewed growth as structured spatial dynamics driven by competition and ecological cycles."
+      },
+      {
+        "q": "Why did landlords in Zone Two deliberately neglect property maintenance?",
+        "options": [
+          "Building codes prohibited repairing properties inhabited by immigrant laborers.",
+          "They anticipated selling the land to expanding downtown businesses at higher prices.",
+          "Severe municipal taxation penalized landlords who renovated older buildings.",
+          "Tenant unions refused to permit construction contractors into tenement buildings."
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 1 notes that landlords neglected maintenance, speculating that expanding commercial office towers would buy the land."
+      },
+      {
+        "q": "What limitation did later sociologists point out regarding the Concentric Zone Model?",
+        "options": [
+          "It failed to account for geographical features, water bodies, and transportation lines.",
+          "It was based entirely on rural agricultural villages in southern Italy.",
+          "It underestimated the financial profits generated by downtown commercial centers.",
+          "It ignored the existence of working-class residential neighborhoods."
+        ],
+        "answer": 0,
+        "explanation": "The professor explains that later theorists criticized the model for overlooking spatial barriers like lakes and transportation corridors."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-9",
+    "title": "Cognitive Psychology: The Working Memory Model vs Short-Term Store",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "context": "A psychology professor contrasts Atkinson-Shiffrin's dual-store model with Baddeley and Hitch's multicomponent working memory.",
+    "script": "Professor Jenkins (Male): In 1968, Atkinson and Shiffrin introduced the modal model of memory, which conceptualized short-term memory as a unitary, passive storage box through which information flowed before entering long-term storage. However, clinical and experimental evidence quickly exposed the shortcomings of this simplistic view. Patients with profound short-term memory deficits could still solve complex mathematical calculations and comprehend spoken language, tasks requiring active manipulation of mental representations. In response, British cognitive psychologists Alan Baddeley and Graham Hitch proposed the multicomponent working memory model in 1974. Rather than a passive holding pen, working memory is an active, multi-part executive workspace. At the apex sits the central executive, an attentional control system that allocates cognitive resources, inhibits distractions, and switches cognitive strategies. The central executive coordinates two modality-specific slave systems: the phonological loop, which rehearses acoustic and verbal information, and the visuospatial sketchpad, which manipulates mental imagery and spatial coordinates. In 2000, Baddeley appended a fourth component—the episodic buffer—which temporarily integrates multi-modal information into coherent chronological episodes.",
+    "questions": [
+      {
+        "q": "Why did Baddeley and Hitch reject Atkinson and Shiffrin's modal model of memory?",
+        "options": [
+          "Patients with damaged short-term storage could still perform complex reasoning tasks.",
+          "Brain imaging proved that human memory has infinite storage capacity.",
+          "The modal model was developed without conducting any psychological experiments.",
+          "Long-term memory was shown to deteriorate completely after forty-eight hours."
+        ],
+        "answer": 0,
+        "explanation": "The professor explains that patients with profound short-term memory deficits could still solve calculations and comprehend language."
+      },
+      {
+        "q": "What is the primary function of the central executive in Baddeley's model?",
+        "options": [
+          "To store permanent autobiographical memories from early childhood",
+          "To allocate attentional resources, inhibit distractions, and coordinate subsystems",
+          "To translate acoustic sound waves into visual mental imagery",
+          "To govern involuntary motor reflexes in the spinal cord"
+        ],
+        "answer": 1,
+        "explanation": "The lecture defines the central executive as an attentional control system allocating cognitive resources and coordinating slave systems."
+      },
+      {
+        "q": "Which component did Baddeley add in the year 2000 to integrate multi-modal information?",
+        "options": [
+          "The phonological articulatory loop",
+          "The episodic buffer",
+          "The visuospatial sketchpad",
+          "The sensory memory register"
+        ],
+        "answer": 1,
+        "explanation": "The professor states that Baddeley added the episodic buffer in 2000 to temporarily integrate multi-modal information."
+      }
+    ]
+  },
+  {
+    "id": "ll-curated-10",
+    "title": "Geology: Plate Boundary Paleoseismology and Turbidite Deposition",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "A geophysics professor lectures on marine sediment coring to date prehistoric Cascadia megathrust earthquakes.",
+    "script": "Professor Thorne (Male): The Cascadia Subduction Zone off the coast of the Pacific Northwest exhibits no instrumental seismic record of high-magnitude earthquakes during modern historical times. For decades, geologists debated whether the Juan de Fuca plate was slipping aseismically beneath North America or if the megathrust boundary was completely locked and accumulating lethal elastic strain. The answer came through offshore paleoseismology, specifically the analysis of submarine canyon turbidite deposits. When a massive subduction earthquake ruptures—typically magnitude eight or nine—the violent shaking destabilizes saturated unconsolidated sediments along the continental shelf edge. These underwater avalanches generate dense, fast-moving gravity currents known as turbidity currents that surge down submarine canyons onto the abyssal plain. As each turbidity current loses momentum, sediments settle out in a characteristic graded bed called a turbidite, with coarse sand at the base grading upward into fine hemipelagic clay. By extracting piston cores along thousands of kilometers of ocean floor and radiocarbon dating the microscopic foraminifera shells within interbedded pelagic layers, marine geologists proved that forty-one massive megathrust earthquakes have struck Cascadia over the past ten thousand years, with an average recurrence interval of approximately five hundred years.",
+    "questions": [
+      {
+        "q": "How did marine geologists prove that the Cascadia Subduction Zone experiences massive earthquakes?",
+        "options": [
+          "By deploying underwater seismometers along the San Andreas fault line",
+          "By extracting and radiocarbon dating turbidite sediment cores along deep submarine canyons",
+          "By observing active volcanic eruptions on the ocean floor using robotic submersibles",
+          "By reviewing seventeenth-century colonial lighthouse inspection logs"
+        ],
+        "answer": 1,
+        "explanation": "The professor explains that geologists analyzed submarine canyon turbidite deposits across piston cores and radiocarbon dated microfossils."
+      },
+      {
+        "q": "What triggers the formation of a turbidity current during a megathrust earthquake?",
+        "options": [
+          "Violent seismic shaking destabilizes saturated shelf sediments, producing underwater avalanches.",
+          "A sudden drop in ocean water temperatures freezes the continental shelf.",
+          "Tectonic plates separate, allowing molten magma to boil the ocean water.",
+          "Tidal surges pull freshwater rivers out into the middle of the abyssal plain."
+        ],
+        "answer": 0,
+        "explanation": "Violent shaking destabilizes saturated unconsolidated sediments on the continental shelf edge, generating underwater avalanches."
+      },
+      {
+        "q": "What is the average recurrence interval for Cascadia megathrust earthquakes revealed by turbidite records?",
+        "options": [
+          "Approximately five hundred years",
+          "Roughly ten thousand years",
+          "Every twenty-five to thirty years",
+          "Over two million years"
+        ],
+        "answer": 0,
+        "explanation": "The lecture concludes that 41 megathrust quakes struck over 10,000 years, yielding an average recurrence of about 500 years."
+      }
+    ]
+  }
+]

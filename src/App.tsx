@@ -1588,6 +1588,7 @@ export default function App() {
           isOpen={isDashboardOpen} 
           onClose={() => setIsDashboardOpen(false)} 
           defaultTab={dashboardDefaultTab}
+          currentTaskType={currentTaskType}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
         />

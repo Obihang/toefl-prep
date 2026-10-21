@@ -103,5 +103,50 @@
     ],
     "sampleAnswer": "Band 6.0 delivery balances complex biochemical terminology with effortless melodic phrasing and unhesitating delivery.",
     "modelResponse": "Band 6.0 performance achieves 100% acoustic clarity, impeccable lexical stress on sequester, anaerobic, and eutrophication, and natural breath group control."
+  },
+  {
+    "id": "lr-curated-8",
+    "title": "Economics: Foreign Exchange and Trade Deficits",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "speakerName": "Arthur (Male)",
+    "speakerGender": "male",
+    "sentences": [
+      "Fluctuating foreign currency exchange rates substantially influence the competitive pricing of domestic industrial exports.",
+      "Persistent balance of trade deficits may trigger speculative pressure on sovereign sovereign debt obligations.",
+      "International trade agreements lower reciprocal tariff barriers to stimulate cross-border commercial investment."
+    ],
+    "sampleAnswer": "Band 6.0 performance reproduces multisyllabic economic terms ('fluctuating', 'competitive', 'obligations') with accurate syllable timing and natural pitch cadence.",
+    "modelResponse": "Band 6.0 speech exhibits steady tempo of 130–140 words per minute, sharp dental enunciation, and natural intonation drops on clause boundaries."
+  },
+  {
+    "id": "lr-curated-9",
+    "title": "Neurobiology: Synaptic Pruning and Adolescent Brain Development",
+    "level": "advanced",
+    "topic": "science-tech",
+    "speakerName": "Dr. Evelyn (Female)",
+    "speakerGender": "female",
+    "sentences": [
+      "During late adolescence the prefrontal cortex undergoes extensive synaptic pruning to optimize cognitive processing efficiency.",
+      "Myelination of cerebral axonal pathways accelerates electrical signal transmission across distant functional brain regions.",
+      "Neuroplastic changes observed in adult learning challenge historic assumptions regarding static cortical architecture."
+    ],
+    "sampleAnswer": "Band 6.0 speakers handle dense neurological nominalizations ('adolescence', 'synaptic pruning', 'myelination') without stumbling or hesitations.",
+    "modelResponse": "A Band 6.0 response delivers effortless rhythmic linking, flawless stress placement on multisyllabic scientific terms, and natural respiratory pauses."
+  },
+  {
+    "id": "lr-curated-10",
+    "title": "Campus Housing: Residential Policies and Room Condition Audits",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "speakerName": "Marcus (Male)",
+    "speakerGender": "male",
+    "sentences": [
+      "Residents must report any pre-existing furniture damage on their digital room condition inventory forms.",
+      "Quiet hours will be strictly enforced throughout the residence halls during final examination week.",
+      "Subletting dormitory rooms to non-university guests constitutes a serious violation of student residential contracts."
+    ],
+    "sampleAnswer": "Band 6.0 delivery demonstrates natural conversational American cadence, precise consonant cluster resolution ('pre-existing', 'strictly enforced'), and smooth flow.",
+    "modelResponse": "Band 6.0 speaker matches the native-like rate of delivery, showing zero grammatical omissions and natural vocal pitch modulation."
   }
 ]

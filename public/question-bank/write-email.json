@@ -103,5 +103,53 @@
     ],
     "suggestedWordCount": "100-130 words",
     "modelResponse": "Dear Dr. Larson,\n\nI am writing to volunteer as a student facilitator for the upcoming Community STEM Discovery Fair scheduled for Saturday, November 21st. As a second-year physics major, I am passionate about making experimental science accessible and exciting for young learners.\n\nI would love to manage an interactive optical demonstration station showcasing laser refraction, total internal reflection, and fiber-optic communication using water prisms and acrylic conduits. In high school, I facilitated similar demonstrations, and students responded with tremendous enthusiasm to these tactile experiments.\n\nCould you please let me know when the preparatory volunteer orientation sessions will take place so that I can schedule my laboratory shifts accordingly? I look forward to contributing to a successful and inspiring community outreach fair.\n\nBest regards,\nJordan Taylor"
+  },
+  {
+    "id": "we-curated-8",
+    "title": "Graduate Teaching Assistantship Application Inquiry",
+    "level": "advanced",
+    "topic": "campus-life",
+    "situation": "You are applying for a Graduate Teaching Assistantship in the Department of Economics for the upcoming academic year. You have completed all prerequisite microeconomics courses with honors, have previous tutoring experience, and wish to inquire about open positions and the faculty recommendation process.",
+    "recipient": "Dr. Catherine Miller, Graduate Director",
+    "goals": [
+      "Formally state your interest in the graduate teaching assistantship position",
+      "Highlight your academic qualifications and previous tutoring background",
+      "Inquire politely about application submission deadlines and required recommendation letters"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Dr. Miller,\n\nI am writing to formally express my interest in applying for a Graduate Teaching Assistantship in the Department of Economics for the upcoming academic year.\n\nHaving recently completed intermediate microeconomics and econometrics with highest honors, I have developed a rigorous grasp of theoretical modeling. Furthermore, over the past three semesters, I served as a lead peer tutor at the University Academic Success Center, where I conducted weekly problem-solving workshops for over sixty undergraduate students. This experience solidified my ability to explain complex quantitative concepts with clarity and patience.\n\nCould you please clarify the application deadline for departmental assistantships? Additionally, I would appreciate guidance on whether faculty recommendation letters should be submitted directly via the online portal.\n\nThank you for your time and consideration.\n\nSincerely,\nMarcus Vance",
+    "sampleResponse": "Dear Dr. Miller,\n\nI am writing to express my strong enthusiasm for the Graduate Teaching Assistantship position within the Department of Economics for next year.\n\nHaving earned top marks in advanced macroeconomic theory and econometrics, I am eager to support undergraduate student learning. Over the past academic year, I worked as an economics departmental tutor, mentoring students through multivariate calculus and optimization problems. Through this role, I honed my pedagogical communication and gained valuable classroom management skills.\n\nCould you kindly confirm the final submission deadline for assistantship dossiers? Furthermore, please let me know if faculty letters of recommendation must be sent via email or through the university employment portal.\n\nThank you very much for your time and guidance.\n\nBest regards,\nElena Rostova"
+  },
+  {
+    "id": "we-curated-9",
+    "title": "University Laboratory Instrument Repair and Rescheduling",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "situation": "You are an undergraduate biology student conducting an independent laboratory research project for your senior honors thesis. The benchtop UV-Vis spectrophotometer in the molecular biology suite malfunctioned during your quantitative enzyme kinetics absorption trials this afternoon, threatening to disrupt your data collection schedule. Write a formal email to the laboratory operations manager explaining the issue and requesting assistance.",
+    "recipient": "Mr. Gregory Harris, Laboratory Operations Manager",
+    "goals": [
+      "Report the specific technical malfunction encountered with the spectrophotometer",
+      "Explain the impact of the delay on your thesis data collection schedule",
+      "Request authorization to reserve an alternative instrument or reschedule bench hours"
+    ],
+    "suggestedWordCount": "90-120 words",
+    "modelResponse": "Dear Mr. Harris,\n\nI am writing to inform you of an unexpected technical issue with the UV-Vis spectrophotometer in Room 304 during my research session this afternoon.\n\nWhile calibrating the machine for my enzymatic assay, the optical sensor failed to initialize, displaying an error code regarding wavelength calibration drift. Although I attempted a system reboot as outlined in the lab manual, the baseline absorption continued to fluctuate erratically. Because my thesis data collection timeline depends on completing these spectrophotometric assays this week, this hardware stoppage presents a significant hurdle.\n\nCould you advise whether a technician can service this unit? Alternatively, would it be possible to reserve bench time on the secondary spectrophotometer in Room 308 tomorrow afternoon?\n\nThank you for your assistance.\n\nSincerely,\nSophia Lin",
+    "sampleResponse": "Dear Mr. Harris,\n\nI am writing to report a mechanical problem with the benchtop spectrophotometer in Lab 304.\n\nDuring my absorption trial today, the instrument repeatedly failed its baseline zero calibration, producing inconsistent absorbance readouts across identical control samples. As a result, I had to suspend my biochemical assay, which threatens to delay my undergraduate honors submission.\n\nCould you please inspect the instrument at your earliest convenience? If repairs will take several days, could you grant me permission to utilize the spectrophotometer located in the adjacent biochemistry suite?\n\nThank you for your help and understanding.\n\nBest regards,\nLiam Chen"
+  },
+  {
+    "id": "we-curated-10",
+    "title": "Request for Interdisciplinary Honors Thesis Co-Advisorship",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "situation": "You are an advanced undergraduate honors student preparing an interdisciplinary senior capstone thesis that examines municipal environmental justice and urban heat mitigation policies. Because your research bridges both urban ecology and local public policy, you wish to invite a prominent sociology professor whose published scholarship aligns with your case studies to serve as your secondary faculty co-advisor.",
+    "recipient": "Professor Diana Evans, Department of Sociology",
+    "goals": [
+      "Introduce your interdisciplinary thesis topic connecting environmental science and urban policy",
+      "Explain specifically why Professor Evans's academic research aligns with your proposal",
+      "Request a brief fifteen-minute meeting during office hours to discuss co-advisorship"
+    ],
+    "suggestedWordCount": "90-120 words",
+    "modelResponse": "Dear Professor Evans,\n\nMy name is Julian Hayes, and I am a junior majoring in Environmental Science with a minor in Public Policy. I am writing to inquire whether you might consider serving as a secondary co-advisor for my senior honors thesis.\n\nMy thesis investigates environmental justice and urban heat mitigation policies in marginalized municipal districts. Having thoroughly studied your recent publication on municipal zoning inequities, I believe your sociological expertise on community advocacy would provide indispensable theoretical guidance for my qualitative case studies.\n\nWould you have fifteen minutes available during your office hours next Tuesday or Thursday to discuss this possibility? I have attached my preliminary thesis prospectus and bibliography for your review.\n\nThank you very much for your time and mentorship.\n\nWarm regards,\nJulian Hayes",
+    "sampleResponse": "Dear Professor Evans,\n\nI hope this email finds you well. I am an undergraduate student drafting an honors thesis that bridges urban ecology and municipal social policy.\n\nMy proposed research analyzes equitable green canopy distribution across socioeconomic neighborhoods. Your extensive scholarship regarding sociological resource disparities inspired my analytical framework, and your perspective would be invaluable in refining my methodology.\n\nWould you be open to a brief fifteen-minute meeting during your office hours next week to discuss potential co-advisorship? I have attached my one-page research summary for your consideration.\n\nThank you for your time and scholarly support.\n\nRespectfully,\nChloe Adams"
   }
 ]

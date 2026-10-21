@@ -61,5 +61,32 @@
     "text": "Deep oceanic hydroth[[ermal]] vents support thriving ecosys[[tems]] completely deprived of solar radiat[[ion]]. In the absence of photosyn[[thesis]], chemosynthetic bact[[eria]] oxidize mineral sulf[[ides]] spewing from volcanic chimn[[eys]], generating metabolic ener[[gy]] that forms the nutrit[[ional]] foundation for giant tube worms and deep-sea crustac[[eans]].",
     "totalBlanks": 10,
     "explanation": "Complete oceanographic and ecological terms: hydrothermal, ecosystems, radiation, photosynthesis, bacteria, sulfides, chimneys, energy, nutritional, crustaceans."
+  },
+  {
+    "id": "cw-curated-8",
+    "title": "Geological Sedimentology and Stratigraphic Core Dating",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "text": "Sedimentary rock layers provi[[de]] a detailed chronol[[ogy]] of terrestrial geol[[ogy]]. By analy[[zing]] microscopic foss[[ils]] embedded within marin[[e]] sediments, paleoclimatol[[ogists]] reconstruct prehis[[toric]] atmospheric tempera[[tures]] and oceanic circu[[lation]] patterns over millen[[nia]].",
+    "totalBlanks": 10,
+    "explanation": "Complete geological and earth science vocabulary: provide, chronology, geology, analyzing, fossils, marine, paleoclimatologists, prehistoric, temperatures, circulation, millennia."
+  },
+  {
+    "id": "cw-curated-9",
+    "title": "Microeconomic Consumer Utility and Marginal Substitution",
+    "level": "advanced",
+    "topic": "business-economics",
+    "text": "Consumer choice theo[[ry]] assumes that indivi[[duals]] allocate budg[[ets]] to maximize perso[[nal]] utility. The margi[[nal]] rate of substi[[tution]] measures the quant[[ity]] of one commo[[dity]] a consumer will relinq[[uish]] to acquire an addit[[ional]] unit of anoth[[er]] good while preserving satisfa[[ction]].",
+    "totalBlanks": 10,
+    "explanation": "Complete microeconomic utility terms: theory, individuals, budgets, personal, marginal, substitution, quantity, commodity, relinquish, additional, another, satisfaction."
+  },
+  {
+    "id": "cw-curated-10",
+    "title": "Classical Rhetoric and Persuasive Discourse Analysis",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "text": "Aristotelian rheto[[ric]] identifies thr[[ee]] primary mod[[es]] of persuas[[ion]]: ethos, pathos, and log[[os]]. An authori[[tative]] speaker establi[[shes]] credibility throu[[gh]] character, appeals to audie[[nce]] emotion, and constr[[ucts]] logical argum[[ents]] backed by empir[[ical]] evidence.",
+    "totalBlanks": 10,
+    "explanation": "Complete rhetorical and communication terms: rhetoric, three, modes, persuasion, logos, authoritative, establishes, through, audience, constructs, arguments, empirical."
   }
 ]

@@ -327,5 +327,146 @@
         "why": "Kendra states that gaps longer than five frames collapse the rigid-body kinematic model and require invalidating the trial."
       }
     ]
+  },
+  {
+    "id": "ld-curated-8",
+    "title": "Computer Science Laboratory Cluster Access & GPU Allocation",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "A graduate student requests compute cluster privileges for neural network training from the department systems administrator.",
+    "speakers": {
+      "A": "Gavin (Graduate Student)",
+      "B": "Elena (Cluster Administrator)"
+    },
+    "script": "Gavin (Male): Good morning, Elena. I am currently running distributed transformer models for my artificial intelligence thesis, and my local workstation simply lacks sufficient memory bandwidth for the training batch size.\nElena (Female): Hello, Gavin. We have twenty high-performance GPU nodes on our departmental compute cluster, but GPU compute hours are heavily constrained this semester due to multiple faculty grant projects.\nGavin (Male): I understand. My faculty advisor Dr. Patel mentioned that thesis students could apply for priority queue scheduling during nocturnal off-peak hours.\nElena (Female): That is correct. If you containerize your training scripts using Docker and schedule your batch jobs between midnight and six in the morning, your job will execute without preempting ongoing lab experiments.\nGavin (Male): That schedule works perfectly for my workflow. What documentation do I need to submit to initialize my cluster account?\nElena (Female): You must submit a computational resource request form signed by Dr. Patel specifying your estimated storage requirements and memory footprint. Once verified, your SSH public keys will be authorized within twenty-four hours.\nGavin (Male): I have Dr. Patel's signed approval form right here on my tablet. I will upload my SSH credentials immediately after this meeting.\nElena (Female): Excellent. Make sure your training script includes periodic model checkpointing in case of sudden network node failures.",
+    "questions": [
+      {
+        "q": "Why does Gavin visit the cluster administrator's office?",
+        "options": [
+          "To request GPU cluster computing resources for training neural networks",
+          "To repair hardware damage on his personal desktop workstation",
+          "To dispute a billing charge on his student university tuition account",
+          "To apply for a student technician job in the campus IT department"
+        ],
+        "answer": 0,
+        "why": "Gavin explains that his local workstation lacks sufficient memory bandwidth for training his thesis neural network models."
+      },
+      {
+        "q": "How can Gavin access the GPU nodes without disrupting faculty research?",
+        "options": [
+          "By purchasing private cloud server subscriptions through the university",
+          "By containerizing his scripts and running batch jobs during nocturnal off-peak hours",
+          "By transferring his research project to a different academic department",
+          "By running all computational jobs manually on weekend mornings"
+        ],
+        "answer": 1,
+        "why": "Elena explains that containerizing scripts and running jobs between midnight and 6 AM avoids preempting lab experiments."
+      },
+      {
+        "q": "What precautionary measure does Elena advise Gavin to include in his code?",
+        "options": [
+          "Encrypt all student passwords using biometric scanners",
+          "Implement periodic model checkpointing to protect against node failures",
+          "Disable all background cooling fans on the remote servers",
+          "Limit each training run to fewer than five minutes total"
+        ],
+        "answer": 1,
+        "why": "Elena specifically warns him to include periodic checkpointing in case of unexpected network node interruptions."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-9",
+    "title": "University Study Abroad Credit Articulation Consultation",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "context": "A student meets with an international academic advisor to confirm transferable credits for an upcoming semester in Kyoto.",
+    "speakers": {
+      "A": "Liam (Student)",
+      "B": "Ms. Tanaka (International Exchange Advisor)"
+    },
+    "script": "Liam (Male): Hello, Ms. Tanaka. I was recently accepted into the university exchange program at Kyoto University for the upcoming spring semester. I want to make sure my coursework transfers properly toward my East Asian Studies major.\nMs. Tanaka (Female): Congratulations, Liam! That is a fantastic academic opportunity. Have you obtained preliminary syllabus pre-approvals from your department chair yet?\nLiam (Male): Not yet. I have selected four courses: Advanced Japanese Syntax, Classical Japanese Literature, Postwar Economic Development, and Woodblock Printing History.\nMs. Tanaka (Female): The language and literature courses have pre-approved course equivalence agreements and will transfer seamlessly as major electives. However, the economic development and printmaking courses require individual faculty evaluations.\nLiam (Male): What materials do the department evaluators need to see for those two courses?\nMs. Tanaka (Female): You will need to obtain comprehensive syllabi written in English detailing weekly reading assignments, credit contact hours, and grading rubrics. If the course description is only available in Japanese, our office can provide certified translation services.\nLiam (Male): Wonderful. How far in advance of departure must the final credit articulation contract be submitted?\nMs. Tanaka (Female): All pre-approval documentation must be finalized at least thirty days before your overseas semester begins.",
+    "questions": [
+      {
+        "q": "What is the primary topic of Liam's appointment with Ms. Tanaka?",
+        "options": [
+          "Securing dormitory housing for an overseas semester in Kyoto",
+          "Verifying course credit transferability toward his academic major",
+          "Applying for an emergency passport renewal from the embassy",
+          "Requesting a tuition refund after withdrawing from classes"
+        ],
+        "answer": 1,
+        "why": "Liam states he wants to verify that his Kyoto coursework transfers properly toward his East Asian Studies major."
+      },
+      {
+        "q": "Which courses require individual faculty evaluation before they can be transferred?",
+        "options": [
+          "Advanced Japanese Syntax and Classical Literature",
+          "Postwar Economic Development and Woodblock Printing History",
+          "All four classes selected by Liam for the semester",
+          "None of the classes, because Kyoto has blanket credit approval"
+        ],
+        "answer": 1,
+        "why": "Ms. Tanaka explicitly notes that the economic development and printmaking courses require individual evaluations."
+      },
+      {
+        "q": "What deadline does Ms. Tanaka specify for completing the credit articulation process?",
+        "options": [
+          "By the final day of classes during his semester overseas",
+          "At least thirty days prior to his overseas semester departure",
+          "Within two weeks after returning to the home campus",
+          "Before the end of the current week's add-drop period"
+        ],
+        "answer": 1,
+        "why": "She clearly states that all documentation must be finalized at least thirty days before the overseas semester begins."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-10",
+    "title": "Ecology Field Station Equipment & Permitting Protocol",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "context": "A graduate field researcher reviews environmental monitoring equipment and state wildlife permits with a station manager.",
+    "speakers": {
+      "A": "Brianna (Graduate Researcher)",
+      "B": "Mr. Owens (Field Station Manager)"
+    },
+    "script": "Brianna (Female): Good afternoon, Mr. Owens. My research team is preparing for our two-week stream ecology survey in the Blackwood watershed next Monday.\nMr. Owens (Male): Welcome back, Brianna. Have you received your scientific collecting permit from the state department of natural resources?\nBrianna (Female): Yes, our aquatic permit arrived yesterday. It authorizes electrofishing and macroinvertebrate kick-net sampling across all six designated riparian stations.\nMr. Owens (Male): Excellent. Regarding water quality monitoring equipment, station three experienced salinity sensor drift last week. You will need to calibrate the multiparameter probes using standard buffer solutions before deployment.\nBrianna (Female): I brought fresh pH calibration standards and dissolved oxygen calibration sleeves. Will we have access to the field station's centrifuge for processing water samples?\nMr. Owens (Male): Yes, the wet lab centrifuge and minus-twenty freezer are fully operational. However, remember to log your chemical reagent usage in the biosafety ledger after each run.\nBrianna (Female): Absolutely. We will also follow decontamination wash protocols for our waders and nets to prevent transporting invasive aquatic snails between sampling sites.\nMr. Owens (Male): That biosecurity protocol is crucial. Let me unlock the equipment storage shed so you can inventory your telemetry gear.",
+    "questions": [
+      {
+        "q": "What does the state collecting permit authorize Brianna's team to do?",
+        "options": [
+          "Construct permanent concrete dams along the Blackwood watershed",
+          "Conduct electrofishing and macroinvertebrate sampling at six stations",
+          "Harvest rare timber specimens for botanical tree-ring analysis",
+          "Erect temporary residential cabins on state wilderness land"
+        ],
+        "answer": 1,
+        "why": "Brianna confirms the permit authorizes electrofishing and macroinvertebrate kick-net sampling across six stations."
+      },
+      {
+        "q": "What technical task must Brianna complete before deploying the water quality probes?",
+        "options": [
+          "Replace all optical camera lenses with infrared filters",
+          "Calibrate the multiparameter probes using standard buffer solutions",
+          "Sterilize the electronic circuit boards in high-heat autoclaves",
+          "Ship the sensors back to the manufacturer for factory alignment"
+        ],
+        "answer": 1,
+        "why": "Mr. Owens notes that salinity sensor drift occurred and probes must be calibrated using standard buffer solutions."
+      },
+      {
+        "q": "Why will Brianna's team decontaminate their waders and nets between sites?",
+        "options": [
+          "To satisfy municipal chemical hazardous waste standards",
+          "To prevent spreading invasive aquatic snails between stream locations",
+          "To avoid staining electronic telemetry gear with river mud",
+          "To reduce physical friction when hiking along slippery rocky trails"
+        ],
+        "answer": 1,
+        "why": "Brianna explicitly states decontamination prevents transporting invasive aquatic snails between sampling sites."
+      }
+    ]
   }
 ]

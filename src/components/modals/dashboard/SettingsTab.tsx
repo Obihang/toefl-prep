@@ -30,14 +30,18 @@ import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
 import { getAiStatusInfo } from '../../../utils/aiFallbackChain';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
-import { exportQuestionBankJson, purgeLowQualityCache } from '../../../utils/questionBankStorage';
+import { exportQuestionBankJson, purgeLowQualityCache, saveVerifiedQuestion } from '../../../utils/questionBankStorage';
+import { isHighQualityTask } from '../../../utils/questionValidator';
+import { getApiHeaders } from '../../../utils/apiKey';
+import { TASK_DEFINITIONS } from '../../../types/taskTypes';
 import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
+  currentTaskType?: string;
 }
 
-export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) => {
+export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, currentTaskType }) => {
   const { displayName, setDisplayName } = useAuth();
   const [nameInput, setNameInput] = useState('');
   const [provider, setProvider] = useState<ApiProvider>('auto');
@@ -246,6 +250,114 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
     } finally {
       setIsPreCachingAudio(false);
       setPreCacheAudioStatus(null);
+    }
+  };
+
+  const [bulkSeedTaskType, setBulkSeedTaskType] = useState<string>(currentTaskType || 'academic-discussion');
+  const [isBulkSeeding, setIsBulkSeeding] = useState(false);
+  const [bulkSeedProgress, setBulkSeedProgress] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentTaskType) {
+      setBulkSeedTaskType(currentTaskType);
+    }
+  }, [currentTaskType]);
+
+  const handleBulkSeedBank = async () => {
+    const hasConfiguredKey = Boolean(
+      getStoredApiKey('gemini') ||
+      getStoredApiKey('groq') ||
+      getStoredApiKey('openrouter') ||
+      getStoredApiKey('openai') ||
+      getStoredApiKey('anthropic') ||
+      getStoredApiKey('deepseek') ||
+      getStoredApiKey('xai')
+    );
+
+    if (!hasConfiguredKey) {
+      setDataMessage({
+        success: false,
+        text: 'Please configure at least one active API key in the "AI provider and API keys" tab above before bulk seeding questions.',
+      });
+      return;
+    }
+
+    if (isBulkSeeding) return;
+    setIsBulkSeeding(true);
+
+    const DIVERSE_TARGETS = [
+      { level: 'intermediate', topic: 'science-tech' },
+      { level: 'upper-intermediate', topic: 'campus-life' },
+      { level: 'advanced', topic: 'business-economics' },
+      { level: 'upper-intermediate', topic: 'social-sciences' },
+      { level: 'advanced', topic: 'arts-humanities' },
+    ];
+
+    let successCount = 0;
+    const targetTaskName = TASK_DEFINITIONS.find((t) => t.id === bulkSeedTaskType)?.name || bulkSeedTaskType;
+
+    try {
+      for (let i = 0; i < DIVERSE_TARGETS.length; i++) {
+        const target = DIVERSE_TARGETS[i];
+        setBulkSeedProgress(`Generating question ${i + 1}/5: ${target.level} · ${target.topic}...`);
+
+        try {
+          const json = await safeFetchJson('/api/generate-task', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({
+              taskType: bulkSeedTaskType,
+              level: target.level,
+              topic: target.topic,
+            }),
+          });
+
+          if (json.success && json.data && !json.data.isFallback) {
+            const generatedData = json.data;
+            if (isHighQualityTask(generatedData, bulkSeedTaskType)) {
+              await saveVerifiedQuestion({
+                taskType: bulkSeedTaskType,
+                level: target.level,
+                topic: target.topic,
+                content: generatedData,
+              });
+              successCount++;
+            } else {
+              console.warn(`Generated task failed quality check for ${bulkSeedTaskType}:`, generatedData);
+            }
+          } else {
+            console.warn(`Failed to generate task ${i + 1}:`, json.error || 'Fallback returned');
+          }
+        } catch (genErr) {
+          console.warn(`Error generating bulk item ${i + 1}:`, genErr);
+        }
+
+        // 2-second rate-limit throttle delay between sequential generations
+        if (i < DIVERSE_TARGETS.length - 1) {
+          setBulkSeedProgress(`Throttling 2s for rate limits (${i + 1}/5 generated)...`);
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+
+      if (successCount > 0) {
+        setDataMessage({
+          success: true,
+          text: `Successfully generated and saved ${successCount}/5 verified questions for "${targetTaskName}" to IndexedDB & Firestore! Click "Export Question Bank (JSON)" to download the updated bank.`,
+        });
+      } else {
+        setDataMessage({
+          success: false,
+          text: `Bulk generation finished but 0 valid questions were saved (check API quota or key validity).`,
+        });
+      }
+    } catch (err: any) {
+      setDataMessage({
+        success: false,
+        text: `Bulk seeding failed: ${err.message || 'Unknown error'}`,
+      });
+    } finally {
+      setIsBulkSeeding(false);
+      setBulkSeedProgress(null);
     }
   };
 
@@ -568,6 +680,38 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
               <Download className="w-3.5 h-3.5 text-teal-400" />
               Export Question Bank (JSON)
             </button>
+
+            {/* Bulk Seed Tool */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={bulkSeedTaskType}
+                onChange={(e) => setBulkSeedTaskType(e.target.value)}
+                disabled={isBulkSeeding}
+                className="text-xs border border-slate-300 rounded-lg px-2.5 py-2 bg-white text-slate-800 font-semibold focus:border-teal-600 outline-hidden cursor-pointer"
+                title="Select task type to bulk seed"
+              >
+                {TASK_DEFINITIONS.map((td) => (
+                  <option key={td.id} value={td.id}>
+                    {td.name} ({td.section})
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={handleBulkSeedBank}
+                disabled={isBulkSeeding}
+                className="px-3.5 py-2 bg-linear-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-60"
+                title="Sequentially generate 5 authentic questions across diverse topics/levels with 2s rate limit delay and save to IndexedDB & Firestore"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${isBulkSeeding ? 'animate-spin text-teal-200' : 'text-teal-300'}`} />
+                <span>
+                  {isBulkSeeding
+                    ? bulkSeedProgress || 'Seeding 5 questions...'
+                    : 'Bulk Seed Current Section (+5 AI Questions)'}
+                </span>
+              </button>
+            </div>
 
             <button
               type="button"

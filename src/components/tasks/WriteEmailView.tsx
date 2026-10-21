@@ -380,10 +380,10 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
           {evalResult && (
             <FeedbackComparison
               userResponse={body}
-              exemplarResponse={evalResult.modelBand6Rewrite || evalResult.exemplar}
+              exemplarResponse={evalResult.modelBand6Rewrite || evalResult.exemplar || (task as any).modelResponse || (task as any).sampleAnswer}
               corrections={evalResult.corrections || []}
               topFixes={evalResult.topFixes}
-              modelBand6Rewrite={evalResult.modelBand6Rewrite}
+              modelBand6Rewrite={evalResult.modelBand6Rewrite || (task as any).modelResponse}
               benchmarkAnalysis={evalResult.benchmarkAnalysis}
               notice={evalResult.notice}
               subScores={evalResult.subScores}

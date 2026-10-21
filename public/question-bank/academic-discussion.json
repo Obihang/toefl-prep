@@ -124,5 +124,59 @@
     },
     "question": "Share your viewpoint on whether Universal Basic Income is an effective response to technological automation, supported by economic reasoning.",
     "modelResponse": "Although Olivia rightly questions the staggering fiscal cost of universal cash distribution, I agree with Gabriel that an unconditional Universal Basic Income represents the most effective structural safeguard against widespread technological displacement. Traditional unemployment benefits are fraught with bureaucratic friction and penalize recipients the moment they find part-time employment. Conversely, a guaranteed income floor sustains aggregate consumer demand, which is the foundational engine of modern capitalist economies. With their basic survival guaranteed, displaced workers can pursue entrepreneurship and educational retraining without being forced into exploitative wages. Thus, UBI provides the macroeconomic stability required in an automated economy."
+  },
+  {
+    "id": "ad-curated-8",
+    "title": "Remote Telemedicine vs Traditional In-Person Consultations",
+    "level": "intermediate",
+    "topic": "science-tech",
+    "professorName": "Dr. Richardson",
+    "professorPrompt": "Digital telemedicine platforms have proliferated rapidly, allowing patients to consult specialists remotely via video links and digital diagnostic monitors. Proponents argue that virtual care substantially reduces wait times, lowers transportation costs, and democratizes medical access for rural populations. Conversely, skeptics insist that virtual examinations cannot replace tactile physical diagnostics and empathetic bedside communication. In your perspective, does telemedicine offer an adequate substitute for routine healthcare?",
+    "s1": {
+      "name": "Hannah",
+      "text": "Telemedicine is a revolutionary breakthrough that dismantles geographic barriers to quality care. Patients living in remote agrarian counties can consult world-class oncologists without traveling hundreds of miles. Furthermore, routine chronic prescription refills can be managed digitally without overcrowding hospital waiting rooms."
+    },
+    "s2": {
+      "name": "Derek",
+      "text": "While virtual convenience sounds appealing, remote cameras cannot detect subtle physical abnormalities. A physician cannot palpate an abdominal mass or listen to faint cardiac murmurs through a digital screen. Consequently, over-reliance on telemedicine risks missing early diagnoses that require direct tactile examination."
+    },
+    "question": "Provide your perspective on whether telemedicine is an adequate substitute for routine in-person healthcare, explaining your reasoning.",
+    "modelResponse": "Although Derek raises legitimate medical concerns regarding the diagnostic limitations of remote cameras, I firmly agree with Hannah that telemedicine represents an invaluable advancement for routine healthcare delivery. For minor ailments, post-operative follow-ups, and mental health counseling, virtual consultations eliminate unnecessary commutes and reduce viral transmission in clinic waiting rooms. Of course, acute conditions requiring physical palpation or emergency imaging must still occur in hospitals. However, by triaging routine appointments digitally, medical systems conserve critical in-person resources for complex cases. Therefore, telemedicine serves as an indispensable complement to modern healthcare infrastructure."
+  },
+  {
+    "id": "ad-curated-9",
+    "title": "Algorithmic Pricing in Consumer Retail Markets",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "professorName": "Professor Sterling",
+    "professorPrompt": "E-commerce retailers increasingly utilize automated dynamic pricing algorithms that adjust product prices continuously based on consumer browsing histories, regional supply constraints, and instantaneous demand spikes. Advocates contend that dynamic algorithmic pricing maximizes economic efficiency by clearing unsold inventories efficiently. Critics argue that dynamic pricing exploits vulnerable consumers during emergency shortages and creates price opacity. Should regulatory agencies restrict algorithmic pricing?",
+    "s1": {
+      "name": "Chloe",
+      "text": "Algorithmic dynamic pricing simply reflects fundamental supply and demand mechanics at digital speed. Flexible pricing encourages consumers to purchase perishable goods during off-peak hours, thereby preventing massive inventory waste. Heavy-handed government price controls would inevitably create artificial shortages and distort competitive markets."
+    },
+    "s2": {
+      "name": "Samuel",
+      "text": "Unregulated algorithmic pricing allows monopolistic platforms to extract unfair surplus from desperate consumers. During extreme weather events or flight cancellations, automated systems spike prices for bottled water and hotel rooms tenfold. Basic regulatory protections are necessary to prevent automated price gouging on essential commodities."
+    },
+    "question": "Do you believe government agencies should regulate algorithmic dynamic pricing in retail markets? Support your stance with specific reasons.",
+    "modelResponse": "While Chloe correctly observes that dynamic price adjustments can optimize inventory distribution during normal commercial cycles, I share Samuel's view that regulatory guardrails are essential to prevent predatory pricing. When automated algorithms detect surging demand during crises, such as hurricanes or transportation breakdowns, prices often surge beyond fair market value. Without statutory oversight, algorithms exploit consumer desperation rather than reflecting genuine production costs. Therefore, governments should establish targeted regulations that prohibit predatory price surges on essential necessities while allowing reasonable algorithmic flexibility for non-essential discretionary goods."
+  },
+  {
+    "id": "ad-curated-10",
+    "title": "Public Preservation of Endangered Indigenous Languages",
+    "level": "advanced",
+    "topic": "arts-humanities",
+    "professorName": "Dr. Montoya",
+    "professorPrompt": "Linguists project that over half of the world's seven thousand spoken languages may become extinct by the end of this century. Some scholars advocate for substantial public tax funding to record elderly native speakers, develop school immersion curricula, and digitize endangered grammars. Other economists argue that public funds are better spent on STEM education and vocational training. To what extent should governments finance the preservation of endangered languages?",
+    "s1": {
+      "name": "Julian",
+      "text": "Language is not merely a communication tool; it is a repository of human ecological knowledge and cultural heritage. Indigenous dialects encode centuries of ethnobotanical insights and ancestral philosophy that cannot be translated into English. Losing these languages permanently diminishes our global cultural consciousness and scientific heritage."
+    },
+    "s2": {
+      "name": "Natalie",
+      "text": "While linguistic diversity is culturally fascinating, scarce educational budgets must prioritize practical economic survival. Equipping disadvantaged youth with fluent international languages and technical vocational skills offers a concrete pathway out of systemic poverty. Public spending should focus on scalable economic empowerment rather than archiving dying dialects."
+    },
+    "question": "Discuss your opinion on whether government funding should be dedicated to preserving endangered indigenous languages, providing justification.",
+    "modelResponse": "Although Natalie raises a pragmatic economic point regarding employment readiness, I strongly support Julian's position that governments must allocate public resources toward preserving endangered indigenous languages. A language encapsulates unique epistemological frameworks, ecological knowledge, and oral histories that cannot be replicated. For instance, indigenous Amazonian vocabularies often identify medicinal plant properties unknown to modern pharmacologists. Furthermore, linguistic preservation programs do not preclude vocational education; rather, dual-immersion schools demonstrate that bilingual indigenous students excel academically while retaining cultural self-esteem. Consequently, investing in linguistic conservation safeguards irreplaceable human knowledge for future generations."
   }
 ]

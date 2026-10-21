@@ -1062,7 +1062,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           )}
 
           {/* High-Scoring Model Response / Model Band 6.0 Rewrite */}
-          {(evaluationResult.modelBand6Rewrite || evaluationResult.exemplar) && (
+          {Boolean(evaluationResult.modelBand6Rewrite || evaluationResult.exemplar || (task as any).modelResponse || (task as any).sampleAnswer) && (
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
@@ -1074,7 +1074,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                 </span>
               </div>
               <div className="bg-teal-50/50 border border-teal-200/70 p-4 rounded-lg text-xs sm:text-sm text-teal-950 leading-relaxed font-normal whitespace-pre-line">
-                {evaluationResult.modelBand6Rewrite || evaluationResult.exemplar}
+                {evaluationResult.modelBand6Rewrite || evaluationResult.exemplar || (task as any).modelResponse || (task as any).sampleAnswer}
               </div>
             </div>
           )}
