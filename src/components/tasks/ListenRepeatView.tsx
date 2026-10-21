@@ -1010,7 +1010,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       ))}
 
                       {/* Render detected filler chips */}
-                      {(state.userInput.match(/\[(um|uh)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || []).map((f, fIdx) => (
+                      {(state.userInput.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || []).map((f, fIdx) => (
                         <span
                           key={`filler_${fIdx}`}
                           className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1"

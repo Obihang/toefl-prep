@@ -1026,7 +1026,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                   const timeInMinutes = (currentQ.responseTimeSeconds || 45) / 60;
                   const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
 
-                  const detectedMatches = currentAnswer.match(/\[(um|uh)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
+                  const detectedMatches = currentAnswer.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
                   const fillerCount = metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
                   const fillerList = metrics?.fillerWords || Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
 
@@ -1055,7 +1055,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
               {/* Fluency Coaching Tip Banner */}
               {(() => {
                 const metrics = (answers as any)[`metrics_${currentQIndex}`] as SpeakingMetrics | undefined;
-                const detectedMatches = currentAnswer.match(/\[(um|uh)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
+                const detectedMatches = currentAnswer.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
                 const fillerCount = metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
                 const fillerList = metrics?.fillerWords || Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
 

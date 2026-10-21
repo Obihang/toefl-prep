@@ -722,18 +722,20 @@ export async function getLocalWhisperPipeline(
 }
 
 export interface AcousticFillerEvent {
-  type: 'um' | 'uh';
+  type: 'um' | 'uh' | 'er';
   offsetRatio: number;
+  islandStartSec: number;
 }
 
 /**
- * Scans 16kHz audio for voiced hesitation islands (120ms to 950ms) with low ZCR.
- * Distinguishes "um" (nasal hum, zcr < 0.065) vs "uh" (open vowel stall, 0.065 <= zcr < 0.115).
+ * Scans 16kHz audio for genuine pause-isolated hesitation fillers ("um", "uh", "er").
+ * Employs strict silence-isolation (>=220ms gap), low ZCR (<0.085), zero consonant bursts (<0.14),
+ * and flat amplitude stability (<0.32 std dev) to eliminate false positives from normal connected speech.
  */
 export function detectAcousticFillerIslands(audio16k: Float32Array): AcousticFillerEvent[] {
   const frameSamples = 160; // 10ms frame
   const totalFrames = Math.floor(audio16k.length / frameSamples);
-  if (totalFrames < 12) return [];
+  if (totalFrames < 22) return [];
 
   const frameRms = new Float32Array(totalFrames);
   const frameZcr = new Float32Array(totalFrames);
@@ -760,50 +762,100 @@ export function detectAcousticFillerIslands(audio16k: Float32Array): AcousticFil
   const noiseFloor = Math.max(0.003, avgGlobalRms * 0.15);
   const voicedThreshold = noiseFloor * 2.2;
 
-  const events: AcousticFillerEvent[] = [];
-  let islandStart = -1;
-  let unvoicedCount = 0;
+  // Extract all contiguous voiced blocks
+  const blocks: Array<{ start: number; end: number }> = [];
+  let inBlock = false;
+  let bStart = 0;
 
   for (let f = 0; f < totalFrames; f++) {
     const isVoiced = frameRms[f] >= voicedThreshold;
-
-    if (isVoiced) {
-      if (islandStart === -1) {
-        islandStart = f;
-      }
-      unvoicedCount = 0;
-    } else {
-      if (islandStart !== -1) {
-        unvoicedCount++;
-        if (unvoicedCount >= 6 || f === totalFrames - 1) {
-          const islandEnd = f - unvoicedCount;
-          const islandFrames = islandEnd - islandStart + 1;
-          const durationMs = islandFrames * 10;
-
-          if (durationMs >= 120 && durationMs <= 950) {
-            let zcrSum = 0;
-            let rmsSum = 0;
-            for (let k = islandStart; k <= islandEnd; k++) {
-              zcrSum += frameZcr[k];
-              rmsSum += frameRms[k];
-            }
-            const avgZcr = zcrSum / islandFrames;
-            const avgRms = rmsSum / islandFrames;
-
-            if (avgZcr < 0.115 && avgRms >= 0.01) {
-              const type: 'um' | 'uh' = avgZcr < 0.065 ? 'um' : 'uh';
-              events.push({
-                type,
-                offsetRatio: islandStart / Math.max(1, totalFrames),
-              });
-            }
-          }
-
-          islandStart = -1;
-          unvoicedCount = 0;
-        }
-      }
+    if (isVoiced && !inBlock) {
+      inBlock = true;
+      bStart = f;
+    } else if (!isVoiced && inBlock) {
+      inBlock = false;
+      blocks.push({ start: bStart, end: f - 1 });
     }
+  }
+  if (inBlock) {
+    blocks.push({ start: bStart, end: totalFrames - 1 });
+  }
+
+  if (blocks.length === 0) return [];
+
+  const events: AcousticFillerEvent[] = [];
+
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    const islandFrames = block.end - block.start + 1;
+    const durationMs = islandFrames * 10;
+
+    // a) Duration: Between 220ms and 850ms
+    if (durationMs < 220 || durationMs > 850) {
+      continue;
+    }
+
+    // b) True Pause Isolation
+    const leadingSilenceMs = i === 0
+      ? block.start * 10
+      : (block.start - blocks[i - 1].end - 1) * 10;
+
+    const trailingSilenceMs = i === blocks.length - 1
+      ? (totalFrames - 1 - block.end) * 10
+      : (blocks[i + 1].start - block.end - 1) * 10;
+
+    const hasPauseIsolation =
+      (leadingSilenceMs >= 220 && trailingSilenceMs >= 160) ||
+      (leadingSilenceMs >= 160 && trailingSilenceMs >= 220) ||
+      (i === 0 && trailingSilenceMs >= 260);
+
+    if (!hasPauseIsolation) {
+      continue;
+    }
+
+    // c) Monotone Nasal/Vowel Signature & ZCR
+    let zcrSum = 0;
+    let maxZcr = 0;
+    let rmsSum = 0;
+
+    for (let k = block.start; k <= block.end; k++) {
+      const z = frameZcr[k];
+      const r = frameRms[k];
+      zcrSum += z;
+      if (z > maxZcr) maxZcr = z;
+      rmsSum += r;
+    }
+
+    const meanZcr = zcrSum / islandFrames;
+    const meanRms = rmsSum / islandFrames;
+
+    // Zero-Crossing Rate checks (meanZcr < 0.085, maxFrameZcr < 0.14)
+    if (meanZcr >= 0.085 || maxZcr >= 0.14 || meanRms < 0.008) {
+      continue;
+    }
+
+    // Steady flat amplitude check (rmsStdDev / rmsMean < 0.32)
+    let rmsVarSum = 0;
+    for (let k = block.start; k <= block.end; k++) {
+      const diff = frameRms[k] - meanRms;
+      rmsVarSum += diff * diff;
+    }
+    const rmsStdDev = Math.sqrt(rmsVarSum / islandFrames);
+    const rmsRelStdDev = rmsStdDev / Math.max(0.001, meanRms);
+
+    if (rmsRelStdDev >= 0.32) {
+      continue;
+    }
+
+    const type: 'um' | 'uh' | 'er' = meanZcr < 0.055 ? 'um' : meanZcr < 0.088 ? 'uh' : 'er';
+    const islandStartSec = (block.start * 10) / 1000;
+    const offsetRatio = block.start / Math.max(1, totalFrames);
+
+    events.push({
+      type,
+      offsetRatio,
+      islandStartSec,
+    });
   }
 
   return events;
@@ -892,7 +944,7 @@ export async function transcribeWithLocalWhisper(
 
   const rawFullText = resultText.trim();
 
-  // Detect acoustic fillers omitted by Whisper
+  // Detect genuine pause-isolated acoustic fillers omitted by Whisper
   const acousticEvents = detectAcousticFillerIslands(vad.trimmedAudio);
 
   const lexicalFillerRegex = /\b(um+|uh+|er+|erm+|ah+|hmm+|uh-huh|like|you know|basically|literally|i mean)\b/gi;
@@ -906,13 +958,53 @@ export async function transcribeWithLocalWhisper(
   const rawWords = rawFullText.split(/\s+/).filter(Boolean);
   const injectedWords = [...rawWords];
 
+  // Filter out acoustic events if lexical matches already captured fillers for this type
+  let validEvents = acousticEvents.filter((event) => {
+    const matchingLexicalCount = lexicalMatches.filter((m) => m.toLowerCase().includes(event.type)).length;
+    return matchingLexicalCount === 0;
+  });
+
+  // Cap acoustic events: max 1 per >= 400ms window
+  if (validEvents.length > 0) {
+    validEvents.sort((a, b) => a.offsetRatio - b.offsetRatio);
+    const dedupedEvents: AcousticFillerEvent[] = [];
+    for (const ev of validEvents) {
+      if (dedupedEvents.length === 0) {
+        dedupedEvents.push(ev);
+      } else {
+        const prevEv = dedupedEvents[dedupedEvents.length - 1];
+        if (Math.abs(ev.islandStartSec - prevEv.islandStartSec) >= 0.4) {
+          dedupedEvents.push(ev);
+        }
+      }
+    }
+    validEvents = dedupedEvents;
+  }
+
+  // Insert valid events at exact relative timestamp ratio positions
   let injectedCount = 0;
-  for (const event of acousticEvents) {
-    const currentLexicalCount = lexicalMatches.filter((m) => m.toLowerCase().includes(event.type)).length;
-    if (injectedCount < acousticEvents.length && currentLexicalCount === 0) {
-      allFillerNames.push(event.type);
-      const targetIdx = Math.min(rawWords.length, Math.floor(event.offsetRatio * rawWords.length));
-      injectedWords.splice(targetIdx + injectedCount, 0, `[${event.type}]`);
+  for (const event of validEvents) {
+    allFillerNames.push(event.type);
+
+    if (rawWords.length === 0) {
+      injectedWords.push(`[${event.type}]`);
+    } else {
+      const rawTargetIdx = Math.min(rawWords.length, Math.max(0, Math.round(event.offsetRatio * rawWords.length)));
+
+      // Prefer placing after sentence/clause punctuation (., ?, ,, ;, !) near target
+      let bestIdx = rawTargetIdx;
+      for (let offset = 0; offset <= 2; offset++) {
+        const checkPrev = rawTargetIdx - offset;
+        if (checkPrev > 0 && checkPrev <= rawWords.length) {
+          const prevWord = rawWords[checkPrev - 1];
+          if (/[.?,;!]$/.test(prevWord)) {
+            bestIdx = checkPrev;
+            break;
+          }
+        }
+      }
+
+      injectedWords.splice(bestIdx + injectedCount, 0, `[${event.type}]`);
       injectedCount++;
     }
   }
@@ -920,7 +1012,7 @@ export async function transcribeWithLocalWhisper(
   const injectedTranscript = injectedWords.join(' ');
 
   const cleanTextWithoutFillers = injectedTranscript
-    .replace(/\[(um|uh)\]/gi, '')
+    .replace(/\[(um|uh|er)\]/gi, '')
     .replace(/\b(um+|uh+|er+|erm+|ah+|hmm+|uh-huh|like|you know|basically|literally|i mean)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
