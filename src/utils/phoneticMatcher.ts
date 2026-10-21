@@ -99,8 +99,68 @@ const HOMOPHONE_MAP: Record<string, string[]> = {
 };
 
 /**
+ * Merges adjacent spoken words if their combined clean form matches a target compound word
+ * (e.g. "bio" + "chemistry" -> "biochemistry", "guide" + "lines" -> "guidelines"),
+ * or splits a spoken compound word if target has two words (e.g. "guidelines" -> "guide lines").
+ */
+export function mergeCompoundWords(spokenText: string, targetText: string): string {
+  if (!spokenText.trim() || !targetText.trim()) return spokenText;
+
+  const rawTargets = targetText.split(/\s+/).filter(Boolean);
+  const targetCleanWords = rawTargets.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, '')).filter(Boolean);
+  const targetSet = new Set(targetCleanWords);
+
+  // Build target bigrams for splitting spoken compound words
+  const targetBigrams: Array<{ bigram: string; orig1: string; orig2: string }> = [];
+  for (let t = 0; t < rawTargets.length - 1; t++) {
+    const c1 = rawTargets[t].toLowerCase().replace(/[^a-z0-9']/g, '');
+    const c2 = rawTargets[t + 1].toLowerCase().replace(/[^a-z0-9']/g, '');
+    if (c1 && c2) {
+      targetBigrams.push({ bigram: c1 + c2, orig1: rawTargets[t], orig2: rawTargets[t + 1] });
+    }
+  }
+
+  const rawSpoken = spokenText.split(/\s+/).filter(Boolean);
+  const resultWords: string[] = [];
+
+  let i = 0;
+  while (i < rawSpoken.length) {
+    const word1 = rawSpoken[i];
+    const clean1 = word1.toLowerCase().replace(/[^a-z0-9']/g, '');
+
+    // Check 2-word concatenation ("bio" + "chemistry" -> "biochemistry")
+    if (i < rawSpoken.length - 1) {
+      const word2 = rawSpoken[i + 1];
+      const clean2 = word2.toLowerCase().replace(/[^a-z0-9']/g, '');
+      const mergedClean = clean1 + clean2;
+
+      if (mergedClean && targetSet.has(mergedClean)) {
+        const matchedTargetWord = rawTargets.find(tw => tw.toLowerCase().replace(/[^a-z0-9']/g, '') === mergedClean) || mergedClean;
+        const trailingPunct = word2.match(/[^a-zA-Z0-9']+$/)?.[0] || '';
+        resultWords.push(matchedTargetWord + trailingPunct);
+        i += 2;
+        continue;
+      }
+    }
+
+    // Check reverse: spoken word matches target bigram ("guidelines" -> "guide" + "lines")
+    const matchedBigram = targetBigrams.find(tb => tb.bigram === clean1);
+    if (matchedBigram && clean1.length >= 5) {
+      resultWords.push(matchedBigram.orig1, matchedBigram.orig2);
+      i++;
+      continue;
+    }
+
+    resultWords.push(word1);
+    i++;
+  }
+
+  return resultWords.join(' ');
+}
+
+/**
  * Aligns STT transcript against target sentence by substituting homophones,
- * phonetic equivalents (Soundex match), and close Levenshtein matches.
+ * phonetic equivalents (Soundex match), close Levenshtein matches, and >= 55% similarity.
  */
 export function alignHomophonesAndPhonetics(
   transcript: string,
@@ -108,11 +168,14 @@ export function alignHomophonesAndPhonetics(
 ): string {
   if (!transcript.trim() || !targetSentence.trim()) return transcript;
 
+  // Step 1: Merge or split compound words
+  const mergedTranscript = mergeCompoundWords(transcript, targetSentence);
+
   const rawTargetWords = targetSentence.split(/\s+/).filter(Boolean);
   const targetWordsClean = rawTargetWords.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, ''));
   const targetSoundex = targetWordsClean.map(soundex);
 
-  const rawTranscriptWords = transcript.split(/\s+/).filter(Boolean);
+  const rawTranscriptWords = mergedTranscript.split(/\s+/).filter(Boolean);
   const transcriptWordsClean = rawTranscriptWords.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, ''));
 
   const resultWords = [...rawTranscriptWords];
@@ -132,25 +195,42 @@ export function alignHomophonesAndPhonetics(
       const targetClean = targetWordsClean[t];
       const origTarget = rawTargetWords[t].replace(/[^a-zA-Z0-9']/g, '');
 
+      // Direct clean match
+      if (single === targetClean) {
+        break;
+      }
+
       // Check double-word bigram match (e.g. "sent in" matches "sentence")
       if (double && HOMOPHONE_MAP[targetClean]?.includes(double)) {
-        resultWords[i] = origTarget;
+        const trailingPunct = rawTranscriptWords[i + 1].match(/[^a-zA-Z0-9']+$/)?.[0] || '';
+        resultWords[i] = origTarget + trailingPunct;
         resultWords[i + 1] = '';
         break;
       }
 
       // Check single-word homophone match (e.g. "here" matches "Hear")
       if (HOMOPHONE_MAP[targetClean]?.includes(single)) {
-        resultWords[i] = origTarget;
+        const trailingPunct = rawTranscriptWords[i].match(/[^a-zA-Z0-9']+$/)?.[0] || '';
+        resultWords[i] = origTarget + trailingPunct;
         break;
       }
 
-      // Check Soundex or Levenshtein match
-      if (single.length >= 3 && targetClean.length >= 3) {
+      // Check Soundex, Levenshtein, or >= 55% similarity / consonant skeleton similarity
+      if (single.length >= 2 && targetClean.length >= 2) {
         const dist = levenshteinDistance(single, targetClean);
-        const sndMatch = targetSoundex[t] && soundex(single) === targetSoundex[t];
+        const maxLen = Math.max(single.length, targetClean.length);
+        const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
 
-        if (dist <= 2 || (sndMatch && dist <= 3)) {
+        const c1 = single.replace(/[aeiouy]/g, '');
+        const c2 = targetClean.replace(/[aeiouy]/g, '');
+        const cDist = levenshteinDistance(c1, c2);
+        const cMax = Math.max(c1.length, c2.length);
+        const consSimilarity = cMax > 0 ? 1 - cDist / cMax : 0;
+
+        const sndMatch = targetSoundex[t] && soundex(single) === targetSoundex[t];
+        const prefixMatch = (single.length >= 4 && targetClean.startsWith(single)) || (targetClean.length >= 4 && single.startsWith(targetClean));
+
+        if (similarity >= 0.55 || consSimilarity >= 0.55 || prefixMatch || (sndMatch && dist <= 3)) {
           const trailingPunct = rawTranscriptWords[i].match(/[^a-zA-Z0-9']+$/)?.[0] || '';
           resultWords[i] = origTarget + trailingPunct;
           break;

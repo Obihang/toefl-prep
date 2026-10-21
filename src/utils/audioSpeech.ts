@@ -1821,9 +1821,6 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           mediaRecorder = null;
         }
 
-        let liveWhisperTimer: any = null;
-        let lastLiveTranscribeTime = 0;
-
         const startRecording = () => {
           if (mediaRecorder && mediaRecorder.state === 'inactive') {
             try {
@@ -1833,31 +1830,6 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           recordingStartTime = Date.now();
           isRecordingState = true;
           options.onStatusChange?.('listening');
-
-          // Incremental real-time local Whisper background transcription timer (every ~2s while speaking)
-          if (liveWhisperTimer) clearInterval(liveWhisperTimer);
-          lastLiveTranscribeTime = Date.now();
-
-          liveWhisperTimer = setInterval(async () => {
-            if (!isRecordingState || audioChunks.length === 0) return;
-            const now = Date.now();
-            if (now - lastLiveTranscribeTime < 2000) return;
-
-            if (isWhisperWorkerBusy()) return;
-
-            const mime = mediaRecorder?.mimeType || 'audio/webm';
-            const partialBlob = new Blob(audioChunks, { type: mime });
-            if (partialBlob.size < 20000) return; // at least ~1.2s of audio
-
-            lastLiveTranscribeTime = now;
-            try {
-              const liveRes = await transcribeWithLocalWhisper(partialBlob);
-              if (isRecordingState && liveRes.transcript && liveRes.transcript.trim()) {
-                accumulatedTranscript = liveRes.transcript.trim();
-                options.onTranscriptUpdate?.(accumulatedTranscript);
-              }
-            } catch {}
-          }, 1000);
 
           // Setup SpeechRecognition for real-time live typing if not blocked in session (Brave safe)
           if (!isWebSpeechBlocked() && !recognitionInstance) {
@@ -2234,11 +2206,28 @@ function areWordsEquivalent(targetWord: string, candidate: string): boolean {
     return true;
   }
 
-  // Fuzzy phonetic & Levenshtein similarity for accented speech / Whisper mishearings
+  // Prefix overlap (e.g., "maint" vs "maintenance", "lab" vs "laboratory")
+  if (
+    (cleanTarget.length >= 4 && cleanCandidate.startsWith(cleanTarget)) ||
+    (cleanCandidate.length >= 4 && cleanTarget.startsWith(cleanCandidate))
+  ) {
+    return true;
+  }
+
+  // Fuzzy phonetic & Levenshtein similarity for accented speech / Whisper mishearings (>= 55% match)
   const dist = levenshteinDistance(cleanTarget, cleanCandidate);
-  if (dist <= 1) return true;
-  if (cleanTarget.length >= 5 && cleanCandidate.length >= 5 && dist <= 2) return true;
-  if (cleanTarget.length >= 5 && cleanCandidate.length >= 5 && cleanTarget.slice(0, 4) === cleanCandidate.slice(0, 4)) return true;
+  const maxLen = Math.max(cleanTarget.length, cleanCandidate.length);
+  const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
+  if (similarity >= 0.55) return true;
+
+  // Consonant skeleton similarity (>= 55%)
+  const c1 = cleanTarget.replace(/[aeiouy]/g, '');
+  const c2 = cleanCandidate.replace(/[aeiouy]/g, '');
+  if (c1 && c2) {
+    const cDist = levenshteinDistance(c1, c2);
+    const cMax = Math.max(c1.length, c2.length);
+    if (cMax > 0 && 1 - cDist / cMax >= 0.55) return true;
+  }
 
   return false;
 }
@@ -2251,12 +2240,14 @@ export function calculateSentenceMatch(
   percentage: number;
   wordStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
 } {
+  const { mergeCompoundWords } = require('./phoneticMatcher');
+  const mergedSpoken = mergeCompoundWords ? mergeCompoundWords(spoken, target) : spoken;
   const rawTargetWords = target.split(/\s+/).filter(Boolean);
   if (rawTargetWords.length === 0) {
     return { percentage: 0, wordStatuses: [] };
   }
 
-  const spokenTokens = tokenizeNormalizedWords(spoken);
+  const spokenTokens = tokenizeNormalizedWords(mergedSpoken);
   const spokenFreq = new Map<string, number>();
   for (const t of spokenTokens) {
     spokenFreq.set(t, (spokenFreq.get(t) || 0) + 1);

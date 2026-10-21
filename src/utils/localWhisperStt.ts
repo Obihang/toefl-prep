@@ -165,13 +165,13 @@ export function isWhisperWorkerBusy(): boolean {
 export function getWhisperModelChoice(): WhisperModelChoice {
   if (typeof localStorage !== 'undefined') {
     const saved = localStorage.getItem('preferred_whisper_model') as WhisperModelChoice;
+    if (saved === 'Xenova/whisper-tiny.en') {
+      localStorage.setItem('preferred_whisper_model', 'Xenova/whisper-base.en');
+      return 'Xenova/whisper-base.en';
+    }
     if (saved && WHISPER_MODELS.some((m) => m.id === saved)) {
       return saved;
     }
-  }
-  const logicalCores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
-  if (logicalCores <= 4) {
-    return 'Xenova/whisper-tiny.en';
   }
   return 'Xenova/whisper-base.en';
 }
@@ -184,13 +184,18 @@ export function setWhisperModelChoice(choice: WhisperModelChoice) {
 
 /**
  * Worker script string using @xenova/transformers@2.17.2 from CDN.
- * Dynamic hardware thread scaling + capped max_new_tokens.
+ * Dynamic hardware thread scaling + ONNX WASM SIMD acceleration + greedy decoding.
  */
 const WORKER_SCRIPT = `
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 
 env.allowLocalModels = false;
 env.useBrowserCache = true;
+
+if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
+  env.backends.onnx.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/';
+  env.backends.onnx.wasm.simd = true;
+}
 
 let currentTranscriber = null;
 let currentModelId = null;
@@ -256,7 +261,7 @@ self.onmessage = async (e) => {
           modelId,
           status: 'verifying',
           progress: 99,
-          file: 'Verifying WASM pipeline execution in Web Worker...',
+          file: 'Verifying WASM SIMD pipeline execution in Web Worker...',
         },
       });
 
@@ -309,10 +314,10 @@ self.onmessage = async (e) => {
       self.postMessage({
         type: 'PROGRESS',
         id,
-        payload: { status: 'transcribing', message: 'Running WASM Whisper inference...' },
+        payload: { status: 'transcribing', message: 'Running WASM SIMD Whisper inference...' },
       });
 
-      const max_new_tokens = Math.min(64, Math.max(16, Math.ceil(durationSec * 4.5)));
+      const max_new_tokens = Math.min(48, Math.max(16, Math.ceil(durationSec * 4)));
 
       const output = await currentTranscriber(audioData, {
         return_timestamps: false,
@@ -739,6 +744,20 @@ export async function transcribeWithLocalWhisper(
   const worker = getWorker();
   const reqId = `req_tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const durationSec = vad.activeSpeakingTimeSeconds;
+
+  if (isWorkerBusyState) {
+    console.warn('[Whisper STT] Cancelling prior worker request to run new single-pass transcription...');
+    for (const [id, req] of pendingWorkerRequests.entries()) {
+      if (id.startsWith('req_tx_')) {
+        req.reject(new Error('CANCELLED_BY_NEW_REQUEST'));
+        pendingWorkerRequests.delete(id);
+      }
+    }
+    if (workerInstance) {
+      workerInstance.postMessage({ type: 'RESET', id: `req_reset_${Date.now()}` });
+    }
+    isWorkerBusyState = false;
+  }
 
   const resultText: string = await new Promise((resolve, reject) => {
     isWorkerBusyState = true;
