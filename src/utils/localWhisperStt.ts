@@ -1,19 +1,18 @@
 /**
- * Client-Side Local Whisper STT Engine using @xenova/transformers@2.17.2.
- * Dynamically loaded from CDN so package.json and Vercel builds stay lightweight.
+ * Client-Side Local Whisper STT Engine using @xenova/transformers@2.17.2 inside a Web Worker.
+ * Dynamically loaded from CDN inside an inline Blob module Web Worker.
  * 100% Zero-API offline automatic speech recognition for Brave and all modern browsers.
  *
- * Upgraded Architecture:
+ * Architecture:
+ * - Background Web Worker running WASM inference off the main React UI thread.
  * - Persistent browser cache manager via CacheStorage & navigator.storage.persist().
  * - Pure CPU WebAssembly (quantized: true, no WebGPU crashes).
  * - 3 Selectable models (whisper-tiny.en, whisper-base.en, whisper-small.en).
- * - Explicit lifecycle functions: checkModelCachedStatus, downloadAndWarmupModel, deleteCachedModel.
+ * - Capped max_new_tokens for ultra-fast short-clip processing.
  * - 16kHz resampling + 500ms VAD padding + peak normalization + phonetic homophone alignment.
  */
 
 import { alignHomophonesAndPhonetics } from './phoneticMatcher';
-
-const CDN_URL = 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 
 export type WhisperModelChoice = 'Xenova/whisper-small.en' | 'Xenova/whisper-base.en' | 'Xenova/whisper-tiny.en';
 
@@ -38,11 +37,12 @@ export const WHISPER_MODELS: WhisperModelInfo[] = [
   },
   {
     id: 'Xenova/whisper-base.en',
-    name: 'Whisper Base (Balanced)',
+    name: 'Whisper Base (Balanced - Recommended)',
     badge: 'Balanced ~75 MB',
     sizeMb: 75,
     estSpeed: '~3–4s response',
-    accuracy: 'Fast (~4s), good accuracy for standard accents',
+    accuracy: 'Fast (~3s), excellent accuracy for international accents',
+    recommended: true,
   },
   {
     id: 'Xenova/whisper-small.en',
@@ -51,14 +51,8 @@ export const WHISPER_MODELS: WhisperModelInfo[] = [
     sizeMb: 245,
     estSpeed: '~5–7s response',
     accuracy: 'Best accuracy for South Asian / international accents & TOEFL vocabulary',
-    recommended: true,
   },
 ];
-
-let pipelineModule: any = null;
-let pipelineInstance: any = null;
-let loadedModelName: string | null = null;
-let pipelineLoadPromise: Promise<any> | null = null;
 
 const FILLER_WORDS = new Set(['um', 'uh', 'erm', 'er', 'ah', 'like']);
 
@@ -113,43 +107,212 @@ export function getWhisperModelChoice(): WhisperModelChoice {
       return saved;
     }
   }
-  return 'Xenova/whisper-small.en';
+  return 'Xenova/whisper-base.en';
 }
 
 export function setWhisperModelChoice(choice: WhisperModelChoice) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('preferred_whisper_model', choice);
   }
-  if (choice !== loadedModelName) {
-    pipelineInstance = null;
-    loadedModelName = null;
-    pipelineLoadPromise = null;
-  }
 }
 
 /**
- * Dynamically import @xenova/transformers@2.17.2 from CDN.
+ * Worker script string using @xenova/transformers@2.17.2 from CDN.
+ * Runs WASM inference off the main thread.
  */
-async function getTransformersModule(): Promise<any> {
-  if (pipelineModule) return pipelineModule;
-  try {
-    const importDynamic = new Function('url', 'return import(url)');
-    pipelineModule = await importDynamic(CDN_URL);
-    if (pipelineModule?.env) {
-      pipelineModule.env.allowLocalModels = false;
-      pipelineModule.env.useBrowserCache = true;
-      if (pipelineModule.env.wasm) {
-        pipelineModule.env.wasm.numThreads = Math.min(
-          4,
-          (typeof navigator !== 'undefined' && (navigator as any).hardwareConcurrency) || 4
-        );
+const WORKER_SCRIPT = `
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+let currentTranscriber = null;
+let currentModelId = null;
+
+self.onmessage = async (e) => {
+  const { type, id, payload } = e.data;
+
+  if (type === 'RESET') {
+    currentTranscriber = null;
+    currentModelId = null;
+    if (id) self.postMessage({ type: 'RESET_COMPLETE', id });
+    return;
+  }
+
+  if (type === 'DOWNLOAD_AND_WARMUP') {
+    const { modelId } = payload;
+    try {
+      const fileProgress = {};
+      const transcriber = await pipeline('automatic-speech-recognition', modelId, {
+        quantized: true,
+        progress_callback: (p) => {
+          if (p.file) {
+            fileProgress[p.file] = {
+              loaded: p.loaded || 0,
+              total: p.total || 0,
+            };
+          }
+
+          let totalLoaded = 0;
+          let totalSize = 0;
+          for (const f of Object.values(fileProgress)) {
+            totalLoaded += f.loaded;
+            totalSize += f.total;
+          }
+
+          const overallPct = totalSize > 0 ? Math.min(99, Math.round((totalLoaded / totalSize) * 100)) : p.progress ? Math.round(p.progress) : 0;
+          const loadedMb = Math.round((totalLoaded / (1024 * 1024)) * 10) / 10;
+          const totalMb = Math.round((totalSize / (1024 * 1024)) * 10) / 10;
+
+          self.postMessage({
+            type: 'PROGRESS',
+            id,
+            payload: {
+              modelId,
+              status: 'downloading',
+              progress: overallPct,
+              file: p.file || 'model weights',
+              loadedMb,
+              totalMb,
+            },
+          });
+        },
+      });
+
+      self.postMessage({
+        type: 'PROGRESS',
+        id,
+        payload: {
+          modelId,
+          status: 'verifying',
+          progress: 99,
+          file: 'Verifying WASM pipeline execution in Web Worker...',
+        },
+      });
+
+      // Warmup with a 0.5-second silent test buffer
+      const testBuffer = new Float32Array(8000);
+      await transcriber(testBuffer, {
+        return_timestamps: false,
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        temperature: 0,
+        max_new_tokens: 20,
+      });
+
+      currentTranscriber = transcriber;
+      currentModelId = modelId;
+
+      self.postMessage({
+        type: 'WARMUP_COMPLETE',
+        id,
+        payload: { modelId },
+      });
+    } catch (err) {
+      self.postMessage({
+        type: 'ERROR',
+        id,
+        payload: { error: err.message || String(err) },
+      });
+    }
+  } else if (type === 'TRANSCRIBE') {
+    const { audioData, modelId, durationSec } = payload;
+    try {
+      if (!currentTranscriber || currentModelId !== modelId) {
+        self.postMessage({
+          type: 'PROGRESS',
+          id,
+          payload: { status: 'loading', message: 'Loading model into Web Worker...' },
+        });
+
+        const transcriber = await pipeline('automatic-speech-recognition', modelId, {
+          quantized: true,
+        });
+        currentTranscriber = transcriber;
+        currentModelId = modelId;
+      }
+
+      self.postMessage({
+        type: 'PROGRESS',
+        id,
+        payload: { status: 'transcribing', message: 'Running WASM Whisper inference...' },
+      });
+
+      const max_new_tokens = Math.min(128, Math.max(20, Math.ceil(durationSec * 6)));
+
+      const output = await currentTranscriber(audioData, {
+        return_timestamps: false,
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        temperature: 0,
+        max_new_tokens,
+      });
+
+      self.postMessage({
+        type: 'TRANSCRIBE_COMPLETE',
+        id,
+        payload: { text: output.text || '' },
+      });
+    } catch (err) {
+      self.postMessage({
+        type: 'ERROR',
+        id,
+        payload: { error: err.message || String(err) },
+      });
+    }
+  }
+};
+`;
+
+let workerInstance: Worker | null = null;
+const pendingWorkerRequests = new Map<
+  string,
+  {
+    resolve: (value: any) => void;
+    reject: (reason?: any) => void;
+    onProgress?: (data: any) => void;
+  }
+>();
+
+/**
+ * Singleton Web Worker launcher.
+ */
+function getWorker(): Worker {
+  if (workerInstance) return workerInstance;
+
+  const blob = new Blob([WORKER_SCRIPT], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  workerInstance = new Worker(url, { type: 'module' });
+
+  workerInstance.onmessage = (e: MessageEvent) => {
+    const { type, id, payload } = e.data;
+    const req = pendingWorkerRequests.get(id);
+
+    if (type === 'PROGRESS') {
+      req?.onProgress?.(payload);
+    } else if (type === 'WARMUP_COMPLETE' || type === 'TRANSCRIBE_COMPLETE' || type === 'RESET_COMPLETE') {
+      if (req) {
+        pendingWorkerRequests.delete(id);
+        req.resolve(payload);
+      }
+    } else if (type === 'ERROR') {
+      if (req) {
+        pendingWorkerRequests.delete(id);
+        req.reject(new Error(payload?.error || 'Worker transcription error'));
       }
     }
-    return pipelineModule;
-  } catch (err) {
-    console.warn('Failed to load @xenova/transformers from CDN:', err);
-    throw new Error('Local Whisper engine could not be loaded from CDN. Check network connection.');
-  }
+  };
+
+  workerInstance.onerror = (err) => {
+    console.error('Whisper Web Worker error:', err);
+    for (const [, req] of pendingWorkerRequests.entries()) {
+      req.reject(new Error('Web Worker encountered an unhandled execution error.'));
+    }
+    pendingWorkerRequests.clear();
+    workerInstance = null;
+  };
+
+  return workerInstance;
 }
 
 /**
@@ -193,10 +356,9 @@ export async function deleteCachedModel(modelId: string): Promise<void> {
     localStorage.removeItem(localKey);
   }
 
-  if (loadedModelName === modelId) {
-    pipelineInstance = null;
-    loadedModelName = null;
-    pipelineLoadPromise = null;
+  if (workerInstance) {
+    const id = `req_reset_${Date.now()}`;
+    workerInstance.postMessage({ type: 'RESET', id });
   }
 
   if (typeof window === 'undefined' || !('caches' in window)) {
@@ -218,13 +380,12 @@ export async function deleteCachedModel(modelId: string): Promise<void> {
 }
 
 /**
- * Downloads and warms up the selected Whisper model with explicit progress callbacks.
+ * Downloads and warms up the selected Whisper model in the background Web Worker.
  */
 export async function downloadAndWarmupModel(
   modelId: WhisperModelChoice,
   onProgress?: (progress: ModelDownloadProgress) => void
 ): Promise<any> {
-  // Request persistent storage from browser so Brave never evicts cached weights
   try {
     if (typeof navigator !== 'undefined' && navigator.storage?.persist) {
       await navigator.storage.persist();
@@ -235,85 +396,39 @@ export async function downloadAndWarmupModel(
     modelId,
     status: 'downloading',
     progress: 0,
-    file: 'Initializing downloader...',
+    file: 'Initializing Web Worker background downloader...',
   });
 
-  const { pipeline, env } = await getTransformersModule();
-  if (env) {
-    env.allowLocalModels = false;
-    env.useBrowserCache = true;
-    if (env.wasm) {
-      env.wasm.numThreads = Math.min(4, (typeof navigator !== 'undefined' && (navigator as any).hardwareConcurrency) || 4);
-    }
-  }
+  const worker = getWorker();
+  const reqId = `req_download_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-  const fileProgress: Record<string, { loaded: number; total: number }> = {};
+  return new Promise((resolve, reject) => {
+    pendingWorkerRequests.set(reqId, {
+      resolve: () => {
+        const localKey = `whisper_cached_${modelId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(localKey, 'true');
+          localStorage.setItem('preferred_whisper_model', modelId);
+        }
+        onProgress?.({
+          modelId,
+          status: 'ready',
+          progress: 100,
+        });
+        resolve(true);
+      },
+      reject,
+      onProgress: (p: any) => {
+        onProgress?.(p);
+      },
+    });
 
-  const transcriber = await pipeline('automatic-speech-recognition', modelId, {
-    quantized: true,
-    progress_callback: (p: any) => {
-      if (p.file) {
-        fileProgress[p.file] = {
-          loaded: p.loaded || 0,
-          total: p.total || 0,
-        };
-      }
-
-      let totalLoaded = 0;
-      let totalSize = 0;
-      for (const f of Object.values(fileProgress)) {
-        totalLoaded += f.loaded;
-        totalSize += f.total;
-      }
-
-      const overallPct = totalSize > 0 ? Math.min(99, Math.round((totalLoaded / totalSize) * 100)) : p.progress ? Math.round(p.progress) : 0;
-      const loadedMb = Math.round((totalLoaded / (1024 * 1024)) * 10) / 10;
-      const totalMb = Math.round((totalSize / (1024 * 1024)) * 10) / 10;
-
-      onProgress?.({
-        modelId,
-        status: 'downloading',
-        progress: overallPct,
-        file: p.file || 'model weights',
-        loadedMb,
-        totalMb,
-      });
-    },
+    worker.postMessage({
+      type: 'DOWNLOAD_AND_WARMUP',
+      id: reqId,
+      payload: { modelId },
+    });
   });
-
-  // Warmup with a 0.5-second silent test buffer
-  onProgress?.({
-    modelId,
-    status: 'verifying',
-    progress: 99,
-    file: 'Verifying WASM pipeline execution...',
-  });
-
-  const testBuffer = new Float32Array(8000);
-  await transcriber(testBuffer, {
-    return_timestamps: false,
-    chunk_length_s: 30,
-    stride_length_s: 5,
-    temperature: 0,
-  });
-
-  pipelineInstance = transcriber;
-  loadedModelName = modelId;
-
-  // Mark in localStorage
-  const localKey = `whisper_cached_${modelId.replace(/[^a-zA-Z0-9]/g, '_')}`;
-  if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(localKey, 'true');
-    localStorage.setItem('preferred_whisper_model', modelId);
-  }
-
-  onProgress?.({
-    modelId,
-    status: 'ready',
-    progress: 100,
-  });
-
-  return transcriber;
 }
 
 /**
@@ -478,36 +593,19 @@ export function analyzeAndNormalizeAudioWaveform(
 }
 
 /**
- * Pipeline retriever that uses cached model or loads requested model.
+ * Pipeline retriever wrapper for backward compatibility.
  */
 export async function getLocalWhisperPipeline(
   onProgress?: (status: string) => void,
   targetModel: WhisperModelChoice = getWhisperModelChoice()
 ): Promise<any> {
-  if (pipelineInstance && loadedModelName === targetModel) {
-    return pipelineInstance;
-  }
-  if (pipelineLoadPromise && loadedModelName === targetModel) {
-    return pipelineLoadPromise;
-  }
-
-  pipelineLoadPromise = (async () => {
-    return downloadAndWarmupModel(targetModel, (p) => {
-      onProgress?.(p.file ? `Loading ${targetModel}: ${p.progress}% (${p.file})` : `Loading ${targetModel}...`);
-    });
-  })();
-
-  try {
-    return await pipelineLoadPromise;
-  } catch (err) {
-    pipelineLoadPromise = null;
-    loadedModelName = null;
-    throw err;
-  }
+  return downloadAndWarmupModel(targetModel, (p) => {
+    onProgress?.(p.file ? `Loading ${targetModel}: ${p.progress}% (${p.file})` : `Loading ${targetModel}...`);
+  });
 }
 
 /**
- * Transcribes audio blob completely in-browser using local Whisper model.
+ * Transcribes audio blob completely off main thread in Web Worker.
  */
 export async function transcribeWithLocalWhisper(
   audioBlob: Blob,
@@ -523,21 +621,39 @@ export async function transcribeWithLocalWhisper(
   const activeModel = getWhisperModelChoice();
   const isCached = await checkModelCachedStatus(activeModel);
 
-  if (!isCached && !pipelineInstance) {
+  if (!isCached) {
     throw new Error(`NO_CACHED_MODEL:${activeModel}`);
   }
 
-  const transcriber = await getLocalWhisperPipeline(onProgress, activeModel);
-  onProgress?.(`Transcribing locally with ${activeModel}...`);
+  onProgress?.(`Transcribing in background Web Worker (${activeModel})...`);
 
-  const output = await transcriber(vad.trimmedAudio, {
-    return_timestamps: false,
-    chunk_length_s: 30,
-    stride_length_s: 5,
-    temperature: 0,
+  const worker = getWorker();
+  const reqId = `req_tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const durationSec = vad.activeSpeakingTimeSeconds;
+
+  const resultText: string = await new Promise((resolve, reject) => {
+    pendingWorkerRequests.set(reqId, {
+      resolve: (payload: any) => resolve(payload.text || ''),
+      reject,
+      onProgress: (p: any) => {
+        if (p.message) onProgress?.(p.message);
+      },
+    });
+
+    worker.postMessage(
+      {
+        type: 'TRANSCRIBE',
+        id: reqId,
+        payload: {
+          audioData: vad.trimmedAudio,
+          modelId: activeModel,
+          durationSec,
+        },
+      }
+    );
   });
 
-  const rawFullText = (output.text || '').trim();
+  const rawFullText = resultText.trim();
 
   const fullText = targetSentence
     ? alignHomophonesAndPhonetics(rawFullText, targetSentence)
