@@ -2,7 +2,9 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueL
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play } from 'lucide-react';
+import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play, HardDrive, Settings } from 'lucide-react';
+import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
+import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
@@ -47,6 +49,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
   const [transcribeErrors, setTranscribeErrors] = useState<Record<number, string | null>>({});
   const [audioErrors, setAudioErrors] = useState<Record<number, string | null>>({});
+
+  const [isTranscriberModalOpen, setIsTranscriberModalOpen] = useState(false);
+  const [isAnyModelCached, setIsAnyModelCached] = useState<boolean>(true);
+
+  useEffect(() => {
+    const checkCached = async () => {
+      const active = getWhisperModelChoice();
+      const isCached = await checkModelCachedStatus(active);
+      setIsAnyModelCached(isCached);
+    };
+    checkCached();
+  }, [isTranscriberModalOpen]);
 
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
@@ -497,6 +511,16 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   return (
     <div className="space-y-6">
+      {/* Offline Transcriber Model Modal */}
+      <OfflineTranscriberModal
+        isOpen={isTranscriberModalOpen}
+        onClose={() => setIsTranscriberModalOpen(false)}
+        onModelChanged={() => {
+          const active = getWhisperModelChoice();
+          checkModelCachedStatus(active).then(setIsAnyModelCached);
+        }}
+      />
+
       <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
@@ -511,14 +535,44 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           </div>
         </div>
 
-        {completedCount > 0 && (
-          <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg">
-            <span>Completed: <strong className="font-mono">{completedCount}/{task.sentences.length}</strong></span>
-            <span aria-hidden="true">·</span>
-            <span>Est. TOEFL: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(avgAccuracy, 100)).toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-[11px]">({convertToScaledScore(avgAccuracy, 100)}/30)</span></span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsTranscriberModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <HardDrive className="w-3.5 h-3.5 text-teal-700" />
+            <span>⚙️ Configure / Download Offline Transcriber</span>
+          </button>
+
+          {completedCount > 0 && (
+            <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg">
+              <span>Completed: <strong className="font-mono">{completedCount}/{task.sentences.length}</strong></span>
+              <span aria-hidden="true">·</span>
+              <span>Est. TOEFL: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(avgAccuracy, 100)).toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-[11px]">({convertToScaledScore(avgAccuracy, 100)}/30)</span></span>
+            </div>
+          )}
+        </div>
       </div>
+
+      {!isAnyModelCached && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-900 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <strong className="font-bold block text-slate-900">Offline Whisper Speech Transcriber Not Downloaded Yet</strong>
+              <span>Download model (~75MB / ~245MB) once to enable 100% offline speech recognition without API keys.</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsTranscriberModalOpen(true)}
+            className="px-4 py-2 bg-amber-800 hover:bg-amber-900 text-white font-bold rounded-lg transition-colors shrink-0 shadow-2xs"
+          >
+            Download Model (~75MB / ~245MB)
+          </button>
+        </div>
+      )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed">
         <strong>Task Guidelines:</strong> Click <strong>Hear Sentence</strong> to listen to the prompt. Then repeat the
@@ -649,26 +703,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   </div>
                 )}
 
-                {/* Play My Recording Bar */}
-                {audioBlobs[idx] && (
-                  <div className="flex items-center justify-between gap-2 text-xs bg-slate-100/90 border border-slate-200 px-3 py-2 rounded-lg text-slate-800 animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <Volume2 className="w-4 h-4 text-teal-700 shrink-0" />
-                      <span className="font-semibold text-slate-700">Audio Captured</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const url = URL.createObjectURL(audioBlobs[idx]);
-                        const audio = new Audio(url);
-                        audio.play().catch(console.warn);
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors"
-                    >
-                      <span>🔊 Listen to My Recording</span>
-                    </button>
-                  </div>
-                )}
+
 
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">

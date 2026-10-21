@@ -13,7 +13,9 @@ import {
   Download,
   Upload,
   Sparkles,
+  HardDrive,
 } from 'lucide-react';
+import { OfflineTranscriberManager } from '../../shared/OfflineTranscriberManager';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getStoredApiKey,
@@ -607,7 +609,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 2. Voice and Speech
+    // 2. Offline Speech Transcriber Models
+    {
+      id: 'offline_whisper',
+      title: 'Offline Speech Transcriber Models',
+      icon: <HardDrive className="w-4 h-4 text-teal-700" />,
+      content: (
+        <div className="pt-2">
+          <OfflineTranscriberManager />
+        </div>
+      ),
+    },
+
+    // 3. Voice and Speech
     {
       id: 'voice_speech',
       title: 'Voice and speech',

@@ -2,7 +2,9 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueL
 import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Zap, HardDrive } from 'lucide-react';
+import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
+import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
@@ -41,6 +43,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [transcriptionErrors, setTranscriptionErrors] = useState<Record<number, string | null>>({});
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
+
+  const [isTranscriberModalOpen, setIsTranscriberModalOpen] = useState(false);
+  const [isAnyModelCached, setIsAnyModelCached] = useState<boolean>(true);
+
+  useEffect(() => {
+    const checkCached = async () => {
+      const active = getWhisperModelChoice();
+      const isCached = await checkModelCachedStatus(active);
+      setIsAnyModelCached(isCached);
+    };
+    checkCached();
+  }, [isTranscriberModalOpen]);
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
@@ -567,6 +581,16 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   return (
     <div className="space-y-6">
+      {/* Offline Transcriber Model Modal */}
+      <OfflineTranscriberModal
+        isOpen={isTranscriberModalOpen}
+        onClose={() => setIsTranscriberModalOpen(false)}
+        onModelChanged={() => {
+          const active = getWhisperModelChoice();
+          checkModelCachedStatus(active).then(setIsAnyModelCached);
+        }}
+      />
+
       <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
@@ -581,31 +605,61 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           </div>
         </div>
 
-        {/* Question selector tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
-          {task.questions.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                stopSimulation();
-                setCurrentQIndex(i);
-              }}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                currentQIndex === i
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>Q{i + 1}</span>
-              {transcribingQuestionIds[i] ? (
-                <Loader2 className="w-3 h-3 animate-spin text-teal-600 shrink-0" />
-              ) : answers[i]?.trim() ? (
-                <span className="text-teal-600">✓</span>
-              ) : null}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsTranscriberModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <HardDrive className="w-3.5 h-3.5 text-teal-700" />
+            <span>⚙️ Configure / Download Offline Transcriber</span>
+          </button>
+
+          {/* Question selector tabs */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
+            {task.questions.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  stopSimulation();
+                  setCurrentQIndex(i);
+                }}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                  currentQIndex === i
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Q{i + 1}</span>
+                {transcribingQuestionIds[i] ? (
+                  <Loader2 className="w-3 h-3 animate-spin text-teal-600 shrink-0" />
+                ) : answers[i]?.trim() ? (
+                  <span className="text-teal-600">✓</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {!isAnyModelCached && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-900 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <strong className="font-bold block text-slate-900">Offline Whisper Speech Transcriber Not Downloaded Yet</strong>
+              <span>Download model (~75MB / ~245MB) once to enable 100% offline speech recognition without API keys.</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsTranscriberModalOpen(true)}
+            className="px-4 py-2 bg-amber-800 hover:bg-amber-900 text-white font-bold rounded-lg transition-colors shrink-0 shadow-2xs"
+          >
+            Download Model (~75MB / ~245MB)
+          </button>
+        </div>
+      )}
 
       {/* Headphone echo prevention hint */}
       <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 flex items-center gap-2">
