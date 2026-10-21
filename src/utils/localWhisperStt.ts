@@ -3,13 +3,12 @@
  * Dynamically loaded from CDN inside an inline Blob module Web Worker.
  * 100% Zero-API offline automatic speech recognition for Brave and all modern browsers.
  *
- * Architecture:
- * - Background Web Worker running WASM inference off the main React UI thread.
- * - Persistent browser cache manager via CacheStorage & navigator.storage.persist().
- * - Pure CPU WebAssembly (quantized: true, no WebGPU crashes).
- * - 3 Selectable models (whisper-tiny.en, whisper-base.en, whisper-small.en).
- * - Capped max_new_tokens for ultra-fast short-clip processing.
- * - 16kHz resampling + 500ms VAD padding + peak normalization + phonetic homophone alignment.
+ * Upgraded Features:
+ * - Dynamic Hardware-Aware WASM Thread Scaling (auto-detects logical cores).
+ * - Soft-Knee Noise Gate preserving quiet speech and soft consonants (/s/, /t/, /f/).
+ * - 400ms boundary silence padding.
+ * - Acoustic Hesitation & Filler Word Detection ("um", "uh", "er", "ah", "hmm", "like", "you know").
+ * - Background Web Worker running WASM inference off the main React UI thread with 25s timeout.
  */
 
 import { alignHomophonesAndPhonetics } from './phoneticMatcher';
@@ -54,7 +53,18 @@ export const WHISPER_MODELS: WhisperModelInfo[] = [
   },
 ];
 
-const FILLER_WORDS = new Set(['um', 'uh', 'erm', 'er', 'ah', 'like']);
+const FILLER_WORDS = new Set([
+  'um',
+  'uh',
+  'erm',
+  'er',
+  'ah',
+  'hmm',
+  'like',
+  'you know',
+  'basically',
+  'actually',
+]);
 
 export interface LocalWordTimestamp {
   word: string;
@@ -71,6 +81,7 @@ export interface LocalSpeakingMetrics {
   fillerCount: number;
   wordCount: number;
   durationSeconds: number;
+  acousticHesitations?: number;
 }
 
 export interface LocalWhisperResult {
@@ -88,6 +99,7 @@ export interface VADAudioAnalysis {
   longestPauseSeconds: number;
   totalPauseDurationSeconds: number;
   originalDurationSeconds: number;
+  acousticHesitationStalls: number;
 }
 
 export interface ModelDownloadProgress {
@@ -98,6 +110,50 @@ export interface ModelDownloadProgress {
   loadedMb?: number;
   totalMb?: number;
   error?: string;
+}
+
+export interface HardwareThreadInfo {
+  logicalCores: number;
+  autoThreads: number;
+  activeThreads: number;
+  isManual: boolean;
+}
+
+/**
+ * Detect logical cores and compute hardware-aware optimal WASM threads.
+ */
+export function getOptimalWasmThreads(): HardwareThreadInfo {
+  const logicalCores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
+  const autoThreads = logicalCores <= 2 ? 1
+    : logicalCores <= 4 ? 2
+    : Math.min(12, Math.max(2, Math.floor(logicalCores * 0.65)));
+
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('whisper_wasm_threads');
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= logicalCores) {
+        return { logicalCores, autoThreads, activeThreads: parsed, isManual: true };
+      }
+    }
+  }
+
+  const isIsolated = typeof self !== 'undefined' && self.crossOriginIsolated;
+  const activeThreads = isIsolated ? autoThreads : Math.min(4, autoThreads);
+  return { logicalCores, autoThreads, activeThreads, isManual: false };
+}
+
+export function setWasmThreadsOverride(threads: number | 'auto') {
+  if (typeof localStorage !== 'undefined') {
+    if (threads === 'auto') {
+      localStorage.removeItem('whisper_wasm_threads');
+    } else {
+      localStorage.setItem('whisper_wasm_threads', threads.toString());
+    }
+  }
+  if (workerInstance) {
+    workerInstance.postMessage({ type: 'RESET', id: `req_reset_threads_${Date.now()}` });
+  }
 }
 
 export function getWhisperModelChoice(): WhisperModelChoice {
@@ -118,7 +174,7 @@ export function setWhisperModelChoice(choice: WhisperModelChoice) {
 
 /**
  * Worker script string using @xenova/transformers@2.17.2 from CDN.
- * Runs WASM inference off the main thread.
+ * Dynamic hardware thread scaling + capped max_new_tokens.
  */
 const WORKER_SCRIPT = `
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
@@ -140,8 +196,12 @@ self.onmessage = async (e) => {
   }
 
   if (type === 'DOWNLOAD_AND_WARMUP') {
-    const { modelId } = payload;
+    const { modelId, numThreads } = payload;
     try {
+      if (env && env.wasm) {
+        env.wasm.numThreads = numThreads || 4;
+      }
+
       const fileProgress = {};
       const transcriber = await pipeline('automatic-speech-recognition', modelId, {
         quantized: true,
@@ -190,14 +250,14 @@ self.onmessage = async (e) => {
         },
       });
 
-      // Warmup with a 0.5-second silent test buffer
+      // Warmup with a 0.5-second test buffer
       const testBuffer = new Float32Array(8000);
       await transcriber(testBuffer, {
         return_timestamps: false,
         chunk_length_s: 30,
         stride_length_s: 5,
         temperature: 0,
-        max_new_tokens: 20,
+        max_new_tokens: 16,
       });
 
       currentTranscriber = transcriber;
@@ -216,8 +276,12 @@ self.onmessage = async (e) => {
       });
     }
   } else if (type === 'TRANSCRIBE') {
-    const { audioData, modelId, durationSec } = payload;
+    const { audioData, modelId, durationSec, numThreads } = payload;
     try {
+      if (env && env.wasm) {
+        env.wasm.numThreads = numThreads || 4;
+      }
+
       if (!currentTranscriber || currentModelId !== modelId) {
         self.postMessage({
           type: 'PROGRESS',
@@ -238,7 +302,7 @@ self.onmessage = async (e) => {
         payload: { status: 'transcribing', message: 'Running WASM Whisper inference...' },
       });
 
-      const max_new_tokens = Math.min(128, Math.max(20, Math.ceil(durationSec * 6)));
+      const max_new_tokens = Math.min(64, Math.max(16, Math.ceil(durationSec * 4.5)));
 
       const output = await currentTranscriber(audioData, {
         return_timestamps: false,
@@ -401,6 +465,7 @@ export async function downloadAndWarmupModel(
 
   const worker = getWorker();
   const reqId = `req_download_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const { activeThreads } = getOptimalWasmThreads();
 
   return new Promise((resolve, reject) => {
     pendingWorkerRequests.set(reqId, {
@@ -426,7 +491,7 @@ export async function downloadAndWarmupModel(
     worker.postMessage({
       type: 'DOWNLOAD_AND_WARMUP',
       id: reqId,
-      payload: { modelId },
+      payload: { modelId, numThreads: activeThreads },
     });
   });
 }
@@ -463,7 +528,7 @@ export async function decodeAudioBlobTo16kHz(blob: Blob): Promise<Float32Array> 
 }
 
 /**
- * Perform 50ms window RMS energy VAD with 500ms pre/post padding.
+ * Perform 50ms window RMS energy VAD with gentle soft-knee noise gate & 400ms padding.
  */
 export function analyzeAndNormalizeAudioWaveform(
   audio16k: Float32Array
@@ -481,6 +546,7 @@ export function analyzeAndNormalizeAudioWaveform(
       longestPauseSeconds: 0,
       totalPauseDurationSeconds: 0,
       originalDurationSeconds: audio16k.length / sampleRate,
+      acousticHesitationStalls: 0,
     };
   }
 
@@ -502,15 +568,30 @@ export function analyzeAndNormalizeAudioWaveform(
     if (rms > peakRms) peakRms = rms;
   }
 
-  // Close-Talk Noise Gate: Attenuate background frames below 15% of peak primary speaking energy
-  const gateThreshold = Math.max(0.003, peakRms * 0.15);
+  // Gentle Soft-Knee Noise Gate: Attenuate quiet frames (rms < 3.5% peak) by 0.35 factor
+  // Preserves soft consonants (/s/, /t/, /f/, /p/, /th/) while softening background hiss
+  const gateThreshold = Math.max(0.0015, peakRms * 0.035);
   const gatedAudio16k = new Float32Array(audio16k.length);
   for (let i = 0; i < totalWindows; i++) {
     const offset = i * samplesPerWindow;
     const isQuiet = rmsWindows[i] < gateThreshold;
-    const factor = isQuiet ? 0.05 : 1.0;
+    const factor = isQuiet ? 0.35 : 1.0;
     for (let j = 0; j < samplesPerWindow; j++) {
       gatedAudio16k[offset + j] = audio16k[offset + j] * factor;
+    }
+  }
+
+  // Acoustic Hesitation Detector: Scan for sustained voiced stalls (250ms–850ms, i.e. 5 to 17 windows of steady energy)
+  let acousticHesitationStalls = 0;
+  let currentVoicedStreak = 0;
+  for (let i = 0; i < totalWindows; i++) {
+    if (rmsWindows[i] >= 0.012 && rmsWindows[i] <= 0.12) {
+      currentVoicedStreak++;
+    } else {
+      if (currentVoicedStreak >= 5 && currentVoicedStreak <= 17) {
+        acousticHesitationStalls++;
+      }
+      currentVoicedStreak = 0;
     }
   }
 
@@ -544,15 +625,16 @@ export function analyzeAndNormalizeAudioWaveform(
       longestPauseSeconds: 0,
       totalPauseDurationSeconds: 0,
       originalDurationSeconds: gatedAudio16k.length / sampleRate,
+      acousticHesitationStalls,
     };
   }
 
   const leadingSilenceMs = firstSpeech * windowMs;
   const trailingSilenceMs = (totalWindows - 1 - lastSpeech) * windowMs;
 
-  const paddingWindows = 10; // 500ms
-  const startWindow = leadingSilenceMs > 600 ? Math.max(0, firstSpeech - paddingWindows) : 0;
-  const endWindow = trailingSilenceMs > 600 ? Math.min(totalWindows - 1, lastSpeech + paddingWindows) : totalWindows - 1;
+  const paddingWindows = 8; // 400ms
+  const startWindow = leadingSilenceMs > 450 ? Math.max(0, firstSpeech - paddingWindows) : 0;
+  const endWindow = trailingSilenceMs > 450 ? Math.min(totalWindows - 1, lastSpeech + paddingWindows) : totalWindows - 1;
 
   const startSample = startWindow * samplesPerWindow;
   const endSample = Math.min(gatedAudio16k.length, (endWindow + 1) * samplesPerWindow);
@@ -604,6 +686,7 @@ export function analyzeAndNormalizeAudioWaveform(
     longestPauseSeconds,
     totalPauseDurationSeconds,
     originalDurationSeconds: gatedAudio16k.length / sampleRate,
+    acousticHesitationStalls,
   };
 }
 
@@ -630,7 +713,7 @@ export async function transcribeWithLocalWhisper(
   onProgress?.('Decoding & resampling audio to 16kHz...');
   const rawAudio16k = await decodeAudioBlobTo16kHz(audioBlob);
 
-  onProgress?.('Trimming silence & applying noise gate...');
+  onProgress?.('Trimming silence & applying soft noise gate...');
   const vad = analyzeAndNormalizeAudioWaveform(rawAudio16k);
 
   const activeModel = getWhisperModelChoice();
@@ -640,7 +723,8 @@ export async function transcribeWithLocalWhisper(
     throw new Error(`NO_CACHED_MODEL:${activeModel}`);
   }
 
-  onProgress?.(`Transcribing in background Web Worker (${activeModel})...`);
+  const threadInfo = getOptimalWasmThreads();
+  onProgress?.(`Transcribing locally (${activeModel}, ${threadInfo.activeThreads} WASM threads)...`);
 
   const worker = getWorker();
   const reqId = `req_tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -676,6 +760,7 @@ export async function transcribeWithLocalWhisper(
         audioData: audioDataCopy,
         modelId: activeModel,
         durationSec,
+        numThreads: threadInfo.activeThreads,
       },
     });
   });
@@ -700,6 +785,8 @@ export async function transcribeWithLocalWhisper(
     youKnowMatches.forEach(() => detectedFillers.push('you know'));
   }
 
+  const totalFillerCount = Math.max(detectedFillers.length, vad.acousticHesitationStalls);
+
   const wordCount = wordsInText.length;
   const durationMin = vad.activeSpeakingTimeSeconds / 60;
   const rawWpm = durationMin > 0 ? Math.round(wordCount / durationMin) : 0;
@@ -711,9 +798,10 @@ export async function transcribeWithLocalWhisper(
     longestPause: vad.longestPauseSeconds,
     totalPausesDuration: vad.totalPauseDurationSeconds,
     fillerWords: detectedFillers,
-    fillerCount: detectedFillers.length,
+    fillerCount: totalFillerCount,
     wordCount,
     durationSeconds: Math.round(vad.activeSpeakingTimeSeconds * 10) / 10,
+    acousticHesitations: vad.acousticHesitationStalls,
   };
 
   return {

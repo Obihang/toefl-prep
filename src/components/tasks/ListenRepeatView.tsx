@@ -52,6 +52,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
   const [isTranscriberModalOpen, setIsTranscriberModalOpen] = useState(false);
   const [isAnyModelCached, setIsAnyModelCached] = useState<boolean>(true);
+  const [playingRecordingIdx, setPlayingRecordingIdx] = useState<number | null>(null);
 
   useEffect(() => {
     const checkCached = async () => {
@@ -63,6 +64,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, [isTranscriberModalOpen]);
 
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
 
@@ -75,6 +77,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         activeAudioRef.current.src = '';
       } catch {}
       activeAudioRef.current = null;
+    }
+    if (recordingAudioRef.current) {
+      try {
+        recordingAudioRef.current.pause();
+        recordingAudioRef.current.currentTime = 0;
+      } catch {}
+      recordingAudioRef.current = null;
+      setPlayingRecordingIdx(null);
     }
     stopSpeaking();
   }, []);
@@ -299,6 +309,46 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     handlePlay(index);
   };
 
+  const handlePlayUserRecording = (index: number) => {
+    stopAllAudio();
+
+    if (playingRecordingIdx === index && recordingAudioRef.current) {
+      return; // stopAllAudio already stopped it
+    }
+
+    const blob = audioBlobs[index];
+    if (!blob) return;
+
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    recordingAudioRef.current = audio;
+    setPlayingRecordingIdx(index);
+
+    audio.onended = () => {
+      if (recordingAudioRef.current === audio) {
+        recordingAudioRef.current = null;
+        setPlayingRecordingIdx(null);
+      }
+      URL.revokeObjectURL(url);
+    };
+
+    audio.onerror = () => {
+      if (recordingAudioRef.current === audio) {
+        recordingAudioRef.current = null;
+        setPlayingRecordingIdx(null);
+      }
+      URL.revokeObjectURL(url);
+    };
+
+    audio.play().catch(() => {
+      if (recordingAudioRef.current === audio) {
+        recordingAudioRef.current = null;
+        setPlayingRecordingIdx(null);
+      }
+      URL.revokeObjectURL(url);
+    });
+  };
+
   const handleToggleMic = async (index: number) => {
     setMicError(null);
     markUserAiRequest();
@@ -342,6 +392,21 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       voiceSessionRef.current = null;
       setAudioLevel(0);
     }
+
+    // Immediately clear old text and previous check score so item starts fresh
+    setStates((prev) => {
+      const next = [...prev];
+      next[index] = {
+        userInput: '',
+        isRecording: true,
+        checked: false,
+        scorePercent: undefined,
+        bandScore: undefined,
+        wordBreakdown: undefined,
+        metrics: undefined,
+      };
+      return next;
+    });
 
     const session = createVoiceSession({
       onTranscriptUpdate: (text) => {
@@ -778,16 +843,25 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          const url = URL.createObjectURL(audioBlobs[idx]);
-                          const audio = new Audio(url);
-                          audio.play().catch(console.warn);
-                        }}
-                        className="px-3 py-2 text-xs font-semibold rounded-lg border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                        title="Listen to your exact recorded voice"
+                        onClick={() => handlePlayUserRecording(idx)}
+                        className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                          playingRecordingIdx === idx
+                            ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
+                            : 'border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100'
+                        }`}
+                        title={playingRecordingIdx === idx ? 'Click to stop playback' : 'Listen to your exact recorded voice'}
                       >
-                        <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
-                        <span>▶ Hear My Recording</span>
+                        {playingRecordingIdx === idx ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5 fill-current text-slate-950" />
+                            <span>⏹ Stop Playback</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
+                            <span>▶ Hear My Recording</span>
+                          </>
+                        )}
                       </button>
                       <button
                         type="button"

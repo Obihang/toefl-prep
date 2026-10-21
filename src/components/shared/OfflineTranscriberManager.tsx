@@ -9,6 +9,8 @@ import {
   WhisperModelChoice,
   ModelDownloadProgress,
   transcribeWithLocalWhisper,
+  getOptimalWasmThreads,
+  setWasmThreadsOverride,
 } from '../../utils/localWhisperStt';
 import { createVoiceSession, VoiceSession } from '../../utils/audioSpeech';
 import {
@@ -23,6 +25,7 @@ import {
   Play,
   XCircle,
   AlertCircle,
+  Cpu,
 } from 'lucide-react';
 
 interface Props {
@@ -242,10 +245,41 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 text-xs">
+        <div className="flex items-center gap-2 flex-wrap shrink-0 text-xs">
           <span className="px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-md font-mono text-slate-300">
             Storage: {persistedStorage ? 'Persistent ✅' : 'Standard Cache'}
           </span>
+          {(() => {
+            const threadInfo = getOptimalWasmThreads();
+            return (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 border border-slate-700 rounded-md font-mono text-slate-300">
+                <Cpu className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                <span>CPU: {threadInfo.logicalCores} cores</span>
+                <span className="text-slate-500">•</span>
+                <span>Threads:</span>
+                <select
+                  value={threadInfo.isManual ? threadInfo.activeThreads : 'auto'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'auto') {
+                      setWasmThreadsOverride('auto');
+                    } else {
+                      setWasmThreadsOverride(parseInt(val, 10));
+                    }
+                    refreshCacheStatuses();
+                  }}
+                  className="bg-slate-900 text-teal-300 font-bold border border-slate-700 rounded px-1.5 py-0.5 text-[11px] focus:outline-hidden cursor-pointer"
+                >
+                  <option value="auto">Auto ({threadInfo.autoThreads} threads)</option>
+                  {Array.from({ length: threadInfo.logicalCores }).map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {i + 1} thread{i > 0 ? 's' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

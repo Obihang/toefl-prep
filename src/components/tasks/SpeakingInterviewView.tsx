@@ -56,6 +56,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     checkCached();
   }, [isTranscriberModalOpen]);
 
+  const [playingRecordingQIndex, setPlayingRecordingQIndex] = useState<number | null>(null);
+  const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
+
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
   const pendingTranscriptionsRef = useRef<Record<number, Promise<void>>>({});
@@ -353,6 +356,62 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     playChime(440, 500);
   };
 
+  const handlePlayUserRecording = (qIndex: number) => {
+    stopSpeaking();
+    setIsPlayingAudio(false);
+
+    if (playingRecordingQIndex === qIndex && recordingAudioRef.current) {
+      try {
+        recordingAudioRef.current.pause();
+        recordingAudioRef.current.currentTime = 0;
+      } catch {}
+      recordingAudioRef.current = null;
+      setPlayingRecordingQIndex(null);
+      return;
+    }
+
+    if (recordingAudioRef.current) {
+      try {
+        recordingAudioRef.current.pause();
+        recordingAudioRef.current.currentTime = 0;
+      } catch {}
+      recordingAudioRef.current = null;
+      setPlayingRecordingQIndex(null);
+    }
+
+    const blob = audioBlobs[qIndex];
+    if (!blob) return;
+
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    recordingAudioRef.current = audio;
+    setPlayingRecordingQIndex(qIndex);
+
+    audio.onended = () => {
+      if (recordingAudioRef.current === audio) {
+        recordingAudioRef.current = null;
+        setPlayingRecordingQIndex(null);
+      }
+      URL.revokeObjectURL(url);
+    };
+
+    audio.onerror = () => {
+      if (recordingAudioRef.current === audio) {
+        recordingAudioRef.current = null;
+        setPlayingRecordingQIndex(null);
+      }
+      URL.revokeObjectURL(url);
+    };
+
+    audio.play().catch(() => {
+      if (recordingAudioRef.current === audio) {
+        recordingAudioRef.current = null;
+        setPlayingRecordingQIndex(null);
+      }
+      URL.revokeObjectURL(url);
+    });
+  };
+
   const handleManualMicToggle = async () => {
     setMicNotice(null);
 
@@ -389,6 +448,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       }
       return;
     }
+
+    // Clear old text and metrics so box starts fresh
+    setAnswers((prev) => ({
+      ...prev,
+      [currentQIndex]: '',
+      [`metrics_${currentQIndex}`]: undefined,
+    }));
 
     const session = createVoiceSession({
       onTranscriptUpdate: (transcript) => {
@@ -791,16 +857,25 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                 <>
                   <button
                     type="button"
-                    onClick={() => {
-                      const url = URL.createObjectURL(audioBlobs[currentQIndex]);
-                      const audio = new Audio(url);
-                      audio.play().catch(console.warn);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition-colors shrink-0"
-                    title="Listen to your exact recorded voice"
+                    onClick={() => handlePlayUserRecording(currentQIndex)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors shrink-0 cursor-pointer ${
+                      playingRecordingQIndex === currentQIndex
+                        ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
+                        : 'border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100'
+                    }`}
+                    title={playingRecordingQIndex === currentQIndex ? 'Click to stop playback' : 'Listen to your exact recorded voice'}
                   >
-                    <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
-                    <span>▶ Hear My Recording</span>
+                    {playingRecordingQIndex === currentQIndex ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5 fill-current text-slate-950" />
+                        <span>⏹ Stop Playback</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
+                        <span>▶ Hear My Recording</span>
+                      </>
+                    )}
                   </button>
                   <button
                     type="button"
