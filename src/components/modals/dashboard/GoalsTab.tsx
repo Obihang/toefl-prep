@@ -1,5 +1,6 @@
 import React from 'react';
 import { Target, Trophy, Zap, TrendingUp, Calendar, Flame, CheckCircle2, Settings } from 'lucide-react';
+import { TASK_DEFINITIONS } from '../../../types/taskTypes';
 
 interface GoalsTabProps {
   targetScoreNum: number;
@@ -384,20 +385,25 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
         </div>
 
         {loadingQuestionCounts ? (
-          <div className="text-xs text-slate-400 py-4 text-center">Loading database question counts...</div>
+          <div className="text-xs text-slate-400 py-4 text-center">Loading database question counts per question type...</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(questionCounts).map(([section, count]) => (
-              <div key={section} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
-                <div>
-                  <div className="text-xs font-semibold text-slate-700">{section}</div>
-                  <div className="text-[11px] text-slate-400">Total in database</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {TASK_DEFINITIONS.map((def) => {
+              const count = questionCounts[def.id] ?? 0;
+              return (
+                <div key={def.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
+                  <div className="space-y-1">
+                    <div className="text-xs font-bold text-slate-800">{def.name}</div>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-teal-100 text-teal-800">
+                      {def.section}
+                    </span>
+                  </div>
+                  <div className="text-sm font-bold text-teal-900 font-mono bg-white px-3 py-1 rounded-lg border border-teal-200 shadow-2xs shrink-0">
+                    {count}
+                  </div>
                 </div>
-                <div className="text-sm font-bold text-teal-900 font-mono bg-white px-3 py-1 rounded-lg border border-teal-200">
-                  {count}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

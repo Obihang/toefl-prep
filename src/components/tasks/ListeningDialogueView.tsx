@@ -27,7 +27,8 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const playbackSessionIdRef = useRef<number>(0);
   const isPausedRef = useRef<boolean>(false);
 
-  const lines = task.script.split(/\n+/).filter(Boolean);
+  const scriptText = task?.script || '';
+  const lines = scriptText.split(/\n+/).filter(Boolean);
 
   const seedStr = `${task.title}-${task.script || ''}`;
   const gA = (task as any).speakerGenderA || (task as any).speakerGenders?.A || inferGender(task.speakers?.A || 'A');

@@ -15,6 +15,7 @@ import {
 } from './utils/sharedQuestions';
 import { getApiHeaders, getStoredApiKey } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
+import { normalizeTaskData } from './utils/normalization';
 
 import {
   BookOpen,
@@ -276,15 +277,16 @@ export default function App() {
         if (shared) {
           setCustomTasks((prev) => ({
             ...prev,
-            [type]: shared,
+            [type]: normalizeTaskData(shared, type),
           }));
           return;
         }
-        // When none is found in shared bank, fall back to AI generation
-        await handleGenerateNewAiTask();
+        // Fall back to curated pool if shared bank yielded nothing
+        handleNextCurated(type);
         return;
       } catch (err) {
-        console.warn('Shared question bank query failed:', err);
+        console.warn('Shared question bank query failed, falling back to curated:', err);
+        handleNextCurated(type);
       }
     }
 
@@ -640,7 +642,7 @@ export default function App() {
         // Instantly activate
         setCustomTasks((prev) => ({
           ...prev,
-          [currentTaskType]: readyTask,
+          [currentTaskType]: normalizeTaskData(readyTask, currentTaskType),
         }));
 
         if (readyTask.modelUsed) {
@@ -715,12 +717,12 @@ export default function App() {
         setLastModelUsed(json.data.modelUsed);
       }
 
-      const newTask: any = {
+      const newTask: any = normalizeTaskData({
         ...json.data,
         level,
         topic,
         id: `ai-${Date.now()}`,
-      };
+      }, currentTaskType);
 
       if (user) {
         try {
@@ -779,33 +781,46 @@ export default function App() {
 
   // Resolve current active task data (hide questions with reportCount >= 3)
   const getCurrentTaskData = () => {
+    let task = null;
     if (customTasks[currentTaskType]) {
-      const task = customTasks[currentTaskType];
-      if (!task.reportCount || task.reportCount < 3) {
-        return task;
+      const t = customTasks[currentTaskType];
+      if (!t.reportCount || t.reportCount < 3) {
+        task = t;
       }
     }
 
-    const idx = curatedIndices[currentTaskType] || 0;
-    switch (currentTaskType) {
-      case 'complete-words':
-        return CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
-      case 'reading-passage':
-        return CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
-      case 'listening-dialogue':
-        return CURATED_LISTENING[idx % CURATED_LISTENING.length];
-      case 'listen-repeat':
-        return CURATED_LISTEN_REPEAT[idx % CURATED_LISTEN_REPEAT.length];
-      case 'speaking-interview':
-        return CURATED_SPEAKING_INTERVIEWS[idx % CURATED_SPEAKING_INTERVIEWS.length];
-      case 'build-sentence':
-        return CURATED_BUILD_SENTENCES[idx % CURATED_BUILD_SENTENCES.length];
-      case 'write-email':
-        return CURATED_WRITE_EMAILS[idx % CURATED_WRITE_EMAILS.length];
-      case 'academic-discussion':
-      default:
-        return CURATED_ACADEMIC_DISCUSSIONS[idx % CURATED_ACADEMIC_DISCUSSIONS.length];
+    if (!task) {
+      const idx = curatedIndices[currentTaskType] || 0;
+      switch (currentTaskType) {
+        case 'complete-words':
+          task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
+          break;
+        case 'reading-passage':
+          task = CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
+          break;
+        case 'listening-dialogue':
+          task = CURATED_LISTENING[idx % CURATED_LISTENING.length];
+          break;
+        case 'listen-repeat':
+          task = CURATED_LISTEN_REPEAT[idx % CURATED_LISTEN_REPEAT.length];
+          break;
+        case 'speaking-interview':
+          task = CURATED_SPEAKING_INTERVIEWS[idx % CURATED_SPEAKING_INTERVIEWS.length];
+          break;
+        case 'build-sentence':
+          task = CURATED_BUILD_SENTENCES[idx % CURATED_BUILD_SENTENCES.length];
+          break;
+        case 'write-email':
+          task = CURATED_WRITE_EMAILS[idx % CURATED_WRITE_EMAILS.length];
+          break;
+        case 'academic-discussion':
+        default:
+          task = CURATED_ACADEMIC_DISCUSSIONS[idx % CURATED_ACADEMIC_DISCUSSIONS.length];
+          break;
+      }
     }
+
+    return normalizeTaskData(task, currentTaskType);
   };
 
   const activeTask = getCurrentTaskData();

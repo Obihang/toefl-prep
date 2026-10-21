@@ -20,7 +20,7 @@ import {
   convertScaledToBand6,
 } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
-import { getQuestionCountsPerSection } from '../../utils/sharedQuestions';
+import { getQuestionCountsPerTaskType } from '../../utils/sharedQuestions';
 
 interface Props {
   isOpen: boolean;
@@ -53,11 +53,14 @@ export const DashboardModal: React.FC<Props> = ({
   const [newDef, setNewDef] = useState('');
 
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({
-    Reading: 0,
-    Listening: 0,
-    Speaking: 0,
-    Writing: 0,
-    'Vocabulary & Grammar': 0,
+    'complete-words': 0,
+    'reading-passage': 0,
+    'listening-dialogue': 0,
+    'listen-repeat': 0,
+    'speaking-interview': 0,
+    'build-sentence': 0,
+    'write-email': 0,
+    'academic-discussion': 0,
   });
   const [loadingQuestionCounts, setLoadingQuestionCounts] = useState(false);
 
@@ -68,9 +71,9 @@ export const DashboardModal: React.FC<Props> = ({
   }, [defaultTab]);
 
   useEffect(() => {
-    if (isOpen && activeTab === 'settings') {
+    if (isOpen && (activeTab === 'goals' || activeTab === 'settings')) {
       setLoadingQuestionCounts(true);
-      getQuestionCountsPerSection().then((counts) => {
+      getQuestionCountsPerTaskType().then((counts) => {
         setQuestionCounts(counts);
         setLoadingQuestionCounts(false);
       }).catch(() => setLoadingQuestionCounts(false));

@@ -211,23 +211,35 @@ export async function fetchUnseenQuestion(
     const currentUid = auth?.currentUser?.uid;
     const seenIds = await getUserSeenQuestionIds(currentUid);
 
-    // Query questions for matching taskType and level
-    const q = query(
+    // 1. Try querying by taskType and level
+    let q = query(
       collection(db, 'questions'),
       where('taskType', '==', taskType),
       where('level', '==', level),
-      limit(25)
+      limit(35)
     );
 
-    const snapshot = await getDocs(q);
+    let snapshot = await getDocs(q);
+
+    // 2. If empty, try querying just by taskType (any level)
+    if (snapshot.empty) {
+      const qAnyLevel = query(
+        collection(db, 'questions'),
+        where('taskType', '==', taskType),
+        limit(35)
+      );
+      snapshot = await getDocs(qAnyLevel);
+    }
+
     if (snapshot.empty) return null;
 
-    // Find an unseen question
-    for (const docSnap of snapshot.docs) {
+    const docs = snapshot.docs;
+
+    // First try to find an unseen question
+    for (const docSnap of docs) {
       if (!seenIds.includes(docSnap.id)) {
         const data = docSnap.data();
 
-        // Increment useCount and mark as seen asynchronously
         updateDoc(doc(db, 'questions', docSnap.id), {
           useCount: increment(1),
         }).catch(() => {});
@@ -246,6 +258,29 @@ export async function fetchUnseenQuestion(
           isSharedBank: true,
         };
       }
+    }
+
+    // If all questions have been seen, cycle back to any random question in the bank for this taskType!
+    if (docs.length > 0) {
+      const randomIndex = Math.floor(Math.random() * docs.length);
+      const docSnap = docs[randomIndex];
+      const data = docSnap.data();
+
+      updateDoc(doc(db, 'questions', docSnap.id), {
+        useCount: increment(1),
+      }).catch(() => {});
+
+      return {
+        ...data.content,
+        id: docSnap.id,
+        questionDocId: docSnap.id,
+        taskType: data.taskType,
+        level: data.level,
+        topic: data.topic,
+        audioUrl: data.audioUrl || null,
+        audioClips: data.audioClips || null,
+        isSharedBank: true,
+      };
     }
   } catch (err) {
     console.warn('Error fetching unseen question from bank:', err);
@@ -424,6 +459,34 @@ export async function getQuestionCountsPerSection(): Promise<Record<string, numb
       const section = getSectionForTaskType(data.taskType || '');
       if (section && counts[section] !== undefined) {
         counts[section]++;
+      }
+    });
+  } catch {
+    // Return zeroes if offline or unseeded
+  }
+
+  return counts;
+}
+
+export async function getQuestionCountsPerTaskType(): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {
+    'complete-words': 0,
+    'reading-passage': 0,
+    'listening-dialogue': 0,
+    'listen-repeat': 0,
+    'speaking-interview': 0,
+    'build-sentence': 0,
+    'write-email': 0,
+    'academic-discussion': 0,
+  };
+
+  try {
+    const qSnap = await getDocs(query(collection(db, 'questions'), limit(300)));
+    qSnap.forEach((docSnap) => {
+      const data = docSnap.data();
+      const tType = data.taskType;
+      if (tType && counts[tType] !== undefined) {
+        counts[tType]++;
       }
     });
   } catch {
