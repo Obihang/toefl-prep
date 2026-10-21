@@ -49,11 +49,60 @@ export interface EvaluationResult {
   };
   errors: Array<{ original: string; corrected: string; explanation: string }>;
   corrections: Array<{ original: string; corrected: string; explanation: string }>;
+  vocabularyUpgrades?: Array<{ original: string; suggestions: string[]; reason: string }>;
+  repeatedWords?: Array<{ word: string; count: number }>;
+  runOnSentences?: string[];
+  capitalizationIssues?: string[];
+  misspellings?: Array<{ word: string; correction: string }>;
   tips: string[];
   modelUsed: string;
   isLocalEvaluation: boolean;
   notice: string;
 }
+
+export interface VocabularyUpgrade {
+  original: string;
+  suggestions: string[];
+  reason: string;
+}
+
+export interface SpellingCorrection {
+  word: string;
+  correction: string;
+}
+
+export interface RepeatedWordIssue {
+  word: string;
+  count: number;
+}
+
+const COMMON_TOEFL_SPELLINGS: Record<string, string> = {
+  enviroment: 'environment',
+  goverment: 'government',
+  definately: 'definitely',
+  recieve: 'receive',
+  accomodate: 'accommodate',
+  occured: 'occurred',
+  seperate: 'separate',
+  neccessary: 'necessary',
+  arguement: 'argument',
+  collegue: 'colleague',
+  truely: 'truly',
+  untill: 'until',
+  belive: 'believe',
+  unfortunatly: 'unfortunately',
+};
+
+const STOPWORDS_SET = new Set([
+  'about', 'above', 'after', 'again', 'against', 'all', 'also', 'and', 'another', 'any', 'are', 'because',
+  'been', 'before', 'being', 'below', 'between', 'both', 'but', 'could', 'did', 'does', 'doing', 'down',
+  'during', 'each', 'few', 'for', 'from', 'further', 'had', 'has', 'have', 'having', 'her', 'here',
+  'hers', 'herself', 'him', 'himself', 'his', 'how', 'into', 'its', 'itself', 'just', 'more', 'most',
+  'myself', 'other', 'our', 'ours', 'ourselves', 'out', 'over', 'same', 'she', 'should', 'some', 'such',
+  'than', 'that', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', 'these', 'they',
+  'this', 'those', 'through', 'under', 'until', 'very', 'was', 'were', 'what', 'when', 'where', 'which',
+  'while', 'who', 'whom', 'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves'
+]);
 
 const TRANSITIONS = [
   'however', 'furthermore', 'moreover', 'consequently', 'therefore',
@@ -371,6 +420,9 @@ export function evaluateLocally(
     });
   }
 
+  // Run diagnostic checks for upgrades, repetitions, run-ons, and spelling
+  const diagnostics = analyzeTextDiagnostics(text);
+
   return {
     overallBand,
     bandScore6: overallBand,
@@ -402,6 +454,11 @@ export function evaluateLocally(
     },
     errors: corrections,
     corrections,
+    vocabularyUpgrades: diagnostics.vocabularyUpgrades,
+    repeatedWords: diagnostics.repeatedWords,
+    runOnSentences: diagnostics.runOnSentences,
+    capitalizationIssues: diagnostics.capitalizationIssues,
+    misspellings: diagnostics.misspellings,
     tips: [
       'Aim for 100–130 words to comfortably reach the upper score band',
       'Use at least 3 distinct academic transition markers',
@@ -410,5 +467,87 @@ export function evaluateLocally(
     modelUsed: 'TOEFL Authentic Heuristic Scoring Engine (Zero-API)',
     isLocalEvaluation: true,
     notice: 'Evaluated via Local Offline TOEFL Rubric (Zero API)',
+  };
+}
+
+export function analyzeTextDiagnostics(text: string) {
+  const lowerText = text.toLowerCase();
+
+  // 1. Vocabulary Upgrades
+  const vocabularyUpgrades: VocabularyUpgrade[] = [];
+
+  const addUpgrade = (matchRegex: RegExp, originalLabel: string, suggestions: string[], reason: string) => {
+    if (matchRegex.test(lowerText)) {
+      vocabularyUpgrades.push({ original: originalLabel, suggestions, reason });
+    }
+  };
+
+  addUpgrade(/\bvery important\b|\bimportant\b/i, 'important / very important', ['paramount', 'crucial', 'indispensable'], 'Elevate basic importance descriptors to formal academic vocabulary.');
+  addUpgrade(/\ba lot of\b|\blots of\b/i, 'a lot of / lots of', ['substantial', 'numerous', 'a multitude of'], 'Avoid informal quantifiers in academic writing.');
+  addUpgrade(/\bgood\b|\bgreat\b/i, 'good / great', ['beneficial', 'advantageous', 'compelling'], 'Use precise evaluative vocabulary.');
+  addUpgrade(/\bbad\b/i, 'bad', ['detrimental', 'adverse', 'counterproductive'], 'Use scholarly negative descriptors.');
+  addUpgrade(/\bi think\b|\bi believe\b/i, 'I think / I believe', ['I contend that', 'From my perspective,', 'The evidence suggests that'], 'Project authoritative scholarship using formal stance markers.');
+  addUpgrade(/\bshows?\b/i, 'show / shows', ['demonstrate', 'illustrate', 'underscore'], 'Use active analytical verbs.');
+  addUpgrade(/\bbig\b|\bhuge\b/i, 'big / huge', ['significant', 'profound', 'far-reaching'], 'Select formal scale adjectives.');
+  addUpgrade(/\bmake\b|\bmakes\b/i, 'make / makes', ['generate', 'formulate', 'construct'], 'Substitute generic verb with specific action verbs.');
+  addUpgrade(/\bget\b|\bgets\b/i, 'get / gets', ['obtain', 'acquire', 'attain'], 'Replace informal verb.');
+  addUpgrade(/\bthings?\b|\bstuff\b/i, 'thing / stuff', ['factor', 'element', 'consideration'], 'Specify concrete nouns instead of vague placeholders.');
+  addUpgrade(/\bproblems?\b/i, 'problem / problems', ['dilemma', 'impediment', 'challenge'], 'Use academic noun alternatives.');
+  addUpgrade(/\bhelps?\b/i, 'help / helps', ['facilitate', 'assist', 'expedite'], 'Elevate register with formal verbs.');
+
+  // 2. Misspellings
+  const misspellings: SpellingCorrection[] = [];
+  const words = text.match(/\b[a-zA-Z]+\b/g) || [];
+  const seenSpellingErrors = new Set<string>();
+
+  for (const w of words) {
+    const low = w.toLowerCase();
+    if (COMMON_TOEFL_SPELLINGS[low] && !seenSpellingErrors.has(low)) {
+      seenSpellingErrors.add(low);
+      misspellings.push({ word: w, correction: COMMON_TOEFL_SPELLINGS[low] });
+    }
+  }
+
+  // 3. Repeated Words (>= 5 chars, >= 3 times, non-stopwords)
+  const wordCounts: Record<string, number> = {};
+  for (const w of words) {
+    const low = w.toLowerCase();
+    if (low.length >= 5 && !STOPWORDS_SET.has(low)) {
+      wordCounts[low] = (wordCounts[low] || 0) + 1;
+    }
+  }
+
+  const repeatedWords: RepeatedWordIssue[] = Object.entries(wordCounts)
+    .filter(([, count]) => count >= 3)
+    .map(([word, count]) => ({ word, count }));
+
+  // 4. Run-On Sentences (> 40 words)
+  const sentences = text.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);
+  const runOnSentences: string[] = [];
+  for (const s of sentences) {
+    const wordLen = s.split(/\s+/).filter(Boolean).length;
+    if (wordLen > 40) {
+      runOnSentences.push(s.length > 80 ? s.slice(0, 80) + '...' : s);
+    }
+  }
+
+  // 5. Capitalization Issues
+  const capitalizationIssues: string[] = [];
+  if (/\bi\b/.test(text)) {
+    capitalizationIssues.push('Found standalone lowercase "i" (should be capitalized "I").');
+  }
+  for (const s of sentences) {
+    if (s.length > 0 && /^[a-z]/.test(s)) {
+      capitalizationIssues.push(`Sentence starts with lowercase letter: "${s.slice(0, 30)}..."`);
+      break;
+    }
+  }
+
+  return {
+    vocabularyUpgrades,
+    misspellings,
+    repeatedWords,
+    runOnSentences,
+    capitalizationIssues,
   };
 }

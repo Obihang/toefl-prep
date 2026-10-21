@@ -215,6 +215,25 @@ export function getCefrFromBand6(band6: number): {
   };
 }
 
+export interface ScoreEquivalency {
+  cefr: string; // 'C2', 'C1', 'B2', 'B1', 'A2', 'A1'
+  toefl120Range: string; // '~107–113/120'
+  badgeText: string; // 'Band 5.5 (CEFR C1 • ~107–113/120)'
+}
+
+export function getScoreEquivalency(bandScore6: number): ScoreEquivalency {
+  const band = Math.round(bandScore6 * 2) / 2;
+  if (band >= 6.0) return { cefr: 'C2', toefl120Range: '~114–120/120', badgeText: 'Band 6.0 (CEFR C2 • ~114–120/120)' };
+  if (band >= 5.5) return { cefr: 'C1', toefl120Range: '~107–113/120', badgeText: 'Band 5.5 (CEFR C1 • ~107–113/120)' };
+  if (band >= 5.0) return { cefr: 'C1', toefl120Range: '~95–106/120', badgeText: 'Band 5.0 (CEFR C1 • ~95–106/120)' };
+  if (band >= 4.5) return { cefr: 'B2', toefl120Range: '~84–94/120', badgeText: 'Band 4.5 (CEFR B2 • ~84–94/120)' };
+  if (band >= 4.0) return { cefr: 'B2', toefl120Range: '~72–83/120', badgeText: 'Band 4.0 (CEFR B2 • ~72–83/120)' };
+  if (band >= 3.5) return { cefr: 'B1', toefl120Range: '~57–71/120', badgeText: 'Band 3.5 (CEFR B1 • ~57–71/120)' };
+  if (band >= 3.0) return { cefr: 'B1', toefl120Range: '~42–56/120', badgeText: 'Band 3.0 (CEFR B1 • ~42–56/120)' };
+  if (band >= 2.0) return { cefr: 'A2', toefl120Range: '~25–41/120', badgeText: 'Band 2.0 (CEFR A2 • ~25–41/120)' };
+  return { cefr: 'A1', toefl120Range: '~0–24/120', badgeText: 'Band 1.0 (CEFR A1 • ~0–24/120)' };
+}
+
 export function calculateToeflEstimate(history: PracticeRecord[]): {
   overallScore: number;       // Legacy 0-120
   overallBand6: number;       // New 1.0 - 6.0 band

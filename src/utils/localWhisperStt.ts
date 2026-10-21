@@ -83,6 +83,7 @@ export interface LocalSpeakingMetrics {
   durationSeconds: number;
   acousticHesitations?: number;
   cleanTextWithoutFillers?: string;
+  intonationScore?: 'Expressive & Natural' | 'Moderately Varied' | 'Flat / Monotone';
 }
 
 export interface LocalWhisperResult {
@@ -1031,6 +1032,44 @@ export async function transcribeWithLocalWhisper(
   const rawWpm = durationMin > 0 ? Math.round(wordCount / durationMin) : 0;
   const wpm = Math.min(220, Math.max(0, rawWpm));
 
+  // Estimate acoustic intonation / pitch expressiveness across trimmed audio frames
+  let intonationScore: 'Expressive & Natural' | 'Moderately Varied' | 'Flat / Monotone' = 'Moderately Varied';
+  try {
+    const frameSamples = 320; // 20ms
+    const numFrames = Math.floor(vad.trimmedAudio.length / frameSamples);
+    if (numFrames > 10) {
+      let rmsSum = 0;
+      const rmsVals = new Float32Array(numFrames);
+      for (let f = 0; f < numFrames; f++) {
+        let sumSq = 0;
+        const offset = f * frameSamples;
+        for (let i = 0; i < frameSamples; i++) {
+          const val = vad.trimmedAudio[offset + i];
+          sumSq += val * val;
+        }
+        const rms = Math.sqrt(sumSq / frameSamples);
+        rmsVals[f] = rms;
+        rmsSum += rms;
+      }
+      const meanRms = rmsSum / numFrames;
+      let varSum = 0;
+      for (let f = 0; f < numFrames; f++) {
+        const diff = rmsVals[f] - meanRms;
+        varSum += diff * diff;
+      }
+      const stdDev = Math.sqrt(varSum / numFrames);
+      const cv = meanRms > 0 ? stdDev / meanRms : 0;
+
+      if (cv >= 0.45) {
+        intonationScore = 'Expressive & Natural';
+      } else if (cv >= 0.22) {
+        intonationScore = 'Moderately Varied';
+      } else {
+        intonationScore = 'Flat / Monotone';
+      }
+    }
+  } catch {}
+
   const metrics: LocalSpeakingMetrics = {
     wpm,
     pauseCount: vad.pauseCount,
@@ -1042,6 +1081,7 @@ export async function transcribeWithLocalWhisper(
     durationSeconds: Math.round(vad.activeSpeakingTimeSeconds * 10) / 10,
     acousticHesitations: vad.acousticHesitationStalls,
     cleanTextWithoutFillers,
+    intonationScore,
   };
 
   return {

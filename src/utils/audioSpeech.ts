@@ -2308,3 +2308,24 @@ export function calculateSentenceMatch(
   const percentage = Math.round((matchedCount / rawTargetWords.length) * 100);
   return { percentage, wordStatuses };
 }
+
+// Play short beep tone for real exam auto-flow
+export function playExamBeep(frequency = 800, durationMs = 250): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationMs / 1000);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durationMs / 1000);
+  } catch {}
+}
