@@ -4,19 +4,22 @@
  * 100% Zero-API offline automatic speech recognition for Brave and all modern browsers.
  *
  * Upgraded Features:
- * - 16kHz resampling + 50ms window RMS VAD for leading/trailing silence trimming.
+ * - Xenova/whisper-small.en (244M params) default model for maximum accuracy on South Asian/Nepali & international English accents.
+ * - 16kHz resampling + 50ms window RMS VAD with 500ms (8,000 samples) pre/post padding.
+ * - Leading/trailing dead air only trimmed if silence exceeds 600ms (prevents initial plosive clipping like "Task" -> "Just").
  * - Volume peak normalization (scaling quiet microphones up to 0.92 max peak).
  * - Exact deterministic pause (>1.0s) & speaking duration calculation from audio waveform.
- * - Hardware acceleration (WebGPU with fallback to ONNX WASM multi-threading).
- * - Xenova/whisper-base.en default model for high accuracy on international accents & TOEFL vocabulary.
- * - Temperature 0 greedy decoding without slow word-level DTW (5x speedup: 3–5 sec response).
+ * - WebGPU hardware acceleration with ONNX WASM multi-threading fallback.
+ * - Phonetic & homophone alignment against target sentences (e.g., "here" -> "Hear", "sent in" -> "Sentence").
  */
+
+import { alignHomophonesAndPhonetics } from './phoneticMatcher';
 
 const CDN_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.1.2';
 
-export type WhisperModelChoice = 'Xenova/whisper-base.en' | 'Xenova/whisper-tiny.en';
+export type WhisperModelChoice = 'Xenova/whisper-small.en' | 'Xenova/whisper-base.en' | 'Xenova/whisper-tiny.en';
 
-let currentModelChoice: WhisperModelChoice = 'Xenova/whisper-base.en';
+let currentModelChoice: WhisperModelChoice = 'Xenova/whisper-small.en';
 let pipelineModule: any = null;
 let pipelineInstance: any = null;
 let loadedModelName: string | null = null;
@@ -43,6 +46,7 @@ export interface LocalSpeakingMetrics {
 
 export interface LocalWhisperResult {
   transcript: string;
+  rawTranscript: string;
   words: LocalWordTimestamp[];
   durationMs: number;
   metrics: LocalSpeakingMetrics;
@@ -128,10 +132,8 @@ export async function decodeAudioBlobTo16kHz(blob: Blob): Promise<Float32Array> 
 }
 
 /**
- * Perform 50ms window RMS energy VAD to:
- * 1. Trim leading and trailing dead air silence (with 200ms safety margin).
- * 2. Directly measure pauses > 1.0s, longest pause gap, and active speaking duration.
- * 3. Peak-normalize volume so quiet laptop/Linux microphones are scaled to 0.92 max peak.
+ * Perform 50ms window RMS energy VAD with 500ms (8,000 samples) pre/post padding.
+ * Only trims leading/trailing dead air if silence exceeds 600ms, preventing consonant clipping.
  */
 export function analyzeAndNormalizeAudioWaveform(
   audio16k: Float32Array
@@ -168,8 +170,8 @@ export function analyzeAndNormalizeAudioWaveform(
     rmsWindows[i] = Math.sqrt(sum / samplesPerWindow);
   }
 
-  // Adaptive threshold based on max peak and room noise floor
-  const silenceThreshold = Math.max(0.004, Math.min(0.02, maxPeak * 0.12));
+  // Lower RMS threshold (0.003) so initial plosives like /t/ or /k/ are captured
+  const silenceThreshold = Math.max(0.0025, Math.min(0.01, maxPeak * 0.08));
 
   // Identify speech windows
   const isSpeech = new Uint8Array(totalWindows);
@@ -205,10 +207,18 @@ export function analyzeAndNormalizeAudioWaveform(
     };
   }
 
-  // Margin of 200ms (4 windows) before first speech and after last speech
-  const marginWindows = 4;
-  const startWindow = Math.max(0, firstSpeech - marginWindows);
-  const endWindow = Math.min(totalWindows - 1, lastSpeech + marginWindows);
+  // Calculate leading & trailing silence durations
+  const leadingSilenceMs = firstSpeech * windowMs;
+  const trailingSilenceMs = (totalWindows - 1 - lastSpeech) * windowMs;
+
+  // 500ms padding = 10 windows (10 * 50ms = 500ms = 8,000 samples at 16kHz)
+  const paddingWindows = 10;
+
+  // Only trim leading silence if it exceeds 600ms (12 windows)
+  const startWindow = leadingSilenceMs > 600 ? Math.max(0, firstSpeech - paddingWindows) : 0;
+
+  // Only trim trailing silence if it exceeds 600ms (12 windows)
+  const endWindow = trailingSilenceMs > 600 ? Math.min(totalWindows - 1, lastSpeech + paddingWindows) : totalWindows - 1;
 
   // Slice trimmed Float32Array
   const startSample = startWindow * samplesPerWindow;
@@ -281,8 +291,7 @@ export async function getLocalWhisperPipeline(
   }
 
   pipelineLoadPromise = (async () => {
-    const isBase = targetModel.includes('base');
-    const sizeLabel = isBase ? '~75MB' : '~40MB';
+    const sizeLabel = targetModel.includes('small') ? '~150MB' : targetModel.includes('base') ? '~75MB' : '~40MB';
     onProgress?.(`Loading offline Whisper speech model (${targetModel}, one-time ${sizeLabel} cached download)...`);
 
     const { pipeline, env } = await getTransformersModule();
@@ -321,18 +330,28 @@ export async function getLocalWhisperPipeline(
     }
 
     if (!transcriber) {
-      transcriber = await pipeline('automatic-speech-recognition', targetModel, {
-        dtype: 'q8',
-        device: 'wasm',
-        progress_callback: (progress: any) => {
-          if (progress.status === 'progress' && progress.total) {
-            const pct = Math.round((progress.loaded / progress.total) * 100);
-            onProgress?.(`Loading ${targetModel} (${pct}% cached)...`);
-          } else if (progress.status === 'ready' || progress.status === 'done') {
-            onProgress?.('Whisper model loaded.');
-          }
-        },
-      });
+      try {
+        transcriber = await pipeline('automatic-speech-recognition', targetModel, {
+          dtype: 'q8',
+          device: 'wasm',
+          progress_callback: (progress: any) => {
+            if (progress.status === 'progress' && progress.total) {
+              const pct = Math.round((progress.loaded / progress.total) * 100);
+              onProgress?.(`Loading ${targetModel} (${pct}% cached)...`);
+            } else if (progress.status === 'ready' || progress.status === 'done') {
+              onProgress?.('Whisper model loaded.');
+            }
+          },
+        });
+      } catch (smallErr) {
+        // Fallback to base model if small model runs out of browser memory
+        if (targetModel === 'Xenova/whisper-small.en') {
+          console.warn('Whisper small model failed to load, falling back to whisper-base.en:', smallErr);
+          onProgress?.('Whisper small unavailable, falling back to whisper-base.en...');
+          return getLocalWhisperPipeline(onProgress, 'Xenova/whisper-base.en');
+        }
+        throw smallErr;
+      }
     }
 
     pipelineInstance = transcriber;
@@ -350,12 +369,13 @@ export async function getLocalWhisperPipeline(
 }
 
 /**
- * Transcribes audio blob completely in-browser using local Whisper (base model by default).
- * Uses RMS VAD for silence trimming + volume normalization + 5x fast greedy decoding.
+ * Transcribes audio blob completely in-browser using local Whisper (small.en model by default).
+ * Uses RMS VAD for silence trimming + volume normalization + homophone alignment if targetSentence provided.
  */
 export async function transcribeWithLocalWhisper(
   audioBlob: Blob,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  targetSentence?: string
 ): Promise<LocalWhisperResult> {
   onProgress?.('Decoding & resampling audio to 16kHz...');
   const rawAudio16k = await decodeAudioBlobTo16kHz(audioBlob);
@@ -364,7 +384,7 @@ export async function transcribeWithLocalWhisper(
   const vad = analyzeAndNormalizeAudioWaveform(rawAudio16k);
 
   const transcriber = await getLocalWhisperPipeline(onProgress, currentModelChoice);
-  onProgress?.('Transcribing locally (3-5s greedy decoding)...');
+  onProgress?.(`Transcribing locally with ${currentModelChoice}...`);
 
   const output = await transcriber(vad.trimmedAudio, {
     return_timestamps: false,
@@ -373,7 +393,12 @@ export async function transcribeWithLocalWhisper(
     temperature: 0,
   });
 
-  const fullText = (output.text || '').trim();
+  const rawFullText = (output.text || '').trim();
+
+  // Align homophones and phonetic mishearings if targetSentence is provided (Listen & Repeat context)
+  const fullText = targetSentence
+    ? alignHomophonesAndPhonetics(rawFullText, targetSentence)
+    : rawFullText;
 
   // Extract filler words from transcript
   const detectedFillers: string[] = [];
@@ -408,6 +433,7 @@ export async function transcribeWithLocalWhisper(
 
   return {
     transcript: fullText,
+    rawTranscript: rawFullText,
     words: [],
     durationMs: Math.round(vad.activeSpeakingTimeSeconds * 1000),
     metrics,

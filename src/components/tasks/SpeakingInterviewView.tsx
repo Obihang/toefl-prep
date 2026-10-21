@@ -740,11 +740,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                     onClick={() => {
                       const url = URL.createObjectURL(audioBlobs[currentQIndex]);
                       const audio = new Audio(url);
-                      audio.play();
+                      audio.play().catch(console.warn);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition-colors shrink-0"
+                    title="Listen to your exact recorded voice"
                   >
-                    <span>🔊 Listen to My Recording</span>
+                    <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
+                    <span>▶ Hear My Recording</span>
                   </button>
                   <button
                     type="button"

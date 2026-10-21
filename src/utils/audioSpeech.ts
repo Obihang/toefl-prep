@@ -492,8 +492,8 @@ export async function getMicStream(): Promise<MediaStream> {
     audio: {
       channelCount: 1,
       sampleRate: 16000,
-      echoCancellation: true,
-      noiseSuppression: true,
+      echoCancellation: false,
+      noiseSuppression: false,
       autoGainControl: true,
     },
   });
@@ -1416,7 +1416,8 @@ export async function requestMicrophoneAccess(): Promise<{ granted: boolean; err
 // Send recorded audio to Groq cloud STT if key configured, or 100% Zero-API local Whisper in-browser
 export async function transcribeAudioBlob(
   blob: Blob,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  targetSentence?: string
 ): Promise<{
   transcript: string;
   words?: Array<{ word: string; start: number; end: number }>;
@@ -1482,10 +1483,10 @@ export async function transcribeAudioBlob(
     }
   }
 
-  // 100% Zero-API In-Browser Whisper Tiny Fallback (Ideal for Brave browser on Linux)
+  // 100% Zero-API In-Browser Whisper Fallback (Ideal for Brave browser on Linux)
   try {
     const { transcribeWithLocalWhisper } = await import('./localWhisperStt');
-    const localRes = await transcribeWithLocalWhisper(blob, onProgress);
+    const localRes = await transcribeWithLocalWhisper(blob, onProgress, targetSentence);
     return {
       transcript: localRes.transcript,
       words: localRes.words,
@@ -1628,8 +1629,8 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
         const selectedDeviceId = getStoredMicDeviceId();
         const speechConstraints: MediaStreamConstraints = {
           audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
+            echoCancellation: false,
+            noiseSuppression: false,
             autoGainControl: true,
             channelCount: 1,
             sampleRate: 16000,

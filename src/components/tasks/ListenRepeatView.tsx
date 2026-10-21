@@ -2,7 +2,7 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueL
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw } from 'lucide-react';
+import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
@@ -301,9 +301,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           setTranscribeErrors((prev) => ({ ...prev, [index]: result.error! }));
         } else if (result.transcript) {
           setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
+          const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
+          const aligned = alignHomophonesAndPhonetics(result.transcript, task.sentences[index]);
           setStates((prev) => {
             const next = [...prev];
-            next[index] = { ...next[index], userInput: result.transcript };
+            next[index] = { ...next[index], userInput: aligned };
             return next;
           });
         }
@@ -458,7 +460,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     setMicStatus('transcribing');
     setMicError(null);
     try {
-      const { transcript, words, durationMs } = await transcribeAudioBlob(blob);
+      const targetSentence = task.sentences[index];
+      const { transcript, words, durationMs } = await transcribeAudioBlob(blob, undefined, targetSentence);
       if (transcript.trim()) {
         const metrics = calculateSpeakingMetrics(words, transcript, (durationMs || 0) / 1000);
         setStates((prev) => {
@@ -737,20 +740,35 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   </button>
 
                   {audioBlobs[idx] && (
-                    <button
-                      type="button"
-                      onClick={() => handleRetryTranscription(idx)}
-                      disabled={isRecordingThis || isTranscribingThis}
-                      className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                        transcribeErrors[idx]
-                          ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                      title="Retry transcription from saved recording"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
-                      <span>Retry STT</span>
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = URL.createObjectURL(audioBlobs[idx]);
+                          const audio = new Audio(url);
+                          audio.play().catch(console.warn);
+                        }}
+                        className="px-3 py-2 text-xs font-semibold rounded-lg border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                        title="Listen to your exact recorded voice"
+                      >
+                        <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
+                        <span>▶ Hear My Recording</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRetryTranscription(idx)}
+                        disabled={isRecordingThis || isTranscribingThis}
+                        className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                          transcribeErrors[idx]
+                            ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold'
+                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                        title="Retry transcription from saved recording"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
+                        <span>Retry STT</span>
+                      </button>
+                    </>
                   )}
 
                   <button
