@@ -235,6 +235,36 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
         console.warn(`Failed to sync shard ${shard}:`, shardErr);
       }
     }
+
+    // Also fetch and merge validated questions from Firestore 'questions' collection if available
+    try {
+      if (db) {
+        const qSnap = await getDocs(collection(db, 'questions'));
+        if (!qSnap.empty) {
+          qSnap.forEach((docSnap) => {
+            const data = docSnap.data();
+            const taskType = data.taskType;
+            const content = data.content;
+            if (taskType && content && isHighQualityTask(content, taskType)) {
+              const qId = docSnap.id;
+              store.put({
+                id: qId,
+                taskType,
+                level: data.level || content.level || 'intermediate',
+                topic: data.topic || content.topic || 'general',
+                content,
+                isCurated: false,
+                updatedAt: Date.now(),
+              });
+              counts[taskType] = (counts[taskType] || 0) + 1;
+              totalQuestions++;
+            }
+          });
+        }
+      }
+    } catch (firestoreErr) {
+      console.warn('Failed to sync questions from Firestore into local bank:', firestoreErr);
+    }
   } catch (err) {
     console.warn('Failed to open IndexedDB during question bank sync:', err);
   }

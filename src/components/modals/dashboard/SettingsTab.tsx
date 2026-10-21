@@ -718,9 +718,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
                 {Object.entries(bankStats.countsPerTaskType).map(([taskKey, count]) => {
                   const td = TASK_DEFINITIONS.find((t) => t.id === taskKey);
+                  const prettyName = td?.name || taskKey.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                   return (
                     <div key={taskKey} className="text-[11px] bg-white border border-teal-100 rounded-md px-2 py-1 flex items-center justify-between">
-                      <span className="text-slate-600 truncate mr-1">{td?.name || taskKey}:</span>
+                      <span className="text-slate-600 truncate mr-1">{prettyName}:</span>
                       <span className="font-bold text-teal-800">{count}</span>
                     </div>
                   );

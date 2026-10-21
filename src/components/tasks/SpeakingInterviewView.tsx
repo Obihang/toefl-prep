@@ -758,8 +758,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         <span>Tip: Use headphones or a headset to prevent microphone echo and avoid picking up system audio.</span>
       </div>
 
-      {/* Microphone Test Widget */}
-      <MicrophoneTestWidget compact />
 
       {micNotice && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-900 animate-in fade-in">

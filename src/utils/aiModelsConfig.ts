@@ -54,7 +54,7 @@ export const PROVIDER_OPTIMAL_MODELS: Record<string, Partial<PurposeModelMapping
     vocabularyBank: GENERATION_MODELS.gemini[0],
     mistakeNotebook: GENERATION_MODELS.gemini[0],
     scoreProjectionStudyPlan: 'Client-side algorithmic analytics',
-    voiceTranscription: 'Gemini / Whisper',
+    voiceTranscription: 'Offline Whisper (whisper-base.en • Local Worker)',
     voiceSynthesis: 'AI Voice',
   },
 };
