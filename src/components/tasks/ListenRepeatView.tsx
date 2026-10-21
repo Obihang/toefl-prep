@@ -63,6 +63,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     checkCached();
   }, [isTranscriberModalOpen]);
 
+  const activePlayingKeyRef = useRef<string | null>(null);
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
@@ -84,8 +85,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         recordingAudioRef.current.currentTime = 0;
       } catch {}
       recordingAudioRef.current = null;
-      setPlayingRecordingIdx(null);
     }
+    activePlayingKeyRef.current = null;
+    setActiveAudioIdx(null);
+    setLoadingAudioIdx(null);
+    setPlayingRecordingIdx(null);
     stopSpeaking();
   }, []);
 
@@ -140,14 +144,15 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, [micStatus]);
 
   const handlePlay = async (index: number) => {
+    const itemKey = `sentence_${index}`;
+    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
     stopAllAudio();
-    const currentSession = ++playbackSessionIdRef.current;
-
-    if (activeAudioIdx === index || loadingAudioIdx === index) {
-      setActiveAudioIdx(null);
-      setLoadingAudioIdx(null);
+    if (wasPlayingThis) {
       return;
     }
+    activePlayingKeyRef.current = itemKey;
+    const currentSession = ++playbackSessionIdRef.current;
+
     setLoadingAudioIdx(index);
     setAudioErrors((prev) => ({ ...prev, [index]: null }));
 
@@ -173,25 +178,30 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
             return;
           }
           const audio = new Audio(savedClipUrl);
+          audio.loop = false;
           activeAudioRef.current = audio;
           audio.onended = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             resolve();
           };
           audio.onerror = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             reject(new Error('Saved audio playback error'));
           };
           audio.play().catch((err) => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             reject(err);
           });
         });
       } catch (err: any) {
         if (playbackSessionIdRef.current === currentSession) {
+          activePlayingKeyRef.current = null;
           setActiveAudioIdx(null);
           setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
         }
@@ -242,19 +252,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
             return;
           }
           const audio = new Audio(audioSrc);
+          audio.loop = false;
           activeAudioRef.current = audio;
           audio.onended = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             resolve();
           };
           audio.onerror = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             reject(new Error('Generated audio playback error'));
           };
           audio.play().catch((err) => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             reject(err);
           });
@@ -282,12 +296,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         },
         onEnd: () => {
           if (playbackSessionIdRef.current === currentSession) {
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             setLoadingAudioIdx(null);
           }
         },
         onError: (err) => {
           if (playbackSessionIdRef.current === currentSession) {
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             setLoadingAudioIdx(null);
             setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
@@ -296,6 +312,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       });
     } catch (err: any) {
       if (playbackSessionIdRef.current === currentSession) {
+        if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
         setActiveAudioIdx(null);
         setLoadingAudioIdx(null);
         setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
@@ -310,10 +327,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   };
 
   const handlePlayUserRecording = (index: number) => {
+    const itemKey = `user_rec_${index}`;
+    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
     stopAllAudio();
-
-    if (playingRecordingIdx === index && recordingAudioRef.current) {
-      return; // stopAllAudio already stopped it
+    if (wasPlayingThis) {
+      return;
     }
 
     const blob = audioBlobs[index];
@@ -321,30 +339,41 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
+    audio.loop = false;
+    activePlayingKeyRef.current = itemKey;
     recordingAudioRef.current = audio;
     setPlayingRecordingIdx(index);
 
     audio.onended = () => {
       if (recordingAudioRef.current === audio) {
         recordingAudioRef.current = null;
-        setPlayingRecordingIdx(null);
       }
+      if (activePlayingKeyRef.current === itemKey) {
+        activePlayingKeyRef.current = null;
+      }
+      setPlayingRecordingIdx(null);
       URL.revokeObjectURL(url);
     };
 
     audio.onerror = () => {
       if (recordingAudioRef.current === audio) {
         recordingAudioRef.current = null;
-        setPlayingRecordingIdx(null);
       }
+      if (activePlayingKeyRef.current === itemKey) {
+        activePlayingKeyRef.current = null;
+      }
+      setPlayingRecordingIdx(null);
       URL.revokeObjectURL(url);
     };
 
     audio.play().catch(() => {
       if (recordingAudioRef.current === audio) {
         recordingAudioRef.current = null;
-        setPlayingRecordingIdx(null);
       }
+      if (activePlayingKeyRef.current === itemKey) {
+        activePlayingKeyRef.current = null;
+      }
+      setPlayingRecordingIdx(null);
       URL.revokeObjectURL(url);
     });
   };
@@ -716,7 +745,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       ) : (
                         <Volume2 className="w-3.5 h-3.5" />
                       )}
-                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? 'Pause Audio' : 'Hear Sentence'}
+                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? '⏹ Stop Audio' : 'Hear Sentence'}
                     </button>
 
                     <button

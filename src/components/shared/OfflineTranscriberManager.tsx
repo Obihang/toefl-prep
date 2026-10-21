@@ -23,6 +23,7 @@ import {
   HardDrive,
   Loader2,
   Play,
+  Pause,
   XCircle,
   AlertCircle,
   Cpu,
@@ -49,11 +50,63 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
   const [testModelUsed, setTestModelUsed] = useState<string | null>(null);
   const [testAudioBlob, setTestAudioBlob] = useState<Blob | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [isPlayingTestAudio, setIsPlayingTestAudio] = useState(false);
 
+  const activePlayingKeyRef = useRef<string | null>(null);
+  const testAudioRef = useRef<HTMLAudioElement | null>(null);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const countdownIntervalRef = useRef<any>(null);
   const testTimerRef = useRef<any>(null);
   const testAbortControllerRef = useRef<AbortController | null>(null);
+
+  const stopAllAudio = () => {
+    if (testAudioRef.current) {
+      try {
+        testAudioRef.current.pause();
+        testAudioRef.current.currentTime = 0;
+      } catch {}
+      testAudioRef.current = null;
+    }
+    activePlayingKeyRef.current = null;
+    setIsPlayingTestAudio(false);
+  };
+
+  const handlePlayTestAudio = () => {
+    const itemKey = 'test_audio';
+    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
+    stopAllAudio();
+    if (wasPlayingThis || !testAudioBlob) {
+      return;
+    }
+
+    const url = URL.createObjectURL(testAudioBlob);
+    const audio = new Audio(url);
+    audio.loop = false;
+    activePlayingKeyRef.current = itemKey;
+    testAudioRef.current = audio;
+    setIsPlayingTestAudio(true);
+
+    audio.onended = () => {
+      if (testAudioRef.current === audio) testAudioRef.current = null;
+      if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+      setIsPlayingTestAudio(false);
+      URL.revokeObjectURL(url);
+    };
+
+    audio.onerror = () => {
+      if (testAudioRef.current === audio) testAudioRef.current = null;
+      if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+      setIsPlayingTestAudio(false);
+      URL.revokeObjectURL(url);
+    };
+
+    audio.play().catch(() => {
+      if (testAudioRef.current === audio) testAudioRef.current = null;
+      if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+      setIsPlayingTestAudio(false);
+      URL.revokeObjectURL(url);
+    });
+  };
 
   const refreshCacheStatuses = async () => {
     const currentActive = getWhisperModelChoice();
@@ -465,15 +518,25 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
               {testAudioBlob && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const url = URL.createObjectURL(testAudioBlob);
-                    const a = new Audio(url);
-                    a.play().catch(console.warn);
-                  }}
-                  className="px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                  onClick={handlePlayTestAudio}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition flex items-center gap-1.5 cursor-pointer ${
+                    isPlayingTestAudio
+                      ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
+                      : 'text-teal-800 bg-teal-50 hover:bg-teal-100 border-teal-300'
+                  }`}
+                  title={isPlayingTestAudio ? 'Click to stop playback' : 'Listen to test recording'}
                 >
-                  <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
-                  <span>▶ Play Recorded Test Audio</span>
+                  {isPlayingTestAudio ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5 fill-current text-slate-950" />
+                      <span>⏹ Stop Playback</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
+                      <span>▶ Play Recorded Test Audio</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

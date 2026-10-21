@@ -3,6 +3,7 @@ import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender, getBrowserSpeechPitchAndRate } from './voices';
 import { filterWhisperHallucinations } from './speakingMetrics';
+import { isWhisperWorkerBusy, transcribeWithLocalWhisper } from './localWhisperStt';
 import {
   recordVoiceEngineFailure,
   recordVoiceEngineSuccess,
@@ -1600,6 +1601,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
   let quietWarningFired = false;
   let recordingStartTime = 0;
   let isDeviceUnplugged = false;
+  let waitingForVoice = false;
 
   const tryResumeContext = () => {
     if (audioContext && audioContext.state === 'suspended') {
@@ -1666,6 +1668,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       volumeSamples = 0;
       quietWarningFired = false;
       isDeviceUnplugged = false;
+      waitingForVoice = Boolean(options.autoStartThreshold && options.autoStartThreshold > 0);
 
       // Stop any TTS playback immediately to avoid microphone picking up app voice
       stopSpeaking();
@@ -1818,8 +1821,8 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           mediaRecorder = null;
         }
 
-        const autoStartEnabled = options.autoStartThreshold !== undefined;
-        let waitingForVoice = autoStartEnabled;
+        let liveWhisperTimer: any = null;
+        let lastLiveTranscribeTime = 0;
 
         const startRecording = () => {
           if (mediaRecorder && mediaRecorder.state === 'inactive') {
@@ -1830,6 +1833,31 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           recordingStartTime = Date.now();
           isRecordingState = true;
           options.onStatusChange?.('listening');
+
+          // Incremental real-time local Whisper background transcription timer (every ~2s while speaking)
+          if (liveWhisperTimer) clearInterval(liveWhisperTimer);
+          lastLiveTranscribeTime = Date.now();
+
+          liveWhisperTimer = setInterval(async () => {
+            if (!isRecordingState || audioChunks.length === 0) return;
+            const now = Date.now();
+            if (now - lastLiveTranscribeTime < 2000) return;
+
+            if (isWhisperWorkerBusy()) return;
+
+            const mime = mediaRecorder?.mimeType || 'audio/webm';
+            const partialBlob = new Blob(audioChunks, { type: mime });
+            if (partialBlob.size < 20000) return; // at least ~1.2s of audio
+
+            lastLiveTranscribeTime = now;
+            try {
+              const liveRes = await transcribeWithLocalWhisper(partialBlob);
+              if (isRecordingState && liveRes.transcript && liveRes.transcript.trim()) {
+                accumulatedTranscript = liveRes.transcript.trim();
+                options.onTranscriptUpdate?.(accumulatedTranscript);
+              }
+            } catch {}
+          }, 1000);
 
           // Setup SpeechRecognition for real-time live typing if not blocked in session (Brave safe)
           if (!isWebSpeechBlocked() && !recognitionInstance) {

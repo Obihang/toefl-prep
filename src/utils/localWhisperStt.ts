@@ -156,12 +156,22 @@ export function setWasmThreadsOverride(threads: number | 'auto') {
   }
 }
 
+let isWorkerBusyState = false;
+
+export function isWhisperWorkerBusy(): boolean {
+  return isWorkerBusyState;
+}
+
 export function getWhisperModelChoice(): WhisperModelChoice {
   if (typeof localStorage !== 'undefined') {
     const saved = localStorage.getItem('preferred_whisper_model') as WhisperModelChoice;
     if (saved && WHISPER_MODELS.some((m) => m.id === saved)) {
       return saved;
     }
+  }
+  const logicalCores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
+  if (logicalCores <= 4) {
+    return 'Xenova/whisper-tiny.en';
   }
   return 'Xenova/whisper-base.en';
 }
@@ -731,7 +741,9 @@ export async function transcribeWithLocalWhisper(
   const durationSec = vad.activeSpeakingTimeSeconds;
 
   const resultText: string = await new Promise((resolve, reject) => {
+    isWorkerBusyState = true;
     const timeoutTimer = setTimeout(() => {
+      isWorkerBusyState = false;
       if (pendingWorkerRequests.has(reqId)) {
         pendingWorkerRequests.delete(reqId);
         reject(new Error('TRANSCRIPTION_TIMEOUT'));
@@ -740,10 +752,12 @@ export async function transcribeWithLocalWhisper(
 
     pendingWorkerRequests.set(reqId, {
       resolve: (payload: any) => {
+        isWorkerBusyState = false;
         clearTimeout(timeoutTimer);
         resolve(payload.text || '');
       },
       reject: (err) => {
+        isWorkerBusyState = false;
         clearTimeout(timeoutTimer);
         reject(err);
       },

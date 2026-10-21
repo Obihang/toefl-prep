@@ -57,11 +57,34 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   }, [isTranscriberModalOpen]);
 
   const [playingRecordingQIndex, setPlayingRecordingQIndex] = useState<number | null>(null);
+  const activePlayingKeyRef = useRef<string | null>(null);
+  const questionAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
   const pendingTranscriptionsRef = useRef<Record<number, Promise<void>>>({});
+
+  const stopAllAudio = () => {
+    if (recordingAudioRef.current) {
+      try {
+        recordingAudioRef.current.pause();
+        recordingAudioRef.current.currentTime = 0;
+      } catch {}
+      recordingAudioRef.current = null;
+    }
+    if (questionAudioRef.current) {
+      try {
+        questionAudioRef.current.pause();
+        questionAudioRef.current.currentTime = 0;
+      } catch {}
+      questionAudioRef.current = null;
+    }
+    activePlayingKeyRef.current = null;
+    setIsPlayingAudio(false);
+    setPlayingRecordingQIndex(null);
+    stopSpeaking();
+  };
 
   const currentQ: InterviewQuestionItem = task.questions[currentQIndex];
 
@@ -84,14 +107,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       if (voiceSessionRef.current) {
         voiceSessionRef.current.abort();
       }
-      stopSpeaking();
+      stopAllAudio();
     };
   }, []);
 
   // Stop audio when changing questions
   useEffect(() => {
-    stopSpeaking();
-    setIsPlayingAudio(false);
+    stopAllAudio();
   }, [currentQIndex, task.id]);
 
   // Live timer for recording duration
@@ -130,8 +152,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-  const playQuestionAudio = async () => {
-    stopSpeaking();
+  const playQuestionAudio = async (itemKey: string) => {
+    stopAllAudio();
+    activePlayingKeyRef.current = itemKey;
     setIsPlayingAudio(true);
     setAudioError(null);
     const parsed = parseDialogueLine(currentQ.question);
@@ -145,31 +168,37 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         rate: 0.95,
         voiceName,
         browserVoice,
-        onEnd: () => setIsPlayingAudio(false),
+        onEnd: () => {
+          if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+          setIsPlayingAudio(false);
+        },
         onError: (err) => {
+          if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
           setIsPlayingAudio(false);
           setAudioError(err?.message || String(err));
         },
       });
     } catch (err: any) {
+      if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
       setIsPlayingAudio(false);
       setAudioError(err?.message || String(err));
     }
   };
 
   const handleHearQuestion = async () => {
-    if (isPlayingAudio) {
-      stopSpeaking();
-      setIsPlayingAudio(false);
+    const itemKey = `question_${currentQIndex}`;
+    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
+    stopAllAudio();
+    if (wasPlayingThis) {
       return;
     }
-    await playQuestionAudio();
+    await playQuestionAudio(itemKey);
   };
 
   const handleRestartQuestionAudio = async () => {
-    stopSpeaking();
-    setIsPlayingAudio(false);
-    await playQuestionAudio();
+    stopAllAudio();
+    const itemKey = `question_${currentQIndex}`;
+    await playQuestionAudio(itemKey);
   };
 
   // Background transcription per question
@@ -357,26 +386,11 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   };
 
   const handlePlayUserRecording = (qIndex: number) => {
-    stopSpeaking();
-    setIsPlayingAudio(false);
-
-    if (playingRecordingQIndex === qIndex && recordingAudioRef.current) {
-      try {
-        recordingAudioRef.current.pause();
-        recordingAudioRef.current.currentTime = 0;
-      } catch {}
-      recordingAudioRef.current = null;
-      setPlayingRecordingQIndex(null);
+    const itemKey = `user_rec_${qIndex}`;
+    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
+    stopAllAudio();
+    if (wasPlayingThis) {
       return;
-    }
-
-    if (recordingAudioRef.current) {
-      try {
-        recordingAudioRef.current.pause();
-        recordingAudioRef.current.currentTime = 0;
-      } catch {}
-      recordingAudioRef.current = null;
-      setPlayingRecordingQIndex(null);
     }
 
     const blob = audioBlobs[qIndex];
@@ -384,30 +398,41 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
+    audio.loop = false;
+    activePlayingKeyRef.current = itemKey;
     recordingAudioRef.current = audio;
     setPlayingRecordingQIndex(qIndex);
 
     audio.onended = () => {
       if (recordingAudioRef.current === audio) {
         recordingAudioRef.current = null;
-        setPlayingRecordingQIndex(null);
       }
+      if (activePlayingKeyRef.current === itemKey) {
+        activePlayingKeyRef.current = null;
+      }
+      setPlayingRecordingQIndex(null);
       URL.revokeObjectURL(url);
     };
 
     audio.onerror = () => {
       if (recordingAudioRef.current === audio) {
         recordingAudioRef.current = null;
-        setPlayingRecordingQIndex(null);
       }
+      if (activePlayingKeyRef.current === itemKey) {
+        activePlayingKeyRef.current = null;
+      }
+      setPlayingRecordingQIndex(null);
       URL.revokeObjectURL(url);
     };
 
     audio.play().catch(() => {
       if (recordingAudioRef.current === audio) {
         recordingAudioRef.current = null;
-        setPlayingRecordingQIndex(null);
       }
+      if (activePlayingKeyRef.current === itemKey) {
+        activePlayingKeyRef.current = null;
+      }
+      setPlayingRecordingQIndex(null);
       URL.revokeObjectURL(url);
     });
   };
@@ -775,7 +800,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                 }`}
               >
                 {isPlayingAudio ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
-                {isPlayingAudio ? 'Pause Audio' : 'Hear Question'}
+                {isPlayingAudio ? '⏹ Stop Audio' : 'Hear Question'}
               </button>
 
               <button
