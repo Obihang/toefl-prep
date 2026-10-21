@@ -2,12 +2,13 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueL
 import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw } from 'lucide-react';
+import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
+import { evaluateLocally } from '../../utils/localEvaluator';
 import { MicrophoneTestWidget } from '../shared/MicrophoneTestWidget';
 
 interface Props {
@@ -34,6 +35,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [micNotice, setMicNotice] = useState<string | null>(null);
   const [evaluationResult, setEvaluationResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [isBenchmarkOpen, setIsBenchmarkOpen] = useState(true);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
   const [transcribingQuestionIds, setTranscribingQuestionIds] = useState<Record<number, boolean>>({});
   const [transcriptionErrors, setTranscriptionErrors] = useState<Record<number, string | null>>({});
@@ -457,6 +459,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     const evalStart = Date.now();
     console.log('[Audio Timing] Starting evaluation at', new Date().toISOString());
 
+    let evalData: any = null;
+
     try {
       const json = await safeFetchJson('/api/evaluate-response', {
         method: 'POST',
@@ -472,16 +476,49 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         }),
       });
 
-      if (!json.success) {
-        throw new Error(json.error || 'Evaluation service unavailable');
+      if (json.success && json.data) {
+        evalData = json.data;
+      } else {
+        console.warn('[SpeakingInterview] API evaluation unavailable, running local rubric evaluator');
+        const combinedResponse = submissionData.map((s) => s.studentResponse).filter(Boolean).join('\n\n');
+        const avgWpm = Math.round(
+          submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
+        );
+        evalData = evaluateLocally(
+          'speaking-interview',
+          {
+            title: task.title,
+            context: task.context,
+            questions: task.questions.map((q) => q.question),
+          },
+          combinedResponse,
+          { task, wpm: avgWpm }
+        );
       }
+    } catch (err: any) {
+      console.warn('[SpeakingInterview] Network error, running local rubric evaluator:', err);
+      const combinedResponse = submissionData.map((s) => s.studentResponse).filter(Boolean).join('\n\n');
+      const avgWpm = Math.round(
+        submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
+      );
+      evalData = evaluateLocally(
+        'speaking-interview',
+        {
+          title: task.title,
+          context: task.context,
+          questions: task.questions.map((q) => q.question),
+        },
+        combinedResponse,
+        { task, wpm: avgWpm }
+      );
+    }
 
-      console.log(`[Audio Timing] transcript -> evaluation: ${Date.now() - evalStart}ms (server duration: ${json.data.durationMs || 'N/A'}ms)`);
+    if (evalData) {
+      console.log(`[Audio Timing] transcript -> evaluation completed`);
+      setEvaluationResult({ ...evalData, submissionData });
 
-      setEvaluationResult({ ...json.data, submissionData });
-
-      const scaled = json.data.scaledScore || 24;
-      const band6 = json.data.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
+      const scaled = evalData.scaledScore || 24;
+      const band6 = evalData.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
 
       savePracticeRecord({
         taskType: 'speaking-interview',
@@ -492,15 +529,12 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         scaledScore30: scaled,
         bandScore6: band6,
         timeSpentSeconds: 240,
-        feedbackSummary: `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${json.data.rawRubricScore ?? json.data.bandScore}/4.0 (${json.data.performanceLevel})`,
+        feedbackSummary: `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/4.0 (${evalData.performanceLevel})`,
       });
 
       onComplete?.(scaled);
-    } catch (err: any) {
-      setEvalError(err.message || 'Failed to connect to AI evaluator');
-    } finally {
-      setIsEvaluating(false);
     }
+    setIsEvaluating(false);
   };
 
 
@@ -922,6 +956,30 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             </div>
           </div>
 
+          {evaluationResult.notice && (
+            <div className="flex items-center gap-2 p-2.5 bg-blue-50/80 border border-blue-200 text-blue-900 rounded-lg text-xs font-medium">
+              <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>{evaluationResult.notice}</span>
+            </div>
+          )}
+
+          {evaluationResult.subScores && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="bg-white border border-slate-200 rounded-lg p-2.5 text-center shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Task Fulfillment</span>
+                <div className="text-sm font-bold text-teal-900 mt-0.5">{evaluationResult.subScores.taskFulfillment.toFixed(1)} / 6.0</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-lg p-2.5 text-center shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Language Use</span>
+                <div className="text-sm font-bold text-teal-900 mt-0.5">{evaluationResult.subScores.languageUse.toFixed(1)} / 6.0</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-lg p-2.5 text-center shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Topic Development</span>
+                <div className="text-sm font-bold text-teal-900 mt-0.5">{evaluationResult.subScores.topicDevelopment.toFixed(1)} / 6.0</div>
+              </div>
+            </div>
+          )}
+
           <div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-lg leading-relaxed">
             {evaluationResult.summary}
           </div>
@@ -963,7 +1021,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           {evaluationResult.corrections && evaluationResult.corrections.length > 0 && (
             <div className="space-y-2.5">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                Key Language & Syntax Improvements
+                Key Language &amp; Syntax Improvements
               </h4>
               <div className="space-y-2">
                 {evaluationResult.corrections.map((corr: any, i: number) => (
@@ -1006,14 +1064,79 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           {/* High-Scoring Model Response / Model Band 6.0 Rewrite */}
           {(evaluationResult.modelBand6Rewrite || evaluationResult.exemplar) && (
             <div className="space-y-2 pt-2 border-t border-slate-100">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800">
-                Model Band 6.0 Rewrite (ETS Advanced Exemplar)
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-teal-800 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-teal-600" />
+                  Model Band 6.0 Exemplar (ETS Benchmark)
+                </h4>
+                <span className="text-[10px] text-teal-700 font-medium bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                  Target Exemplar
+                </span>
+              </div>
               <div className="bg-teal-50/50 border border-teal-200/70 p-4 rounded-lg text-xs sm:text-sm text-teal-950 leading-relaxed font-normal whitespace-pre-line">
                 {evaluationResult.modelBand6Rewrite || evaluationResult.exemplar}
               </div>
             </div>
           )}
+
+          {/* Interactive Band 6.0 Benchmark Accordion */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setIsBenchmarkOpen(!isBenchmarkOpen)}
+              className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100/80 flex items-center justify-between text-left transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-teal-700" />
+                <span className="text-xs font-bold text-slate-800">
+                  Compare with Band 6.0 Benchmark: Rhetorical Devices &amp; Transitions
+                </span>
+              </div>
+              {isBenchmarkOpen ? (
+                <ChevronUp className="w-4 h-4 text-slate-500" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-500" />
+              )}
+            </button>
+
+            {isBenchmarkOpen && (
+              <div className="p-4 space-y-3.5 text-xs text-slate-700 border-t border-slate-200 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
+                    <span className="font-bold text-slate-900 block flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
+                      Key Rhetorical Devices
+                    </span>
+                    <ul className="list-disc list-inside space-y-1 text-slate-600">
+                      {(evaluationResult.benchmarkAnalysis?.rhetoricalDevices || [
+                        'Nuanced concession acknowledging counterarguments before asserting position',
+                        'Direct thesis statement with clear causal connectors',
+                        'Specific academic exemplification avoiding generic assertions',
+                      ]).map((dev: string, i: number) => (
+                        <li key={i}>{dev}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="bg-teal-50/60 p-3 rounded-lg border border-teal-200 space-y-1.5">
+                    <span className="font-bold text-teal-950 block flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-teal-700" />
+                      Why This Achieves Band 6.0
+                    </span>
+                    <p className="text-teal-900 leading-relaxed">
+                      {evaluationResult.benchmarkAnalysis?.whyBand6 ||
+                        'Demonstrates continuous vocal fluency, sophisticated discourse connectors, balanced sentence rhythm, and immediate topic resolution without acoustic hesitation.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-1 text-[11px] text-slate-500 flex items-center gap-2">
+                  <span className="inline-block w-2.5 h-2.5 bg-teal-100 border border-teal-300 rounded-xs"></span>
+                  <span>Evaluated against ETS TOEFL iBT Speaking Rubric standard descriptors.</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

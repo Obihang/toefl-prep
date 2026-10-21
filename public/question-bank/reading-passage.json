@@ -4,29 +4,369 @@
     "title": "The Evolution of Avian Flight Mechanics and Metabolic Adaptation",
     "level": "upper-intermediate",
     "topic": "science-tech",
-    "passage": "The transition from terrestrial locomotion to powered flight in avian species represents one of the most remarkable evolutionary milestones in vertebrate history. Paleontological discoveries in recent decades indicate that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift. Over successive generations, morphological modifications transformed forelimbs into sophisticated airfoil structures capable of generating thrust and lift simultaneously.\n\nSimultaneously, avian respiratory and cardiovascular systems underwent profound metabolic restructuring to sustain the immense energetic demands of powered flight. Unlike mammalian lungs, which operate on a tidal flow mechanism, birds evolved a continuous, unidirectional airflow system facilitated by a series of air sacs. This cross-current gas exchange ensures that oxygen is extracted during both inhalation and exhalation, providing unparalleled metabolic efficiency at high altitudes where atmospheric partial pressure drops significantly.",
+    "passage": "The transition from terrestrial locomotion to powered flight in avian species represents one of the most remarkable evolutionary milestones in vertebrate history. Paleontological discoveries in recent decades indicate that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift. Over successive generations, morphological modifications transformed forelimbs into sophisticated airfoil structures capable of generating thrust and lift simultaneously.\n\nSimultaneously, avian respiratory and cardiovascular systems underwent profound metabolic restructuring to sustain the immense energetic demands of powered flight. Unlike mammalian lungs, which operate on a tidal flow mechanism, birds evolved a continuous, unidirectional airflow system facilitated by a series of air sacs. This cross-current gas exchange ensures that oxygen is extracted during both inhalation and exhalation, providing unparalleled metabolic efficiency at high altitudes where atmospheric partial pressure drops significantly.\n\nIn addition to structural and pulmonary modifications, the evolution of flight necessitated extreme skeletal lightening. Terrestrial ancestral theropods possessed heavy, marrow-filled bones suitable for ground locomotion. Over millions of years of selective pressure, avian lineages evolved pneumatic skeletons characterized by hollow, air-filled cavities reinforced with internal truss-like struts. This architectural balance between extreme lightness and structural rigidity enabled birds to withstand torsional stress during vigorous flapping flight without incurring excessive payload mass.",
     "questions": [
       {
-        "q": "According to the passage, what was the initial evolutionary function of proto-feathers?",
+        "q": "According to paragraph 1, what was the primary initial evolutionary purpose of proto-feathers?",
         "options": [
           "Thermal insulation, camouflage, or courtship display",
-          "Direct aerodynamic propulsion and high-altitude gliding",
-          "Underwater swimming and steering in aquatic environments",
-          "Acoustic signaling for territorial defense"
+          "Direct aerodynamic propulsion and high-altitude soaring",
+          "Underwater steering and hydrodynamic stabilization",
+          "Acoustic signaling for territory defense"
         ],
         "answer": 0,
-        "why": "The passage explicitly states that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift."
+        "why": "Paragraph 1 explicitly notes that paleontological discoveries indicate proto-feathers initially served thermal insulation, camouflage, or courtship display functions."
       },
       {
-        "q": "How does the respiratory system of birds differ fundamentally from that of mammals?",
+        "q": "Which anatomical innovation allows avian lungs to achieve continuous unidirectional airflow?",
         "options": [
-          "Birds utilize a continuous, unidirectional airflow system with specialized air sacs",
-          "Mammals extract oxygen during both inhalation and exhalation",
-          "Birds rely entirely on cutaneous respiration through thin epidermal membranes",
-          "Mammalian lungs feature counter-current blood flow without air sacs"
+          "An interconnected network of anterior and posterior air sacs",
+          "A muscular diaphragm that forces rapid cyclical tidal respiration",
+          "Flexible cartilaginous gills lining the bronchial passages",
+          "Enlarged ventricular chambers in the cardiovascular system"
         ],
         "answer": 0,
-        "why": "The text explains that unlike mammalian lungs operating on a tidal flow mechanism, birds evolved a continuous, unidirectional airflow system facilitated by air sacs."
+        "why": "Paragraph 2 explains that birds evolved a continuous, unidirectional airflow system facilitated by a series of air sacs."
+      },
+      {
+        "q": "The word 'restructuring' in paragraph 2 is closest in meaning to:",
+        "options": [
+          "reorganization",
+          "elimination",
+          "stagnation",
+          "interruption"
+        ],
+        "answer": 0,
+        "why": "In this context, restructuring describes profound morphological and functional reorganization of the respiratory and cardiovascular systems."
+      },
+      {
+        "q": "What can be inferred from the passage regarding high-altitude flight in birds?",
+        "options": [
+          "Cross-current oxygen extraction enables birds to fly in oxygen-depleted atmospheres",
+          "Birds must cease flying when atmospheric partial pressure declines",
+          "Mammals possess greater respiratory efficiency than birds at high altitudes",
+          "Avian air sacs collapse when atmospheric pressure diminishes"
+        ],
+        "answer": 0,
+        "why": "The author notes that continuous gas exchange provides unparalleled metabolic efficiency at high altitudes where partial pressure drops significantly."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-2",
+    "title": "Subterranean Mycorrhizal Networks and Forest Ecology",
+    "level": "advanced",
+    "topic": "science-tech",
+    "passage": "Beneath the temperate forest floor lies an intricate, microscopic web of fungal filaments known as mycorrhizal networks. These mutualistic subterranean symbioses connect the root systems of geographically separated trees, creating what ecologists describe as a living biological conduit. Fungi absorb photosynthetic sugars and carbohydrates from the host trees; in exchange, the fungal hyphae, possessing vastly superior surface-area-to-volume ratios, supply the trees with soil phosphorus, nitrogen, and essential moisture.\n\nRecent isotopic labeling experiments demonstrate that these fungal pathways facilitate complex inter-tree resource redistribution. Robust, mature canopy trees channel surplus carbon to shaded juvenile saplings struggling beneath the dense forest understory, significantly enhancing sapling survival rates. Furthermore, when an individual tree suffers attack from herbivorous insects or fungal pathogens, it transmits volatile biochemical warnings through the mycorrhizal filaments, prompting neighboring trees to synthesize defensive phytoalexins and tannin compounds prior to infestation.\n\nMoreover, the architectural diversity of mycorrhizal associations reflects distinct ecological adaptations across biomes. While arbuscular mycorrhizae penetrate cortical root cells in tropical and agricultural ecosystems, ectomycorrhizal fungi form external sheaths around coniferous root tips in boreal and alpine forests. These ectomycorrhizal associations secrete specialized organic acids that actively dissolve recalcitrant mineral rocks, unlocking previously inaccessible potassium and micronutrients necessary for continuous forest canopy renewal.",
+    "questions": [
+      {
+        "q": "What reciprocal benefit do mycorrhizal fungi derive from host trees?",
+        "options": [
+          "Photosynthetic sugars and carbon compounds",
+          "Nitrogen gas and mineral phosphorus",
+          "Physical shade from subterranean ultraviolet radiation",
+          "Protective tannin compounds against parasitic insects"
+        ],
+        "answer": 0,
+        "why": "The first paragraph explains that fungi absorb photosynthetic sugars and carbohydrates from the host trees in exchange for soil minerals."
+      },
+      {
+        "q": "According to paragraph 2, how do mature canopy trees assist shaded saplings?",
+        "options": [
+          "By transferring surplus carbon through fungal conduits",
+          "By dropping leaves to provide immediate thermal insulation",
+          "By pruning their own roots to reduce subterranean competition",
+          "By emitting airborne acoustic frequencies to stimulate growth"
+        ],
+        "answer": 0,
+        "why": "Paragraph 2 states that mature canopy trees channel surplus carbon to shaded juvenile saplings, enhancing their survival."
+      },
+      {
+        "q": "The word 'conduit' in paragraph 1 is closest in meaning to:",
+        "options": [
+          "channel",
+          "barrier",
+          "reservoir",
+          "canopy"
+        ],
+        "answer": 0,
+        "why": "In biological ecology, a conduit refers to a channel or transmission pathway facilitating the flow of nutrients."
+      },
+      {
+        "q": "How do neighboring trees respond when they receive biochemical warnings through the network?",
+        "options": [
+          "They proactively synthesize defensive chemical compounds",
+          "They sever their root connections with the infected host",
+          "They shed their foliage to conserve moisture",
+          "They accelerate flowering to disperse seeds immediately"
+        ],
+        "answer": 0,
+        "why": "The final sentence states that biochemical warnings prompt neighboring trees to synthesize defensive phytoalexins and tannins."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-3",
+    "title": "Urban Heat Islands and Microclimate Architecture",
+    "level": "intermediate",
+    "topic": "business-economics",
+    "passage": "Metropolitan urban centers frequently register atmospheric temperatures between two and six degrees Celsius higher than surrounding rural peripheries. This climatological anomaly, known as the urban heat island effect, stems directly from anthropogenic spatial design. Asphalt roadways, concrete pavements, and brick facades exhibit low albedo—reflectance capacity—meaning they absorb vast quantities of shortwave solar radiation during daylight hours and re-radiate this stored thermal energy slowly throughout the night.\n\nCompounding this radiative thermal absorption is the widespread deficit of vegetated canopies in densely developed city cores. In undisturbed natural landscapes, trees and ground foliage cool ambient air through evapotranspiration, a natural refrigeration process wherein plants absorb heat energy to convert groundwater into vapor. To counteract dangerous urban heat stress, modern municipal architects advocate for retrofitting building rooftops with extensive green gardens and high-albedo cool roofs. These reflective interventions reduce cooling energy consumption and enhance pedestrian comfort during summer heatwaves.\n\nIn recent years, urban planners have integrated computational fluid dynamics to design urban wind corridors alongside albedo interventions. By arranging high-rise commercial towers parallel to prevailing seasonal breezes rather than perpendicular to them, municipal architects can stimulate natural air circulation that disperses stagnating hot air masses. Combined with permeable pavements that allow stormwater infiltration into subterranean aquifers, these multi-tiered infrastructural strategies offer a comprehensive blueprint for climate-resilient metropolis design.",
+    "questions": [
+      {
+        "q": "What is the primary physical cause of the urban heat island effect mentioned in paragraph 1?",
+        "options": [
+          "Low-albedo materials absorbing solar radiation and re-radiating heat",
+          "Geothermal heat escaping through subway transportation tunnels",
+          "Reflective glass windows magnifying sunlight onto pedestrians",
+          "Industrial factories releasing chemical coolant vapors"
+        ],
+        "answer": 0,
+        "why": "Paragraph 1 explains that asphalt, concrete, and brick possess low albedo, absorbing solar radiation during the day and re-radiating it at night."
+      },
+      {
+        "q": "How does vegetation naturally cool surrounding atmospheric air in natural ecosystems?",
+        "options": [
+          "Through evapotranspiration converting water into vapor using heat energy",
+          "By creating subterranean air currents that circulate cool soil air",
+          "By converting carbon dioxide into liquid oxygen on leaf surfaces",
+          "Through magnetic repulsion of atmospheric solar particles"
+        ],
+        "answer": 0,
+        "why": "Paragraph 2 explicitly states that foliage cools ambient air through evapotranspiration, where heat energy is used to evaporate water."
+      },
+      {
+        "q": "The term 'albedo' as utilized in the passage refers to an object's capacity to:",
+        "options": [
+          "reflect incoming solar radiation",
+          "withstand physical seismic friction",
+          "insulate electrical wiring inside buildings",
+          "store subterranean groundwater"
+        ],
+        "answer": 0,
+        "why": "Paragraph 1 defines albedo as 'reflectance capacity'—the measure of an object's ability to reflect solar radiation."
+      },
+      {
+        "q": "Which architectural countermeasure is specifically recommended in paragraph 2?",
+        "options": [
+          "Installing high-albedo reflective coatings and vegetative green roofs",
+          "Replacing concrete sidewalks with dark asphalt pavements",
+          "Constructing subterranean pedestrian shopping concourses exclusively",
+          "Banning air conditioning compressor units on apartment facades"
+        ],
+        "answer": 0,
+        "why": "Paragraph 2 concludes by advocating retrofitting building rooftops with green gardens and high-albedo cool roofs."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-4",
+    "title": "Early Mesopotamian Cuneiform and Bureaucratic Accounting",
+    "level": "upper-intermediate",
+    "topic": "arts-humanities",
+    "passage": "Contrary to the romantic conception that writing emerged primarily to transcribe epic mythological poetry or heroic royal annals, archaeological evidence from fourth-millennium BCE Mesopotamia demonstrates that the origins of literacy were utilitarian and administrative. In the fertile agrarian floodplains between the Tigris and Euphrates rivers, the emergence of complex temple redistribution systems necessitated a reliable method for recording stored grain surpluses, livestock counts, and commercial barter agreements.\n\nBefore the invention of phonetic cuneiform script, Sumerian temple accountants utilized three-dimensional clay tokens shaped like jars, sheep, or bushels of wheat. To prevent tampering during transit, these tokens were sealed inside hollow clay spheres called bullae. However, to inspect the contents, officials had to smash the bullae. Accountants soon began impressing the outer surface of wet clay tablets with stylized reed styluses to represent the enclosed tokens. Over centuries, these impressed pictographs evolved into abstract wedge-shaped characters, giving birth to the world's first comprehensive written language system.",
+    "questions": [
+      {
+        "q": "According to paragraph 1, what was the primary societal driver behind the invention of writing in Mesopotamia?",
+        "options": [
+          "Utilitarian administrative accounting for agricultural and temple commodities",
+          "Transcribing epic religious liturgies and mythological legends",
+          "Drafting diplomatic correspondence between rival city-states",
+          "Standardizing astrological maps for maritime navigation"
+        ],
+        "answer": 0,
+        "why": "Paragraph 1 notes that literacy originated for utilitarian and administrative needs to track grain, livestock, and barter transactions."
+      },
+      {
+        "q": "What practical disadvantage did hollow clay bullae present to ancient temple accountants?",
+        "options": [
+          "They had to be smashed open to inspect the enclosed transaction tokens",
+          "They degraded quickly when exposed to humid riverbank air",
+          "They were easily duplicated by counterfeiters and barter merchants",
+          "They were too heavy to be transported on river barges"
+        ],
+        "answer": 0,
+        "why": "Paragraph 2 states that 'to inspect the contents, officials had to smash the bullae.'"
+      },
+      {
+        "q": "The word 'utilitarian' in paragraph 1 is closest in meaning to:",
+        "options": [
+          "functional and practical",
+          "ceremonial and decorative",
+          "fictional and creative",
+          "unstable and fleeting"
+        ],
+        "answer": 0,
+        "why": "Utilitarian describes objects or systems designed to be useful and practical rather than attractive or ornamental."
+      },
+      {
+        "q": "Which technological tool was utilized to imprint wedge-shaped characters into moist clay tablets?",
+        "options": [
+          "A carved reed stylus",
+          "A bronze chisel",
+          "An iron-tipped quill",
+          "A heated obsidian blade"
+        ],
+        "answer": 0,
+        "why": "Paragraph 2 explains that accountants began impressing clay tablets with stylized reed styluses."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-5",
+    "title": "Behavioral Economics and the Framing Effect",
+    "level": "advanced",
+    "topic": "social-sciences",
+    "passage": "For over two centuries, classical economic doctrine rested on the assumption of homo economicus—a hypothetical rational actor possessing perfect market information, cognitive consistency, and immutable self-interest. However, pioneering empirical experiments conducted by cognitive psychologists Daniel Kahneman and Amos Tversky decisively upended this foundational premise. Their seminal prospect theory revealed that human decision-makers evaluate prospective outcomes not in terms of absolute terminal wealth, but relative to a subjective cognitive baseline known as a reference point.\n\nCrucial to prospect theory is the phenomenon of loss aversion: human beings experience the psychological pain of a monetary loss roughly twice as intensely as the equivalent emotional satisfaction derived from a gain of identical magnitude. Consequently, how an identical objective probability is presented—the framing effect—radically alters consumer and investor choices. For instance, medical patients presented with a surgical procedure boasting a 'ninety percent survival rate' are substantially more inclined to authorize the operation than when informed the same surgery entails a 'ten percent mortality rate.'",
+    "questions": [
+      {
+        "q": "Which fundamental tenet of classical economics was challenged by Kahneman and Tversky's prospect theory?",
+        "options": [
+          "The assumption that market participants behave as strictly rational maximizers of absolute wealth",
+          "The principle of supply and demand determining equilibrium commodity pricing",
+          "The theory that commercial banks expand the money supply through fractional reserves",
+          "The concept of comparative advantage driving cross-border international trade"
+        ],
+        "answer": 0,
+        "why": "Paragraph 1 explains that their work upended the classical assumption of homo economicus as a rational actor evaluating terminal wealth."
+      },
+      {
+        "q": "According to paragraph 2, what defines the psychological principle of loss aversion?",
+        "options": [
+          "Losses are felt approximately twice as intensely as equivalent monetary gains",
+          "Investors consistently overestimate their long-term investment performance",
+          "Consumers prioritize instant gratification over deferred retirement security",
+          "Individuals become indifferent to financial outcomes after experiencing initial losses"
+        ],
+        "answer": 0,
+        "why": "The text states that people experience the pain of a loss roughly twice as intensely as satisfaction from an identical gain."
+      },
+      {
+        "q": "The word 'seminal' in paragraph 1 is closest in meaning to:",
+        "options": [
+          "groundbreaking and influential",
+          "controversial and disputed",
+          "unsubstantiated and flawed",
+          "preliminary and incomplete"
+        ],
+        "answer": 0,
+        "why": "In academic discourse, seminal describes pioneering, influential work that provides the basis for future developments."
+      },
+      {
+        "q": "What surgical scenario in paragraph 2 demonstrates the framing effect in practice?",
+        "options": [
+          "Patients prefer a 90% survival rate over an identical 10% mortality rate framing",
+          "Surgeons refuse to operate unless medical insurance covers experimental procedures",
+          "Hospitals discount prices to incentivize elective medical treatments",
+          "Patients consistently seek third opinions when procedures involve minor risks"
+        ],
+        "answer": 0,
+        "why": "The final sentence provides the example of patients being more willing to undergo surgery framed as a 90% survival rate than a 10% mortality rate."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-6",
+    "title": "Plate Tectonics and Deep-Sea Hydrothermal Vent Ecosystems",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "passage": "Prior to oceanographic expeditions in the late 1970s along the Galápagos Rift, biologists universally presumed that all marine life depended directly or indirectly on solar energy captured through surface phytoplankton photosynthesis. That long-standing dogma was shattered by the discovery of hydrothermal vents—fissures along tectonic mid-ocean ridges where volcanically superheated, mineral-saturated fluids erupt into the freezing, abyssal depths. In the absolute darkness of the ocean floor, thriving, alien ecosystems populated by giant tube worms, vent shrimp, and blind crabs flourish entirely independent of sunlight.\n\nThe ecological cornerstone of these deep-sea benthic oases is chemosynthesis, performed by specialized autotrophic bacteria. These extremophile microorganisms oxidize toxic hydrogen sulfide, methane, and ferrous minerals dissolved in the hydrothermal plume, converting chemical bond energy into organic cellular carbohydrates. Many macro-organisms, such as the two-meter-long Riftia pachyptila tube worm, have completely discarded digestive tracts; instead, they harbor billions of symbiotic chemosynthetic bacteria within an internal vascularized organ called a trophosome, establishing a self-sustaining ecological niche thousands of meters below the sunlit photic zone.",
+    "questions": [
+      {
+        "q": "What biological dogma was disproven by the 1970s Galápagos Rift oceanographic expedition?",
+        "options": [
+          "That all living ecosystems are ultimately dependent on sunlight and photosynthesis",
+          "That tectonic plates drift across the Earth's molten upper mantle",
+          "That marine animals cannot survive at depths exceeding one thousand meters",
+          "That volcanic hydrothermal fluids contain toxic dissolved sulfur minerals"
+        ],
+        "answer": 0,
+        "why": "Paragraph 1 states that the discovery shattered the long-standing dogma that all marine life depended on solar photosynthesis."
+      },
+      {
+        "q": "What primary energetic process powers deep-sea hydrothermal vent communities?",
+        "options": [
+          "Bacterial chemosynthesis oxidizing hydrogen sulfide and methane",
+          "Anaerobic fermentation of organic marine detritus falling from the surface",
+          "Nuclear decay of radioactive isotopes in ocean floor basalt",
+          "Absorption of thermal infrared heat by specialized epidermal scales"
+        ],
+        "answer": 0,
+        "why": "Paragraph 2 notes that the cornerstone is chemosynthesis, where bacteria oxidize dissolved hydrogen sulfide and minerals."
+      },
+      {
+        "q": "The word 'abyssal' in paragraph 1 refers to environments that are:",
+        "options": [
+          "extremely deep in the ocean",
+          "shallow and coastal",
+          "seasonally frozen",
+          "heavily populated by algae"
+        ],
+        "answer": 0,
+        "why": "In oceanography, abyssal refers to the vast, pitch-black ocean depths between 3,000 and 6,000 meters."
+      },
+      {
+        "q": "How does the giant tube worm Riftia pachyptila obtain nutritional sustenance?",
+        "options": [
+          "Through symbiotic chemosynthetic bacteria living inside its trophosome organ",
+          "By filtering microscopic plankton through feathery red gills",
+          "By grazing on benthic bacterial mats using a chitinous beak",
+          "Through passive chemical absorption across its hard external shell"
+        ],
+        "answer": 0,
+        "why": "The final sentence explains that the worm harbors symbiotic chemosynthetic bacteria within an internal organ called a trophosome."
+      }
+    ]
+  },
+  {
+    "id": "rp-curated-7",
+    "title": "The Industrial Evolution of Renaissance Printing Guilds",
+    "level": "advanced",
+    "topic": "arts-humanities",
+    "passage": "The diffusion of movable-type typography across fifteenth-century Western Europe fundamentally altered not only intellectual dissemination but also the sociological organization of skilled artisan labor. Prior to Gutenberg’s mechanical press, manuscript production remained the near-exclusive domain of monastic scriptoria and specialized secular scribal guilds. These scribes utilized quill pens and parchment sheets to produce individualized codices, a painstaking methodology that inherently restricted textual access to wealthy patrons, ecclesiastical hierarchies, and elite university chancellors.\n\nThe commercialization of metal-alloy punch-cutting and oil-based inks catalyzed the rapid formation of competitive typographic workshops throughout major trading emporiums such as Venice, Nuremberg, and Antwerp. Early master printers functioned concurrently as scholarly editors, capital investors, and industrial workshop managers. They established formal apprenticeships to train compositors in the intricate spatial mathematics of typesetting and proofreading, creating an entirely unprecedented class of literate industrial wage-earners.\n\nSignificantly, the sheer volume of printed editions rapidly overwhelmed traditional municipal guild monopolies. Scribes initially mounted fierce legal resistance, alleging that machine-printed volumes degraded spiritual devotion and compromised grammatical orthography. Nevertheless, consumer demand for classical humanistic tracts, vernacular religious treatises, and navigational charts swiftly rendered scribal resistance obsolete. Within four decades of its inception, the printing press had reduced the real cost of informational storage by more than eighty percent, laying the operational foundations for modern secular publishing markets.",
+    "questions": [
+      {
+        "q": "According to paragraph 1, how did manuscript production before the printing press affect book ownership?",
+        "options": [
+          "It democratized literacy among agricultural laborers across Europe.",
+          "It restricted book access primarily to prosperous institutions and affluent individuals.",
+          "It forced monastic institutions to outsource scribal commissions to secular competitors.",
+          "It eliminated the authority of university chancellors over academic curricula."
+        ],
+        "answer": 1,
+        "explanation": "Paragraph 1 explicitly notes that the painstaking scribal methodology inherently restricted textual access to wealthy patrons, ecclesiastical hierarchies, and elite university chancellors."
+      },
+      {
+        "q": "The word \"catalyzed\" in paragraph 2 is closest in meaning to:",
+        "options": [
+          "accelerated",
+          "postponed",
+          "undermined",
+          "standardized"
+        ],
+        "answer": 0,
+        "explanation": "\"Catalyzed\" refers to triggering or accelerating a process, here describing how printing technologies spurred rapid formation of typographic workshops."
+      },
+      {
+        "q": "Which of the following can be inferred from paragraph 2 regarding early master printers?",
+        "options": [
+          "They focused exclusively on mechanical machinery while avoiding scholarly editing.",
+          "They operated without formal apprenticeships or contractual wage labor.",
+          "They combined intellectual scholarly skills with practical commercial and managerial roles.",
+          "They were prohibited from selling printed books in major international trading ports."
+        ],
+        "answer": 2,
+        "explanation": "Paragraph 2 states that early master printers functioned concurrently as scholarly editors, capital investors, and industrial workshop managers."
+      },
+      {
+        "q": "Why did traditional scribal guilds launch legal opposition against early printing presses?",
+        "options": [
+          "They asserted that machine-printed works weakened religious piety and textual accuracy.",
+          "They objected to printers using oil-based ink formulations imported from foreign regions.",
+          "They sought to mandate Latin translation for all emerging vernacular publications.",
+          "They attempted to acquire exclusive patent rights over metal movable-type alloys."
+        ],
+        "answer": 0,
+        "explanation": "Paragraph 3 notes that scribes mounted legal resistance, alleging that machine-printed volumes degraded spiritual devotion and compromised grammatical orthography."
       }
     ]
   }

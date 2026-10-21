@@ -11,6 +11,97 @@
       "Request a 4-day extension for the final data chapter submission",
       "Propose an updated timeline for draft review prior to graduation deadlines"
     ],
-    "suggestedWordCount": "100-130 words"
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Professor Harrison,\n\nI am writing to update you on the progress of my undergraduate honors thesis in biochemistry. Unfortunately, the laboratory spectroscopy centrifuge experienced an unexpected calibration failure earlier this week, which halted our final sample analysis for four days while technicians repaired the optic sensors.\n\nBecause of this unforeseen equipment delay, I would like to respectfully request a four-day extension on my final data chapter submission, moving the deadline from this Friday to next Tuesday, October 28th. All physical laboratory assays have now concluded, and I am currently compiling the statistical variance graphs.\n\nI can deliver a complete revised draft to your office next Wednesday morning, leaving ample time for your review ahead of the committee deadline. Thank you very much for your understanding and continued guidance.\n\nBest regards,\nAlex Mercer"
+  },
+  {
+    "id": "we-curated-2",
+    "title": "Applying for Graduate Teaching Assistantship",
+    "level": "advanced",
+    "topic": "campus-life",
+    "situation": "The Department of Economics has announced an open Graduate Teaching Assistantship for the upcoming spring semester in Intermediate Microeconomics. Write an email to the department chair, Dr. Reynolds, expressing your interest in the position, summarizing your relevant academic coursework and tutoring experience, and requesting an interview.",
+    "recipient": "Dr. Reynolds",
+    "goals": [
+      "Express formal interest in the Intermediate Microeconomics Teaching Assistantship",
+      "Highlight your academic qualifications and previous peer-tutoring experience",
+      "Request a brief in-person or virtual interview to discuss your candidacy"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Dr. Reynolds,\n\nI am writing to formally submit my candidacy for the Graduate Teaching Assistantship in Intermediate Microeconomics for the forthcoming spring semester. Having thoroughly enjoyed your lecture series on consumer choice theory last year, I am eager to assist undergraduate students in mastering quantitative economic models.\n\nI completed Advanced Microeconomic Theory with an A grade and have served as a peer tutor at the campus Learning Center for the past three semesters. In that role, I conducted weekly problem-solving workshops and mentored students through complex calculus optimization problems. My background in both econometrics and student mentorship equips me to facilitate productive recitation sections.\n\nI have attached my academic transcript and curriculum vitae for your consideration. I would welcome the opportunity to meet with you for a brief interview. Thank you for your consideration.\n\nSincerely,\nSamantha Patel"
+  },
+  {
+    "id": "we-curated-3",
+    "title": "Proposing a Field Trip for Art History Seminar",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "situation": "You are a student representative in an upper-level Art History seminar exploring European Renaissance portraiture. The Metropolitan Fine Arts Museum has just opened a temporary exhibition featuring rare works directly relevant to your midterm research syllabus. Write an email to your instructor, Professor Dupont, suggesting a class field trip and outlining logistics.",
+    "recipient": "Professor Dupont",
+    "goals": [
+      "Propose organizing an educational class visit to the special exhibition",
+      "Explain how the gallery pieces directly correlate with current seminar lectures",
+      "Offer to coordinate student group ticketing and transportation arrangements"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Professor Dupont,\n\nI hope this email finds you well. As the student representative for our Renaissance Art History seminar, I would like to propose a class field trip to the newly opened exhibition at the Metropolitan Fine Arts Museum next Thursday afternoon.\n\nThe retrospective features thirty rare Northern Renaissance oil portraits that illustrate the exact glazing and oil-layering techniques we analyzed in Tuesday's lecture. Examining these masterful paintings in person would provide an invaluable empirical foundation for our upcoming midterm comparative essays.\n\nI would be delighted to coordinate group transit on the campus shuttle and organize discounted student admission through the student activities council. Please let me know if this proposed visit aligns with our seminar schedule, and I will gladly finalize the logistics.\n\nBest regards,\nLucas Vance"
+  },
+  {
+    "id": "we-curated-4",
+    "title": "Inquiring About Missing Grade on Course Portal",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "situation": "You recently submitted your midterm analytical paper for Political Science 201 before the deadline via the online portal. However, while all your classmates have received their grades, your submission status displays an error message marked 'Not Evaluated.' Write a courteous email to your teaching assistant, Ms. Albright, inquiring about the issue.",
+    "recipient": "Ms. Albright",
+    "goals": [
+      "Inquire politely about the unrecorded grade on the course management portal",
+      "Confirm that your paper was uploaded prior to the Friday 5:00 PM deadline",
+      "Attach a copy of your submitted manuscript and timestamp receipt as verification"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Ms. Albright,\n\nI hope you are having a productive week. I am writing regarding my midterm analytical essay for Political Science 201, which I submitted through the university course portal on Thursday, October 15th, well in advance of the designated deadline.\n\nWhile reviewing the gradebook this morning, I noticed that my entry displays an anomalous status message reading 'Not Evaluated,' whereas my peers have received their evaluated rubrics. I wanted to verify whether there might have been a digital transmission error on the server side during submission.\n\nI have attached my original essay file along with the automated portal submission confirmation receipt showing the exact upload timestamp. Please let me know if you require any additional documentation to resolve the record. Thank you for your time and assistance.\n\nRespectfully,\nEvelyn Brooks"
+  },
+  {
+    "id": "we-curated-5",
+    "title": "Requesting Guest Speaker for Student Business Association",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "situation": "You are the president of the Collegiate Entrepreneurship Society. Your student organization is hosting its annual Innovation Summit on startup incubation and venture financing next month. Write an email to Mr. Kenneth Wright, a prominent local venture capitalist and university alumnus, inviting him to deliver the keynote address.",
+    "recipient": "Mr. Kenneth Wright",
+    "goals": [
+      "Invite Mr. Wright to serve as the keynote speaker at the Innovation Summit",
+      "Provide event details regarding the summit date, attendee demographics, and theme",
+      "Explain why his entrepreneurial background would inspire aspiring student founders"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Mr. Wright,\n\nOn behalf of the Collegiate Entrepreneurship Society, I am honored to invite you to deliver the keynote address at our annual Innovation Summit, held on Saturday, November 14th, in the university auditorium.\n\nThis year's conference theme, 'Sustainable Venture Incubation,' will bring together over three hundred undergraduate business students, engineering majors, and local mentors. As an esteemed alumnus of our university and the founder of Horizon Ventures, your pioneering investments in clean technology companies embody the entrepreneurial vision we strive to instill in our members.\n\nThe keynote address is scheduled for forty minutes, followed by a brief interactive Q&A session with student founders. We would be immensely grateful to welcome you back to campus. Thank you for considering our invitation.\n\nSincerely,\nDaniel Morales"
+  },
+  {
+    "id": "we-curated-6",
+    "title": "Requesting Permission for Course Prerequisite Waiver",
+    "level": "advanced",
+    "topic": "campus-life",
+    "situation": "You wish to enroll in an advanced senior seminar titled 'Cognitive Neuropsychology' next semester. The registrar requires an introductory course prerequisite that you could not take due to a scheduling conflict; however, you completed equivalent laboratory coursework during an accredited summer institute. Write an email to the course instructor, Dr. Steinberg, requesting a prerequisite waiver.",
+    "recipient": "Dr. Steinberg",
+    "goals": [
+      "Request authorization to waive the formal prerequisite for Cognitive Neuropsychology",
+      "Detail your equivalent laboratory coursework completed at the summer institute",
+      "Offer to provide syllabi and transcripts to demonstrate academic readiness"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Dr. Steinberg,\n\nI am writing to respectfully request a prerequisite waiver to enroll in your senior seminar, Cognitive Neuropsychology (PSYC 440), for the upcoming spring term. Although I have not taken PSYC 210 on campus due to a recurring departmental timetable conflict, I completed an intensive eight-week Neurobiology and Synaptic Physiology course at the Woods Hole Summer Institute this past July.\n\nDuring that program, I completed forty hours of hands-on fMRI imaging analysis and electrophysiology laboratory experiments, covering the foundational concepts required for your advanced seminar. I have attached the official summer syllabus, grade verification, and my academic transcript for your evaluation.\n\nI am eager to engage with the advanced neuroimaging literature in your course and would welcome the opportunity to discuss my preparation in office hours. Thank you very much for your time.\n\nSincerely,\nClaire Chen"
+  },
+  {
+    "id": "we-curated-7",
+    "title": "Volunteering for Departmental Science Outreach Fair",
+    "level": "intermediate",
+    "topic": "science-tech",
+    "situation": "The Department of Physics and Astronomy is organizing its annual Community STEM Discovery Fair for local middle and high school students. Write an email to the outreach coordinator, Dr. Larson, offering to volunteer as a demonstration facilitator, proposing a hands-on physics exhibit, and inquiring about preparatory orientation meetings.",
+    "recipient": "Dr. Larson",
+    "goals": [
+      "Volunteer to assist as a student facilitator at the STEM Discovery Fair",
+      "Propose leading an interactive demonstration on optics and laser refraction",
+      "Inquire regarding the date and schedule for mandatory volunteer orientation"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Dr. Larson,\n\nI am writing to volunteer as a student facilitator for the upcoming Community STEM Discovery Fair scheduled for Saturday, November 21st. As a second-year physics major, I am passionate about making experimental science accessible and exciting for young learners.\n\nI would love to manage an interactive optical demonstration station showcasing laser refraction, total internal reflection, and fiber-optic communication using water prisms and acrylic conduits. In high school, I facilitated similar demonstrations, and students responded with tremendous enthusiasm to these tactile experiments.\n\nCould you please let me know when the preparatory volunteer orientation sessions will take place so that I can schedule my laboratory shifts accordingly? I look forward to contributing to a successful and inspiring community outreach fair.\n\nBest regards,\nJordan Taylor"
   }
 ]

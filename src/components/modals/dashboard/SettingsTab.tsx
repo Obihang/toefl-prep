@@ -31,6 +31,7 @@ import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
 import { getAiStatusInfo } from '../../../utils/aiFallbackChain';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
 import { exportQuestionBankJson, purgeLowQualityCache } from '../../../utils/questionBankStorage';
+import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -217,6 +218,35 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
   const handlePurgeCache = async () => {
     const count = await purgeLowQualityCache();
     setDataMessage({ success: true, text: `Purged ${count} low-quality stub questions from cache successfully!` });
+  };
+
+  const [isPreCachingAudio, setIsPreCachingAudio] = useState(false);
+  const [preCacheAudioStatus, setPreCacheAudioStatus] = useState<string | null>(null);
+
+  const handlePreCacheAllAudio = async () => {
+    if (isPreCachingAudio) return;
+    setIsPreCachingAudio(true);
+    setPreCacheAudioStatus('Caching listening & speaking audio...');
+    try {
+      await preCacheSectionAudio('Listening', (p) => {
+        setPreCacheAudioStatus(`Listening: ${p.statusText}`);
+      });
+      await preCacheSectionAudio('Speaking', (p) => {
+        setPreCacheAudioStatus(`Speaking: ${p.statusText}`);
+      });
+      setDataMessage({
+        success: true,
+        text: 'All section audio pre-cached into IndexedDB (0ms ready).',
+      });
+    } catch {
+      setDataMessage({
+        success: false,
+        text: 'Failed to complete audio pre-caching.',
+      });
+    } finally {
+      setIsPreCachingAudio(false);
+      setPreCacheAudioStatus(null);
+    }
   };
 
   const aiStatus = getAiStatusInfo();
@@ -546,6 +576,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-600" />
               Purge Low-Quality Stubs
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePreCacheAllAudio}
+              disabled={isPreCachingAudio}
+              className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Pre-cache dialogue and interview audio lines into IndexedDB for instantaneous 0ms playback"
+            >
+              <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
+              <span>{isPreCachingAudio ? (preCacheAudioStatus || 'Caching audio...') : 'Pre-Cache Section Audio (IndexedDB)'}</span>
             </button>
 
             <button

@@ -37,7 +37,9 @@ import {
   Moon,
   Flag,
   X,
+  Volume2,
 } from 'lucide-react';
+import { preCacheSectionAudio } from './utils/audioPrewarmer';
 
 
 import {
@@ -140,6 +142,25 @@ export default function App() {
   const lastPrefetchTimeRef = useRef(0);
   const lastDebugLogTimeRef = useRef<Record<string, number>>({});
   const [sharedBankNotice, setSharedBankNotice] = useState<string | null>(null);
+
+  // Audio Pre-Cache State
+  const [isPreCachingAudio, setIsPreCachingAudio] = useState(false);
+  const [preCacheStatus, setPreCacheStatus] = useState<string | null>(null);
+
+  const activeSection = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)?.section || 'Reading';
+  const isAudioSection = activeSection === 'Listening' || activeSection === 'Speaking';
+
+  const handlePreCacheAudio = async () => {
+    if (isPreCachingAudio) return;
+    setIsPreCachingAudio(true);
+    setPreCacheStatus('Starting cache...');
+    await preCacheSectionAudio(activeSection, (progress) => {
+      setPreCacheStatus(progress.statusText);
+    });
+    setTimeout(() => {
+      setIsPreCachingAudio(false);
+    }, 4000);
+  };
 
   // Modals
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
@@ -1137,6 +1158,29 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
+            {isAudioSection && (
+              <button
+                type="button"
+                onClick={handlePreCacheAudio}
+                disabled={isPreCachingAudio}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-75 ${
+                  preCacheStatus && preCacheStatus.includes('0ms ready')
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                    : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs'
+                }`}
+                title="Pre-cache high-fidelity voices for the current section into IndexedDB for 0ms offline playback"
+              >
+                <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
+                <span>
+                  {isPreCachingAudio
+                    ? preCacheStatus || 'Caching audio...'
+                    : preCacheStatus && preCacheStatus.includes('0ms ready')
+                    ? 'Audio Cached (0ms ⚡)'
+                    : 'Pre-Cache Section Audio'}
+                </span>
+              </button>
+            )}
+
             <button
               onClick={() => handleNextQuestion(currentTaskType)}
               className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"

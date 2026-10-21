@@ -5,6 +5,61 @@
     "level": "upper-intermediate",
     "topic": "science-tech",
     "text": "Synaptic plasticity is the biological foundation of human learning. Neuroscien[[tists]] have discov[[ered]] that syna[[pses]] strengthen throu[[gh]] repeated elect[[rical]] stimulation. This phenom[[enon]], known as long-term potentiation, ena[[bles]] neurons to st[[ore]] vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.",
-    "totalBlanks": 10
+    "totalBlanks": 10,
+    "explanation": "Complete the academic affixes and word stems: neuroscientists, discovered, synapses, through, electrical, phenomenon, enables, store, quantities, information."
+  },
+  {
+    "id": "cw-curated-2",
+    "title": "The Industrial Revolution and Urban Demographics",
+    "level": "intermediate",
+    "topic": "social-sciences",
+    "text": "During the late eighteenth century, the expan[[sion]] of mechanized manufac[[turing]] transformed Brit[[ish]] society. Thousands of agricul[[tural]] laborers migra[[ted]] from rural villages into burgeon[[ing]] factory towns. This unprec[[edented]] demographic shift crea[[ted]] dense industrial cen[[ters]] that required fundam[[ental]] reforms in public health and sanitation.",
+    "totalBlanks": 10,
+    "explanation": "Complete the demographic and historical vocabulary: expansion, manufacturing, British, agricultural, migrated, burgeoning, unprecedented, created, centers, fundamental."
+  },
+  {
+    "id": "cw-curated-3",
+    "title": "Photosynthetic Efficiency and Solar Energy Capture",
+    "level": "advanced",
+    "topic": "science-tech",
+    "text": "Plant chloroplasts utilize chlorop[[hyll]] pigments to abso[[rb]] solar photons with extraor[[dinary]] quantum effici[[ency]]. Through a compl[[ex]] sequence of bioche[[mical]] reactions known as the Calvin cycle, carbon dio[[xide]] is enzymat[[ically]] converted into ener[[gy]]-rich glucose mole[[cules]] that sustain terrestrial life.",
+    "totalBlanks": 10,
+    "explanation": "Complete biological biochemistry terminology: chlorophyll, absorb, extraordinary, efficiency, complex, biochemical, dioxide, enzymatically, energy, molecules."
+  },
+  {
+    "id": "cw-curated-4",
+    "title": "Monetary Policy and Central Bank Inflation Controls",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "text": "Central banking insti[[tutions]] utilize inter[[est]] rate adjust[[ments]] to preserve macroeconomic stabi[[lity]]. When consumer infla[[tion]] accelerates beyond target thresh[[olds]], policymakers inc[[rease]] benchmark borrowing costs to mod[[erate]] aggregate demand and stabilize curren[[cy]] purchasing po[[wer]].",
+    "totalBlanks": 10,
+    "explanation": "Complete macroeconomic and financial terms: institutions, interest, adjustments, stability, inflation, thresholds, increase, moderate, currency, power."
+  },
+  {
+    "id": "cw-curated-5",
+    "title": "Architectural Acoustics in Classical Concert Halls",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "text": "Designing an auditorium requires bala[[ncing]] sound reflec[[tion]] and acoustic absor[[ption]]. Sound waves origi[[nating]] from the stage must trav[[el]] evenly to every audie[[nce]] member without gene[[rating]] distracting echo[[es]] or muffled reso[[nance]]. Sound engin[[eers]] install curved timber panels along the perimeter walls to scatter frequencies evenly.",
+    "totalBlanks": 10,
+    "explanation": "Complete acoustics and design vocabulary: balancing, reflection, absorption, originating, travel, audience, generating, echoes, resonance, engineers."
+  },
+  {
+    "id": "cw-curated-6",
+    "title": "University Registrar Credit Transfer and Accreditation",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "text": "Undergraduate stude[[nts]] who transfer between colleg[[es]] must submit offi[[cial]] academic transcr[[ipts]] for credential evalu[[ation]]. Department chairs rev[[iew]] course syll[[abi]] to determ[[ine]] whether previ[[ous]] coursework fulfills core curric[[ulum]] graduation requirements.",
+    "totalBlanks": 10,
+    "explanation": "Complete collegiate administrative vocabulary: students, colleges, official, transcripts, evaluation, review, syllabi, determine, previous, curriculum."
+  },
+  {
+    "id": "cw-curated-7",
+    "title": "Geothermal Hydrothermal Vents and Extremophile Ecology",
+    "level": "advanced",
+    "topic": "science-tech",
+    "text": "Deep oceanic hydroth[[ermal]] vents support thriving ecosys[[tems]] completely deprived of solar radiat[[ion]]. In the absence of photosyn[[thesis]], chemosynthetic bact[[eria]] oxidize mineral sulf[[ides]] spewing from volcanic chimn[[eys]], generating metabolic ener[[gy]] that forms the nutrit[[ional]] foundation for giant tube worms and deep-sea crustac[[eans]].",
+    "totalBlanks": 10,
+    "explanation": "Complete oceanographic and ecological terms: hydrothermal, ecosystems, radiation, photosynthesis, bacteria, sulfides, chimneys, energy, nutritional, crustaceans."
   }
 ]

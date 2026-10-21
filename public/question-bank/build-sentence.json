@@ -1,15 +1,177 @@
 [
   {
     "id": "bs-curated-1",
-    "title": "Advanced Academic Sentence Structure",
+    "title": "Advanced Academic Sentence Structure: Neural Plasticity",
     "level": "advanced",
     "topic": "science-tech",
     "items": [
       {
-        "context": "Arrange the scrambled words into a grammatically correct academic sentence.",
-        "words": ["Substantial", "empirical", "evidence", "supports", "the", "hypothesis", "regarding", "neural", "plasticity"],
+        "context": "Arrange the scrambled words into a grammatically correct academic sentence explaining neural adaptation.",
+        "words": [
+          "Substantial",
+          "empirical",
+          "evidence",
+          "supports",
+          "the",
+          "hypothesis",
+          "regarding",
+          "neural",
+          "plasticity"
+        ],
         "answer": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
-        "explanation": "Subject + transitive verb + direct object + prepositional modifying phrase."
+        "explanation": "Subject noun phrase (\"Substantial empirical evidence\") + transitive verb (\"supports\") + direct object (\"the hypothesis\") + modifying prepositional phrase (\"regarding neural plasticity\")."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-2",
+    "title": "Macroeconomic Market Dynamics and Supply Chain Resilience",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "items": [
+      {
+        "context": "Arrange the scrambled words into a coherent analytical statement regarding international commerce.",
+        "words": [
+          "Diversified",
+          "supply",
+          "chains",
+          "mitigate",
+          "the",
+          "risk",
+          "of",
+          "unexpected",
+          "global",
+          "economic",
+          "disruptions"
+        ],
+        "answer": "Diversified supply chains mitigate the risk of unexpected global economic disruptions.",
+        "explanation": "Subject (\"Diversified supply chains\") + present tense transitive verb (\"mitigate\") + object noun phrase with nested prepositional modifiers (\"the risk of unexpected global economic disruptions\")."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-3",
+    "title": "Evolutionary Biology: Morphological Convergence",
+    "level": "intermediate",
+    "topic": "science-tech",
+    "items": [
+      {
+        "context": "Construct a grammatically sound sentence discussing evolutionary adaptations across marine organisms.",
+        "words": [
+          "Unrelated",
+          "marine",
+          "species",
+          "frequently",
+          "develop",
+          "similar",
+          "streamlined",
+          "body",
+          "shapes"
+        ],
+        "answer": "Unrelated marine species frequently develop similar streamlined body shapes.",
+        "explanation": "Subject (\"Unrelated marine species\") + frequency adverb (\"frequently\") + verb (\"develop\") + complex object (\"similar streamlined body shapes\")."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-4",
+    "title": "Sociological Urbanization: Public Infrastructure Investments",
+    "level": "intermediate",
+    "topic": "social-sciences",
+    "items": [
+      {
+        "context": "Formulate a clear academic thesis regarding metropolitan mass transit accessibility.",
+        "words": [
+          "Accessible",
+          "public",
+          "transportation",
+          "significantly",
+          "enhances",
+          "socioeconomic",
+          "mobility",
+          "for",
+          "urban",
+          "residents"
+        ],
+        "answer": "Accessible public transportation significantly enhances socioeconomic mobility for urban residents.",
+        "explanation": "Compound subject (\"Accessible public transportation\") + adverbial intensifier + verb (\"significantly enhances\") + direct object and prepositional phrase (\"socioeconomic mobility for urban residents\")."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-5",
+    "title": "Artistic Preservation: Archaeological Restoration Ethics",
+    "level": "upper-intermediate",
+    "topic": "arts-humanities",
+    "items": [
+      {
+        "context": "Assemble the scrambled elements into an ethical guideline for museum artifact conservation.",
+        "words": [
+          "Modern",
+          "conservators",
+          "prioritize",
+          "reversible",
+          "techniques",
+          "when",
+          "restoring",
+          "ancient",
+          "cultural",
+          "artifacts"
+        ],
+        "answer": "Modern conservators prioritize reversible techniques when restoring ancient cultural artifacts.",
+        "explanation": "Main clause (\"Modern conservators prioritize reversible techniques\") followed by a temporal participial clause (\"when restoring ancient cultural artifacts\")."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-6",
+    "title": "Collegiate Academic Integrity and Collaborative Scholarship",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "items": [
+      {
+        "context": "Order the words to state an essential university research standard.",
+        "words": [
+          "Undergraduate",
+          "scholars",
+          "must",
+          "scrupulously",
+          "attribute",
+          "all",
+          "secondary",
+          "sources",
+          "in",
+          "formal",
+          "theses"
+        ],
+        "answer": "Undergraduate scholars must scrupulously attribute all secondary sources in formal theses.",
+        "explanation": "Modal verb structure (\"must scrupulously attribute\") connecting academic subject to secondary sources and location context."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-7",
+    "title": "Climatology and Renewable Solar Grid Integration",
+    "level": "advanced",
+    "topic": "science-tech",
+    "items": [
+      {
+        "context": "Construct an advanced scientific observation on modern renewable power transmission networks.",
+        "words": [
+          "Decentralized",
+          "photovoltaic",
+          "arrays",
+          "require",
+          "sophisticated",
+          "battery",
+          "storage",
+          "to",
+          "stabilize",
+          "electrical",
+          "grids"
+        ],
+        "answer": "Decentralized photovoltaic arrays require sophisticated battery storage to stabilize electrical grids.",
+        "explanation": "Subject (\"Decentralized photovoltaic arrays\") + verb and object (\"require sophisticated battery storage\") + infinitive clause of purpose (\"to stabilize electrical grids\")."
       }
     ]
   }

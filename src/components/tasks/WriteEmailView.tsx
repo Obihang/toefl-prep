@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WriteEmailTask } from '../../data/curatedQuestions';
+import { evaluateLocally } from '../../utils/localEvaluator';
 import { Send, Sparkles, AlertCircle, ArrowRight, Volume2, VolumeX } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
@@ -64,6 +65,8 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
     setIsEvaluating(true);
     setEvalError(null);
 
+    let evalData: any = null;
+
     try {
       const json = await safeFetchJson('/api/evaluate-response', {
         method: 'POST',
@@ -85,14 +88,42 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         }),
       });
 
-      if (!json.success) {
-        throw new Error(json.error || 'Evaluation service unavailable');
+      if (json.success && json.data) {
+        evalData = json.data;
+      } else {
+        console.warn('[WriteEmail] API evaluation unavailable, running local rubric evaluator');
+        evalData = evaluateLocally(
+          'write-email',
+          {
+            title: task.title,
+            situation: task.situation,
+            recipient: task.recipient,
+            goals: task.goals,
+          },
+          `Subject: ${subject}\n\n${body}`,
+          { task }
+        );
       }
+    } catch (err: any) {
+      console.warn('[WriteEmail] Network/API error, running local rubric evaluator:', err);
+      evalData = evaluateLocally(
+        'write-email',
+        {
+          title: task.title,
+          situation: task.situation,
+          recipient: task.recipient,
+          goals: task.goals,
+        },
+        `Subject: ${subject}\n\n${body}`,
+        { task }
+      );
+    }
 
-      setEvalResult(json.data);
+    if (evalData) {
+      setEvalResult(evalData);
 
-      if (json.data.corrections && auth.currentUser) {
-        for (const correction of json.data.corrections) {
+      if (evalData.corrections && auth.currentUser) {
+        for (const correction of evalData.corrections) {
           await saveMistake(
             task.id,
             'write-email',
@@ -103,8 +134,8 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         }
       }
 
-      const scaled = json.data.scaledScore || 25;
-      const band6 = json.data.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
+      const scaled = evalData.scaledScore || 25;
+      const band6 = evalData.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
 
       savePracticeRecord({
         taskType: 'write-email',
@@ -115,13 +146,10 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         scaledScore30: scaled,
         bandScore6: band6,
         timeSpentSeconds: 300,
-        feedbackSummary: `Email Writing: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${json.data.rawRubricScore ?? json.data.bandScore}/5.0 (${json.data.performanceLevel})`,
+        feedbackSummary: `Email Writing: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/5.0 (${evalData.performanceLevel})`,
       });
-    } catch (err: any) {
-      setEvalError(err.message || 'Failed to connect to AI evaluator');
-    } finally {
-      setIsEvaluating(false);
     }
+    setIsEvaluating(false);
   };
 
   return (
@@ -356,6 +384,9 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
               corrections={evalResult.corrections || []}
               topFixes={evalResult.topFixes}
               modelBand6Rewrite={evalResult.modelBand6Rewrite}
+              benchmarkAnalysis={evalResult.benchmarkAnalysis}
+              notice={evalResult.notice}
+              subScores={evalResult.subScores}
             />
           )}
         </div>

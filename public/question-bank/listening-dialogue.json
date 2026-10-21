@@ -4,20 +4,327 @@
     "title": "University Library Special Collections Archive Access",
     "level": "intermediate",
     "topic": "campus-life",
-    "context": "A student speaks with a library staff member about accessing rare manuscript archives for a history thesis.",
-    "speakers": { "A": "Sarah (Student)", "B": "Mr. Davis (Librarian)" },
-    "script": "Sarah (Female): Good afternoon, Mr. Davis. I am researching nineteenth-century maritime periodicals for my undergraduate history thesis.\nMr. Davis (Male): Welcome, Sarah. Those special collections require advance security registration and faculty sponsorship from your department chair.\nSarah (Female): My faculty advisor Dr. Henderson already approved my digital access form last Tuesday.\nMr. Davis (Male): Excellent. Let me verify your credentials in the database and retrieve the secure reading room keycard for you.",
+    "context": "A student speaks with a library staff member about accessing rare manuscript archives for an undergraduate history thesis.",
+    "speakers": {
+      "A": "Sarah (Student)",
+      "B": "Mr. Davis (Librarian)"
+    },
+    "script": "Sarah (Female): Good afternoon, Mr. Davis. I am currently researching nineteenth-century maritime trade periodicals for my senior history thesis, and my advisor mentioned that original logbooks are stored in the rare manuscripts vault.\nMr. Davis (Male): Welcome, Sarah. Yes, those maritime records are housed in our secure archive room on the fourth floor. Because the materials are fragile, they cannot be checked out or photographed with flash.\nSarah (Female): That is completely understandable. Do I need special departmental permission to review the physical documents?\nMr. Davis (Male): You will need to complete a brief manuscript registration form and show your student identification card. Additionally, your faculty advisor must submit an electronic verification acknowledging your research topic.\nSarah (Female): Dr. Henderson already submitted that electronic form yesterday morning. Would it be possible for me to reserve a reading desk for tomorrow afternoon?\nMr. Davis (Male): Let me check the schedule. Yes, station three is available from one to five o'clock. Please remember to bring pencils only, as ink pens are strictly prohibited in the vault.\nSarah (Female): Thank you very much, Mr. Davis. I will make sure to arrive promptly with my notes.",
     "questions": [
       {
         "q": "Why does Sarah visit the university library archive?",
         "options": [
-          "To research nineteenth-century maritime periodicals for her history thesis",
-          "To return overdue biology textbooks to the circulation desk",
-          "To apply for a student employment position in special collections",
-          "To register for an upcoming faculty research symposium"
+          "To examine nineteenth-century maritime records for her thesis",
+          "To return overdue reference textbooks to the circulation desk",
+          "To request employment as an archive preservation assistant",
+          "To register for a digital humanities faculty workshop"
         ],
         "answer": 0,
-        "why": "Sarah states she is researching nineteenth-century maritime periodicals for her undergraduate history thesis."
+        "why": "Sarah states she is researching nineteenth-century maritime trade periodicals for her senior history thesis."
+      },
+      {
+        "q": "What requirement must Sarah fulfill before accessing the fragile materials?",
+        "options": [
+          "Pay an archival security deposit to the bursar office",
+          "Complete a registration form and provide advisor verification",
+          "Submit three printed copies of her thesis proposal",
+          "Complete an online preservation handling certification course"
+        ],
+        "answer": 1,
+        "why": "Mr. Davis explains she needs a manuscript registration form, student ID, and electronic faculty advisor verification."
+      },
+      {
+        "q": "Why does the librarian remind Sarah to bring pencils only?",
+        "options": [
+          "The reading desks lack adequate electrical power outlets",
+          "Ballpoint pens and ink can permanently damage fragile archival documents",
+          "The university bookstore ran out of notebook supplies",
+          "Digital tablets are strictly forbidden inside the university library"
+        ],
+        "answer": 1,
+        "why": "Archive standards prohibit ink pens to prevent irreversible accidental staining or damage to historical documents."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-2",
+    "title": "Office Hours: Organic Synthesis Reaction Mechanisms",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "context": "A chemistry undergraduate consults her professor during office hours regarding carbocation stability in stereoselective reactions.",
+    "speakers": {
+      "A": "Elena (Student)",
+      "B": "Professor Vance (Instructor)"
+    },
+    "script": "Elena (Female): Professor Vance, thank you for meeting with me. I am struggling to understand why the electrophilic addition in yesterday's laboratory experiment yielded primarily the anti-Markovnikov product rather than the expected thermodynamic intermediate.\nProfessor Vance (Male): Ah, that is a common hurdle, Elena. Remember that under our specific experimental conditions, we introduced peroxide catalysts into the reaction mixture.\nElena (Female): Oh, so the reaction followed a radical pathway rather than an ionic mechanism involving a discrete carbocation?\nProfessor Vance (Male): Precisely. The peroxide generates bromine free radicals, which attack the less sterically hindered carbon atom first to generate the more stable secondary carbon radical.\nElena (Female): That makes complete sense now! In the ionic mechanism, hydrogen attacks first, but here the radical addition inverts the regiochemical selectivity.\nProfessor Vance (Male): Exactly right. When you write up your lab report, make sure to draw out the homolytic bond cleavage steps in your initiation mechanism clearly.\nElena (Female): I will certainly do that. Should I also calculate the percent yield differences between the two trials?\nProfessor Vance (Male): Yes, include the error analysis discussing any unreacted starting alkene in your chromatography results.",
+    "questions": [
+      {
+        "q": "What is the primary purpose of Elena's visit to Professor Vance's office?",
+        "options": [
+          "To clarify an unexpected reaction outcome in a laboratory experiment",
+          "To request an extension on her organic chemistry final project",
+          "To apply for an undergraduate research assistantship in his lab",
+          "To contest her grade on the midterm chemical kinetics exam"
+        ],
+        "answer": 0,
+        "why": "Elena wants to understand why her experiment produced the anti-Markovnikov product instead of the expected thermodynamic intermediate."
+      },
+      {
+        "q": "According to the professor, why did the reaction yield the anti-Markovnikov product?",
+        "options": [
+          "High thermal energy shifted the equilibrium toward the cis-isomer",
+          "The presence of peroxide catalysts induced a free-radical mechanism",
+          "A basic solvent suppressed nucleophilic substitution entirely",
+          "Excess moisture hydrolyzed the transition-state intermediate"
+        ],
+        "answer": 1,
+        "why": "Professor Vance points out that peroxide catalysts generated free radicals, changing the pathway from ionic to radical addition."
+      },
+      {
+        "q": "What does Professor Vance instruct Elena to include in her final laboratory report?",
+        "options": [
+          "A bibliography of historical nineteenth-century syntheses",
+          "Diagrams of the homolytic cleavage steps and yield error analysis",
+          "Photographs of the infrared spectrophotometer instrumentation",
+          "Letters of recommendation from her laboratory lab partners"
+        ],
+        "answer": 1,
+        "why": "The professor specifically asks her to draw the homolytic bond cleavage steps and include error analysis on percent yields."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-3",
+    "title": "Campus Housing Renewal and Roommate Assignment Policy",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "context": "A student speaks with a residential life coordinator regarding housing lottery selection and mutual roommate requests.",
+    "speakers": {
+      "A": "Marcus (Student)",
+      "B": "Ms. Ramirez (Housing Coordinator)"
+    },
+    "script": "Marcus (Male): Hello, Ms. Ramirez. I have a question regarding next year's suite lottery selection process. My current roommate and I would like to live together again in Alder Hall, but our lottery numbers are quite far apart.\nMs. Ramirez (Female): That happens quite frequently, Marcus. Under our university residential policy, students who form a verified roommate pair use the average of their two lottery numbers rather than the individual scores.\nMarcus (Male): That is a relief. If my number is four hundred and his is twelve hundred, our composite group number would be eight hundred?\nMs. Ramirez (Female): Exactly. That composite ranking determines when your selection window opens in the housing portal next Tuesday.\nMarcus (Male): Does that guarantee we will receive a two-bedroom suite in Alder Hall?\nMs. Ramirez (Female): It does not guarantee that specific residence hall, as Alder fills up very quickly with graduating seniors. I strongly advise you and your roommate to select two backup preferences in Pine or Cedar Court just in case.\nMarcus (Male): Understood. When is the final deadline to submit our mutual roommate confirmation in the portal?\nMs. Ramirez (Female): Both of you must confirm the match electronically by Friday evening at five o'clock.",
+    "questions": [
+      {
+        "q": "What concern does Marcus raise regarding his housing application?",
+        "options": [
+          "He wants to cancel his housing contract to move off campus",
+          "His lottery number differs significantly from his preferred roommate's",
+          "He was placed on an involuntary waitlist for residential dining",
+          "His room assignment was accidentally swapped with another student"
+        ],
+        "answer": 1,
+        "why": "Marcus explains that he and his roommate want to live together, but their lottery numbers are very far apart."
+      },
+      {
+        "q": "How does the housing office calculate lottery rankings for roommate pairs?",
+        "options": [
+          "By using the single highest lottery number in the group",
+          "By taking the mathematical average of both students' numbers",
+          "By prioritizing whoever completed their housing deposit first",
+          "By conducting a random secondary drawing during selection week"
+        ],
+        "answer": 1,
+        "why": "Ms. Ramirez clarifies that roommate pairs are assigned the average of their two lottery numbers."
+      },
+      {
+        "q": "What recommendation does Ms. Ramirez offer Marcus?",
+        "options": [
+          "Request a medical accommodation waiver immediately",
+          "Select backup dormitories because Alder Hall reaches capacity early",
+          "Apply for a single room rather than a shared suite",
+          "Postpone housing selection until the autumn semester"
+        ],
+        "answer": 1,
+        "why": "She warns that Alder Hall fills up rapidly with seniors and advises preparing backup choices like Pine or Cedar Court."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-4",
+    "title": "Field Research Grant Application Consultation",
+    "level": "advanced",
+    "topic": "social-sciences",
+    "context": "An anthropology student discusses her ethnographic field proposal and institutional review board compliance with a research advisor.",
+    "speakers": {
+      "A": "Maya (Student)",
+      "B": "Dr. Alvarez (Research Advisor)"
+    },
+    "script": "Maya (Female): Good morning, Dr. Alvarez. I have drafted the preliminary budget and methodology sections for the undergraduate summer ethnographic grant, focusing on indigenous weaving cooperatives in Oaxaca.\nDr. Alvarez (Male): Excellent progress, Maya. I reviewed your methodology yesterday. Your proposed participant observation approach is rigorous, but you need to clarify your protocol for informed consent with non-literate community artisans.\nMaya (Female): That was one of my primary concerns. Should I incorporate an oral consent audio recording protocol approved by the university Institutional Review Board?\nDr. Alvarez (Male): Yes, definitely. The IRB requires verifiable documentation that participants comprehend how their interviews and weaving patterns will be cataloged and disseminated.\nMaya (Female): I will prepare an oral consent script translated into both Spanish and the local Zapotec dialect.\nDr. Alvarez (Male): Wonderful. What about your travel stipend breakdown? Does the budget account for local transportation between rural highland villages?\nMaya (Female): I budgeted for regional bus passes, but I may need to adjust the line item for regional guide escorts due to monsoon road conditions.\nDr. Alvarez (Male): Make sure you detail that in the contingency justification section before the grant committee convenes next Friday.",
+    "questions": [
+      {
+        "q": "What is the focal subject of Maya's summer research grant proposal?",
+        "options": [
+          "Indigenous weaving cooperatives in Oaxaca",
+          "Archaeological excavation of pre-Columbian agricultural terraces",
+          "Economic analysis of coffee exports in Central America",
+          "Linguistic preservation of extinct Mesoamerican dialects"
+        ],
+        "answer": 0,
+        "why": "Maya states her ethnographic grant focuses on indigenous weaving cooperatives in Oaxaca."
+      },
+      {
+        "q": "What modification does Dr. Alvarez suggest regarding participant consent?",
+        "options": [
+          "Replace student interviews with standardized mail surveys",
+          "Establish an IRB-approved oral consent protocol with language translations",
+          "Require all artisan participants to sign notarized legal contracts",
+          "Exclude non-literate cooperative members from ethnographic interviews"
+        ],
+        "answer": 1,
+        "why": "Dr. Alvarez advises establishing an oral consent recording protocol that accounts for non-literate participants."
+      },
+      {
+        "q": "Why might Maya need to adjust her proposed travel budget?",
+        "options": [
+          "Fuel inflation has increased international airline ticket prices",
+          "Adverse monsoon weather conditions necessitate regional guide escorts",
+          "The university reduced the maximum total grant allocation",
+          "Local cooperative lodging fees doubled unexpectedly"
+        ],
+        "answer": 1,
+        "why": "Maya notes that monsoon road conditions between highland villages may require budgeting for local guide escorts."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-5",
+    "title": "Registrar Office: Double Major Degree Audit",
+    "level": "intermediate",
+    "topic": "business-economics",
+    "context": "An economics student meets with an academic counselor to verify graduation requirements for a second major in applied mathematics.",
+    "speakers": {
+      "A": "Julian (Student)",
+      "B": "Mrs. Clark (Academic Counselor)"
+    },
+    "script": "Julian (Male): Hello, Mrs. Clark. I am entering my senior year and wanted to perform a comprehensive degree audit. I am trying to complete a double major in economics and applied mathematics.\nMrs. Clark (Female): Let us pull up your academic transcript on the screen, Julian. You have accumulated ninety-six credit units with an exemplary grade point average.\nJulian (Male): Thank you. My primary question involves the econometrics seminar. Does that course satisfy both the economics elective and the upper-division probability requirement for mathematics?\nMrs. Clark (Female): Under university regulations, you can double-count a maximum of two cross-listed courses between departments. Econometrics 410 is approved for dual credit, so that clears both prerequisites.\nJulian (Male): That saves me three credits next spring! What about the senior capstone requirement?\nMrs. Clark (Female): Because both departments mandate an independent thesis, you must either write two distinct papers or register for an interdisciplinary joint honors thesis supervised by co-advisors.\nJulian (Male): An interdisciplinary honors thesis sounds much more coherent. How do I obtain approval for that track?\nMrs. Clark (Female): You must submit a single joint proposal signed by both department chairs before the end of the add-drop period.",
+    "questions": [
+      {
+        "q": "Why is Julian consulting with Mrs. Clark?",
+        "options": [
+          "To appeal a prerequisite disqualification in economics",
+          "To audit his credit requirements for completing a double major",
+          "To withdraw from his upcoming spring semester courses",
+          "To apply for a graduate teaching assistantship position"
+        ],
+        "answer": 1,
+        "why": "Julian states he is entering his senior year and wants to conduct a degree audit for his economics and applied mathematics double major."
+      },
+      {
+        "q": "What rule does the university have regarding overlapping courses for double majors?",
+        "options": [
+          "Students may not count any courses toward more than one department",
+          "A maximum of two approved cross-listed courses may be double-counted",
+          "All upper-division mathematics courses automatically count as economics electives",
+          "Students must pay tuition surcharges for each overlapping seminar"
+        ],
+        "answer": 1,
+        "why": "Mrs. Clark explicitly explains that university regulations permit double-counting a maximum of two cross-listed courses."
+      },
+      {
+        "q": "What must Julian do to pursue an interdisciplinary joint capstone thesis?",
+        "options": [
+          "Publish his preliminary econometrics findings in a peer-reviewed journal",
+          "Obtain approval on a single joint proposal signed by both department chairs",
+          "Enroll in twelve additional summer research units",
+          "Take an oral examination administered by the college dean"
+        ],
+        "answer": 1,
+        "why": "Mrs. Clark notes that he must submit a joint proposal signed by both department chairs before add-drop ends."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-6",
+    "title": "Art History Museum Exhibition Internship",
+    "level": "upper-intermediate",
+    "topic": "arts-humanities",
+    "context": "A student interviews with a university gallery curator about curatorial assistant duties for an upcoming modernism retrospective.",
+    "speakers": {
+      "A": "Chloe (Student)",
+      "B": "Dr. Martinez (Curator)"
+    },
+    "script": "Chloe (Female): Good afternoon, Dr. Martinez. I am excited to interview for the student curatorial assistantship for the fall avant-garde retrospective.\nDr. Martinez (Male): Welcome, Chloe. We received your portfolio and faculty recommendation. The exhibition focuses on early twentieth-century Dada and Surrealist multimedia collages on loan from European private foundations.\nChloe (Female): I completed two seminars on interwar European modernism last year, focusing particularly on Hannah Höch and photomontage techniques.\nDr. Martinez (Male): That academic background aligns directly with our curatorial vision. The assistant's responsibilities include verifying provenance documentation, drafting interpretive wall labels, and assisting conservators during condition reporting.\nChloe (Female): I have experience handling rare works on paper from my previous volunteer work at the city fine arts library.\nDr. Martinez (Male): That is a significant advantage. The works arrive in pressurized crates next month. You would need to commit twelve hours weekly, including occasional Thursday evening docent tours.\nChloe (Female): My course schedule leaves Tuesday and Thursday afternoons entirely open, so that time commitment fits smoothly with my degree program.\nDr. Martinez (Male): Excellent. We will finalize candidate selections by Friday, but your background makes you a very strong candidate.",
+    "questions": [
+      {
+        "q": "What is the central focus of the upcoming exhibition curated by Dr. Martinez?",
+        "options": [
+          "Renaissance oil paintings on loan from Italian churches",
+          "Early twentieth-century Dada and Surrealist multimedia collages",
+          "Contemporary digital photography by regional student artists",
+          "Ancient Greek ceramic pottery recovered from Mediterranean excavations"
+        ],
+        "answer": 1,
+        "why": "Dr. Martinez explains the retrospective showcases early twentieth-century Dada and Surrealist collages from European collections."
+      },
+      {
+        "q": "Which specific responsibility will the curatorial assistant undertake?",
+        "options": [
+          "Purchasing new artwork on behalf of the university endowment",
+          "Drafting wall labels, reviewing provenance, and assisting with condition reports",
+          "Restoring cracked oil paint varnishes using chemical solvents",
+          "Managing security staff and ticketing revenues during public gallery hours"
+        ],
+        "answer": 1,
+        "why": "Dr. Martinez outlines duties including verifying provenance documentation, drafting interpretive wall labels, and condition reporting."
+      },
+      {
+        "q": "What scheduling commitment does Dr. Martinez request from the student intern?",
+        "options": [
+          "Twenty hours per week including weekend morning shifts",
+          "Twelve hours weekly including occasional Thursday evening docent tours",
+          "Full-time attendance throughout summer break with no academic classes",
+          "Five hours weekly strictly dedicated to remote cataloging work"
+        ],
+        "answer": 1,
+        "why": "Dr. Martinez specifies a twelve-hour weekly commitment including occasional Thursday evening docent tours."
+      }
+    ]
+  },
+  {
+    "id": "ld-curated-7",
+    "title": "Biomechanics Lab Equipment Calibration and Safety",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "A graduate researcher trains an undergraduate assistant on optical motion-capture calibration and force plate data acquisition.",
+    "speakers": {
+      "A": "Liam (Undergraduate)",
+      "B": "Kendra (Lab Manager)"
+    },
+    "script": "Liam (Male): Hi Kendra, I am ready to start calibrating the optical motion capture infrared cameras for this afternoon's gait analysis trials.\nKendra (Female): Great, Liam. Before we power up the cameras, we must verify that the ambient room lighting matches our baseline parameters. Fluorescent flicker can introduce noise into reflective marker tracking.\nLiam (Male): Right, I will switch the room lights to the stabilized incandescent fixtures. How many wand calibration sweeps do we need along the force plates?\nKendra (Female): We need at least two dynamic wand calibrations across the capture volume, ensuring the residual error remains below zero point two millimeters across all twelve cameras.\nLiam (Male): If one of the retroreflective markers on the subject falls off during running trials, does the software automatically interpolate the trajectory?\nKendra (Female): Only for brief gaps of fewer than five frames. If a marker disappears for longer, our rigid-body kinematic model collapses, and we must invalidate that trial.\nLiam (Male): Understood. I will use medical-grade adhesive tape to secure all anatomical landmarks onto the subject's joints.\nKendra (Female): Perfect. Double-check the emergency stop lanyard on the motorized treadmill as well before the participant arrives.",
+    "questions": [
+      {
+        "q": "What initial adjustment must Liam make prior to calibrating the motion capture cameras?",
+        "options": [
+          "Switch the ambient lighting to incandescent fixtures to eliminate flicker noise",
+          "Increase the room temperature to optimize infrared sensor sensitivity",
+          "Remove all force plates from the capture volume floor",
+          "Disassemble the treadmill emergency braking mechanism"
+        ],
+        "answer": 0,
+        "why": "Kendra explains that fluorescent lighting causes flicker noise and Liam confirms he will switch to stabilized incandescent lighting."
+      },
+      {
+        "q": "What is the maximum acceptable residual error for camera calibration?",
+        "options": [
+          "Zero point two millimeters across all twelve cameras",
+          "Two point five centimeters along the primary axis",
+          "Five percent total optical deviation per quadrant",
+          "One millimeter per force plate measurement channel"
+        ],
+        "answer": 0,
+        "why": "Kendra explicitly states the residual error must remain below 0.2 millimeters across all twelve cameras."
+      },
+      {
+        "q": "Under what condition must a gait analysis trial be invalidated?",
+        "options": [
+          "If the participant runs faster than ten kilometers per hour",
+          "If a reflective marker is occluded for more than five consecutive frames",
+          "If the treadmill belt requires routine lubrication during testing",
+          "If the participant chooses to wear customized athletic footwear"
+        ],
+        "answer": 1,
+        "why": "Kendra states that gaps longer than five frames collapse the rigid-body kinematic model and require invalidating the trial."
       }
     ]
   }

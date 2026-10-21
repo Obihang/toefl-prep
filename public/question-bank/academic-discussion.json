@@ -14,7 +14,8 @@
       "name": "Elena",
       "text": "While housing conversion is beneficial long-term, ignoring the immediate fiscal devastation of downtown business districts is reckless. Service-sector workers who rely on foot traffic from office commuters face sudden job displacement. Therefore, city governments should implement tiered tax credits that encourage hybrid schedules, ensuring enough physical presence to sustain urban commerce during weekdays."
     },
-    "question": "State your position on whether cities should prioritize commercial preservation or residential conversion, and explain your reasoning with specific economic examples."
+    "question": "State your position on whether cities should prioritize commercial preservation or residential conversion, and explain your reasoning with specific economic examples.",
+    "modelResponse": "While Elena raises a valid concern regarding the immediate vulnerability of downtown retail workers, I strongly agree with Marcus that municipalities must prioritize converting vacant commercial towers into residential housing. Forcing employees back to offices through municipal mandates artificially subsidizes an obsolete commuter-based economic model. In contrast, residential conversion permanently revitalizes downtown districts by creating a constant, diverse population of local consumers who patronize neighborhood restaurants, grocery stores, and cultural venues throughout the entire week rather than merely during weekday lunch hours. Consequently, adaptive reuse addresses acute urban housing shortages while fostering enduring municipal economic resilience."
   },
   {
     "id": "ad-curated-2",
@@ -31,6 +32,97 @@
       "name": "Sophia",
       "text": "Project portfolios alone cannot replace foundational conceptual mastery. Without supervised, unassisted examinations, students fail to internalize core theoretical frameworks and critical reasoning skills. Universities must maintain rigorous closed-book examinations for introductory coursework to ensure basic competence, reserving collaborative AI integration for advanced capstone research seminars."
     },
-    "question": "Contribute to the forum by explaining whether you favor project-based AI integration or supervised traditional examinations, supported by your educational rationale."
+    "question": "Contribute to the forum by explaining whether you favor project-based AI integration or supervised traditional examinations, supported by your educational rationale.",
+    "modelResponse": "Although Sophia makes a compelling argument regarding the necessity of establishing baseline conceptual mastery through unassisted testing, I firmly side with Julian in advocating for project-based AI integration. In today's digital landscape, professional proficiency hinges on critical evaluation and prompt synthesis rather than isolated memory recall. When professors evaluate students through multi-stage portfolios and verbal defense presentations, learners must rigorously interrogate AI-generated assumptions and substantiate their logical progression. This pedagogical approach prevents academic dishonesty while cultivating higher-order analytical capabilities that prepare graduates for collaborative workplace technologies."
+  },
+  {
+    "id": "ad-curated-3",
+    "title": "Public Funding for Renewable Energy Subsidies",
+    "level": "intermediate",
+    "topic": "science-tech",
+    "professorName": "Professor Alvarez",
+    "professorPrompt": "Today we are analyzing governmental fiscal strategies to accelerate national decarbonization goals. Transitioning to clean energy requires tremendous capital outlay for infrastructure, battery storage systems, and solar grids. Should governments subsidize private consumer purchases of electric vehicles and solar panels, or should public funding be concentrated exclusively on large-scale public transportation networks and grid-scale nuclear infrastructure?",
+    "s1": {
+      "name": "David",
+      "text": "Subsidizing individual consumer adoption democratizes renewable energy and creates rapid decentralized momentum. When households receive tax rebates for rooftop solar panels and electric cars, public awareness expands dramatically. Furthermore, residential solar installations alleviate strain on municipal transmission lines by generating electricity directly where it is consumed."
+    },
+    "s2": {
+      "name": "Claire",
+      "text": "Subsidizing private luxury goods like electric automobiles predominantly benefits high-income homeowners while doing little for disadvantaged demographics. Instead, public capital must be invested into modern high-speed electric commuter rail and clean public transit. Expanding municipal rail networks removes thousands of private automobiles from congested highways altogether."
+    },
+    "question": "Express your perspective on whether clean energy funds should support consumer subsidies or centralized transit networks, explaining your reasoning.",
+    "modelResponse": "While David highlights the psychological benefits of consumer solar adoption, Claire presents a far more equitable and scalable perspective. Directing billions of dollars in tax subsidies toward private electric vehicles largely subsidizes wealthy households without eliminating the substantial spatial and ecological footprint of personal automobile traffic. Conversely, investing public funds into centralized electric rail and regional transit grids benefits all socioeconomic strata while dramatically reducing aggregate carbon emissions. By prioritizing mass transit infrastructure, governments establish sustainable metropolitan mobility systems that curtail suburban highway congestion and energy consumption simultaneously."
+  },
+  {
+    "id": "ad-curated-4",
+    "title": "Corporate Sponsorship of University Research Facilities",
+    "level": "upper-intermediate",
+    "topic": "campus-life",
+    "professorName": "Professor Gallagher",
+    "professorPrompt": "As public budgetary allocations for higher education face ongoing constraints, research universities frequently enter lucrative partnership agreements with multinational corporations to fund state-of-the-art laboratories and faculty fellowships. While these corporate sponsorships provide cutting-edge scientific instrumentation, critics fear they compromise academic objectivity. Should universities restrict private corporate sponsorships, or are corporate research partnerships indispensable for modern scientific breakthroughs?",
+    "s1": {
+      "name": "Liam",
+      "text": "Universities must strictly limit corporate underwriting to safeguard objective inquiry. When pharmaceutical or fossil fuel conglomerates finance departmental laboratories, researcher bias inevitably creeps into trial design and publication outcomes. Academic institutions should remain autonomous sanctuaries devoted to disinterested truth rather than commercial product commercialization."
+    },
+    "s2": {
+      "name": "Hannah",
+      "text": "Restricting corporate collaboration would severely hamstring technological progress. Modern breakthroughs in quantum computing and bioengineering require billions of dollars in specialized hardware that public research grants simply cannot fund. Robust conflict-of-interest disclosures and peer-reviewed publication mandates adequately preserve scholarly integrity while providing students invaluable industry experience."
+    },
+    "question": "State your opinion on corporate research partnerships in academia and defend your reasoning with relevant examples.",
+    "modelResponse": "While Liam's concerns about corporate bias and selective publishing are grounded in historical precedent, Hannah correctly identifies that advanced technological inquiry requires financial resources far exceeding current government allocations. Stringent oversight protocols—such as mandatory pre-registration of trial designs, open-access data publishing, and binding faculty independence clauses—can effectively insulate research from commercial interference. For instance, collaborative biotechnology laboratories have yielded life-saving vaccines and genetic therapies precisely because academic theoretical rigor was paired with industry fabrication capabilities. Therefore, structured corporate partnerships should be embraced rather than prohibited."
+  },
+  {
+    "id": "ad-curated-5",
+    "title": "Mandatory Arts Education in Secondary Curricula",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "professorName": "Professor Brooks",
+    "professorPrompt": "Secondary school districts frequently debate how to allocate limited classroom hours and resources between STEM disciplines and the fine arts. Some school boards argue that curriculum standards should emphasize mathematics, software development, and scientific inquiry to ensure global economic competitiveness. Others argue that visual art, theater, and music instruction are equally vital. In your view, should high schools mandate arts coursework for all graduating students?",
+    "s1": {
+      "name": "Rachel",
+      "text": "Mandating comprehensive arts education is essential for cultivating creative divergent thinking and emotional resilience. Studies consistently demonstrate that students involved in music and visual design perform significantly better on abstract spatial problem-solving tests. Art education teaches adolescent students to communicate nuanced perspectives that standardized STEM tests cannot measure."
+    },
+    "s2": {
+      "name": "Ethan",
+      "text": "While fine arts enrich personal life, high school graduation requirements must reflect current labor market realities. Forcing students who intend to pursue careers in civil engineering or accounting to complete mandatory theater courses wastes critical instructional hours that could be dedicated to advanced calculus or computer programming. Moreover, elective arts programs already allow passionate students to explore creative fields without constraining general diploma pathways."
+    },
+    "question": "Provide your stance on whether arts education should be mandatory for high school graduation, explaining your reasoning.",
+    "modelResponse": "Although Ethan points to the undeniable demand for technical competency in today's digital workforce, I strongly concur with Rachel that mandatory arts coursework is indispensable for secondary school students. Exposure to disciplines such as music composition and visual design fosters cognitive flexibility, divergent thinking, and creative problem-solving—qualities that are increasingly vital in technical fields. Engineers and computer scientists who possess artistic training frequently design more intuitive user interfaces and inventive architectural structures. Consequently, requiring arts education does not diminish technical capability; rather, it enriches analytical students with creative innovation."
+  },
+  {
+    "id": "ad-curated-6",
+    "title": "Preservation of Endangered Indigenous Languages",
+    "level": "advanced",
+    "topic": "social-sciences",
+    "professorName": "Professor Morales",
+    "professorPrompt": "Linguists estimate that more than half of the world's approximately seven thousand spoken languages may become extinct by the end of this century as younger generations assimilate into dominant global languages like English, Spanish, and Mandarin. Given limited governmental resources, should international bodies prioritize funding language revitalization programs, or should fiscal resources be concentrated on general poverty alleviation and basic education in globally dominant languages?",
+    "s1": {
+      "name": "Mateo",
+      "text": "Language revitalization is an imperative of human cultural heritage and scientific knowledge. Indigenous languages encode unique ecological frameworks, medicinal taxonomies, and philosophical perspectives developed over millennia. When a language vanishes, our collective understanding of biodiversity and human history is irreversibly impoverished."
+    },
+    "s2": {
+      "name": "Chloe",
+      "text": "Language preservation, while culturally romantic, must not eclipse immediate human welfare. Marginalized youths in developing nations desperately require fluency in globally dominant vehicular languages to access international employment and higher education. Concentrating scarce funding on basic literacy and vocational proficiency directly alleviates systemic generational poverty."
+    },
+    "question": "Discuss whether international funding should prioritize indigenous language preservation or vocational fluency in global languages, explaining your position.",
+    "modelResponse": "While Chloe appropriately emphasizes the practical economic utility of global language literacy for socioeconomic advancement, I firmly believe that Mateo is correct in asserting the irreplaceable value of endangered language preservation. Language is not merely a communicative tool; it is an irreplaceable repository of cultural identity and botanical knowledge accumulated over generations. Furthermore, linguistic research proves that bilingual education—where students achieve mother-tongue mastery alongside a global lingua franca—enhances overall cognitive flexibility and academic achievement. Therefore, international organizations must support dual-language pedagogical models rather than sacrificing indigenous linguistic heritage in the pursuit of economic utility."
+  },
+  {
+    "id": "ad-curated-7",
+    "title": "Universal Basic Income and Workplace Automation",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "professorName": "Professor Chen",
+    "professorPrompt": "Advancements in automated logistics, robotics, and artificial intelligence are anticipated to displace millions of blue-collar and administrative positions over the next decade. Economists have proposed a Universal Basic Income (UBI)—unconditional monthly cash payments to all citizens regardless of employment status. Proponents argue UBI provides an essential safety net, while critics warn it could disincentivize productive labor and trigger severe inflation. Is implementing a Universal Basic Income a viable long-term policy response?",
+    "s1": {
+      "name": "Gabriel",
+      "text": "Universal Basic Income is an essential mechanism for economic survival amid unprecedented automation. When machines outcompete human workers across routine sectors, consumer purchasing power collapses without direct cash transfers. A reliable income floor empowers individuals to retrain, care for dependents, and negotiate fair wages without the fear of immediate destitution."
+    },
+    "s2": {
+      "name": "Olivia",
+      "text": "UBI is a fiscally irresponsible proposal that would strain national treasuries and diminish workforce participation. Funding unconditional payments across an entire population requires astronomical tax increases that stifle corporate investment. A targeted program of subsidized job training and infrastructure employment vouchers offers a far more sustainable solution."
+    },
+    "question": "Share your viewpoint on whether Universal Basic Income is an effective response to technological automation, supported by economic reasoning.",
+    "modelResponse": "Although Olivia rightly questions the staggering fiscal cost of universal cash distribution, I agree with Gabriel that an unconditional Universal Basic Income represents the most effective structural safeguard against widespread technological displacement. Traditional unemployment benefits are fraught with bureaucratic friction and penalize recipients the moment they find part-time employment. Conversely, a guaranteed income floor sustains aggregate consumer demand, which is the foundational engine of modern capitalist economies. With their basic survival guaranteed, displaced workers can pursue entrepreneurship and educational retraining without being forced into exploitative wages. Thus, UBI provides the macroeconomic stability required in an automated economy."
   }
 ]

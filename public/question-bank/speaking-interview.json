@@ -1,23 +1,163 @@
 [
   {
     "id": "si-curated-1",
-    "title": "University Campus Interview Simulation",
+    "title": "University Admissions: Academic Intellectual Growth",
     "level": "intermediate",
     "topic": "campus-life",
-    "context": "An admissions interviewer asks about your academic background and future goals.",
+    "context": "An admissions committee interviewer asks about an academic subject that challenged your intellectual perspective.",
     "interviewerName": "Prof. Lee (Male)",
     "interviewerGender": "male",
     "questions": [
       {
-        "question": "Describe an academic subject that challenged your perspective and explain why.",
+        "question": "Describe an academic subject that challenged your perspective and explain how working through that challenge influenced your intellectual development.",
         "prepTimeSeconds": 20,
         "responseTimeSeconds": 45,
         "suggestedPoints": [
-          "Name the subject clearly",
-          "Explain the specific conceptual challenge",
-          "Describe your intellectual growth or resolution"
+          "State the specific academic discipline clearly",
+          "Identify the conceptual challenge or misconception you had to overcome",
+          "Explain the lasting cognitive or problem-solving benefit"
         ]
       }
-    ]
+    ],
+    "modelResponse": "An academic discipline that profoundly challenged my perspective was introductory macroeconomics. Initially, I naively assumed that economic outcomes were purely driven by individual rational decision-making. However, analyzing complex systems like inflation and currency devaluation demonstrated how macroeconomic policies produce counterintuitive aggregate results. Working through quantitative econometric models forced me to adopt an empirical, evidence-based mindset. Consequently, this intellectual challenge taught me to look beyond immediate individual choices and evaluate systemic interconnections, a analytical skill that now shapes how I evaluate societal challenges.",
+    "sampleAnswer": "Band 6.0 exemplar: Directly introduces macroeconomics, articulates the initial misconception versus new insight, links the learning process to analytical growth, and concludes with a synthesis sentence."
+  },
+  {
+    "id": "si-curated-2",
+    "title": "Environmental Sustainability: Urban Public Transportation",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "context": "A graduate fellowship interviewer inquires about urban policy interventions for climate change mitigation.",
+    "interviewerName": "Dr. Simmons (Female)",
+    "interviewerGender": "female",
+    "questions": [
+      {
+        "question": "In your opinion, should municipal governments prioritize investments in electric vehicle subsidies or in expanding electrified public transit networks? Explain your view.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "State your policy preference explicitly in the opening sentence",
+          "Provide comparative analysis regarding carbon efficiency and spatial congestion",
+          "Address socioeconomic equity and accessibility"
+        ]
+      }
+    ],
+    "modelResponse": "In my view, municipal governments should prioritize expanding electrified public transit networks over individual electric vehicle subsidies. While electric cars certainly reduce tailpipe emissions, they do not resolve traffic congestion, pedestrian hazards, or the immense spatial footprints required for urban parking structures. Conversely, high-capacity electrified subway and light-rail lines transport thousands of commuters simultaneously with superior thermodynamic efficiency. Furthermore, public transit provides universal socioeconomic accessibility for lower-income residents who cannot afford private vehicles. Therefore, investing in communal infrastructure yields far superior environmental and societal dividends.",
+    "sampleAnswer": "Band 6.0 exemplar: Firm stance taken immediately, strong contrastive discourse markers ('while', 'conversely', 'furthermore', 'therefore'), and dual justification covering ecological efficiency and social equity."
+  },
+  {
+    "id": "si-curated-3",
+    "title": "Technological Ethics: Artificial Intelligence in Healthcare",
+    "level": "advanced",
+    "topic": "science-tech",
+    "context": "A biomedical ethics committee member asks your perspective on diagnostic algorithms.",
+    "interviewerName": "Dr. Chen (Male)",
+    "interviewerGender": "male",
+    "questions": [
+      {
+        "question": "Some researchers argue that diagnostic AI algorithms should operate autonomously, while others insist human physicians must retain final authority. What is your position and why?",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "Take a definitive ethical stance regarding algorithmic autonomy",
+          "Examine diagnostic pattern recognition vs clinical contextual empathy",
+          "Conclude with a collaborative physician-AI framework"
+        ]
+      }
+    ],
+    "modelResponse": "I firmly believe that human physicians must retain final diagnostic authority rather than allowing algorithms to operate autonomously. Without question, deep-learning models possess remarkable capability in identifying subtle radiographic patterns in MRI scans that the human eye might overlook. Nevertheless, medicine is not merely pattern detection; it demands holistic contextual understanding, patient rapport, and ethical judgment. An algorithm cannot evaluate a patient's subtle psychological distress or weigh complex quality-of-life trade-offs. By maintaining a collaborative model where artificial intelligence acts as an advisory diagnostic tool, healthcare systems maximize accuracy while safeguarding ethical accountability.",
+    "sampleAnswer": "Band 6.0 exemplar: Sophisticated concession of AI strengths ('Without question...'), followed by decisive ethical distinction ('Nevertheless, medicine is not merely...'), ending in a well-reasoned collaborative paradigm."
+  },
+  {
+    "id": "si-curated-4",
+    "title": "Campus Living: Shared Dormitories versus Private Apartments",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "context": "A student orientation advisor asks for advice to incoming first-year college students.",
+    "interviewerName": "Coach Miller (Male)",
+    "interviewerGender": "male",
+    "questions": [
+      {
+        "question": "Do you recommend that first-year university students reside in on-campus dormitories or rent off-campus private apartments? Give specific reasons for your choice.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "State clear recommendation for incoming first-year students",
+          "Highlight peer socialization and academic integration",
+          "Contrast logistical convenience with off-campus isolation"
+        ]
+      }
+    ],
+    "modelResponse": "I strongly recommend that first-year students reside in on-campus dormitories. Living in a residential hall immerses newcomers in campus culture, allowing them to forge friendships and form collaborative study groups naturally. When students live together in proximity, they can easily participate in student clubs and access university libraries without commuting. While private off-campus apartments might offer greater quiet and privacy, they frequently isolate first-year students from collegiate social life and introduce burdensome logistical responsibilities like utility bills and cooking. Consequently, the social camaraderie and convenience of dormitory life provide an optimal foundation for academic transition.",
+    "sampleAnswer": "Band 6.0 exemplar: Pragmatic tone, clear structural progression, contrasting advantages of dorm living with drawbacks of off-campus housing, and fluid transitional words."
+  },
+  {
+    "id": "si-curated-5",
+    "title": "Business Strategy: Remote Work vs Traditional Office Collaboration",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "context": "A corporate management interviewer asks about corporate workplace organization.",
+    "interviewerName": "Ms. Foster (Female)",
+    "interviewerGender": "female",
+    "questions": [
+      {
+        "question": "Many international corporations have shifted toward permanent remote work models. Do you believe remote work enhances or degrades overall organizational innovation? Explain why.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "Articulate your stance on innovation and organizational dynamics",
+          "Analyze spontaneous interaction versus scheduled virtual meetings",
+          "Provide examples of collaborative synergy"
+        ]
+      }
+    ],
+    "modelResponse": "I believe permanent remote work often degrades spontaneous organizational innovation, despite improving individual task productivity. Breakthrough innovations typically emerge from serendipitous encounters—informal hallway conversations and spontaneous whiteboard sketches where employees from diverse departments cross-pollinate ideas. In fully remote settings, nearly all interactions become structured, scheduled video meetings that discourage informal experimentation. While remote tools excel at routine operational tasks, building trust and creative synergy remains significantly more challenging across computer screens. Therefore, a hybrid model that preserves regular in-person collaboration is essential for sustained corporate innovation.",
+    "sampleAnswer": "Band 6.0 exemplar: Nuanced distinction between individual productivity and organizational innovation, effective metaphor ('cross-pollinate ideas'), and balanced hybrid conclusion."
+  },
+  {
+    "id": "si-curated-6",
+    "title": "Arts & Humanities: Preserving Local Cultural Heritage",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "context": "A cultural foundation board member asks your view on historic building preservation.",
+    "interviewerName": "Professor Laurent (Male)",
+    "interviewerGender": "male",
+    "questions": [
+      {
+        "question": "Should city governments allocate public tax revenues to restore aging historical landmarks, or should funds be reserved for modern infrastructure? Explain your viewpoint.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "State clear position supporting heritage preservation with public funds",
+          "Explain educational and cultural identity value of historic landmarks",
+          "Mention economic tourism revitalization"
+        ]
+      }
+    ],
+    "modelResponse": "City governments should definitely allocate public tax revenues to preserve aging historical landmarks alongside modern infrastructure. Historical architecture embodies a community's unique cultural heritage, offering tangible educational links to previous generations that contemporary glass high-rises cannot replicate. When municipal authorities demolish historic districts, they erase irreplaceable collective memory and architectural craftsmanship. Moreover, restored historic sites often stimulate substantial cultural tourism and commercial vitality in downtown neighborhoods. Investing in landmark conservation is not a waste of capital; rather, it enriches civic pride and reinforces the cultural identity that makes a city vibrant.",
+    "sampleAnswer": "Band 6.0 exemplar: Persuasive rhetoric, vivid architectural imagery ('contemporary glass high-rises', 'irreplaceable collective memory'), and economic counter-argument."
+  },
+  {
+    "id": "si-curated-7",
+    "title": "Social Psychology: Social Media and Interpersonal Communication",
+    "level": "advanced",
+    "topic": "social-sciences",
+    "context": "A psychology department interviewer asks about technological impacts on human social bonds.",
+    "interviewerName": "Dr. Gomez (Female)",
+    "interviewerGender": "female",
+    "questions": [
+      {
+        "question": "Some sociologists assert that digital social media networks have eroded deep interpersonal relationships. To what extent do you agree or disagree with this assessment?",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "Express clear degree of agreement with the sociological assessment",
+          "Examine curated digital personas versus authentic vulnerability",
+          "Contrast superficial online metrics with genuine social intimacy"
+        ]
+      }
+    ],
+    "modelResponse": "I substantially agree with the assessment that social media has eroded the depth of interpersonal relationships. Although digital platforms facilitate instantaneous global connectivity, they fundamentally prioritize superficial engagement metrics like follower counts and algorithmic likes over genuine emotional intimacy. Communicating through curated profiles encourages individuals to project idealized personas, which discourages vulnerable, authentic self-expression. Furthermore, rapid text messaging lacks the nuanced vocal inflections, facial micro-expressions, and empathetic eye contact that anchor deep human bonding. Consequently, while social media expands broad acquaintance networks, it often leaves people feeling paradoxically more isolated and disconnected from meaningful relationships.",
+    "sampleAnswer": "Band 6.0 exemplar: Eloquent conceptual vocabulary ('superficial engagement metrics', 'idealized personas', 'paradoxically more isolated'), precise structural flow, and poignant conclusion."
   }
 ]

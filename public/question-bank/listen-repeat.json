@@ -1,15 +1,107 @@
 [
   {
     "id": "lr-curated-1",
-    "title": "Academic Listening & Repeat Practice",
+    "title": "Laboratory Orientation and Chemical Safety Procedures",
     "level": "intermediate",
     "topic": "science-tech",
     "speakerName": "Sarah (Female)",
     "speakerGender": "female",
     "sentences": [
-      "The research laboratory will remain closed during scheduled maintenance.",
-      "Students must submit their final research proposals by Friday noon.",
-      "Professor Jenkins explained the intricacies of quantum entanglement."
-    ]
+      "The biochemistry research laboratory will remain closed during scheduled ventilation maintenance.",
+      "Undergraduate students must submit their complete research proposals by Friday noon.",
+      "Professor Jenkins explained the thermodynamic principles of exothermic reaction kinetics in yesterday lecture."
+    ],
+    "sampleAnswer": "Fluent Band 6.0 articulation maintains clear vowel elongation on stressed syllables such as biochemistry and thermodynamic, with a natural downward cadence on terminal punctuation.",
+    "modelResponse": "A Band 6.0 performance reproduces the precise sentence phrasing with zero hesitation, accurate phonetic stress on multisyllabic terms, and smooth prosodic linking between consonant and vowel boundaries."
+  },
+  {
+    "id": "lr-curated-2",
+    "title": "University Library Digital Archives and Interlibrary Loans",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "speakerName": "David (Male)",
+    "speakerGender": "male",
+    "sentences": [
+      "Graduate students may borrow up to fifteen reference monographs for an entire academic term.",
+      "The special collections vault requires advance security registration and verified departmental sponsorship.",
+      "Electronic book reserves can be accessed remotely through the university virtual private network."
+    ],
+    "sampleAnswer": "Band 6.0 mastery highlights clear aspiration on initial plosives and seamless elision across compound prepositional phrases.",
+    "modelResponse": "Band 6.0 speech exhibits steady tempo of approximately 135 words per minute, clear phonological distinction between /b/ and /v/, and appropriate sentence-level intonational contour."
+  },
+  {
+    "id": "lr-curated-3",
+    "title": "Microeconomic Equilibrium and Consumer Price Elasticity",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "speakerName": "Rachel (Female)",
+    "speakerGender": "female",
+    "sentences": [
+      "Consumer demand for essential commodities tends to exhibit relatively low price elasticity.",
+      "Monopoly market structures frequently generate deadweight loss due to restricted aggregate production.",
+      "Central banking authorities evaluate core inflation figures before determining interest rate adjustments."
+    ],
+    "sampleAnswer": "Band 6.0 delivery delivers sharp enunciation of abstract economic nominalizations without stumbling or rhythm breakdown.",
+    "modelResponse": "Band 6.0 pronunciation maintains consistent pitch modulation, natural pause groups after subject noun phrases, and flawless academic diction."
+  },
+  {
+    "id": "lr-curated-4",
+    "title": "Geological Plate Tectonics and Subduction Zone Seismology",
+    "level": "advanced",
+    "topic": "science-tech",
+    "speakerName": "Marcus (Male)",
+    "speakerGender": "male",
+    "sentences": [
+      "Subduction boundaries generate high-magnitude earthquakes as oceanic lithosphere sinks into the upper mantle.",
+      "Geophysicists deploy broadband seismometers along fault lines to record minute crustal displacements.",
+      "Volcanic island arcs form parallel to ocean trenches through partial melting of the mantle wedge."
+    ],
+    "sampleAnswer": "Band 6.0 speakers execute compound scientific clauses with natural prosody, placing appropriate pitch accents on contrastive technical terms.",
+    "modelResponse": "Band 6.0 delivery demonstrates immediate auditory retention, reproducing complex scientific sentence syntax with crisp articulation and confident pacing."
+  },
+  {
+    "id": "lr-curated-5",
+    "title": "Renaissance Art History and Perspective Geometry",
+    "level": "intermediate",
+    "topic": "arts-humanities",
+    "speakerName": "Elena (Female)",
+    "speakerGender": "female",
+    "sentences": [
+      "Fifteenth-century Florentine painters applied mathematical linear perspective to create optical illusions of depth.",
+      "Architectural drawings from the high Renaissance incorporated classical Roman proportional harmony.",
+      "Art historians analyze pigment composition using non-destructive X-ray fluorescence spectroscopy."
+    ],
+    "sampleAnswer": "Band 6.0 execution sustains fluid phrasing across extended noun phrases like mathematical linear perspective.",
+    "modelResponse": "Band 6.0 pronunciation accurately distinguishes complex syllables without dropping terminal consonants."
+  },
+  {
+    "id": "lr-curated-6",
+    "title": "Campus Registrar Enrollment and Course Drop Deadlines",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "speakerName": "James (Male)",
+    "speakerGender": "male",
+    "sentences": [
+      "Students wishing to audit a seminar must obtain written permission from the instructor.",
+      "The deadline for submitting internship credit documentation has been extended to next Monday.",
+      "Academic advisors schedule individual counseling sessions to review degree audit progress reports."
+    ],
+    "sampleAnswer": "Band 6.0 speakers reproduce campus administrative instructions with native-like fluidity, linking function words smoothly to content words.",
+    "modelResponse": "A Band 6.0 response captures all grammatical function words with precise rhythmic cadence."
+  },
+  {
+    "id": "lr-curated-7",
+    "title": "Environmental Science and Wetland Biogeochemistry",
+    "level": "advanced",
+    "topic": "science-tech",
+    "speakerName": "Sophia (Female)",
+    "speakerGender": "female",
+    "sentences": [
+      "Coastal salt marshes sequester substantial quantities of atmospheric carbon within anaerobic peat sediments.",
+      "Anthropogenic runoff containing synthetic nitrates induces rapid eutrophication in downstream freshwater estuaries.",
+      "Restoration ecologists reintroduce native cordgrass species to stabilize eroding shoreline embankments."
+    ],
+    "sampleAnswer": "Band 6.0 delivery balances complex biochemical terminology with effortless melodic phrasing and unhesitating delivery.",
+    "modelResponse": "Band 6.0 performance achieves 100% acoustic clarity, impeccable lexical stress on sequester, anaerobic, and eutrophication, and natural breath group control."
   }
 ]
