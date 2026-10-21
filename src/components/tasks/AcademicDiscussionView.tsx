@@ -261,7 +261,7 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             rows={12}
             value={response}
             onChange={(e) => setResponse(e.target.value)}
-            placeholder="Write your response here. Express your perspective, respond directly to Claire or David, and provide reasons and examples..."
+            placeholder={`Write your response here. Express your perspective, respond directly to ${task.s1?.name || 'Student A'} or ${task.s2?.name || 'Student B'}, and provide reasons and examples...`}
             className="w-full p-3.5 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-hidden leading-relaxed font-normal"
           />
 

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "ld-curated-1",
+    "title": "University Library Special Collections Archive Access",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "context": "A student speaks with a library staff member about accessing rare manuscript archives for a history thesis.",
+    "speakers": { "A": "Sarah (Student)", "B": "Mr. Davis (Librarian)" },
+    "script": "Sarah (Female): Good afternoon, Mr. Davis. I am researching nineteenth-century maritime periodicals for my undergraduate history thesis.\nMr. Davis (Male): Welcome, Sarah. Those special collections require advance security registration and faculty sponsorship from your department chair.\nSarah (Female): My faculty advisor Dr. Henderson already approved my digital access form last Tuesday.\nMr. Davis (Male): Excellent. Let me verify your credentials in the database and retrieve the secure reading room keycard for you.",
+    "questions": [
+      {
+        "q": "Why does Sarah visit the university library archive?",
+        "options": [
+          "To research nineteenth-century maritime periodicals for her history thesis",
+          "To return overdue biology textbooks to the circulation desk",
+          "To apply for a student employment position in special collections",
+          "To register for an upcoming faculty research symposium"
+        ],
+        "answer": 0,
+        "why": "Sarah states she is researching nineteenth-century maritime periodicals for her undergraduate history thesis."
+      }
+    ]
+  }
+]

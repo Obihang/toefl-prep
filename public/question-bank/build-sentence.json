@@ -1,0 +1,16 @@
+[
+  {
+    "id": "bs-curated-1",
+    "title": "Advanced Academic Sentence Structure",
+    "level": "advanced",
+    "topic": "science-tech",
+    "items": [
+      {
+        "context": "Arrange the scrambled words into a grammatically correct academic sentence.",
+        "words": ["Substantial", "empirical", "evidence", "supports", "the", "hypothesis", "regarding", "neural", "plasticity"],
+        "answer": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
+        "explanation": "Subject + transitive verb + direct object + prepositional modifying phrase."
+      }
+    ]
+  }
+]

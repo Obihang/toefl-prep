@@ -1,0 +1,33 @@
+[
+  {
+    "id": "rp-curated-1",
+    "title": "The Evolution of Avian Flight Mechanics and Metabolic Adaptation",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "passage": "The transition from terrestrial locomotion to powered flight in avian species represents one of the most remarkable evolutionary milestones in vertebrate history. Paleontological discoveries in recent decades indicate that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift. Over successive generations, morphological modifications transformed forelimbs into sophisticated airfoil structures capable of generating thrust and lift simultaneously.\n\nSimultaneously, avian respiratory and cardiovascular systems underwent profound metabolic restructuring to sustain the immense energetic demands of powered flight. Unlike mammalian lungs, which operate on a tidal flow mechanism, birds evolved a continuous, unidirectional airflow system facilitated by a series of air sacs. This cross-current gas exchange ensures that oxygen is extracted during both inhalation and exhalation, providing unparalleled metabolic efficiency at high altitudes where atmospheric partial pressure drops significantly.",
+    "questions": [
+      {
+        "q": "According to the passage, what was the initial evolutionary function of proto-feathers?",
+        "options": [
+          "Thermal insulation, camouflage, or courtship display",
+          "Direct aerodynamic propulsion and high-altitude gliding",
+          "Underwater swimming and steering in aquatic environments",
+          "Acoustic signaling for territorial defense"
+        ],
+        "answer": 0,
+        "why": "The passage explicitly states that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift."
+      },
+      {
+        "q": "How does the respiratory system of birds differ fundamentally from that of mammals?",
+        "options": [
+          "Birds utilize a continuous, unidirectional airflow system with specialized air sacs",
+          "Mammals extract oxygen during both inhalation and exhalation",
+          "Birds rely entirely on cutaneous respiration through thin epidermal membranes",
+          "Mammalian lungs feature counter-current blood flow without air sacs"
+        ],
+        "answer": 0,
+        "why": "The text explains that unlike mammalian lungs operating on a tidal flow mechanism, birds evolved a continuous, unidirectional airflow system facilitated by air sacs."
+      }
+    ]
+  }
+]

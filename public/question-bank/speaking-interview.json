@@ -1,0 +1,23 @@
+[
+  {
+    "id": "si-curated-1",
+    "title": "University Campus Interview Simulation",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "context": "An admissions interviewer asks about your academic background and future goals.",
+    "interviewerName": "Prof. Lee (Male)",
+    "interviewerGender": "male",
+    "questions": [
+      {
+        "question": "Describe an academic subject that challenged your perspective and explain why.",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "Name the subject clearly",
+          "Explain the specific conceptual challenge",
+          "Describe your intellectual growth or resolution"
+        ]
+      }
+    ]
+  }
+]

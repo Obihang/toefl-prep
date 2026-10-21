@@ -1,0 +1,36 @@
+[
+  {
+    "id": "ad-curated-1",
+    "title": "Remote Work and Urban Center Economies",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "professorName": "Professor Henderson",
+    "professorPrompt": "In our urban economics module this week, we have examined the persistent shift toward remote and hybrid knowledge work. While corporations report sustained productivity gains and employees enjoy reduced commuting friction, downtown commercial real estate districts and service-sector ecosystems face severe revenue contraction. Given these dynamics, should municipal governments incentivize companies to mandate in-office attendance, or should they accelerate the conversion of underutilized commercial towers into residential housing?",
+    "s1": {
+      "name": "Marcus",
+      "text": "Municipalities should aggressively rezone commercial districts for residential adaptive reuse. Mandating in-office attendance is an economically inefficient attempt to preserve outdated urban zoning models. Furthermore, converting vacant office towers into mixed-income housing directly addresses metropolitan housing affordability crises while establishing a resilient, 24-hour local customer base for neighborhood retail businesses."
+    },
+    "s2": {
+      "name": "Elena",
+      "text": "While housing conversion is beneficial long-term, ignoring the immediate fiscal devastation of downtown business districts is reckless. Service-sector workers who rely on foot traffic from office commuters face sudden job displacement. Therefore, city governments should implement tiered tax credits that encourage hybrid schedules, ensuring enough physical presence to sustain urban commerce during weekdays."
+    },
+    "question": "State your position on whether cities should prioritize commercial preservation or residential conversion, and explain your reasoning with specific economic examples."
+  },
+  {
+    "id": "ad-curated-2",
+    "title": "Artificial Intelligence in University Academic Integrity",
+    "level": "advanced",
+    "topic": "science-tech",
+    "professorName": "Professor Vance",
+    "professorPrompt": "Universities worldwide are grappling with the rapid proliferation of generative artificial intelligence tools capable of producing sophisticated essays and solving complex coding assignments. Some institutions have reinstated strict proctored pen-and-paper examinations to enforce academic rigor, whereas others advocate for redesigning curricula to mandate AI collaboration. How should modern higher education institutions adapt assessment methodologies to preserve authentic student learning?",
+    "s1": {
+      "name": "Julian",
+      "text": "Banning generative AI is ultimately futile and counterproductive to professional preparation. Universities must redesign assessments around iterative project-based portfolios where students document their entire prompt engineering process, critical revisions, and oral defenses. By evaluating how effectively students interrogate and synthesize AI outputs rather than testing rote memorization, institutions foster genuine cognitive skill acquisition."
+    },
+    "s2": {
+      "name": "Sophia",
+      "text": "Project portfolios alone cannot replace foundational conceptual mastery. Without supervised, unassisted examinations, students fail to internalize core theoretical frameworks and critical reasoning skills. Universities must maintain rigorous closed-book examinations for introductory coursework to ensure basic competence, reserving collaborative AI integration for advanced capstone research seminars."
+    },
+    "question": "Contribute to the forum by explaining whether you favor project-based AI integration or supervised traditional examinations, supported by your educational rationale."
+  }
+]

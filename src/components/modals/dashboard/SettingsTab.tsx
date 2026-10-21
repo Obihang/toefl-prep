@@ -30,6 +30,7 @@ import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
 import { getAiStatusInfo } from '../../../utils/aiFallbackChain';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
+import { exportQuestionBankJson, purgeLowQualityCache } from '../../../utils/questionBankStorage';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -199,6 +200,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
       resetPracticeHistory();
       setDataMessage({ success: true, text: 'All practice history has been reset.' });
     }
+  };
+
+  const handleExportQuestionBank = async () => {
+    const jsonStr = await exportQuestionBankJson();
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `toefl_question_bank_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDataMessage({ success: true, text: 'Question bank exported successfully!' });
+  };
+
+  const handlePurgeCache = async () => {
+    const count = await purgeLowQualityCache();
+    setDataMessage({ success: true, text: `Purged ${count} low-quality stub questions from cache successfully!` });
   };
 
   const aiStatus = getAiStatusInfo();
@@ -510,6 +528,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals }) =>
             >
               <Download className="w-3.5 h-3.5" />
               Export History (JSON)
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportQuestionBank}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-teal-300 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <Download className="w-3.5 h-3.5 text-teal-400" />
+              Export Question Bank (JSON)
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePurgeCache}
+              className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              Purge Low-Quality Stubs
             </button>
 
             <button

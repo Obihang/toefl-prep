@@ -1,0 +1,16 @@
+[
+  {
+    "id": "we-curated-1",
+    "title": "Requesting Laboratory Equipment Access Extension",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "situation": "You are conducting empirical research for your undergraduate honors thesis in the biochemistry department. Due to an unexpected calibration failure in the spectroscopy centrifuge, your final data collection phase has been delayed by four days. Write an email to your faculty advisor, Professor Harrison, explaining the equipment delay and requesting an extension on the final data chapter submission.",
+    "recipient": "Professor Harrison",
+    "goals": [
+      "Politely explain the technical equipment malfunction in the laboratory",
+      "Request a 4-day extension for the final data chapter submission",
+      "Propose an updated timeline for draft review prior to graduation deadlines"
+    ],
+    "suggestedWordCount": "100-130 words"
+  }
+]
