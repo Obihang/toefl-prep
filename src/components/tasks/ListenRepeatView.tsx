@@ -27,6 +27,8 @@ interface SentenceState {
   wordBreakdown?: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
   metrics?: SpeakingMetrics;
   checked: boolean;
+  fillerWordsCount?: number;
+  fillerWordsList?: string[];
 }
 
 export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
@@ -396,9 +398,16 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
           const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
           const aligned = alignHomophonesAndPhonetics(result.transcript, task.sentences[index]);
+          const metrics = result.metrics;
           setStates((prev) => {
             const next = [...prev];
-            next[index] = { ...next[index], userInput: aligned };
+            next[index] = {
+              ...next[index],
+              userInput: aligned,
+              metrics: metrics || next[index].metrics,
+              fillerWordsCount: metrics?.fillerCount ?? result.fillerWordsCount ?? 0,
+              fillerWordsList: metrics?.fillerWords || result.fillerWordsList || [],
+            };
             return next;
           });
         }
@@ -433,6 +442,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         bandScore: undefined,
         wordBreakdown: undefined,
         metrics: undefined,
+        fillerWordsCount: undefined,
+        fillerWordsList: undefined,
       };
       return next;
     });
@@ -512,6 +523,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     }
     if (metrics?.pauseCount && metrics.pauseCount >= 3) {
       itemBand = Math.max(1.0, itemBand - 0.5);
+    }
+
+    // Apply Band deduction for vocalized filler words
+    const fillerCount = states[index].fillerWordsCount ?? metrics?.fillerCount ?? 0;
+    if (fillerCount >= 2) {
+      itemBand = Math.max(1.0, itemBand - 0.5);
+    } else if (fillerCount === 1) {
+      itemBand = Math.max(1.0, itemBand - 0.25);
     }
     const bandScore = Math.round(itemBand * 2) / 2;
 
@@ -958,14 +977,25 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                             {state.metrics.wpm} WPM · {state.metrics.pauseCount ?? 0} pauses
                           </span>
                         ) : null}
+
+                        {/* ALWAYS Display Filler Badge */}
+                        {((state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) === 0) ? (
+                          <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                            0 fillers ✓
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            ⚠️ {(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0)} filler{(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) > 1 ? 's' : ''} ({(state.fillerWordsList || state.metrics?.fillerWords || []).join(', ')})
+                          </span>
+                        )}
                       </div>
                       <span className="text-slate-500">
                         Band 6.0 Target: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
                       </span>
                     </div>
 
-                    {/* Word-by-word breakdown */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
+                    {/* Word-by-word breakdown with filler chips */}
+                    <div className="flex flex-wrap gap-1.5 pt-1 items-center">
                       {state.wordBreakdown?.map((wb, wIdx) => (
                         <span
                           key={wIdx}
@@ -978,7 +1008,31 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                           {wb.word}
                         </span>
                       ))}
+
+                      {/* Render detected filler chips */}
+                      {(state.userInput.match(/\[(um|uh)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || []).map((f, fIdx) => (
+                        <span
+                          key={`filler_${fIdx}`}
+                          className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1"
+                          title="Vocalized filler word detected"
+                        >
+                          <span>(filler: {f.replace(/[\[\]]/g, '')})</span>
+                        </span>
+                      ))}
                     </div>
+
+                    {/* Fluency Coaching Tip Banner */}
+                    {(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) >= 1 && (
+                      <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
+                        <span className="text-base shrink-0">💡</span>
+                        <div>
+                          <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
+                          <span>
+                            You used <strong>{(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0)} filler word(s)</strong> ({(state.fillerWordsList || state.metrics?.fillerWords || []).join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

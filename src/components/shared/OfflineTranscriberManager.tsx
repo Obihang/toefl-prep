@@ -50,6 +50,8 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
   const [testModelUsed, setTestModelUsed] = useState<string | null>(null);
   const [testAudioBlob, setTestAudioBlob] = useState<Blob | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [testFillerCount, setTestFillerCount] = useState<number>(0);
+  const [testFillerList, setTestFillerList] = useState<string[]>([]);
   const [isPlayingTestAudio, setIsPlayingTestAudio] = useState(false);
 
   const activePlayingKeyRef = useRef<string | null>(null);
@@ -199,6 +201,8 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
         if (abortController.signal.aborted) return;
 
         setTestResultText(localRes.transcript || '');
+        setTestFillerCount(localRes.fillerWordsCount ?? localRes.metrics?.fillerCount ?? 0);
+        setTestFillerList(localRes.fillerWordsList || localRes.metrics?.fillerWords || []);
         setTestDurationMs(Date.now() - start);
         setTestModelUsed(modelLabel);
       }
@@ -542,9 +546,24 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
             </div>
 
             <div className="space-y-1">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Detected Transcript
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                  Detected Transcript
+                </span>
+                {testResultText && (
+                  <div>
+                    {testFillerCount === 0 ? (
+                      <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                        0 fillers ✓
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md">
+                        ⚠️ {testFillerCount} filler{testFillerCount > 1 ? 's' : ''} ({testFillerList.join(', ')})
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
               <p
                 className={`p-3 rounded-lg border font-mono text-xs leading-relaxed ${
                   testResultText && testResultText.trim()
@@ -556,6 +575,19 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
                   ? `"${testResultText}"`
                   : 'No clear speech detected — try speaking closer to your earphone mic'}
               </p>
+
+              {/* Fluency Coaching Tip Banner */}
+              {testFillerCount >= 1 && (
+                <div className="mt-2.5 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
+                  <span className="text-base shrink-0">💡</span>
+                  <div>
+                    <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
+                    <span>
+                      You used <strong>{testFillerCount} filler word(s)</strong> ({testFillerList.join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -1017,24 +1017,62 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           
           {/* Post-answer metrics */}
           {currentAnswer.trim() && !isRecording && !isTranscribing && (
-            <div className="flex gap-4 text-xs bg-white border border-slate-200 p-3 rounded-lg text-slate-600">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3 text-xs bg-white border border-slate-200 p-3 rounded-lg text-slate-600">
+                {(() => {
+                  const metrics = (answers as any)[`metrics_${currentQIndex}`] as SpeakingMetrics | undefined;
+                  const words = currentAnswer.toLowerCase().match(/\b\w+\b/g) || [];
+                  const wordCount = words.length;
+                  const timeInMinutes = (currentQ.responseTimeSeconds || 45) / 60;
+                  const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
+
+                  const detectedMatches = currentAnswer.match(/\[(um|uh)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
+                  const fillerCount = metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
+                  const fillerList = metrics?.fillerWords || Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
+
+                  return (
+                    <>
+                      <div>WPM: <span className="font-mono font-bold text-teal-700">{wpm}</span></div>
+                      {metrics?.longestPauseSeconds ? (
+                        <div>Longest Pause: <span className="font-mono font-bold text-slate-700">{metrics.longestPauseSeconds}s</span></div>
+                      ) : null}
+
+                      {/* ALWAYS Display Filler Badge */}
+                      {fillerCount === 0 ? (
+                        <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          0 fillers ✓
+                        </div>
+                      ) : (
+                        <div className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                          ⚠️ {fillerCount} filler{fillerCount > 1 ? 's' : ''} ({fillerList.join(', ')})
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Fluency Coaching Tip Banner */}
               {(() => {
                 const metrics = (answers as any)[`metrics_${currentQIndex}`] as SpeakingMetrics | undefined;
-                const words = currentAnswer.toLowerCase().match(/\b\w+\b/g) || [];
-                const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
-                const fillerCount = metrics?.fillerWordCount ?? words.filter(w => fillerWords.includes(w)).length;
-                const wordCount = words.length;
-                const timeInMinutes = (currentQ.responseTimeSeconds || 45) / 60;
-                const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
-                return (
-                  <>
-                    <div>Fillers: <span className="font-mono font-bold text-amber-700">{fillerCount}</span></div>
-                    <div>WPM: <span className="font-mono font-bold text-teal-700">{wpm}</span></div>
-                    {metrics?.longestPauseSeconds ? (
-                      <div>Longest Pause: <span className="font-mono font-bold text-slate-700">{metrics.longestPauseSeconds}s</span></div>
-                    ) : null}
-                  </>
-                );
+                const detectedMatches = currentAnswer.match(/\[(um|uh)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
+                const fillerCount = metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
+                const fillerList = metrics?.fillerWords || Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
+
+                if (fillerCount >= 1) {
+                  return (
+                    <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
+                      <span className="text-base shrink-0">💡</span>
+                      <div>
+                        <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
+                        <span>
+                          You used <strong>{fillerCount} filler word(s)</strong> ({fillerList.join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
               })()}
             </div>
           )}

@@ -82,14 +82,18 @@ export interface LocalSpeakingMetrics {
   wordCount: number;
   durationSeconds: number;
   acousticHesitations?: number;
+  cleanTextWithoutFillers?: string;
 }
 
 export interface LocalWhisperResult {
   transcript: string;
   rawTranscript: string;
+  cleanTranscript?: string;
   words: LocalWordTimestamp[];
   durationMs: number;
   metrics: LocalSpeakingMetrics;
+  fillerWordsCount?: number;
+  fillerWordsList?: string[];
 }
 
 export interface VADAudioAnalysis {
@@ -717,6 +721,94 @@ export async function getLocalWhisperPipeline(
   });
 }
 
+export interface AcousticFillerEvent {
+  type: 'um' | 'uh';
+  offsetRatio: number;
+}
+
+/**
+ * Scans 16kHz audio for voiced hesitation islands (120ms to 950ms) with low ZCR.
+ * Distinguishes "um" (nasal hum, zcr < 0.065) vs "uh" (open vowel stall, 0.065 <= zcr < 0.115).
+ */
+export function detectAcousticFillerIslands(audio16k: Float32Array): AcousticFillerEvent[] {
+  const frameSamples = 160; // 10ms frame
+  const totalFrames = Math.floor(audio16k.length / frameSamples);
+  if (totalFrames < 12) return [];
+
+  const frameRms = new Float32Array(totalFrames);
+  const frameZcr = new Float32Array(totalFrames);
+
+  let totalRms = 0;
+  for (let f = 0; f < totalFrames; f++) {
+    const offset = f * frameSamples;
+    let sumSq = 0;
+    let zeroCrossings = 0;
+    for (let i = 0; i < frameSamples; i++) {
+      const val = audio16k[offset + i];
+      sumSq += val * val;
+      if (i > 0 && ((val >= 0 && audio16k[offset + i - 1] < 0) || (val < 0 && audio16k[offset + i - 1] >= 0))) {
+        zeroCrossings++;
+      }
+    }
+    const rms = Math.sqrt(sumSq / frameSamples);
+    frameRms[f] = rms;
+    frameZcr[f] = zeroCrossings / frameSamples;
+    totalRms += rms;
+  }
+
+  const avgGlobalRms = totalRms / totalFrames;
+  const noiseFloor = Math.max(0.003, avgGlobalRms * 0.15);
+  const voicedThreshold = noiseFloor * 2.2;
+
+  const events: AcousticFillerEvent[] = [];
+  let islandStart = -1;
+  let unvoicedCount = 0;
+
+  for (let f = 0; f < totalFrames; f++) {
+    const isVoiced = frameRms[f] >= voicedThreshold;
+
+    if (isVoiced) {
+      if (islandStart === -1) {
+        islandStart = f;
+      }
+      unvoicedCount = 0;
+    } else {
+      if (islandStart !== -1) {
+        unvoicedCount++;
+        if (unvoicedCount >= 6 || f === totalFrames - 1) {
+          const islandEnd = f - unvoicedCount;
+          const islandFrames = islandEnd - islandStart + 1;
+          const durationMs = islandFrames * 10;
+
+          if (durationMs >= 120 && durationMs <= 950) {
+            let zcrSum = 0;
+            let rmsSum = 0;
+            for (let k = islandStart; k <= islandEnd; k++) {
+              zcrSum += frameZcr[k];
+              rmsSum += frameRms[k];
+            }
+            const avgZcr = zcrSum / islandFrames;
+            const avgRms = rmsSum / islandFrames;
+
+            if (avgZcr < 0.115 && avgRms >= 0.01) {
+              const type: 'um' | 'uh' = avgZcr < 0.065 ? 'um' : 'uh';
+              events.push({
+                type,
+                offsetRatio: islandStart / Math.max(1, totalFrames),
+              });
+            }
+          }
+
+          islandStart = -1;
+          unvoicedCount = 0;
+        }
+      }
+    }
+  }
+
+  return events;
+}
+
 /**
  * Transcribes audio blob completely off main thread in Web Worker with a 25s safety timeout.
  */
@@ -800,26 +892,48 @@ export async function transcribeWithLocalWhisper(
 
   const rawFullText = resultText.trim();
 
-  const fullText = targetSentence
-    ? alignHomophonesAndPhonetics(rawFullText, targetSentence)
-    : rawFullText;
+  // Detect acoustic fillers omitted by Whisper
+  const acousticEvents = detectAcousticFillerIslands(vad.trimmedAudio);
 
-  const detectedFillers: string[] = [];
-  const lowerFull = fullText.toLowerCase();
-  const wordsInText = lowerFull.match(/\b[a-z']+\b/g) || [];
+  const lexicalFillerRegex = /\b(um+|uh+|er+|erm+|ah+|hmm+|uh-huh|like|you know|basically|literally|i mean)\b/gi;
+  const lexicalMatches = rawFullText.match(lexicalFillerRegex) || [];
 
-  for (const w of wordsInText) {
-    if (FILLER_WORDS.has(w)) {
-      detectedFillers.push(w);
+  const allFillerNames: string[] = [];
+  for (const m of lexicalMatches) {
+    allFillerNames.push(m.toLowerCase());
+  }
+
+  const rawWords = rawFullText.split(/\s+/).filter(Boolean);
+  const injectedWords = [...rawWords];
+
+  let injectedCount = 0;
+  for (const event of acousticEvents) {
+    const currentLexicalCount = lexicalMatches.filter((m) => m.toLowerCase().includes(event.type)).length;
+    if (injectedCount < acousticEvents.length && currentLexicalCount === 0) {
+      allFillerNames.push(event.type);
+      const targetIdx = Math.min(rawWords.length, Math.floor(event.offsetRatio * rawWords.length));
+      injectedWords.splice(targetIdx + injectedCount, 0, `[${event.type}]`);
+      injectedCount++;
     }
   }
-  const youKnowMatches = lowerFull.match(/\byou know\b/g);
-  if (youKnowMatches) {
-    youKnowMatches.forEach(() => detectedFillers.push('you know'));
-  }
 
-  const totalFillerCount = Math.max(detectedFillers.length, vad.acousticHesitationStalls);
+  const injectedTranscript = injectedWords.join(' ');
 
+  const cleanTextWithoutFillers = injectedTranscript
+    .replace(/\[(um|uh)\]/gi, '')
+    .replace(/\b(um+|uh+|er+|erm+|ah+|hmm+|uh-huh|like|you know|basically|literally|i mean)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const fullText = targetSentence
+    ? alignHomophonesAndPhonetics(injectedTranscript, targetSentence)
+    : injectedTranscript;
+
+  const fillerWordsList = Array.from(new Set(allFillerNames));
+  const fillerWordsCount = allFillerNames.length;
+
+  const lowerFull = cleanTextWithoutFillers.toLowerCase();
+  const wordsInText = lowerFull.match(/\b[a-z']+\b/g) || [];
   const wordCount = wordsInText.length;
   const durationMin = vad.activeSpeakingTimeSeconds / 60;
   const rawWpm = durationMin > 0 ? Math.round(wordCount / durationMin) : 0;
@@ -830,18 +944,22 @@ export async function transcribeWithLocalWhisper(
     pauseCount: vad.pauseCount,
     longestPause: vad.longestPauseSeconds,
     totalPausesDuration: vad.totalPauseDurationSeconds,
-    fillerWords: detectedFillers,
-    fillerCount: totalFillerCount,
+    fillerWords: fillerWordsList,
+    fillerCount: fillerWordsCount,
     wordCount,
     durationSeconds: Math.round(vad.activeSpeakingTimeSeconds * 10) / 10,
     acousticHesitations: vad.acousticHesitationStalls,
+    cleanTextWithoutFillers,
   };
 
   return {
     transcript: fullText,
     rawTranscript: rawFullText,
+    cleanTranscript: cleanTextWithoutFillers,
     words: [],
     durationMs: Math.round(vad.activeSpeakingTimeSeconds * 1000),
     metrics,
+    fillerWordsCount,
+    fillerWordsList,
   };
 }

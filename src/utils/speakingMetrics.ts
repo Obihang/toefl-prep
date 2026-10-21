@@ -7,6 +7,7 @@ export interface WordTimestamp {
 export interface SpeakingMetrics {
   wpm: number;
   fillerWordCount: number;
+  fillerCount?: number;
   fillerWords: string[];
   longestPauseSeconds: number;
   pausesOver1Sec: number;

@@ -1572,6 +1572,9 @@ export interface VoiceSessionResult {
   durationMs?: number;
   isSilent?: boolean;
   error?: 'TRANSCRIPTION_TIMEOUT' | 'TRANSCRIPTION_FAILED';
+  metrics?: any;
+  fillerWordsCount?: number;
+  fillerWordsList?: string[];
 }
 
 export interface VoiceSession {
@@ -1975,14 +1978,21 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       if (finalAudioBlob && (finalAudioBlob as Blob).size > 150) {
         options.onStatusChange?.('processing');
         try {
-          const { transcript: aiTranscribed, durationMs } = await transcribeAudioBlob(finalAudioBlob);
+          const { transcript: aiTranscribed, durationMs, metrics } = await transcribeAudioBlob(finalAudioBlob);
           const cleaned = aiTranscribed.trim();
           console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via Gemini /api/transcribe, model duration: ${durationMs || 'N/A'}ms)`);
           if (cleaned) {
             options.onTranscriptUpdate?.(cleaned);
           }
           options.onStatusChange?.('idle');
-          return { transcript: cleaned, audioBlob: finalAudioBlob, durationMs };
+          return {
+            transcript: cleaned,
+            audioBlob: finalAudioBlob,
+            durationMs,
+            metrics,
+            fillerWordsCount: metrics?.fillerCount ?? 0,
+            fillerWordsList: metrics?.fillerWords ?? [],
+          };
         } catch (err: any) {
           console.warn('[Audio] AI speech transcription fallback error:', err);
           const errCode: 'TRANSCRIPTION_TIMEOUT' | 'TRANSCRIPTION_FAILED' =
