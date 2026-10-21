@@ -742,10 +742,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
                       const audio = new Audio(url);
                       audio.play();
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100 transition-colors"
                   >
-                    <Play className="w-3.5 h-3.5" />
-                    Play Answer
+                    <span>🔊 Listen to My Recording</span>
                   </button>
                   <button
                     type="button"

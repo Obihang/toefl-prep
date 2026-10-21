@@ -490,6 +490,8 @@ export async function getMicStream(): Promise<MediaStream> {
 
   activeMicStream = await navigator.mediaDevices.getUserMedia({
     audio: {
+      channelCount: 1,
+      sampleRate: 16000,
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
@@ -1630,6 +1632,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
             noiseSuppression: true,
             autoGainControl: true,
             channelCount: 1,
+            sampleRate: 16000,
             ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
           },
         };
@@ -2068,13 +2071,39 @@ export function tokenizeNormalizedWords(text: string): string[] {
     .filter(Boolean);
 }
 
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
 // Check if two words are equivalent in TOEFL speaking context
 function areWordsEquivalent(targetWord: string, candidate: string): boolean {
   if (targetWord === candidate) return true;
 
   // Contraction or o'clock without quote
-  const cleanTarget = targetWord.replace(/'/g, '');
-  const cleanCandidate = candidate.replace(/'/g, '');
+  const cleanTarget = targetWord.replace(/'/g, '').toLowerCase();
+  const cleanCandidate = candidate.replace(/'/g, '').toLowerCase();
   if (cleanTarget === cleanCandidate) return true;
 
   // Common synonyms / abbreviations
@@ -2110,16 +2139,22 @@ function areWordsEquivalent(targetWord: string, candidate: string): boolean {
     community: ['communities'],
   };
 
-  if (synonyms[targetWord]?.includes(candidate)) return true;
-  if (synonyms[candidate]?.includes(targetWord)) return true;
+  if (synonyms[cleanTarget]?.includes(cleanCandidate)) return true;
+  if (synonyms[cleanCandidate]?.includes(cleanTarget)) return true;
 
   // Single-letter morphological difference (plural 's' or 'ed')
   if (
-    targetWord.length >= 5 &&
-    (targetWord + 's' === candidate || candidate + 's' === targetWord || targetWord + 'ed' === candidate)
+    cleanTarget.length >= 5 &&
+    (cleanTarget + 's' === cleanCandidate || cleanCandidate + 's' === cleanTarget || cleanTarget + 'ed' === cleanCandidate)
   ) {
     return true;
   }
+
+  // Fuzzy phonetic & Levenshtein similarity for accented speech / Whisper mishearings
+  const dist = levenshteinDistance(cleanTarget, cleanCandidate);
+  if (dist <= 1) return true;
+  if (cleanTarget.length >= 5 && cleanCandidate.length >= 5 && dist <= 2) return true;
+  if (cleanTarget.length >= 5 && cleanCandidate.length >= 5 && cleanTarget.slice(0, 4) === cleanCandidate.slice(0, 4)) return true;
 
   return false;
 }

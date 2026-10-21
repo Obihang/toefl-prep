@@ -646,16 +646,37 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   </div>
                 )}
 
+                {/* Play My Recording Bar */}
+                {audioBlobs[idx] && (
+                  <div className="flex items-center justify-between gap-2 text-xs bg-slate-100/90 border border-slate-200 px-3 py-2 rounded-lg text-slate-800 animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <Volume2 className="w-4 h-4 text-teal-700 shrink-0" />
+                      <span className="font-semibold text-slate-700">Audio Captured</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = URL.createObjectURL(audioBlobs[idx]);
+                        const audio = new Audio(url);
+                        audio.play().catch(console.warn);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-md transition-colors"
+                    >
+                      <span>🔊 Listen to My Recording</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <input
                       type="text"
                       value={state.userInput}
-                      disabled={state.checked || isTranscribingThis}
+                      disabled={isTranscribingThis}
                       onChange={(e) =>
                         setStates((prev) => {
                           const next = [...prev];
-                          next[idx] = { ...next[idx], userInput: e.target.value };
+                          next[idx] = { ...next[idx], userInput: e.target.value, checked: false };
                           return next;
                         })
                       }
@@ -664,7 +685,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                           ? 'Listening... speak clearly into your mic...'
                           : isTranscribingThis
                           ? `Processing voice... ${transcribeSeconds}s`
-                          : 'Click mic to speak, or type your repetition...'
+                          : 'Click mic to speak, or edit/type your repetition...'
                       }
                       className={`w-full px-3.5 py-2 text-sm rounded-lg text-slate-900 outline-hidden transition-colors ${
                         isRecordingThis
@@ -687,7 +708,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
                   <button
                     onClick={() => handleToggleMic(idx)}
-                    disabled={state.checked || (activeMicIdx !== null && activeMicIdx !== idx && micStatus !== 'idle')}
+                    disabled={isRecordingThis ? false : (activeMicIdx !== null && activeMicIdx !== idx && micStatus !== 'idle')}
                     className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                       isRecordingThis
                         ? 'bg-rose-600 border-rose-600 text-white shadow-xs animate-pulse hover:bg-rose-700'
@@ -715,7 +736,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                     )}
                   </button>
 
-                  {audioBlobs[idx] && !state.checked && (
+                  {audioBlobs[idx] && (
                     <button
                       type="button"
                       onClick={() => handleRetryTranscription(idx)}
@@ -728,29 +749,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       title="Retry transcription from saved recording"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
-                      <span>Retry transcription</span>
+                      <span>Retry STT</span>
                     </button>
                   )}
 
-
-                  {!state.checked ? (
-                    <button
-                      onClick={() => handleCheck(idx)}
-                      disabled={!state.userInput.trim() || isRecordingThis || isTranscribingThis}
-                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Check
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleResetItem(idx)}
-                      className="p-2 text-slate-600 hover:text-slate-900 rounded-lg border border-slate-200 hover:bg-slate-50"
-                      title="Reset item"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleCheck(idx)}
+                    disabled={!state.userInput.trim() || isRecordingThis || isTranscribingThis}
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    {state.checked ? 'Re-Check' : 'Check'}
+                  </button>
                 </div>
 
                 {/* Real-time speaking status strip */}
