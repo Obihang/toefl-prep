@@ -21,9 +21,7 @@ import {
   HardDrive,
   Loader2,
   Play,
-  Sparkles,
-  Zap,
-  RefreshCw,
+  XCircle,
   AlertCircle,
 } from 'lucide-react';
 
@@ -34,20 +32,25 @@ interface Props {
 
 export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelChanged }) => {
   const [cachedMap, setCachedMap] = useState<Record<string, boolean>>({});
-  const [activeModel, setActiveModel] = useState<WhisperModelChoice>('Xenova/whisper-small.en');
+  const [activeModel, setActiveModel] = useState<WhisperModelChoice>('Xenova/whisper-base.en');
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null);
   const [persistedStorage, setPersistedStorage] = useState<boolean | null>(null);
 
-  // Quick test state
+  // Quick 3-Second Test State
   const [isTestRecording, setIsTestRecording] = useState(false);
   const [isTestTranscribing, setIsTestTranscribing] = useState(false);
+  const [testCountdown, setTestCountdown] = useState<number | null>(null);
   const [testResultText, setTestResultText] = useState<string | null>(null);
   const [testDurationMs, setTestDurationMs] = useState<number | null>(null);
+  const [testModelUsed, setTestModelUsed] = useState<string | null>(null);
   const [testAudioBlob, setTestAudioBlob] = useState<Blob | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
   const voiceSessionRef = useRef<VoiceSession | null>(null);
+  const countdownIntervalRef = useRef<any>(null);
+  const testTimerRef = useRef<any>(null);
+  const testAbortControllerRef = useRef<AbortController | null>(null);
 
   const refreshCacheStatuses = async () => {
     const currentActive = getWhisperModelChoice();
@@ -69,6 +72,12 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
 
   useEffect(() => {
     refreshCacheStatuses();
+    return () => {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      if (testTimerRef.current) clearTimeout(testTimerRef.current);
+      if (testAbortControllerRef.current) testAbortControllerRef.current.abort();
+      if (voiceSessionRef.current) voiceSessionRef.current.abort();
+    };
   }, []);
 
   const handleDownload = async (modelId: WhisperModelChoice) => {
@@ -104,29 +113,59 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
     }
   };
 
+  const stopRecordingAndTranscribe = async () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (testTimerRef.current) clearTimeout(testTimerRef.current);
+    setTestCountdown(null);
+
+    if (!voiceSessionRef.current) return;
+
+    const session = voiceSessionRef.current;
+    voiceSessionRef.current = null;
+    setIsTestRecording(false);
+    setIsTestTranscribing(true);
+
+    const abortController = new AbortController();
+    testAbortControllerRef.current = abortController;
+
+    const currentModel = getWhisperModelChoice();
+    const modelInfo = WHISPER_MODELS.find((m) => m.id === currentModel);
+    const modelLabel = modelInfo ? modelInfo.name : currentModel.split('/').pop() || currentModel;
+
+    try {
+      const res = await session.stop();
+      if (abortController.signal.aborted) return;
+
+      if (res.audioBlob) {
+        setTestAudioBlob(res.audioBlob);
+        const start = Date.now();
+        const localRes = await transcribeWithLocalWhisper(res.audioBlob);
+        if (abortController.signal.aborted) return;
+
+        setTestResultText(localRes.transcript || '');
+        setTestDurationMs(Date.now() - start);
+        setTestModelUsed(modelLabel);
+      }
+    } catch (err: any) {
+      if (!abortController.signal.aborted) {
+        setTestError(err?.message || 'Test transcription failed.');
+      }
+    } finally {
+      setIsTestTranscribing(false);
+      testAbortControllerRef.current = null;
+    }
+  };
+
   const handleStartTestMic = async () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (testTimerRef.current) clearTimeout(testTimerRef.current);
+
     setTestError(null);
     setTestResultText(null);
     setTestAudioBlob(null);
 
-    if (isTestRecording && voiceSessionRef.current) {
-      setIsTestTranscribing(true);
-      try {
-        const res = await voiceSessionRef.current.stop();
-        if (res.audioBlob) {
-          setTestAudioBlob(res.audioBlob);
-          const start = Date.now();
-          const localRes = await transcribeWithLocalWhisper(res.audioBlob);
-          setTestResultText(localRes.transcript || '(No speech detected)');
-          setTestDurationMs(Date.now() - start);
-        }
-      } catch (err: any) {
-        setTestError(err?.message || 'Test transcription failed');
-      } finally {
-        setIsTestRecording(false);
-        setIsTestTranscribing(false);
-        voiceSessionRef.current = null;
-      }
+    if (isTestRecording) {
+      await stopRecordingAndTranscribe();
       return;
     }
 
@@ -142,13 +181,51 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
     });
 
     voiceSessionRef.current = session;
+    setTestCountdown(3);
+
     try {
       await session.start();
       setIsTestRecording(true);
+
+      let secondsLeft = 3;
+      countdownIntervalRef.current = setInterval(() => {
+        secondsLeft -= 1;
+        if (secondsLeft > 0) {
+          setTestCountdown(secondsLeft);
+        } else {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          setTestCountdown(null);
+          stopRecordingAndTranscribe();
+        }
+      }, 1000);
     } catch (err: any) {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      setTestCountdown(null);
       setIsTestRecording(false);
-      setTestError(err?.message || 'Could not open microphone');
+      setTestError(err?.message || 'Could not open microphone.');
     }
+  };
+
+  const handleCancelTest = () => {
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (testTimerRef.current) clearTimeout(testTimerRef.current);
+    setTestCountdown(null);
+
+    if (testAbortControllerRef.current) {
+      testAbortControllerRef.current.abort();
+      testAbortControllerRef.current = null;
+    }
+
+    if (voiceSessionRef.current) {
+      try {
+        voiceSessionRef.current.abort();
+      } catch {}
+      voiceSessionRef.current = null;
+    }
+
+    setIsTestRecording(false);
+    setIsTestTranscribing(false);
+    setTestError('Test cancelled.');
   };
 
   return (
@@ -173,9 +250,17 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
       </div>
 
       {testError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <span>{testError}</span>
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center justify-between gap-2 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{testError}</span>
+          </div>
+          <button
+            onClick={() => setTestError(null)}
+            className="text-[11px] font-semibold text-rose-700 hover:text-rose-900 underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -246,7 +331,7 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
                     ) : (
                       <button
                         onClick={() => handleSetActive(model.id)}
-                        className="flex-1 py-1.5 px-2 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors"
+                        className="flex-1 py-1.5 px-2 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors cursor-pointer"
                       >
                         Use This Model
                       </button>
@@ -254,7 +339,7 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
 
                     <button
                       onClick={() => handleDelete(model.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 border border-slate-200 transition-colors"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 border border-slate-200 transition-colors cursor-pointer"
                       title="Delete cached model files to free disk space"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -264,7 +349,7 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
                   <button
                     onClick={() => handleDownload(model.id)}
                     disabled={downloadingModelId !== null}
-                    className="w-full py-2 px-3 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full py-2 px-3 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download & Save (~{model.sizeMb} MB)</span>
@@ -276,62 +361,105 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
         })}
       </div>
 
-      {/* Quick Mic Tester */}
+      {/* Quick 3-Second Mic Tester Widget */}
       <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
             <Mic className="w-4 h-4 text-teal-700" />
-            <span>Test Active Transcriber ({activeModel.split('/').pop()})</span>
+            <span>3-Second Transcriber & Noise Cancellation Test</span>
           </div>
 
-          <button
-            onClick={handleStartTestMic}
-            disabled={isTestTranscribing}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all flex items-center gap-1.5 ${
-              isTestRecording
-                ? 'bg-rose-600 text-white border-rose-600 animate-pulse'
-                : isTestTranscribing
-                ? 'bg-slate-200 text-slate-600 border-slate-300 cursor-wait'
-                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100'
-            }`}
-          >
-            {isTestRecording ? (
-              <>
-                <MicOff className="w-3.5 h-3.5" /> Stop Test
-              </>
-            ) : isTestTranscribing ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-600" /> Transcribing...
-              </>
-            ) : (
-              <>
-                <Mic className="w-3.5 h-3.5 text-teal-700" /> 🧪 Record 3s Test Speech
-              </>
-            )}
-          </button>
-        </div>
-
-        {testResultText && (
-          <div className="p-3 bg-white border border-teal-200 rounded-lg text-xs space-y-1 animate-in fade-in">
-            <div className="flex items-center justify-between text-slate-500">
-              <span className="font-semibold text-teal-800">Test Output Transcript:</span>
-              {testDurationMs && <span className="font-mono text-[11px]">{testDurationMs}ms</span>}
-            </div>
-            <p className="text-slate-900 font-mono text-sm bg-slate-50 p-2 rounded border border-slate-200">
-              "{testResultText}"
-            </p>
-            {testAudioBlob && (
+          <div className="flex items-center gap-2">
+            {(isTestRecording || isTestTranscribing) && (
               <button
-                onClick={() => {
-                  const url = URL.createObjectURL(testAudioBlob);
-                  const a = new Audio(url);
-                  a.play().catch(console.warn);
-                }}
-                className="text-[11px] font-semibold text-teal-800 hover:text-teal-900 flex items-center gap-1 pt-1"
+                type="button"
+                onClick={handleCancelTest}
+                className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-lg transition flex items-center gap-1 cursor-pointer"
               >
-                <Play className="w-3 h-3 text-teal-700 fill-teal-700" /> ▶ Listen to Test Audio
+                <XCircle className="w-3.5 h-3.5" />
+                <span>Cancel Test</span>
               </button>
             )}
+
+            <button
+              onClick={handleStartTestMic}
+              disabled={isTestTranscribing}
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                isTestRecording
+                  ? 'bg-rose-600 text-white border-rose-600 animate-pulse'
+                  : isTestTranscribing
+                  ? 'bg-teal-100 text-teal-800 border-teal-300 cursor-wait'
+                  : 'bg-teal-700 hover:bg-teal-800 text-white border-teal-700 shadow-2xs'
+              }`}
+            >
+              {isTestRecording ? (
+                <>
+                  <MicOff className="w-3.5 h-3.5" />
+                  <span>Recording... {testCountdown !== null ? `${testCountdown}s` : ''}</span>
+                </>
+              ) : isTestTranscribing ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-700" />
+                  <span>Transcribing with Whisper...</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-3.5 h-3.5 text-white" />
+                  <span>🧪 Record 3s Test Speech</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Outcome Box */}
+        {(testAudioBlob || testResultText !== null) && (
+          <div className="p-4 bg-white border border-teal-200 rounded-xl space-y-3 animate-in fade-in shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-teal-900 text-xs flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-teal-600" />
+                  3-Second Test Complete
+                </span>
+                {testModelUsed && testDurationMs !== null && (
+                  <span className="px-2.5 py-0.5 text-[11px] font-mono font-bold bg-teal-100 text-teal-900 border border-teal-300 rounded-md">
+                    Transcribed in {(testDurationMs / 1000).toFixed(1)}s using {testModelUsed}
+                  </span>
+                )}
+              </div>
+
+              {testAudioBlob && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = URL.createObjectURL(testAudioBlob);
+                    const a = new Audio(url);
+                    a.play().catch(console.warn);
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-300 rounded-lg transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
+                  <span>▶ Play Recorded Test Audio</span>
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                Detected Transcript
+              </span>
+              <p
+                className={`p-3 rounded-lg border font-mono text-xs leading-relaxed ${
+                  testResultText && testResultText.trim()
+                    ? 'bg-slate-50 border-slate-200 text-slate-900 font-bold'
+                    : 'bg-amber-50 border-amber-200 text-amber-900 italic'
+                }`}
+              >
+                {testResultText && testResultText.trim()
+                  ? `"${testResultText}"`
+                  : 'No clear speech detected — try speaking closer to your earphone mic'}
+              </p>
+            </div>
           </div>
         )}
       </div>

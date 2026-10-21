@@ -67,10 +67,11 @@ export const MicrophoneTestWidget: React.FC<Props> = ({ onVerified, compact = fa
     try {
       const constraints: MediaStreamConstraints = {
         audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: true,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: false, // Prevents boosting distant background voices/noise when using earphones
           channelCount: 1,
+          sampleRate: 16000,
           ...(selectedMicId ? { deviceId: { exact: selectedMicId } } : {}),
         },
       };

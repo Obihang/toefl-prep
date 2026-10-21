@@ -486,6 +486,7 @@ export function analyzeAndNormalizeAudioWaveform(
 
   const rmsWindows = new Float32Array(totalWindows);
   let maxPeak = 0;
+  let peakRms = 0;
 
   for (let i = 0; i < totalWindows; i++) {
     let sum = 0;
@@ -496,7 +497,21 @@ export function analyzeAndNormalizeAudioWaveform(
       if (absVal > maxPeak) maxPeak = absVal;
       sum += val * val;
     }
-    rmsWindows[i] = Math.sqrt(sum / samplesPerWindow);
+    const rms = Math.sqrt(sum / samplesPerWindow);
+    rmsWindows[i] = rms;
+    if (rms > peakRms) peakRms = rms;
+  }
+
+  // Close-Talk Noise Gate: Attenuate background frames below 15% of peak primary speaking energy
+  const gateThreshold = Math.max(0.003, peakRms * 0.15);
+  const gatedAudio16k = new Float32Array(audio16k.length);
+  for (let i = 0; i < totalWindows; i++) {
+    const offset = i * samplesPerWindow;
+    const isQuiet = rmsWindows[i] < gateThreshold;
+    const factor = isQuiet ? 0.05 : 1.0;
+    for (let j = 0; j < samplesPerWindow; j++) {
+      gatedAudio16k[offset + j] = audio16k[offset + j] * factor;
+    }
   }
 
   const silenceThreshold = Math.max(0.0025, Math.min(0.01, maxPeak * 0.08));
@@ -516,19 +531,19 @@ export function analyzeAndNormalizeAudioWaveform(
   }
 
   if (firstSpeech === -1) {
-    let trimmed = audio16k;
+    let trimmed = gatedAudio16k;
     if (maxPeak > 0.01 && maxPeak < 0.9) {
       const scale = 0.92 / maxPeak;
-      trimmed = new Float32Array(audio16k.length);
-      for (let k = 0; k < audio16k.length; k++) trimmed[k] = audio16k[k] * scale;
+      trimmed = new Float32Array(gatedAudio16k.length);
+      for (let k = 0; k < gatedAudio16k.length; k++) trimmed[k] = gatedAudio16k[k] * scale;
     }
     return {
       trimmedAudio: trimmed,
-      activeSpeakingTimeSeconds: Math.max(0.1, audio16k.length / sampleRate),
+      activeSpeakingTimeSeconds: Math.max(0.1, gatedAudio16k.length / sampleRate),
       pauseCount: 0,
       longestPauseSeconds: 0,
       totalPauseDurationSeconds: 0,
-      originalDurationSeconds: audio16k.length / sampleRate,
+      originalDurationSeconds: gatedAudio16k.length / sampleRate,
     };
   }
 
@@ -540,8 +555,8 @@ export function analyzeAndNormalizeAudioWaveform(
   const endWindow = trailingSilenceMs > 600 ? Math.min(totalWindows - 1, lastSpeech + paddingWindows) : totalWindows - 1;
 
   const startSample = startWindow * samplesPerWindow;
-  const endSample = Math.min(audio16k.length, (endWindow + 1) * samplesPerWindow);
-  let trimmedAudio = audio16k.slice(startSample, endSample);
+  const endSample = Math.min(gatedAudio16k.length, (endWindow + 1) * samplesPerWindow);
+  let trimmedAudio = gatedAudio16k.slice(startSample, endSample);
 
   let trimmedMaxPeak = 0;
   for (let k = 0; k < trimmedAudio.length; k++) {
@@ -588,7 +603,7 @@ export function analyzeAndNormalizeAudioWaveform(
     pauseCount,
     longestPauseSeconds,
     totalPauseDurationSeconds,
-    originalDurationSeconds: audio16k.length / sampleRate,
+    originalDurationSeconds: gatedAudio16k.length / sampleRate,
   };
 }
 
@@ -605,7 +620,7 @@ export async function getLocalWhisperPipeline(
 }
 
 /**
- * Transcribes audio blob completely off main thread in Web Worker.
+ * Transcribes audio blob completely off main thread in Web Worker with a 25s safety timeout.
  */
 export async function transcribeWithLocalWhisper(
   audioBlob: Blob,
@@ -615,7 +630,7 @@ export async function transcribeWithLocalWhisper(
   onProgress?.('Decoding & resampling audio to 16kHz...');
   const rawAudio16k = await decodeAudioBlobTo16kHz(audioBlob);
 
-  onProgress?.('Trimming silence & normalizing volume...');
+  onProgress?.('Trimming silence & applying noise gate...');
   const vad = analyzeAndNormalizeAudioWaveform(rawAudio16k);
 
   const activeModel = getWhisperModelChoice();
@@ -632,25 +647,37 @@ export async function transcribeWithLocalWhisper(
   const durationSec = vad.activeSpeakingTimeSeconds;
 
   const resultText: string = await new Promise((resolve, reject) => {
+    const timeoutTimer = setTimeout(() => {
+      if (pendingWorkerRequests.has(reqId)) {
+        pendingWorkerRequests.delete(reqId);
+        reject(new Error('TRANSCRIPTION_TIMEOUT'));
+      }
+    }, 25000);
+
     pendingWorkerRequests.set(reqId, {
-      resolve: (payload: any) => resolve(payload.text || ''),
-      reject,
+      resolve: (payload: any) => {
+        clearTimeout(timeoutTimer);
+        resolve(payload.text || '');
+      },
+      reject: (err) => {
+        clearTimeout(timeoutTimer);
+        reject(err);
+      },
       onProgress: (p: any) => {
         if (p.message) onProgress?.(p.message);
       },
     });
 
-    worker.postMessage(
-      {
-        type: 'TRANSCRIBE',
-        id: reqId,
-        payload: {
-          audioData: vad.trimmedAudio,
-          modelId: activeModel,
-          durationSec,
-        },
-      }
-    );
+    const audioDataCopy = new Float32Array(vad.trimmedAudio);
+    worker.postMessage({
+      type: 'TRANSCRIBE',
+      id: reqId,
+      payload: {
+        audioData: audioDataCopy,
+        modelId: activeModel,
+        durationSec,
+      },
+    });
   });
 
   const rawFullText = resultText.trim();

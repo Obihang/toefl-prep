@@ -482,21 +482,76 @@ function handleMicVisibilityChange() {
   }
 }
 
+/**
+ * Routes MediaStream through High-Pass (95 Hz) + Low-Pass (7000 Hz) + Dynamics Compressor Web Audio graph.
+ */
+export function createFilteredVoiceStream(rawStream: MediaStream): { stream: MediaStream; cleanup: () => void } {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return { stream: rawStream, cleanup: () => {} };
+
+    const ctx = new AudioCtx();
+    const source = ctx.createMediaStreamSource(rawStream);
+
+    // High-pass filter at 95 Hz (removes low-frequency fan & AC rumble)
+    const highPass = ctx.createBiquadFilter();
+    highPass.type = 'highpass';
+    highPass.frequency.setValueAtTime(95, ctx.currentTime);
+
+    // Low-pass filter at 7000 Hz (removes high-frequency hiss/static)
+    const lowPass = ctx.createBiquadFilter();
+    lowPass.type = 'lowpass';
+    lowPass.frequency.setValueAtTime(7000, ctx.currentTime);
+
+    // Dynamics compressor for close-talk voice leveling
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-24, ctx.currentTime);
+    compressor.knee.setValueAtTime(12, ctx.currentTime);
+    compressor.ratio.setValueAtTime(4, ctx.currentTime);
+    compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+    compressor.release.setValueAtTime(0.25, ctx.currentTime);
+
+    const destination = ctx.createMediaStreamDestination();
+
+    source.connect(highPass);
+    highPass.connect(lowPass);
+    lowPass.connect(compressor);
+    compressor.connect(destination);
+
+    const cleanup = () => {
+      try {
+        source.disconnect();
+        highPass.disconnect();
+        lowPass.disconnect();
+        compressor.disconnect();
+        if (ctx.state !== 'closed') ctx.close().catch(() => {});
+      } catch {}
+    };
+
+    return { stream: destination.stream, cleanup };
+  } catch {
+    return { stream: rawStream, cleanup: () => {} };
+  }
+}
+
 export async function getMicStream(): Promise<MediaStream> {
   if (activeMicStream && activeMicStream.active) {
     resetMicIdleTimer();
     return activeMicStream;
   }
 
-  activeMicStream = await navigator.mediaDevices.getUserMedia({
+  const rawStream = await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
       sampleRate: 16000,
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: true,
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: false, // Prevents boosting distant background voices/noise when using earphones
     },
   });
+
+  const { stream } = createFilteredVoiceStream(rawStream);
+  activeMicStream = stream;
 
   if (typeof document !== 'undefined') {
     document.removeEventListener('visibilitychange', handleMicVisibilityChange);
@@ -1629,9 +1684,9 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
         const selectedDeviceId = getStoredMicDeviceId();
         const speechConstraints: MediaStreamConstraints = {
           audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: true,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false, // Prevents boosting distant background voices/noise when using earphones
             channelCount: 1,
             sampleRate: 16000,
             ...(selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {}),
