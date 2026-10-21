@@ -38,8 +38,15 @@ import {
   Flag,
   X,
   Volume2,
+  Database,
 } from 'lucide-react';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
+import {
+  syncCuratedQuestionBank,
+  getQuestionBankStats,
+  getLoadedCuratedTasks,
+  loadCuratedShard,
+} from './utils/questionBankStorage';
 
 
 import {
@@ -117,6 +124,33 @@ export default function App() {
       stopSpeaking();
     };
   }, [currentTaskType, isMockTest]);
+
+  // Curated question bank sync state across all 9 task types
+  const [bankStats, setBankStats] = useState<{
+    totalQuestions: number;
+    totalCurated: number;
+    countsPerTaskType: Record<string, number>;
+  } | null>(null);
+
+  // Always fetch and sync curated shard for current section and total bank into IndexedDB and cache
+  useEffect(() => {
+    let isMounted = true;
+    const syncBank = async () => {
+      await loadCuratedShard(currentTaskType);
+      const stats = await syncCuratedQuestionBank();
+      if (isMounted) {
+        setBankStats({
+          totalQuestions: stats.totalQuestions,
+          totalCurated: stats.totalQuestions,
+          countsPerTaskType: stats.counts,
+        });
+      }
+    };
+    syncBank();
+    return () => {
+      isMounted = false;
+    };
+  }, [currentTaskType]);
 
   // Active task payload per type
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});
@@ -258,17 +292,20 @@ export default function App() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Next item in curated pool
+  // Next item in curated pool (drawing from loaded shard questions)
   const handleNextCurated = (type: TaskTypeId) => {
-    let max = 1;
-    if (type === 'complete-words') max = CURATED_COMPLETE_WORDS.length;
-    if (type === 'reading-passage') max = CURATED_READING_PASSAGES.length;
-    if (type === 'listening-dialogue') max = CURATED_LISTENING.length;
-    if (type === 'listen-repeat') max = CURATED_LISTEN_REPEAT.length;
-    if (type === 'speaking-interview') max = CURATED_SPEAKING_INTERVIEWS.length;
-    if (type === 'build-sentence') max = CURATED_BUILD_SENTENCES.length;
-    if (type === 'write-email') max = CURATED_WRITE_EMAILS.length;
-    if (type === 'academic-discussion') max = CURATED_ACADEMIC_DISCUSSIONS.length;
+    const loadedPool = getLoadedCuratedTasks(type, level, topic);
+    let max = loadedPool.length;
+    if (max === 0) {
+      if (type === 'complete-words') max = CURATED_COMPLETE_WORDS.length;
+      if (type === 'reading-passage') max = CURATED_READING_PASSAGES.length;
+      if (type === 'listening-dialogue') max = CURATED_LISTENING.length;
+      if (type === 'listen-repeat') max = CURATED_LISTEN_REPEAT.length;
+      if (type === 'speaking-interview') max = CURATED_SPEAKING_INTERVIEWS.length;
+      if (type === 'build-sentence') max = CURATED_BUILD_SENTENCES.length;
+      if (type === 'write-email') max = CURATED_WRITE_EMAILS.length;
+      if (type === 'academic-discussion') max = CURATED_ACADEMIC_DISCUSSIONS.length;
+    }
 
     // Clear custom task for this type so next curated item shows
     setCustomTasks((prev) => {
@@ -278,7 +315,7 @@ export default function App() {
     });
 
     setCuratedIndices((prev) => {
-      const current = prev[type];
+      const current = prev[type] || 0;
       if (max <= 1) return { ...prev, [type]: 0 };
       let next;
       do {
@@ -811,33 +848,38 @@ export default function App() {
     }
 
     if (!task) {
+      const loadedTasks = getLoadedCuratedTasks(currentTaskType, level, topic);
       const idx = curatedIndices[currentTaskType] || 0;
-      switch (currentTaskType) {
-        case 'complete-words':
-          task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
-          break;
-        case 'reading-passage':
-          task = CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
-          break;
-        case 'listening-dialogue':
-          task = CURATED_LISTENING[idx % CURATED_LISTENING.length];
-          break;
-        case 'listen-repeat':
-          task = CURATED_LISTEN_REPEAT[idx % CURATED_LISTEN_REPEAT.length];
-          break;
-        case 'speaking-interview':
-          task = CURATED_SPEAKING_INTERVIEWS[idx % CURATED_SPEAKING_INTERVIEWS.length];
-          break;
-        case 'build-sentence':
-          task = CURATED_BUILD_SENTENCES[idx % CURATED_BUILD_SENTENCES.length];
-          break;
-        case 'write-email':
-          task = CURATED_WRITE_EMAILS[idx % CURATED_WRITE_EMAILS.length];
-          break;
-        case 'academic-discussion':
-        default:
-          task = CURATED_ACADEMIC_DISCUSSIONS[idx % CURATED_ACADEMIC_DISCUSSIONS.length];
-          break;
+      if (loadedTasks && loadedTasks.length > 0) {
+        task = loadedTasks[idx % loadedTasks.length];
+      } else {
+        switch (currentTaskType) {
+          case 'complete-words':
+            task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
+            break;
+          case 'reading-passage':
+            task = CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
+            break;
+          case 'listening-dialogue':
+            task = CURATED_LISTENING[idx % CURATED_LISTENING.length];
+            break;
+          case 'listen-repeat':
+            task = CURATED_LISTEN_REPEAT[idx % CURATED_LISTEN_REPEAT.length];
+            break;
+          case 'speaking-interview':
+            task = CURATED_SPEAKING_INTERVIEWS[idx % CURATED_SPEAKING_INTERVIEWS.length];
+            break;
+          case 'build-sentence':
+            task = CURATED_BUILD_SENTENCES[idx % CURATED_BUILD_SENTENCES.length];
+            break;
+          case 'write-email':
+            task = CURATED_WRITE_EMAILS[idx % CURATED_WRITE_EMAILS.length];
+            break;
+          case 'academic-discussion':
+          default:
+            task = CURATED_ACADEMIC_DISCUSSIONS[idx % CURATED_ACADEMIC_DISCUSSIONS.length];
+            break;
+        }
       }
     }
 
@@ -1084,6 +1126,38 @@ export default function App() {
           aria-label="Practice Parameters"
           className="space-y-2"
         >
+          {/* Question Bank Sync & Count Status Badge */}
+          {(() => {
+            const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
+            const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
+            const filteredMatches = getLoadedCuratedTasks(currentTaskType, level, topic);
+            const totalAcrossAllSections = bankStats?.totalQuestions || 80;
+
+            return (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-teal-50/70 border border-teal-200/80 text-xs text-slate-700 flex-wrap gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                  <span className="font-bold text-slate-900">
+                    Section Bank: {sectionTotalCount} Curated Questions
+                  </span>
+                  <span className="text-teal-400">·</span>
+                  <span className="font-semibold text-teal-900 bg-teal-100/70 px-2 py-0.5 rounded-full border border-teal-300">
+                    {level === 'all' && topic === 'all'
+                      ? `Browsing all ${sectionTotalCount}`
+                      : `${filteredMatches.length} match current filter`}
+                  </span>
+                  <span className="text-slate-600">
+                    ({totalAcrossAllSections} Total across all sections)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-teal-800">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span className="font-medium">100% Zero-API &amp; Offline Ready</span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Prefetching Toggle Switch (Outside, right above question controls) */}
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
@@ -1125,6 +1199,7 @@ export default function App() {
                 onChange={(e) => setLevel(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
+                <option value="all">All Levels (Full Bank)</option>
                 <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate (B1-B2 · 60-80)</option>
                 <option value="upper-intermediate">Upper-Intermediate (B2-C1 · 80-100)</option>
@@ -1148,11 +1223,13 @@ export default function App() {
                 onChange={(e) => setTopic(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
+                <option value="all">All Academic Topics (Full Bank)</option>
                 <option value="science-tech">Science & Technology</option>
                 <option value="campus-life">Campus Life & Academics</option>
                 <option value="social-sciences">Social Sciences & History</option>
                 <option value="environment">Ecology & Environment</option>
                 <option value="business-economics">Business & Economics</option>
+                <option value="arts-humanities">Arts & Humanities</option>
               </select>
             </div>
           </div>

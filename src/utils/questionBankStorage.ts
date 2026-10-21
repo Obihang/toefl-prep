@@ -132,22 +132,168 @@ export async function saveVerifiedQuestion(params: {
   return questionId;
 }
 
+export const SHARD_FILES = [
+  'academic-discussion',
+  'build-sentence',
+  'complete-words',
+  'listening-dialogue',
+  'listening-lecture',
+  'listen-repeat',
+  'reading-passage',
+  'speaking-interview',
+  'write-email',
+];
+
+// In-memory cache for fast synchronous access
+const curatedMemoryCache: Record<string, any[]> = {};
+
 /**
  * Load static curated shard for taskType from public/question-bank/<taskType>.json
+ * with memory caching and cache-busting.
  */
 export async function loadCuratedShard(taskType: string): Promise<any[]> {
+  if (curatedMemoryCache[taskType] && curatedMemoryCache[taskType].length > 0) {
+    return curatedMemoryCache[taskType];
+  }
+
   try {
-    const res = await fetch(`/question-bank/${taskType}.json`);
+    const res = await fetch(`/question-bank/${taskType}.json?v=${Date.now()}`, { cache: 'no-cache' });
     if (res.ok) {
       const json = await res.json();
       if (Array.isArray(json)) {
-        return json.filter((item) => isHighQualityTask(item, taskType));
+        const valid = json.filter((item) => isHighQualityTask(item, taskType));
+        curatedMemoryCache[taskType] = valid;
+        return valid;
       }
     }
   } catch (err) {
     console.warn(`Failed to fetch curated shard for ${taskType}:`, err);
   }
   return [];
+}
+
+/**
+ * Synchronous getter for in-memory curated tasks with optional level/topic filtering
+ */
+export function getLoadedCuratedTasks(taskType: string, level?: string, topic?: string): any[] {
+  const all = curatedMemoryCache[taskType] || [];
+  if (all.length === 0) return [];
+
+  let filtered = all;
+  if (level && level !== 'all') {
+    filtered = filtered.filter((t) => t.level === level);
+  }
+  if (topic && topic !== 'all') {
+    filtered = filtered.filter((t) => t.topic === topic);
+  }
+
+  // If filter produces 0 items, fallback to all tasks so the user is never stuck
+  return filtered.length > 0 ? filtered : all;
+}
+
+/**
+ * Sync all curated question shards into IndexedDB and in-memory cache.
+ * Always upserts by id so newly added curated questions appear immediately on startup.
+ */
+export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: number; counts: Record<string, number> }> {
+  const counts: Record<string, number> = {};
+  let totalQuestions = 0;
+
+  try {
+    const dbInstance = await openIndexedDB();
+    const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
+    const store = tx.objectStore('toefl_question_bank');
+
+    for (const shard of SHARD_FILES) {
+      try {
+        const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, { cache: 'no-cache' });
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json)) {
+            const valid = json.filter((item) => isHighQualityTask(item, shard));
+            curatedMemoryCache[shard] = valid;
+            counts[shard] = valid.length;
+            totalQuestions += valid.length;
+
+            // Upsert each item into IndexedDB
+            for (let idx = 0; idx < valid.length; idx++) {
+              const item = valid[idx];
+              const qId = item.id || `${shard}-curated-${idx + 1}`;
+              store.put({
+                id: qId,
+                taskType: shard,
+                level: item.level || 'intermediate',
+                topic: item.topic || 'general',
+                content: item,
+                isCurated: true,
+                updatedAt: Date.now(),
+              });
+            }
+          }
+        }
+      } catch (shardErr) {
+        console.warn(`Failed to sync shard ${shard}:`, shardErr);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to open IndexedDB during question bank sync:', err);
+  }
+
+  return { totalQuestions, counts };
+}
+
+/**
+ * Get question bank counts across sections (combines curated shards + local IndexedDB)
+ */
+export async function getQuestionBankStats(): Promise<{
+  totalQuestions: number;
+  totalCurated: number;
+  countsPerTaskType: Record<string, number>;
+}> {
+  const counts: Record<string, number> = {};
+  SHARD_FILES.forEach((s) => {
+    counts[s] = (curatedMemoryCache[s] || []).length;
+  });
+
+  let totalCurated = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  // If cache is cold, do a fast shard count
+  if (totalCurated === 0) {
+    const syncRes = await syncCuratedQuestionBank();
+    return {
+      totalQuestions: syncRes.totalQuestions,
+      totalCurated: syncRes.totalQuestions,
+      countsPerTaskType: syncRes.counts,
+    };
+  }
+
+  // Also count any additional custom user-generated questions from IndexedDB
+  try {
+    const dbInstance = await openIndexedDB();
+    const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
+    const store = tx.objectStore('toefl_question_bank');
+    const req = store.getAll();
+    await new Promise((resolve) => {
+      req.onsuccess = () => {
+        if (Array.isArray(req.result)) {
+          for (const row of req.result) {
+            if (row.taskType && !row.isCurated && counts[row.taskType] !== undefined) {
+              counts[row.taskType]++;
+            }
+          }
+        }
+        resolve(null);
+      };
+      req.onerror = () => resolve(null);
+    });
+  } catch {}
+
+  const totalQuestions = Object.values(counts).reduce((a, b) => a + b, 0);
+  return {
+    totalQuestions,
+    totalCurated,
+    countsPerTaskType: counts,
+  };
 }
 
 /**

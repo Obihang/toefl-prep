@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { AcademicDiscussionTask } from '../../data/curatedQuestions';
 import { evaluateLocally } from '../../utils/localEvaluator';
-import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Volume2, VolumeX, Loader2, Zap } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { getApiHeaders } from '../../utils/apiKey';
+import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
@@ -67,31 +67,57 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
 
     let evalData: any = null;
 
-    try {
-      const json = await safeFetchJson('/api/evaluate-response', {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify({
-          taskType: 'academic-discussion',
-          promptData: {
-            title: task.title,
-            professor: `${task.professorName}: ${task.professorPrompt}`,
-            s1: `${task.s1?.name}: ${task.s1?.text}`,
-            s2: `${task.s2?.name}: ${task.s2?.text}`,
-            question: task.question,
-          },
-          studentResponse: {
-            response,
-            wordCount,
-          },
-        }),
-      });
+    if (!hasAnyStoredApiKey()) {
+      // 100% Zero-API Local Offline Evaluation (Instant)
+      evalData = evaluateLocally(
+        'academic-discussion',
+        {
+          title: task.title,
+          s1: task.s1?.name,
+          s2: task.s2?.name,
+          question: task.question,
+        },
+        response,
+        { task }
+      );
+    } else {
+      try {
+        const json = await safeFetchJson('/api/evaluate-response', {
+          method: 'POST',
+          headers: getApiHeaders(),
+          body: JSON.stringify({
+            taskType: 'academic-discussion',
+            promptData: {
+              title: task.title,
+              professor: `${task.professorName}: ${task.professorPrompt}`,
+              s1: `${task.s1?.name}: ${task.s1?.text}`,
+              s2: `${task.s2?.name}: ${task.s2?.text}`,
+              question: task.question,
+            },
+            studentResponse: {
+              response,
+              wordCount,
+            },
+          }),
+        });
 
-      if (json.success && json.data) {
-        evalData = json.data;
-      } else {
-        // Fallback to local heuristic evaluator if API is unavailable or unauthenticated
-        console.warn('[AcademicDiscussion] API evaluation unauthenticated or unavailable, running local rubric evaluator');
+        if (json.success && json.data) {
+          evalData = json.data;
+        } else {
+          evalData = evaluateLocally(
+            'academic-discussion',
+            {
+              title: task.title,
+              s1: task.s1?.name,
+              s2: task.s2?.name,
+              question: task.question,
+            },
+            response,
+            { task }
+          );
+        }
+      } catch (err: any) {
+        console.warn('[AcademicDiscussion] Network/API error, running local rubric evaluator:', err);
         evalData = evaluateLocally(
           'academic-discussion',
           {
@@ -104,19 +130,6 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
           { task }
         );
       }
-    } catch (err: any) {
-      console.warn('[AcademicDiscussion] Network/API error, running local rubric evaluator:', err);
-      evalData = evaluateLocally(
-        'academic-discussion',
-        {
-          title: task.title,
-          s1: task.s1?.name,
-          s2: task.s2?.name,
-          question: task.question,
-        },
-        response,
-        { task }
-      );
     }
 
     if (evalData) {
@@ -302,18 +315,21 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             <button
               onClick={handleEvaluate}
               disabled={isEvaluating}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
             >
               {isEvaluating ? (
                 <>
                   <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
+                </>
+              ) : !hasAnyStoredApiKey() ? (
+                <>
+                  <Zap className="w-4 h-4 text-amber-300" /> Evaluate Response (Instant Local Grader)
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" /> Evaluate with AI Rater
                 </>
               )}
-
             </button>
           </div>
         </div>

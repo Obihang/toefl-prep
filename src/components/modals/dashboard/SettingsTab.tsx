@@ -30,7 +30,13 @@ import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
 import { getAiStatusInfo } from '../../../utils/aiFallbackChain';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
-import { exportQuestionBankJson, purgeLowQualityCache, saveVerifiedQuestion } from '../../../utils/questionBankStorage';
+import {
+  exportQuestionBankJson,
+  purgeLowQualityCache,
+  saveVerifiedQuestion,
+  syncCuratedQuestionBank,
+  getQuestionBankStats,
+} from '../../../utils/questionBankStorage';
 import { isHighQualityTask } from '../../../utils/questionValidator';
 import { getApiHeaders } from '../../../utils/apiKey';
 import { TASK_DEFINITIONS } from '../../../types/taskTypes';
@@ -62,6 +68,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
     setGroqKey(getStoredApiKey('groq') || '');
     setOpenRouterKey(getStoredApiKey('openrouter') || '');
   };
+
+  const [bankStats, setBankStats] = useState<{
+    totalQuestions: number;
+    totalCurated: number;
+    countsPerTaskType: Record<string, number>;
+  } | null>(null);
+
+  useEffect(() => {
+    getQuestionBankStats().then(setBankStats);
+  }, []);
 
   useEffect(() => {
     setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
@@ -658,6 +674,47 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       icon: <Database className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
+          {/* Curated Question Bank Status Banner */}
+          <div className="p-3.5 bg-teal-50/80 border border-teal-200 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-teal-700 shrink-0" />
+                <span className="text-xs font-bold text-slate-900">
+                  Local Question Bank: {bankStats?.totalCurated || 80} Curated Questions ({bankStats?.totalQuestions || 80} Total in IndexedDB)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setDataMessage({ success: true, text: 'Synchronizing curated question shards...' });
+                  const res = await syncCuratedQuestionBank();
+                  const updated = await getQuestionBankStats();
+                  setBankStats(updated);
+                  setDataMessage({ success: true, text: `Successfully synced ${res.totalQuestions} curated questions into IndexedDB!` });
+                }}
+                className="px-2.5 py-1 text-xs font-semibold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer"
+              >
+                Re-Sync All Shards
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-600">
+              All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline, zero-API practice with full rubric grading.
+            </p>
+            {bankStats?.countsPerTaskType && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
+                {Object.entries(bankStats.countsPerTaskType).map(([taskKey, count]) => {
+                  const td = TASK_DEFINITIONS.find((t) => t.id === taskKey);
+                  return (
+                    <div key={taskKey} className="text-[11px] bg-white border border-teal-100 rounded-md px-2 py-1 flex items-center justify-between">
+                      <span className="text-slate-600 truncate mr-1">{td?.name || taskKey}:</span>
+                      <span className="font-bold text-teal-800">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <p className="text-xs text-slate-600">
             Export your practice records, rubric scoring evaluations, and study history to a portable JSON file, or restore from a backup.
           </p>

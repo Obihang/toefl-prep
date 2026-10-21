@@ -1411,68 +1411,88 @@ export async function requestMicrophoneAccess(): Promise<{ granted: boolean; err
   return { granted: true };
 }
 
-// Send recorded audio to Gemini /api/transcribe fallback with fast base64 and 20s timeout
-export async function transcribeAudioBlob(blob: Blob): Promise<{ transcript: string; words?: Array<{word: string; start: number; end: number}>; durationMs?: number }> {
-  // Client-side size check (max 3 MB, ~90 seconds)
-  if (blob.size > 3 * 1024 * 1024) {
-    throw new Error('Audio recording exceeds 3 MB limit (90 seconds max). Please record a shorter answer.');
+// Send recorded audio to Groq cloud STT if key configured, or 100% Zero-API local Whisper in-browser
+export async function transcribeAudioBlob(
+  blob: Blob,
+  onProgress?: (status: string) => void
+): Promise<{
+  transcript: string;
+  words?: Array<{ word: string; start: number; end: number }>;
+  durationMs?: number;
+  metrics?: any;
+}> {
+  // Client-side size check (max 10 MB)
+  if (blob.size > 10 * 1024 * 1024) {
+    throw new Error('Audio recording exceeds 10 MB limit. Please record a shorter answer.');
   }
 
-  const base64 = await blobToBase64(blob);
   const groqKey = (typeof localStorage !== 'undefined' ? (localStorage.getItem('toefl_key_groq') || getStoredApiKey('groq')) : '').trim();
 
-  let idToken = '';
-  try {
-    const { auth } = await import('../firebase');
-    if (auth.currentUser) {
-      idToken = await auth.currentUser.getIdToken();
-    }
-  } catch {}
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  // If user configured a Groq key, attempt fast cloud Whisper STT first
   if (groqKey) {
-    headers['x-groq-key'] = groqKey;
-  }
-  if (idToken) {
-    headers['Authorization'] = `Bearer ${idToken}`;
+    try {
+      onProgress?.('Transcribing via Groq Whisper Cloud...');
+      const base64 = await blobToBase64(blob);
+      let idToken = '';
+      try {
+        const { auth } = await import('../firebase');
+        if (auth.currentUser) {
+          idToken = await auth.currentUser.getIdToken();
+        }
+      } catch {}
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-groq-key': groqKey,
+      };
+      if (idToken) {
+        headers['Authorization'] = `Bearer ${idToken}`;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch('/api/stt', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          audioBase64: base64,
+          mimeType: blob.type || 'audio/webm',
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const rawTranscript = json.transcript || '';
+        const rawWords = json.words || [];
+        const { transcript, words } = filterWhisperHallucinations(rawTranscript, rawWords);
+
+        return {
+          transcript,
+          words,
+          durationMs: json.durationMs,
+        };
+      }
+    } catch (groqErr) {
+      console.warn('[transcribeAudioBlob] Groq STT failed or timed out, falling back to client-side Whisper:', groqErr);
+    }
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 25000);
-
+  // 100% Zero-API In-Browser Whisper Tiny Fallback (Ideal for Brave browser on Linux)
   try {
-    const res = await fetch('/api/stt', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        audioBase64: base64,
-        mimeType: blob.type || 'audio/webm',
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    const json = await res.json();
-    if (!res.ok || !json.success) {
-      throw new Error(json.error || 'Audio transcription failed. Ensure your Groq API key is added in Settings.');
-    }
-    const rawTranscript = json.transcript || '';
-    const rawWords = json.words || [];
-    const { transcript, words } = filterWhisperHallucinations(rawTranscript, rawWords);
-
+    const { transcribeWithLocalWhisper } = await import('./localWhisperStt');
+    const localRes = await transcribeWithLocalWhisper(blob, onProgress);
     return {
-      transcript,
-      words,
-      durationMs: json.durationMs,
+      transcript: localRes.transcript,
+      words: localRes.words,
+      durationMs: localRes.durationMs,
+      metrics: localRes.metrics,
     };
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError' || String(err).includes('aborted')) {
-      throw new Error('TRANSCRIPTION_TIMEOUT');
-    }
-    throw err;
+  } catch (localErr: any) {
+    console.error('[transcribeAudioBlob] Local Whisper STT failed:', localErr);
+    throw new Error(localErr?.message || 'Audio transcription failed. Ensure microphone access is allowed.');
   }
 }
 

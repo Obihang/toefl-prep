@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { WriteEmailTask } from '../../data/curatedQuestions';
 import { evaluateLocally } from '../../utils/localEvaluator';
-import { Send, Sparkles, AlertCircle, ArrowRight, Volume2, VolumeX } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, ArrowRight, Volume2, VolumeX, Zap } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { getApiHeaders } from '../../utils/apiKey';
+import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
@@ -67,31 +67,58 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
 
     let evalData: any = null;
 
-    try {
-      const json = await safeFetchJson('/api/evaluate-response', {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify({
-          taskType: 'write-email',
-          promptData: {
-            title: task.title,
-            situation: task.situation,
-            recipient: task.recipient,
-            goals: task.goals,
-            suggestedWordCount: task.suggestedWordCount,
-          },
-          studentResponse: {
-            subject,
-            body,
-            wordCount,
-          },
-        }),
-      });
+    if (!hasAnyStoredApiKey()) {
+      // 100% Zero-API Local Offline Evaluation (Instant)
+      evalData = evaluateLocally(
+        'write-email',
+        {
+          title: task.title,
+          situation: task.situation,
+          recipient: task.recipient,
+          goals: task.goals,
+        },
+        `Subject: ${subject}\n\n${body}`,
+        { task }
+      );
+    } else {
+      try {
+        const json = await safeFetchJson('/api/evaluate-response', {
+          method: 'POST',
+          headers: getApiHeaders(),
+          body: JSON.stringify({
+            taskType: 'write-email',
+            promptData: {
+              title: task.title,
+              situation: task.situation,
+              recipient: task.recipient,
+              goals: task.goals,
+              suggestedWordCount: task.suggestedWordCount,
+            },
+            studentResponse: {
+              subject,
+              body,
+              wordCount,
+            },
+          }),
+        });
 
-      if (json.success && json.data) {
-        evalData = json.data;
-      } else {
-        console.warn('[WriteEmail] API evaluation unavailable, running local rubric evaluator');
+        if (json.success && json.data) {
+          evalData = json.data;
+        } else {
+          evalData = evaluateLocally(
+            'write-email',
+            {
+              title: task.title,
+              situation: task.situation,
+              recipient: task.recipient,
+              goals: task.goals,
+            },
+            `Subject: ${subject}\n\n${body}`,
+            { task }
+          );
+        }
+      } catch (err: any) {
+        console.warn('[WriteEmail] Network/API error, running local rubric evaluator:', err);
         evalData = evaluateLocally(
           'write-email',
           {
@@ -104,19 +131,6 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
           { task }
         );
       }
-    } catch (err: any) {
-      console.warn('[WriteEmail] Network/API error, running local rubric evaluator:', err);
-      evalData = evaluateLocally(
-        'write-email',
-        {
-          title: task.title,
-          situation: task.situation,
-          recipient: task.recipient,
-          goals: task.goals,
-        },
-        `Subject: ${subject}\n\n${body}`,
-        { task }
-      );
     }
 
     if (evalData) {
@@ -274,18 +288,21 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
             <button
               onClick={handleEvaluate}
               disabled={isEvaluating}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
             >
               {isEvaluating ? (
                 <>
                   <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
+                </>
+              ) : !hasAnyStoredApiKey() ? (
+                <>
+                  <Zap className="w-4 h-4 text-amber-300" /> Evaluate Response (Instant Local Grader)
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" /> Evaluate with AI Rater
                 </>
               )}
-
             </button>
           </div>
         </div>

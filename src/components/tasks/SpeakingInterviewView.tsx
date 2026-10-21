@@ -2,11 +2,11 @@ import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueL
 import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
-import { getApiHeaders } from '../../utils/apiKey';
+import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { evaluateLocally } from '../../utils/localEvaluator';
 import { MicrophoneTestWidget } from '../shared/MicrophoneTestWidget';
@@ -461,46 +461,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
     let evalData: any = null;
 
-    try {
-      const json = await safeFetchJson('/api/evaluate-response', {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify({
-          taskType: 'speaking-interview',
-          promptData: {
-            title: task.title,
-            context: task.context,
-            questions: task.questions.map((q) => q.question),
-          },
-          studentResponse: submissionData,
-        }),
-      });
+    const combinedResponse = submissionData.map((s) => s.studentResponse).filter(Boolean).join('\n\n');
+    const avgWpm = Math.round(
+      submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
+    );
+    const totalPauses = submissionData.reduce((acc, _, i) => {
+      const m = (answers as any)[`metrics_${i}`] as SpeakingMetrics | undefined;
+      return acc + (m?.pauseCount || 0);
+    }, 0);
+    const maxPause = Math.max(
+      ...submissionData.map((_, i) => ((answers as any)[`metrics_${i}`] as SpeakingMetrics | undefined)?.longestPauseSeconds || 0),
+      0
+    );
+    const totalFillers = submissionData.reduce((acc, s) => acc + (s.fillerCount || 0), 0);
 
-      if (json.success && json.data) {
-        evalData = json.data;
-      } else {
-        console.warn('[SpeakingInterview] API evaluation unavailable, running local rubric evaluator');
-        const combinedResponse = submissionData.map((s) => s.studentResponse).filter(Boolean).join('\n\n');
-        const avgWpm = Math.round(
-          submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
-        );
-        evalData = evaluateLocally(
-          'speaking-interview',
-          {
-            title: task.title,
-            context: task.context,
-            questions: task.questions.map((q) => q.question),
-          },
-          combinedResponse,
-          { task, wpm: avgWpm }
-        );
-      }
-    } catch (err: any) {
-      console.warn('[SpeakingInterview] Network error, running local rubric evaluator:', err);
-      const combinedResponse = submissionData.map((s) => s.studentResponse).filter(Boolean).join('\n\n');
-      const avgWpm = Math.round(
-        submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
-      );
+    if (!hasAnyStoredApiKey()) {
+      // 100% Zero-API Local Rubric Evaluation (Instant)
       evalData = evaluateLocally(
         'speaking-interview',
         {
@@ -509,8 +485,57 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           questions: task.questions.map((q) => q.question),
         },
         combinedResponse,
-        { task, wpm: avgWpm }
+        {
+          task,
+          wpm: avgWpm,
+          pauseCount: totalPauses,
+          longestPause: maxPause,
+          fillerCount: totalFillers,
+        }
       );
+    } else {
+      try {
+        const json = await safeFetchJson('/api/evaluate-response', {
+          method: 'POST',
+          headers: getApiHeaders(),
+          body: JSON.stringify({
+            taskType: 'speaking-interview',
+            promptData: {
+              title: task.title,
+              context: task.context,
+              questions: task.questions.map((q) => q.question),
+            },
+            studentResponse: submissionData,
+          }),
+        });
+
+        if (json.success && json.data) {
+          evalData = json.data;
+        } else {
+          evalData = evaluateLocally(
+            'speaking-interview',
+            {
+              title: task.title,
+              context: task.context,
+              questions: task.questions.map((q) => q.question),
+            },
+            combinedResponse,
+            { task, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
+          );
+        }
+      } catch (err: any) {
+        console.warn('[SpeakingInterview] Network error, running local rubric evaluator:', err);
+        evalData = evaluateLocally(
+          'speaking-interview',
+          {
+            title: task.title,
+            context: task.context,
+            questions: task.questions.map((q) => q.question),
+          },
+          combinedResponse,
+          { task, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
+        );
+      }
     }
 
     if (evalData) {
@@ -879,6 +904,11 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Scoring your answer... {evalSeconds}s</span>
+            </>
+          ) : !hasAnyStoredApiKey() ? (
+            <>
+              <Zap className="w-4 h-4 text-amber-300" />
+              <span>Evaluate Interview (Instant Local Grader)</span>
             </>
           ) : (
             <>

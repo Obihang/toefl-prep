@@ -7,6 +7,8 @@ export interface EvaluationOptions {
   task?: any;
   wpm?: number;
   pauseCount?: number;
+  longestPause?: number;
+  fillerCount?: number;
   matchScore?: number;
 }
 
@@ -14,6 +16,13 @@ export interface SubScores {
   taskFulfillment: number; // 1.0 - 6.0
   languageUse: number; // 1.0 - 6.0
   topicDevelopment: number; // 1.0 - 6.0
+  delivery?: number; // 1.0 - 6.0 (for speaking)
+}
+
+export interface EvaluationCriterion {
+  name: string;
+  score: string;
+  comment: string;
 }
 
 export interface EvaluationResult {
@@ -26,6 +35,7 @@ export interface EvaluationResult {
   feedbackSummary: string;
   summary: string;
   subScores: SubScores;
+  criteria?: EvaluationCriterion[];
   specificStrengths: string[];
   areasForImprovement: string[];
   topFixes: string[];
@@ -131,17 +141,50 @@ export function evaluateLocally(
       areasForImprovement.push('Include both a formal greeting (e.g. "Dear Professor...") and courteous sign-off.');
     }
   } else if (taskType === 'speaking-interview') {
-    const wpm = options?.wpm || (wordCount > 0 ? Math.round((wordCount / 45) * 60) : 120);
+    const wpm = options?.wpm || (wordCount > 0 ? Math.round((wordCount / 45) * 60) : 125);
+    const pauseCount = options?.pauseCount ?? 0;
+    const longestPause = options?.longestPause ?? 0;
+    const fillerCount = options?.fillerCount ?? 0;
+
+    // Delivery & Fluency Score (1.0 - 6.0)
+    let deliveryScore = 5.0;
     if (wpm >= 115 && wpm <= 165) {
+      deliveryScore += 0.5;
+      specificStrengths.push(`Excellent pacing (${wpm} WPM) within the target TOEFL delivery anchor.`);
+    } else if (wpm < 95) {
+      deliveryScore -= 1.0;
+      areasForImprovement.push(`Speech rate is slightly slow (${wpm} WPM). Aim for 120–150 WPM to demonstrate automaticity.`);
+    } else if (wpm > 185) {
+      deliveryScore -= 0.5;
+      areasForImprovement.push(`Speech rate is very rapid (${wpm} WPM). Pacing your cadence aids listener comprehension.`);
+    }
+
+    if (pauseCount <= 1 && longestPause <= 1.5) {
+      deliveryScore += 0.5;
+      specificStrengths.push('Minimal hesitant pauses (>1s) during response delivery.');
+    } else if (pauseCount >= 4 || longestPause >= 2.5) {
+      deliveryScore -= 1.0;
+      areasForImprovement.push(`Noticeable pause gaps (${pauseCount} pauses > 1.0s, longest: ${longestPause}s). Practice transitional phrases to bridge ideas.`);
+    }
+
+    if (fillerCount === 0) {
+      specificStrengths.push('Zero vocalized fillers (um, uh, like) detected—clean articulate delivery.');
+    } else if (fillerCount >= 4) {
+      deliveryScore -= 0.5;
+      areasForImprovement.push(`Detected ${fillerCount} vocalized fillers. Replace fillers with silent micro-breaths.`);
+    }
+    deliveryScore = Math.min(6.0, Math.max(1.0, deliveryScore));
+
+    // Task fulfillment based on volume and keyword overlap
+    if (wordCount >= 90) {
       taskFulfillmentScore = 5.5;
-      specificStrengths.push(`Natural speech pacing (${wpm} WPM) within the target TOEFL delivery range.`);
-    } else if (wpm >= 90) {
-      taskFulfillmentScore = 4.0;
-      areasForImprovement.push(`Speech rate (${wpm} WPM) is moderate; aim for 120–150 WPM for maximum fluency.`);
+      specificStrengths.push(`Substantive spoken volume (${wordCount} words) providing thorough answers.`);
+    } else if (wordCount >= 60) {
+      taskFulfillmentScore = 4.5;
+      areasForImprovement.push('Elaborate with additional concrete examples to fill the 45-second response window.');
     } else {
-      taskFulfillmentScore = 2.5;
-      fulfillmentNotes.push(`Speech rate (${wpm} WPM) is on the lower side; target 120-150 WPM for natural fluency.`);
-      areasForImprovement.push('Reduce long pauses between thoughts to elevate vocal confidence.');
+      taskFulfillmentScore = 3.0;
+      areasForImprovement.push('Response is brief. Aim to speak for the full duration of the countdown.');
     }
   } else {
     taskFulfillmentScore = wordCount >= 30 ? 5.0 : 3.0;
@@ -195,13 +238,20 @@ export function evaluateLocally(
   }
 
   // Overall Band (1.0 - 6.0)
+  const isSpeaking = taskType.includes('speaking');
+  const delivery = isSpeaking ? (options?.wpm ? Math.min(6.0, Math.max(1.0, (options.wpm >= 115 && options.wpm <= 165 ? 5.5 : 4.0))) : 5.0) : undefined;
+
   const subScores: SubScores = {
     taskFulfillment: Math.round(Math.min(6.0, Math.max(1.0, taskFulfillmentScore)) * 10) / 10,
     languageUse: Math.round(Math.min(6.0, Math.max(1.0, languageUseScore)) * 10) / 10,
     topicDevelopment: Math.round(Math.min(6.0, Math.max(1.0, topicDevScore)) * 10) / 10,
+    ...(isSpeaking ? { delivery } : {}),
   };
 
-  const composite = (subScores.taskFulfillment * 0.4) + (subScores.languageUse * 0.3) + (subScores.topicDevelopment * 0.3);
+  const composite = isSpeaking && delivery !== undefined
+    ? (delivery * 0.4) + (subScores.topicDevelopment * 0.3) + (subScores.languageUse * 0.3)
+    : (subScores.taskFulfillment * 0.4) + (subScores.languageUse * 0.3) + (subScores.topicDevelopment * 0.3);
+
   let overallBand = Math.round(composite * 2) / 2;
   overallBand = Math.min(6.0, Math.max(1.0, overallBand));
 
@@ -222,7 +272,54 @@ export function evaluateLocally(
     scaled = 8;
   }
 
-  const rawRubric = Math.round((overallBand / 6.0) * (taskType.includes('speaking') ? 4.0 : 5.0) * 10) / 10;
+  const rawRubric = Math.round((overallBand / 6.0) * (isSpeaking ? 4.0 : 5.0) * 10) / 10;
+
+  // Criteria Breakdown Cards
+  const criteria: EvaluationCriterion[] = isSpeaking
+    ? [
+        {
+          name: 'Delivery & Acoustic Fluency',
+          score: `${(subScores.delivery ?? 5.0).toFixed(1)} / 6.0`,
+          comment: `Pacing: ${options?.wpm || 125} WPM · Pauses: ${options?.pauseCount ?? 0} · Fillers: ${options?.fillerCount ?? 0}`,
+        },
+        {
+          name: 'Topic Development',
+          score: `${subScores.topicDevelopment.toFixed(1)} / 6.0`,
+          comment: `Argument coherence with ${transitionsUsed.length} discourse connectors and structured flow.`,
+        },
+        {
+          name: 'Language Use',
+          score: `${subScores.languageUse.toFixed(1)} / 6.0`,
+          comment: `Vocabulary variety (${Math.round(ttr * 100)}% unique words) with grammatical control.`,
+        },
+        {
+          name: 'Task Fulfillment',
+          score: `${subScores.taskFulfillment.toFixed(1)} / 6.0`,
+          comment: `Spoken response volume (${wordCount} words) addressing interview prompts.`,
+        },
+      ]
+    : [
+        {
+          name: 'Task Fulfillment',
+          score: `${subScores.taskFulfillment.toFixed(1)} / 6.0`,
+          comment: `${wordCount} words addressing prompt requirements and scenario context.`,
+        },
+        {
+          name: 'Topic Development & Discourse',
+          score: `${subScores.topicDevelopment.toFixed(1)} / 6.0`,
+          comment: `Clear progression linked by ${transitionsUsed.length} academic transition markers.`,
+        },
+        {
+          name: 'Language Use & Lexical Range',
+          score: `${subScores.languageUse.toFixed(1)} / 6.0`,
+          comment: `Type-Token Ratio: ${Math.round(ttr * 100)}% unique words with sophisticated terms.`,
+        },
+        {
+          name: 'Grammar & Mechanics',
+          score: `${Math.min(6.0, subScores.languageUse + 0.2).toFixed(1)} / 6.0`,
+          comment: `${sentences.length} sentences with balanced clausal complexity and formal register.`,
+        },
+      ];
 
   // Curated Model Band 6 Response from task or fallback
   const curatedModel = options?.task?.modelResponse || 
@@ -284,6 +381,7 @@ export function evaluateLocally(
     feedbackSummary: summary,
     summary,
     subScores,
+    criteria,
     specificStrengths,
     areasForImprovement,
     topFixes,

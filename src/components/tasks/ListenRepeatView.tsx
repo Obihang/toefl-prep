@@ -21,6 +21,7 @@ interface SentenceState {
   userInput: string;
   isRecording: boolean;
   scorePercent?: number;
+  bandScore?: number;
   wordBreakdown?: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
   metrics?: SpeakingMetrics;
   checked: boolean;
@@ -384,12 +385,32 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     const target = task.sentences[index];
     const user = states[index].userInput;
     const { percentage, wordStatuses } = calculateSentenceMatch(target, user);
+    const metrics = states[index].metrics;
+
+    let itemBand = 1.0;
+    if (percentage >= 92) itemBand = 6.0;
+    else if (percentage >= 82) itemBand = 5.5;
+    else if (percentage >= 72) itemBand = 5.0;
+    else if (percentage >= 60) itemBand = 4.5;
+    else if (percentage >= 48) itemBand = 4.0;
+    else if (percentage >= 35) itemBand = 3.0;
+    else if (percentage >= 20) itemBand = 2.0;
+    else itemBand = 1.0;
+
+    if (metrics?.wpm) {
+      if (metrics.wpm < 85 || metrics.wpm > 180) itemBand = Math.max(1.0, itemBand - 0.5);
+    }
+    if (metrics?.pauseCount && metrics.pauseCount >= 3) {
+      itemBand = Math.max(1.0, itemBand - 0.5);
+    }
+    const bandScore = Math.round(itemBand * 2) / 2;
 
     setStates((prev) => {
       const next = [...prev];
       next[index] = {
         ...next[index],
         scorePercent: percentage,
+        bandScore,
         wordBreakdown: wordStatuses,
         checked: true,
       };
@@ -746,9 +767,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                 {state.checked && (
                   <div className="pt-3 border-t border-slate-200/80 space-y-2 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-slate-500">
                           Accuracy Match: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
+                        </span>
+                        <span className="text-xs font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                          Band {(state.bandScore ?? 5.0).toFixed(1)}/6.0
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           (state.scorePercent ?? 0) >= 85
@@ -763,6 +787,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                             ? 'Band 5.0 Competent Match'
                             : 'Needs Refinement'}
                         </span>
+                        {state.metrics?.wpm ? (
+                          <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-sm">
+                            {state.metrics.wpm} WPM · {state.metrics.pauseCount ?? 0} pauses
+                          </span>
+                        ) : null}
                       </div>
                       <span className="text-slate-500">
                         Band 6.0 Target: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>

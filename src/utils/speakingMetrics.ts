@@ -10,6 +10,7 @@ export interface SpeakingMetrics {
   fillerWords: string[];
   longestPauseSeconds: number;
   pausesOver1Sec: number;
+  pauseCount?: number;
   totalSpeakingTimeSeconds: number;
   allowedTimeSeconds?: number;
 }
@@ -146,6 +147,7 @@ export function calculateSpeakingMetrics(
     fillerWords: Array.from(new Set(detectedFillers)),
     longestPauseSeconds: Math.round(longestPause * 10) / 10,
     pausesOver1Sec,
+    pauseCount: pausesOver1Sec,
     totalSpeakingTimeSeconds: Math.round(totalSpeakingTime * 10) / 10,
     allowedTimeSeconds,
   };
