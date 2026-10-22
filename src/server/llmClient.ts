@@ -26,7 +26,7 @@ export function resolveProviderDefaults(
   switch (provider.toLowerCase()) {
     case 'nvidia':
       resolvedBaseUrl = resolvedBaseUrl || 'https://integrate.api.nvidia.com/v1';
-      resolvedModel = resolvedModel || 'meta/llama-3.3-70b-instruct';
+      resolvedModel = resolvedModel || 'meta/llama-3.1-8b-instruct';
       break;
 
     case 'groq':
@@ -36,7 +36,7 @@ export function resolveProviderDefaults(
       } else if (purpose === 'transcription') {
         resolvedModel = resolvedModel || 'whisper-large-v3-turbo';
       } else {
-        resolvedModel = resolvedModel || 'llama-3.3-70b-versatile';
+        resolvedModel = resolvedModel || 'openai/gpt-oss-20b';
       }
       break;
 
@@ -47,7 +47,7 @@ export function resolveProviderDefaults(
       } else if (purpose === 'transcription') {
         resolvedModel = resolvedModel || 'openai/whisper-large-v3';
       } else {
-        resolvedModel = resolvedModel || 'meta-llama/llama-3.3-70b-instruct:free';
+        resolvedModel = resolvedModel || 'meta-llama/llama-3.1-8b-instruct:free';
       }
       break;
 
@@ -87,7 +87,7 @@ export function resolveProviderDefaults(
     case 'gemini':
     default:
       resolvedBaseUrl = resolvedBaseUrl || '';
-      resolvedModel = resolvedModel || 'gemini-3.8-flash';
+      resolvedModel = resolvedModel || 'gemini-1.5-flash';
       break;
   }
 

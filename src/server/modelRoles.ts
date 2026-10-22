@@ -1,95 +1,32 @@
-import { rankModels } from './providerProbe.ts';
+import crypto from 'crypto';
 
 export interface RoleModelsResult {
   chat: string[];
   stt: string[];
   tts: string[];
   all: string[];
+  generationModel: string;
+  evaluationModel: string;
 }
 
-export function classifyAudioModels(ids: string[]): { stt: string[]; tts: string[] } {
-  const sttCandidates = ids.filter((id) => /whisper|transcri|parakeet|canary/i.test(id));
-  const ttsCandidates = ids.filter(
-    (id) => /tts|orpheus|playai|text-to-speech|voxtral/i.test(id) && !/guard|whisper|transcri/i.test(id)
-  );
+const DROP_PATTERN = /embed|whisper|tts|speech|guard|moderat|rerank|vision|image|audio|transcri|safety|ocr|parse|clip|diffusion|stable|flux|\bvl\b|-vl-|reward|retriev|orpheus|playai|moderation/i;
+const REASONING_PATTERN = /r1\b|reason|thinking|qwq|o1|o3/i;
 
-  function scoreStt(id: string): number {
-    const lower = id.toLowerCase();
-    if (lower.includes('arabic') || lower.includes('translate')) return -100;
-    if (lower.includes('whisper-large-v3-turbo')) return 100;
-    if (lower.includes('whisper-large-v3')) return 95;
-    if (lower.includes('whisper-1')) return 90;
-    if (lower.includes('whisper')) return 80;
-    return 10;
+// Dead model cache (24 hours)
+const deadModelsCache = new Map<string, number>();
+
+export function isModelDead(modelId: string): boolean {
+  const expires = deadModelsCache.get(modelId);
+  if (!expires) return false;
+  if (Date.now() > expires) {
+    deadModelsCache.delete(modelId);
+    return false;
   }
-
-  function scoreTts(id: string): number {
-    const lower = id.toLowerCase();
-    if (lower.includes('arabic')) return -100;
-    if (lower.includes('tts-1') || lower.includes('openai/tts-1')) return 105;
-    if (lower.includes('orpheus') && lower.includes('english')) return 100;
-    if (lower.includes('orpheus')) return 90;
-    if (lower.includes('playai')) return 85;
-    if (lower.includes('voxtral')) return 80;
-    if (lower.includes('tts')) return 70;
-    return 10;
-  }
-
-  const stt = [...sttCandidates].sort((a, b) => scoreStt(b) - scoreStt(a));
-  const tts = [...ttsCandidates].sort((a, b) => scoreTts(b) - scoreTts(a));
-
-  return { stt, tts };
+  return true;
 }
 
-export function resolveModelName(
-  typed: string | undefined | null,
-  ids: string[]
-): { model: string | null; exact: boolean } {
-  if (!typed || !typed.trim()) {
-    return { model: null, exact: false };
-  }
-
-  const trimmed = typed.trim();
-  const lowerTyped = trimmed.toLowerCase();
-
-  // 1. Exact match
-  if (ids.includes(trimmed)) {
-    return { model: trimmed, exact: true };
-  }
-
-  // 2. Case insensitive match
-  const caseMatch = ids.find((id) => id.toLowerCase() === lowerTyped);
-  if (caseMatch) {
-    return { model: caseMatch, exact: true };
-  }
-
-  // 3. Ending with "/typed" or ":typed"
-  const suffixMatch = ids.find(
-    (id) => id.toLowerCase().endsWith('/' + lowerTyped) || id.toLowerCase().endsWith(':' + lowerTyped)
-  );
-  if (suffixMatch) {
-    return { model: suffixMatch, exact: false };
-  }
-
-  // 4. Normalized equality (letters and digits only)
-  const normTyped = lowerTyped.replace(/[^a-z0-9]/g, '');
-  const normMatch = ids.find((id) => id.toLowerCase().replace(/[^a-z0-9]/g, '') === normTyped);
-  if (normMatch) {
-    return { model: normMatch, exact: false };
-  }
-
-  // 5. Shortest id containing normalized text when normTyped >= 4 chars
-  if (normTyped.length >= 4) {
-    const containsMatches = ids.filter((id) =>
-      id.toLowerCase().replace(/[^a-z0-9]/g, '').includes(normTyped)
-    );
-    if (containsMatches.length > 0) {
-      containsMatches.sort((a, b) => a.length - b.length);
-      return { model: containsMatches[0], exact: false };
-    }
-  }
-
-  return { model: null, exact: false };
+export function markModelDead(modelId: string) {
+  deadModelsCache.set(modelId, Date.now() + 24 * 3600 * 1000);
 }
 
 function hashKey(key: string): string {
@@ -103,19 +40,99 @@ function hashKey(key: string): string {
 
 const roleModelsCache = new Map<string, { data: RoleModelsResult; expiresAt: number }>();
 
+function extractVersionNumber(id: string): number {
+  const match = id.match(/(\d+(?:\.\d+)?)/);
+  if (match) {
+    return parseFloat(match[1]);
+  }
+  return 1.0;
+}
+
+export function scoreModelForRole(id: string, role: 'generation' | 'evaluation', provider: string): number {
+  const lower = id.toLowerCase();
+  if (isModelDead(id)) return -9999;
+  if (DROP_PATTERN.test(lower)) return -1000;
+  if (REASONING_PATTERN.test(lower)) return -500;
+
+  let score = 10;
+  const version = extractVersionNumber(lower);
+
+  if (role === 'generation') {
+    // Prefer cheapest/fastest family: flash-lite, 8b, 20b, mini, small
+    if (/flash-lite|8b|20b|mini|small/i.test(lower)) {
+      score += 100;
+    } else if (/flash|70b|instruct/i.test(lower)) {
+      score += 50;
+    }
+  } else {
+    // Evaluation role: prefer strongest available: pro, 120b, 70b, large, or newest non-lite flash
+    if (/pro|120b|70b|large/i.test(lower)) {
+      score += 120;
+    } else if (/flash\b(?!-lite)/i.test(lower) || /gpt-4o\b/i.test(lower)) {
+      score += 100;
+    } else if (/instruct|chat/i.test(lower)) {
+      score += 60;
+    }
+  }
+
+  score += version * 5;
+  return score;
+}
+
+export function rankModelsForRole(provider: string, ids: string[], role: 'generation' | 'evaluation'): string[] {
+  let filtered = ids.filter((id) => !DROP_PATTERN.test(id) && !isModelDead(id));
+
+  if (provider === 'openrouter') {
+    const freeModels = filtered.filter((id) => id.endsWith(':free'));
+    const nonFreeModels = filtered.filter((id) => !id.endsWith(':free'));
+    filtered = [...freeModels, ...nonFreeModels];
+  }
+
+  return filtered.sort((a, b) => scoreModelForRole(b, role, provider) - scoreModelForRole(a, role, provider));
+}
+
+export function classifyAudioModels(ids: string[]): { stt: string[]; tts: string[] } {
+  const sttCandidates = ids.filter((id) => /whisper|transcri|parakeet|canary/i.test(id));
+  const ttsCandidates = ids.filter(
+    (id) => /tts|orpheus|playai|text-to-speech|voxtral/i.test(id) && !/guard|whisper|transcri/i.test(id)
+  );
+  return { stt: sttCandidates, tts: ttsCandidates };
+}
+
+export function resolveModelName(
+  typed: string | undefined | null,
+  ids: string[]
+): { model: string | null; exact: boolean } {
+  if (!typed || !typed.trim()) {
+    return { model: null, exact: false };
+  }
+  const trimmed = typed.trim();
+  const lowerTyped = trimmed.toLowerCase();
+
+  if (ids.includes(trimmed)) {
+    return { model: trimmed, exact: true };
+  }
+  const caseMatch = ids.find((id) => id.toLowerCase() === lowerTyped);
+  if (caseMatch) {
+    return { model: caseMatch, exact: true };
+  }
+  const normTyped = lowerTyped.replace(/[^a-z0-9]/g, '');
+  const normMatch = ids.find((id) => id.toLowerCase().replace(/[^a-z0-9]/g, '') === normTyped);
+  if (normMatch) {
+    return { model: normMatch, exact: false };
+  }
+  return { model: null, exact: false };
+}
+
 export async function getRoleModels(
   provider: string,
   apiKey: string,
   force = false
 ): Promise<RoleModelsResult> {
   const p = (provider || '').toLowerCase();
-  if (p !== 'nvidia' && p !== 'groq' && p !== 'openrouter') {
-    return { chat: [], stt: [], tts: [], all: [] };
-  }
-
   const cleanKey = (apiKey || '').trim();
   if (!cleanKey) {
-    return { chat: [], stt: [], tts: [], all: [] };
+    return { chat: [], stt: [], tts: [], all: [], generationModel: '', evaluationModel: '' };
   }
 
   const cacheKey = `${p}:${hashKey(cleanKey)}`;
@@ -128,51 +145,57 @@ export async function getRoleModels(
     }
   }
 
+  let rawModels: any[] = [];
   const baseUrls: Record<string, string> = {
     nvidia: 'https://integrate.api.nvidia.com/v1',
     groq: 'https://api.groq.com/openai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
+    openai: 'https://api.openai.com/v1',
+    gemini: 'https://generativelanguage.googleapis.com/v1beta',
   };
 
-  const baseUrl = baseUrls[p];
-  if (!baseUrl) {
-    return { chat: [], stt: [], tts: [], all: [] };
-  }
-
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${cleanKey}`,
-    'Content-Type': 'application/json',
-  };
-
-  if (p === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://toeflprepstudio.com';
-    headers['X-Title'] = 'TOEFL Prep Studio';
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-
-  let rawModels: any[] = [];
   try {
-    const res = await fetch(`${baseUrl}/models`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal,
-    });
-
-    if (res.ok) {
-      const text = await res.text();
-      let json: any;
-      try {
-        json = JSON.parse(text);
-      } catch {}
-      rawModels = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : [];
+    if (p === 'gemini') {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models`, {
+        method: 'GET',
+        headers: {
+          'x-goog-api-key': cleanKey,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        rawModels = Array.isArray(json?.models) ? json.models : [];
+        rawModels = rawModels.filter((m: any) => {
+          const methods = m?.supportedGenerationMethods || [];
+          const name = String(m?.name || '');
+          const isContent = methods.includes('generateContent');
+          const isExcluded = /image|tts|live|audio|embedding|imagen|veo|lyria|robotics|native-audio/i.test(name);
+          return isContent && !isExcluded;
+        });
+      }
+    } else {
+      const baseUrl = baseUrls[p];
+      if (baseUrl) {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${cleanKey}`,
+          'Content-Type': 'application/json',
+        };
+        if (p === 'openrouter') {
+          headers['HTTP-Referer'] = 'https://toeflprepstudio.com';
+          headers['X-Title'] = 'TOEFL Prep Studio';
+        }
+        const res = await fetch(`${baseUrl}/models`, {
+          method: 'GET',
+          headers,
+        });
+        if (res.ok) {
+          const json = await res.json();
+          rawModels = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : [];
+        }
+      }
     }
-  } catch {
-    // Return empty on fetch failure
-  } finally {
-    clearTimeout(timer);
-  }
+  } catch {}
 
   if (p === 'openrouter') {
     rawModels = rawModels.filter((m: any) => {
@@ -184,18 +207,68 @@ export async function getRoleModels(
     });
   }
 
-  const all = rawModels.map((m: any) => String(m?.id || m?.name || '')).filter(Boolean);
+  const all = rawModels.map((m: any) => String(m?.name?.replace('models/', '') || m?.id || m?.name || '')).filter(Boolean);
   const { stt, tts } = classifyAudioModels(all);
   const sttTtsSet = new Set([...stt, ...tts]);
   const chatCandidateIds = all.filter((id) => !sttTtsSet.has(id));
-  const chat = rankModels(p, chatCandidateIds);
 
-  const result: RoleModelsResult = { chat, stt, tts, all };
+  const genRanked = rankModelsForRole(p, chatCandidateIds, 'generation');
+  const evalRanked = rankModelsForRole(p, chatCandidateIds, 'evaluation');
+
+  const result: RoleModelsResult = {
+    chat: genRanked,
+    stt,
+    tts,
+    all,
+    generationModel: genRanked[0] || (p === 'gemini' ? 'gemini-1.5-flash' : ''),
+    evaluationModel: evalRanked[0] || genRanked[0] || '',
+  };
 
   roleModelsCache.set(cacheKey, {
     data: result,
-    expiresAt: now + 10 * 60 * 1000,
+    expiresAt: now + 6 * 3600 * 1000, // 6 hours caching per provider+key hash
   });
 
   return result;
+}
+
+export function redactKeyInText(text: string, apiKey?: string): string {
+  let out = String(text || '');
+  if (apiKey && apiKey.length > 5) {
+    out = out.split(apiKey).join('[REDACTED]');
+  }
+  return out
+    .replace(/nvapi-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
+    .replace(/gsk_[A-Za-z0-9]{10,}/g, '[REDACTED]')
+    .replace(/sk-or-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
+    .replace(/sk-[A-Za-z0-9_-]{10,}/g, '[REDACTED]')
+    .replace(/(AIza|AQ\.)[A-Za-z0-9_.-]{10,}/g, '[REDACTED]');
+}
+
+export function formatProviderError(provider: string, model: string, status: number, rawMessage: string, apiKey?: string) {
+  const cleanMsg = redactKeyInText(rawMessage, apiKey);
+  let humanExplanation = 'Provider error occurred';
+  const lower = cleanMsg.toLowerCase();
+
+  if (status === 401 || status === 403 || lower.includes('invalid api key') || lower.includes('unauthorized') || lower.includes('api key not valid')) {
+    humanExplanation = 'Invalid API key or unauthorized access.';
+  } else if (status === 404 || lower.includes('model not found') || lower.includes('does not exist') || lower.includes('no access') || lower.includes('retired')) {
+    humanExplanation = 'Model retired, not found, or no access.';
+  } else if (status === 429 || lower.includes('rate limit') || lower.includes('quota') || lower.includes('resource_exhausted')) {
+    humanExplanation = 'Rate limited or quota exhausted.';
+  } else if (status >= 500) {
+    humanExplanation = 'Provider server error.';
+  } else {
+    humanExplanation = 'Request failed.';
+  }
+
+  return {
+    success: false,
+    provider,
+    modelTried: model,
+    httpStatus: status,
+    providerErrorMessage: cleanMsg,
+    humanExplanation,
+    error: `${provider} (${model}) [HTTP ${status}]: ${cleanMsg} (${humanExplanation})`,
+  };
 }
