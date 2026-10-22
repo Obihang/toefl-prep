@@ -6,6 +6,9 @@ export interface VocabularyWord {
   userId: string;
   word: string;
   definition: string;
+  phonetic?: string;
+  partOfSpeech?: string;
+  synonyms?: string[];
   context?: string;
   taskType?: string;
   leitnerBox: number; // 1 to 5
@@ -15,7 +18,15 @@ export interface VocabularyWord {
 
 const LEITNER_INTERVALS = [1, 2, 4, 8, 16]; // Days for boxes 1 to 5
 
-export async function saveVocabularyWord(word: string, definition: string, context?: string, taskType?: string) {
+export async function saveVocabularyWord(
+  word: string,
+  definition: string,
+  phonetic?: string,
+  partOfSpeech?: string,
+  synonyms?: string[],
+  context?: string,
+  taskType?: string
+) {
   if (!auth.currentUser) return;
   
   try {
@@ -30,6 +41,9 @@ export async function saveVocabularyWord(word: string, definition: string, conte
       userId: auth.currentUser.uid,
       word: word.trim(),
       definition,
+      phonetic: phonetic || '',
+      partOfSpeech: partOfSpeech || '',
+      synonyms: synonyms || [],
       context: context || '',
       taskType: taskType || 'general',
       leitnerBox: 1,
