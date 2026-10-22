@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Volume2, BookmarkPlus, X, Check, Loader2, Play } from 'lucide-react';
 import { playSpeech } from '../../utils/audioSpeech';
 import { saveVocabularyWord } from '../../utils/vocabulary';
-import { fetchWordDefinition } from '../../utils/dictionary';
+import { getDefinition } from '../../utils/dictionaryService';
 
 interface Props {
   selectedText: string;
@@ -30,30 +30,29 @@ export const VocabularyPopover: React.FC<Props> = ({
   async function fetchData() {
     setLoading(true);
     setEntry(null);
-    const data = await fetchWordDefinition(selectedText);
-    if (data) {
+    const result = await getDefinition(selectedText);
+    if (result) {
       setEntry({
-        word: data.word,
-        phonetic: data.phonetic || data.phonetics?.find((p: any) => p.text)?.text || '',
-        audio: data.phonetics?.find((p: any) => p.audio)?.audio || '',
-        partOfSpeech: data.meanings?.[0]?.partOfSpeech || 'noun',
-        definition: data.meanings?.[0]?.definitions?.[0]?.definition || '',
-        synonyms: data.meanings?.[0]?.synonyms?.slice(0, 3) || [],
+        word: selectedText.trim(),
+        partOfSpeech: result.partOfSpeech || 'noun',
+        definition: result.definition || 'Definition unavailable',
+        phonetic: result.phonetic || '',
+        synonyms: result.synonyms || [],
       });
     }
     setLoading(false);
   }
 
   const handleSave = async () => {
-    if (savingStatus === 'saved' || !entry) return;
+    if (savingStatus === 'saved') return;
     setSavingStatus('saving');
     try {
       await saveVocabularyWord(
-        entry.word,
-        entry.definition,
-        entry.phonetic,
-        entry.partOfSpeech,
-        entry.synonyms,
+        selectedText.trim(),
+        entry?.definition || 'Manual entry',
+        entry?.phonetic || '',
+        entry?.partOfSpeech || 'noun',
+        entry?.synonyms || [],
         contextSentence,
         taskType
       );
@@ -108,7 +107,15 @@ export const VocabularyPopover: React.FC<Props> = ({
           </div>
         </div>
       ) : (
-        <p className="text-rose-600 p-2">Word not found. Try a simpler form.</p>
+        <div className="space-y-2">
+            <p className="text-slate-600">Word not found. Add definition manually:</p>
+            <textarea
+                className="w-full text-xs p-2 border border-slate-300 rounded-lg"
+                placeholder="Enter definition..."
+                onChange={(e) => setEntry({ ...entry, definition: e.target.value })}
+            />
+            <button onClick={handleSave} className="w-full py-2 bg-teal-700 text-white rounded-lg text-xs font-semibold">Save Word</button>
+        </div>
       )}
     </div>
   );

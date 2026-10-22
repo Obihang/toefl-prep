@@ -483,3 +483,37 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     return res.status(500).json({ success: false, error: msg });
   }
 }
+export async function handleDictionaryEndpoint(req: Req, res: Res) {
+  const { word } = req.query;
+  if (!word || typeof word !== 'string') return res.status(400).json({ success: false, error: 'Word required' });
+  const w = word.trim().toLowerCase();
+
+  // Cascade logic
+  const sources = [
+    async () => { // Datamuse
+      const data = await (await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(w)}&md=dprs&max=3`)).json();
+      const syns = await (await fetch(`https://api.datamuse.com/words?rel_syn=${encodeURIComponent(w)}&max=4`)).json();
+      if (!data[0]?.defs) return null;
+      const [pos, def] = data[0].defs[0].split('\t');
+      return { definition: def, partOfSpeech: pos, synonyms: syns.map((s: any) => s.word), source: 'datamuse' };
+    },
+    async () => { // DictionaryAPI
+      const data = await (await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`)).json();
+      if (!data[0]) return null;
+      return { 
+        definition: data[0].meanings[0].definitions[0].definition, 
+        partOfSpeech: data[0].meanings[0].partOfSpeech, 
+        phonetic: data[0].phonetic,
+        source: 'dictionaryapi' 
+      };
+    }
+  ];
+
+  for (const source of sources) {
+    try {
+      const result = await source();
+      if (result) return res.json(result);
+    } catch {}
+  }
+  return res.status(404).json({ success: false, error: 'Not found' });
+}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2, Loader2, Sparkles, Volume2, RotateCcw } from 'lucide-react';
 import { VocabularyWord } from '../../../utils/vocabulary';
-import { fetchWordDefinition } from '../../../utils/dictionary';
+import { getDefinition } from '../../../utils/dictionaryService';
 
 interface VocabularyTabProps {
   vocab: VocabularyWord[];
@@ -29,9 +29,9 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
   const handleAutoDefine = async () => {
     if (!newWord) return;
     setIsAutoDefining(true);
-    const data = await fetchWordDefinition(newWord);
-    if (data) {
-      const def = `${data.meanings?.[0]?.partOfSpeech || 'noun'}: ${data.meanings?.[0]?.definitions?.[0]?.definition || ''}`;
+    const result = await getDefinition(newWord);
+    if (result) {
+      const def = `${result.partOfSpeech || 'noun'}: ${result.definition || ''}`;
       setNewDef(def);
     }
     setIsAutoDefining(false);

@@ -10,6 +10,7 @@ import {
   handleEvaluateResponseEndpoint,
   handleSttEndpoint,
   handleTtsEndpoint,
+  handleDictionaryEndpoint,
 } from './src/server/handlers.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,7 @@ export async function createServer() {
   app.post('/api/stt', handleSttEndpoint);
   app.post('/api/transcribe', handleSttEndpoint);
   app.post('/api/test-key', handleTestKeyEndpoint);
+  app.get('/api/dictionary', handleDictionaryEndpoint);
   app.get('/api/health', handleHealth);
 
   if (process.env.NODE_ENV === 'production') {
