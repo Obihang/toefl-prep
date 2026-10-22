@@ -31,7 +31,8 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
     setIsAutoDefining(true);
     const result = await getDefinition(newWord);
     if (result) {
-      const def = `${result.partOfSpeech || 'noun'}: ${result.definition || ''}`;
+      const primary = result.source === 'offline' ? result : result.meanings?.[0];
+      const def = `${primary?.partOfSpeech || 'noun'}: ${primary?.definition || ''}`;
       setNewDef(def);
     }
     setIsAutoDefining(false);

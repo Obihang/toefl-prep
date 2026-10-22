@@ -492,18 +492,26 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const sources = [
     async () => { // Datamuse
       const data = await (await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(w)}&md=dprs&max=3`)).json();
-      const syns = await (await fetch(`https://api.datamuse.com/words?rel_syn=${encodeURIComponent(w)}&max=4`)).json();
-      if (!data[0]?.defs) return null;
-      const [pos, def] = data[0].defs[0].split('\t');
-      return { definition: def, partOfSpeech: pos, synonyms: syns.map((s: any) => s.word), source: 'datamuse' };
+      if (!data[0] || data[0].word.toLowerCase() !== w || !data[0].defs) return null;
+      return { 
+        meanings: data.map((d: any) => {
+           const [pos, def] = d.defs[0].split('\t');
+           const cleanDef = def.replace(/^\([^)]+\)\s*/, '');
+           return { partOfSpeech: pos, definition: cleanDef, example: '' };
+        }).filter((m: any) => !/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(m.definition)),
+        source: 'datamuse' 
+      };
     },
     async () => { // DictionaryAPI
       const data = await (await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`)).json();
       if (!data[0]) return null;
       return { 
-        definition: data[0].meanings[0].definitions[0].definition, 
-        partOfSpeech: data[0].meanings[0].partOfSpeech, 
-        phonetic: data[0].phonetic,
+        meanings: data[0].meanings.map((m: any) => ({
+          partOfSpeech: m.partOfSpeech,
+          definition: m.definitions[0].definition.replace(/^\([^)]+\)\s*/, ''),
+          example: m.definitions[0].example || '',
+        })).filter((m: any) => !/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(m.definition)),
+        phonetic: data[0].phonetic || data[0].phonetics?.find((p: any) => p.text)?.text || '',
         source: 'dictionaryapi' 
       };
     }
@@ -512,7 +520,7 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
   for (const source of sources) {
     try {
       const result = await source();
-      if (result) return res.json(result);
+      if (result && result.meanings.length > 0) return res.json(result);
     } catch {}
   }
   return res.status(404).json({ success: false, error: 'Not found' });
