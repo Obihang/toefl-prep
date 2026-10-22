@@ -28,6 +28,8 @@ import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
+import { clearVocabularyList } from '../../../utils/vocabularyStore';
+import { clearAllMistakes } from '../../../utils/mistakesTracker';
 import {
   exportQuestionBankJson,
   purgeLowQualityCache,
@@ -201,9 +203,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   };
 
   const handleResetData = () => {
-    if (window.confirm('Are you sure you want to reset all test history and practice records? This cannot be undone.')) {
+    if (window.confirm('Are you sure you want to reset all test history, vocabulary, and practice records for this profile? This cannot be undone.')) {
       resetPracticeHistory();
-      setDataMessage({ success: true, text: 'All practice history has been reset.' });
+      clearVocabularyList();
+      clearAllMistakes();
+      setDataMessage({ success: true, text: 'All practice history, vocabulary, and records have been reset to absolute zero.' });
     }
   };
 

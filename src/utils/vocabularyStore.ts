@@ -1,7 +1,4 @@
-/**
- * Vocabulary Bookmarking Store for TOEFL Practice.
- * Persists bookmarked academic vocabulary words in localStorage under 'toefl_vocabulary_list'.
- */
+import { getCurrentUserId } from './scoreTracker';
 
 export interface VocabularyItem {
   id: string;
@@ -12,12 +9,12 @@ export interface VocabularyItem {
   timestamp: number;
 }
 
-const VOCAB_KEY = 'toefl_vocabulary_list';
+const getVocabKey = () => `toefl_vocab_${getCurrentUserId()}`;
 
 export function getVocabularyList(): VocabularyItem[] {
   if (typeof localStorage === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(VOCAB_KEY);
+    const raw = localStorage.getItem(getVocabKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -51,7 +48,7 @@ export function saveVocabularyWord(
   }
 
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(VOCAB_KEY, JSON.stringify(list));
+    localStorage.setItem(getVocabKey(), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
   }
 
@@ -63,7 +60,7 @@ export function removeVocabularyWord(word: string): void {
   if (typeof localStorage === 'undefined') return;
   try {
     const list = getVocabularyList().filter((item) => item.id !== id);
-    localStorage.setItem(VOCAB_KEY, JSON.stringify(list));
+    localStorage.setItem(getVocabKey(), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
   } catch (e) {
     console.warn('Failed to remove vocabulary item:', e);
@@ -78,6 +75,6 @@ export function isWordSaved(word: string): boolean {
 
 export function clearVocabularyList(): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.removeItem(VOCAB_KEY);
+  localStorage.removeItem(getVocabKey());
   window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
 }

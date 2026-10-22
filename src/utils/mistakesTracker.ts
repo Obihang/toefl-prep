@@ -1,23 +1,19 @@
-/**
- * Mistakes Bank Utility for TOEFL Zero-API Practice.
- * Persists wrong questions in localStorage under 'toefl_mistakes_bank'
- * so students can retry mistakes and track improvement offline.
- */
+import { getCurrentUserId } from './scoreTracker';
 
 export interface MistakeRecord {
   questionId: string;
-  section: string; // 'Reading' | 'Listening' | 'Complete Words' | 'Build Sentence'
+  section: string;
   taskTitle?: string;
   promptText?: string;
   timestamp: number;
 }
 
-const MISTAKES_KEY = 'toefl_mistakes_bank';
+const getMistakesKey = () => `toefl_mistakes_${getCurrentUserId()}`;
 
 export function getMistakesList(): MistakeRecord[] {
   if (typeof localStorage === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(MISTAKES_KEY);
+    const raw = localStorage.getItem(getMistakesKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -41,7 +37,7 @@ export function saveQuestionMistake(questionId: string, section: string, taskTit
     } else {
       list.unshift(newRecord);
     }
-    localStorage.setItem(MISTAKES_KEY, JSON.stringify(list));
+    localStorage.setItem(getMistakesKey(), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
   } catch (e) {
     console.warn('Failed to save mistake record:', e);
@@ -52,7 +48,7 @@ export function removeQuestionMistake(questionId: string): void {
   if (typeof localStorage === 'undefined' || !questionId) return;
   try {
     const list = getMistakesList().filter((m) => m.questionId !== questionId);
-    localStorage.setItem(MISTAKES_KEY, JSON.stringify(list));
+    localStorage.setItem(getMistakesKey(), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
   } catch (e) {
     console.warn('Failed to remove mistake record:', e);
@@ -66,6 +62,6 @@ export function isQuestionInMistakes(questionId: string): boolean {
 
 export function clearAllMistakes(): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.removeItem(MISTAKES_KEY);
+  localStorage.removeItem(getMistakesKey());
   window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
 }

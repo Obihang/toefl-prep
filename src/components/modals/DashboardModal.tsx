@@ -83,20 +83,27 @@ export const DashboardModal: React.FC<Props> = ({
   }, [isOpen, activeTab]);
 
   useEffect(() => {
-    if (isOpen) {
-      setStats(getUserStats());
-      getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
-      getVocabularyWords().then(setVocab).catch(() => setVocab([]));
+    const loadUserData = () => {
+      if (isOpen) {
+        setStats(getUserStats());
+        getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
+        getVocabularyWords().then(setVocab).catch(() => setVocab([]));
 
-      // Load study goals from storage
-      const storedTarget = localStorage.getItem('toefl_target_score') || '100';
-      const storedDate = localStorage.getItem('toefl_test_date') || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-      const storedWeekly = parseInt(localStorage.getItem('WEEKLY_GOAL') || '5', 10);
-      setTargetScoreInput(storedTarget);
-      setTestDateInput(storedDate);
-      setWeeklyGoalInput(isNaN(storedWeekly) ? 5 : storedWeekly);
-      setGoalsSavedSuccess(false);
-    }
+        const storedTarget = localStorage.getItem('toefl_target_score') || '100';
+        const storedDate = localStorage.getItem('toefl_test_date') || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+        const storedWeekly = parseInt(localStorage.getItem('WEEKLY_GOAL') || '5', 10);
+        setTargetScoreInput(storedTarget);
+        setTestDateInput(storedDate);
+        setWeeklyGoalInput(isNaN(storedWeekly) ? 5 : storedWeekly);
+        setGoalsSavedSuccess(false);
+      }
+    };
+
+    loadUserData();
+    window.addEventListener('toefl_user_changed', loadUserData);
+    return () => {
+      window.removeEventListener('toefl_user_changed', loadUserData);
+    };
   }, [isOpen]);
 
   const targetScoreNum = parseInt(targetScoreInput, 10) || 100;

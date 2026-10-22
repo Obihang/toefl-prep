@@ -34,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      window.dispatchEvent(new CustomEvent('toefl_user_changed', { detail: { uid: currentUser?.uid || 'guest' } }));
       if (currentUser) {
         setUser(currentUser);
         setAuthError(null);

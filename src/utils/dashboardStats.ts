@@ -64,7 +64,7 @@ export function sectionAverages(history: PracticeRecord[]): Record<string, { ave
   const result: Record<string, { average: number; target: number }> = {};
   sections.forEach((sec) => {
     const count = counts[sec];
-    const avg = count > 0 ? Math.round(sums[sec] / count) : 20;
+    const avg = count > 0 ? Math.round(sums[sec] / count) : 0;
     result[sec] = { average: avg, target: 25 };
   });
 

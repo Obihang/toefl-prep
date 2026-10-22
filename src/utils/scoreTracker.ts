@@ -1,5 +1,5 @@
 import { db, auth } from '../firebase';
-import { collection, addDoc, doc, getDoc, getDocs, updateDoc, setDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc, setDoc, query, where, serverTimestamp } from 'firebase/firestore';
 
 export interface PracticeRecord {
   id: string;
@@ -15,12 +15,27 @@ export interface PracticeRecord {
   feedbackSummary?: string;
 }
 
-const STORAGE_KEY = 'toefl_prep_history_v1';
+export function getCurrentUserId(): string {
+  if (typeof window === 'undefined') return 'anonymous';
+  try {
+    if (auth?.currentUser?.uid) {
+      return auth.currentUser.uid;
+    }
+  } catch {}
+  let localId = localStorage.getItem('local_device_id');
+  if (!localId) {
+    localId = 'anon-' + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('local_device_id', localId);
+  }
+  return localId;
+}
+
+const getStorageKey = () => `toefl_prep_history_${getCurrentUserId()}`;
 
 export function getPracticeHistory(): PracticeRecord[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey());
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -41,7 +56,7 @@ export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'da
   try {
     const history = getPracticeHistory();
     history.unshift(fullRecord);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 100)));
+    localStorage.setItem(getStorageKey(), JSON.stringify(history.slice(0, 100)));
 
     if (auth.currentUser) {
       await saveTaskCompletion(fullRecord.taskType);
@@ -54,8 +69,7 @@ export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'da
 }
 
 export async function saveTaskCompletion(taskType: string) {
-  if (!auth.currentUser) return;
-  const userId = auth.currentUser.uid;
+  const userId = getCurrentUserId();
   const today = new Date().toISOString().split('T')[0];
 
   // 1. Save Completion
@@ -109,9 +123,9 @@ export async function saveTaskCompletion(taskType: string) {
 }
 
 export async function getUserStats() {
-  if (!auth.currentUser) return null;
+  const userId = getCurrentUserId();
   try {
-    const statsSnap = await getDoc(doc(db, 'userStats', auth.currentUser.uid));
+    const statsSnap = await getDoc(doc(db, 'userStats', userId));
     return statsSnap.exists() ? statsSnap.data() : null;
   } catch (err) {
     console.warn('Failed to get userStats from Firestore (offline):', err);
@@ -120,9 +134,10 @@ export async function getUserStats() {
 }
 
 export async function getCompletedDays() {
-  if (!auth.currentUser) return [];
+  const userId = getCurrentUserId();
   try {
-    const snapshot = await getDocs(collection(db, 'userStats', auth.currentUser.uid, 'completedDays'));
+    const q = query(collection(db, 'userStats', userId, 'completedDays'), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => doc.data().date);
   } catch (err) {
     console.warn('Failed to get completedDays from Firestore (offline):', err);
@@ -132,12 +147,11 @@ export async function getCompletedDays() {
 
 export function clearPracticeHistory() {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(getStorageKey());
   }
 }
 
 export const resetPracticeHistory = clearPracticeHistory;
-// ... rest of the file
 
 // Convert 0-30 scaled score to the new TOEFL 1.0 - 6.0 band scale (0.5 increments)
 export function convertScaledToBand6(scaledScore30: number): number {
@@ -154,19 +168,25 @@ export function convertScaledToBand6(scaledScore30: number): number {
   return 1.0;
 }
 
-// Convert raw score / maxScore to 1.0 - 6.0 band
 export function convertToBandScore6(score: number, maxScore: number): number {
   const scaled = convertToScaledScore(score, maxScore);
   return convertScaledToBand6(scaled);
 }
 
-// Map 1.0 - 6.0 band score to CEFR level description
 export function getCefrFromBand6(band6: number): {
   code: string;
   name: string;
   descriptor: string;
   colorClass: string;
 } {
+  if (band6 <= 0) {
+    return {
+      code: 'N/A',
+      name: 'No Data / Absolute Zero',
+      descriptor: 'Complete practice sessions to determine your active CEFR proficiency level.',
+      colorClass: 'text-slate-500 bg-slate-100 border-slate-200',
+    };
+  }
   if (band6 >= 6.0) {
     return {
       code: 'C2',
@@ -216,12 +236,15 @@ export function getCefrFromBand6(band6: number): {
 }
 
 export interface ScoreEquivalency {
-  cefr: string; // 'C2', 'C1', 'B2', 'B1', 'A2', 'A1'
-  toefl120Range: string; // '~107–113/120'
-  badgeText: string; // 'Band 5.5 (CEFR C1 • ~107–113/120)'
+  cefr: string;
+  toefl120Range: string;
+  badgeText: string;
 }
 
 export function getScoreEquivalency(bandScore6: number): ScoreEquivalency {
+  if (bandScore6 <= 0) {
+    return { cefr: 'N/A', toefl120Range: '0/120', badgeText: 'No Data (0 / 120)' };
+  }
   const band = Math.round(bandScore6 * 2) / 2;
   if (band >= 6.0) return { cefr: 'C2', toefl120Range: '~114–120/120', badgeText: 'Band 6.0 (CEFR C2 • ~114–120/120)' };
   if (band >= 5.5) return { cefr: 'C1', toefl120Range: '~107–113/120', badgeText: 'Band 5.5 (CEFR C1 • ~107–113/120)' };
@@ -235,43 +258,58 @@ export function getScoreEquivalency(bandScore6: number): ScoreEquivalency {
 }
 
 export function calculateToeflEstimate(history: PracticeRecord[]): {
-  overallScore: number;       // Legacy 0-120
-  overallBand6: number;       // New 1.0 - 6.0 band
-  readingScore: number;       // 0-30
-  readingBand6: number;       // 1.0 - 6.0
-  listeningScore: number;     // 0-30
-  listeningBand6: number;     // 1.0 - 6.0
-  speakingScore: number;      // 0-30
-  speakingBand6: number;      // 1.0 - 6.0
-  writingScore: number;       // 0-30
-  writingBand6: number;       // 1.0 - 6.0
+  overallScore: number;
+  overallBand6: number;
+  readingScore: number;
+  readingBand6: number;
+  listeningScore: number;
+  listeningBand6: number;
+  speakingScore: number;
+  speakingBand6: number;
+  writingScore: number;
+  writingBand6: number;
   cefrLevel: string;
   cefrCode: string;
   totalCompleted: number;
 } {
-  const getSectionAvg = (sec: 'Reading' | 'Listening' | 'Speaking' | 'Writing', fallback = 22) => {
+  if (!history || history.length === 0) {
+    return {
+      overallScore: 0,
+      overallBand6: 0,
+      readingScore: 0,
+      readingBand6: 0,
+      listeningScore: 0,
+      listeningBand6: 0,
+      speakingScore: 0,
+      speakingBand6: 0,
+      writingScore: 0,
+      writingBand6: 0,
+      cefrLevel: 'N/A (Need Data)',
+      cefrCode: 'N/A',
+      totalCompleted: 0,
+    };
+  }
+
+  const getSectionAvg = (sec: 'Reading' | 'Listening' | 'Speaking' | 'Writing') => {
     const records = history.filter((h) => h.section === sec);
-    if (records.length === 0) return fallback;
+    if (records.length === 0) return 0;
     const sum = records.reduce((acc, r) => acc + r.scaledScore30, 0);
     return Math.round(sum / records.length);
   };
 
-  const readingScore = getSectionAvg('Reading', 22);
-  const listeningScore = getSectionAvg('Listening', 22);
-  const speakingScore = getSectionAvg('Speaking', 21);
-  const writingScore = getSectionAvg('Writing', 22);
+  const readingScore = getSectionAvg('Reading');
+  const listeningScore = getSectionAvg('Listening');
+  const speakingScore = getSectionAvg('Speaking');
+  const writingScore = getSectionAvg('Writing');
 
   const readingBand6 = convertScaledToBand6(readingScore);
   const listeningBand6 = convertScaledToBand6(listeningScore);
   const speakingBand6 = convertScaledToBand6(speakingScore);
   const writingBand6 = convertScaledToBand6(writingScore);
 
-  // Overall band score is the average of the 4 sections, rounded to nearest 0.5
   const rawAvg = (readingBand6 + listeningBand6 + speakingBand6 + writingBand6) / 4;
   const overallBand6 = Math.round(rawAvg * 2) / 2;
-
   const overallScore = readingScore + listeningScore + speakingScore + writingScore;
-
   const cefr = getCefrFromBand6(overallBand6);
 
   return {
@@ -291,11 +329,9 @@ export function calculateToeflEstimate(history: PracticeRecord[]): {
   };
 }
 
-// ... existing code ...
 export function convertToScaledScore(score: number, maxScore: number): number {
   if (maxScore <= 0) return 0;
   const ratio = Math.min(1, Math.max(0, score / maxScore));
-  // Authentic TOEFL conversion curve
   if (ratio >= 0.95) return 30;
   if (ratio >= 0.9) return 28;
   if (ratio >= 0.8) return 25;
@@ -307,16 +343,16 @@ export function convertToScaledScore(score: number, maxScore: number): number {
 }
 
 export function getWeakAreas(history: PracticeRecord[]): { section: string, avgScore: number }[] {
-  if (history.length === 0) return [];
+  if (!history || history.length === 0) return [];
 
   const sections = ['Reading', 'Listening', 'Speaking', 'Writing'];
   const weakAreas: { section: string, avgScore: number }[] = [];
 
   for (const section of sections) {
     const records = history.filter((r) => r.section === section);
-    if (records.length >= 3) {
+    if (records.length >= 2) {
       const avg = records.reduce((acc, r) => acc + r.scaledScore30, 0) / records.length;
-      if (avg < 20) { // Below B1/B2 threshold
+      if (avg < 20) {
         weakAreas.push({ section, avgScore: Math.round(avg) });
       }
     }
