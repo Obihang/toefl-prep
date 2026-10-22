@@ -25,6 +25,8 @@ import {
   disconnectAllApiKeys,
   PROVIDERS,
   ApiProvider,
+  getScholarUsername,
+  setScholarUsername,
 } from '../../../utils/apiKey';
 import { detectProviderFromKey, KeyDetectResult } from '../../../utils/keyDetect';
 import { Accordion, AccordionSection } from './Accordion';
@@ -52,7 +54,9 @@ interface SettingsTabProps {
 export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, currentTaskType }) => {
   const { displayName, setDisplayName } = useAuth();
   const [nameInput, setNameInput] = useState('');
+  const [scholarUsernameInput, setScholarUsernameInput] = useState(() => getScholarUsername());
   const [provider, setProvider] = useState<ApiProvider>('auto');
+
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [detected, setDetected] = useState<KeyDetectResult | null>(null);
   const [isTestingKey, setIsTestingKey] = useState(false);
@@ -659,6 +663,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               }}
               className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Scholar Username (for Question Attribution)</label>
+            <input
+              type="text"
+              value={scholarUsernameInput}
+              onChange={(e) => setScholarUsernameInput(e.target.value)}
+              onBlur={() => {
+                if (scholarUsernameInput.trim()) setScholarUsername(scholarUsernameInput.trim());
+              }}
+              placeholder="e.g. @scholar_alex"
+              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden font-medium"
+            />
+            <p className="text-[11px] text-slate-400">Displayed on questions you generate and share with the community bank.</p>
           </div>
 
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2">

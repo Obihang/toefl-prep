@@ -1485,10 +1485,12 @@ export async function transcribeAudioBlob(
     throw new Error('Audio recording exceeds 10 MB limit. Please record a shorter answer.');
   }
 
-  const groqKey = (typeof localStorage !== 'undefined' ? (localStorage.getItem('toefl_key_groq') || getStoredApiKey('groq')) : '').trim();
+  const { getStoredTranscriberProvider, getStoredTranscriberKey } = await import('./apiKey');
+  const transcriberProvider = getStoredTranscriberProvider();
+  const transcriberKey = getStoredTranscriberKey(transcriberProvider);
 
-  // If user configured a Groq key, attempt fast cloud Whisper STT first
-  if (groqKey) {
+  // STRICT ISOLATION: NEVER read or use general gemini_api_key or evaluation keys for audio STT!
+  if (transcriberProvider === 'groq' && transcriberKey) {
     try {
       onProgress?.('Transcribing via Groq Whisper Cloud...');
       const base64 = await blobToBase64(blob);
@@ -1502,7 +1504,7 @@ export async function transcribeAudioBlob(
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'x-groq-key': groqKey,
+        'x-groq-key': transcriberKey,
       };
       if (idToken) {
         headers['Authorization'] = `Bearer ${idToken}`;
@@ -1535,7 +1537,35 @@ export async function transcribeAudioBlob(
         };
       }
     } catch (groqErr) {
-      console.warn('[transcribeAudioBlob] Groq STT failed or timed out, falling back to client-side Whisper:', groqErr);
+      console.warn('[transcribeAudioBlob] Groq STT failed or timed out, falling back to local Whisper worker:', groqErr);
+    }
+  } else if (transcriberProvider === 'gemini' && transcriberKey) {
+    try {
+      onProgress?.('Transcribing via Gemini Audio Transcriber API...');
+      const base64 = await blobToBase64(blob);
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-audio-key': transcriberKey,
+        },
+        body: JSON.stringify({
+          audioBase64: base64,
+          mimeType: blob.type || 'audio/webm',
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const rawTranscript = json.transcript || '';
+        const { transcript, words } = filterWhisperHallucinations(rawTranscript, []);
+        return {
+          transcript,
+          words,
+          durationMs: json.durationMs,
+        };
+      }
+    } catch (geminiAudioErr) {
+      console.warn('[transcribeAudioBlob] Gemini Audio STT failed, falling back to local Whisper worker:', geminiAudioErr);
     }
   }
 

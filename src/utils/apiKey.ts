@@ -377,3 +377,120 @@ export function getApiHeaders(): Record<string, string> {
 
   return headers;
 }
+
+export function getScholarUsername(): string {
+  if (typeof localStorage === 'undefined') return 'Scholar';
+  const saved = localStorage.getItem('scholar_username');
+  if (saved && saved.trim()) return saved.trim();
+  const authUser = auth?.currentUser;
+  if (authUser?.displayName) return authUser.displayName;
+  if (authUser?.email) {
+    const prefix = authUser.email.split('@')[0];
+    if (prefix) return prefix;
+  }
+  return 'Scholar';
+}
+
+export function setScholarUsername(name: string): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('scholar_username', name.trim());
+}
+
+export function getAvailableGenerationKeys(): Array<{ provider: string; key: string }> {
+  if (typeof localStorage === 'undefined') return [];
+  const providers: ApiProvider[] = ['gemini', 'groq', 'nvidia', 'openrouter', 'openai', 'deepseek', 'xai', 'anthropic', 'custom'];
+  const list: Array<{ provider: string; key: string }> = [];
+  for (const p of providers) {
+    const k = (localStorage.getItem(`toefl_key_${p}`) || '').trim();
+    if (k) list.push({ provider: p, key: k });
+  }
+  const oldGemini = (localStorage.getItem('toefl_gemini_api_key') || '').trim();
+  if (oldGemini && !list.some(x => x.key === oldGemini)) {
+    list.push({ provider: 'gemini', key: oldGemini });
+  }
+  return list;
+}
+
+export type TranscriberProvider = 'groq' | 'gemini' | 'local';
+
+export function getStoredTranscriberProvider(): TranscriberProvider {
+  if (typeof localStorage === 'undefined') return 'local';
+  const p = localStorage.getItem('transcriber_provider') as TranscriberProvider;
+  if (p === 'groq' || p === 'gemini' || p === 'local') return p;
+  return 'local';
+}
+
+export function setStoredTranscriberProvider(p: TranscriberProvider): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('transcriber_provider', p);
+}
+
+export function getStoredTranscriberKey(provider?: TranscriberProvider): string {
+  if (typeof localStorage === 'undefined') return '';
+  const p = provider || getStoredTranscriberProvider();
+  if (p === 'groq') return (localStorage.getItem('transcriber_groq_api_key') || '').trim();
+  if (p === 'gemini') return (localStorage.getItem('transcriber_gemini_api_key') || '').trim();
+  return '';
+}
+
+export function setStoredTranscriberKey(key: string, provider: 'groq' | 'gemini'): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(`transcriber_${provider}_api_key`, key.trim());
+}
+
+import { safeFetchJson } from './apiHelper';
+
+export async function safeGenerateTaskWithFailover(payload: {
+  taskType: string;
+  level: string;
+  topic: string;
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  const keys = getAvailableGenerationKeys();
+  if (keys.length === 0) {
+    try {
+      const json = await safeFetchJson('/api/generate-task', {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(payload),
+      });
+      return json;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Generation failed' };
+    }
+  }
+
+  for (let i = 0; i < keys.length; i++) {
+    const kp = keys[i];
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-api-provider': kp.provider,
+      'x-api-key': kp.key,
+    };
+    if (kp.provider === 'gemini') {
+      headers['x-gemini-api-key'] = kp.key;
+    }
+    try {
+      const json = await safeFetchJson('/api/generate-task', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (json.success && json.data && !json.data.isFallback) {
+        return json;
+      }
+    } catch (err: any) {
+      console.warn(`Generation with key [${kp.provider}] failed, trying next key...`, err);
+    }
+  }
+
+  try {
+    const json = await safeFetchJson('/api/generate-task', {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify(payload),
+    });
+    return json;
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'All generation keys failed' };
+  }
+}

@@ -14,6 +14,13 @@ import {
 } from '../../utils/localWhisperStt';
 import { createVoiceSession, VoiceSession } from '../../utils/audioSpeech';
 import {
+  getStoredTranscriberProvider,
+  setStoredTranscriberProvider,
+  getStoredTranscriberKey,
+  setStoredTranscriberKey,
+  TranscriberProvider,
+} from '../../utils/apiKey';
+import {
   Download,
   CheckCircle2,
   Trash2,
@@ -40,6 +47,11 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
   const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<ModelDownloadProgress | null>(null);
   const [persistedStorage, setPersistedStorage] = useState<boolean | null>(null);
+
+  const [transcriberProvider, setTranscriberProvider] = useState<TranscriberProvider>(getStoredTranscriberProvider());
+  const [groqKeyInput, setGroqKeyInput] = useState(getStoredTranscriberKey('groq'));
+  const [geminiKeyInput, setGeminiKeyInput] = useState(getStoredTranscriberKey('gemini'));
+
 
   // Quick 3-Second Test State
   const [isTestRecording, setIsTestRecording] = useState(false);
@@ -337,6 +349,66 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
               </div>
             );
           })()}
+        </div>
+      </div>
+
+      {/* Transcriber API Selector & Strict Isolation Settings */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h4 className="font-bold text-slate-900 text-xs">Dedicated Speech-to-Text (Transcriber) Routing</h4>
+            <p className="text-[11px] text-slate-500">
+              Strict Isolation Rule: Transcriber API keys are 100% isolated from Question Generation and Evaluator keys.
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg text-xs">
+            {(['groq', 'gemini', 'local'] as TranscriberProvider[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => {
+                  setTranscriberProvider(p);
+                  setStoredTranscriberProvider(p);
+                }}
+                className={`px-3 py-1 font-semibold rounded-md transition-colors cursor-pointer capitalize ${
+                  transcriberProvider === p
+                    ? 'bg-teal-700 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {p === 'local' ? 'Offline Local Worker' : `${p} Whisper`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-700">Groq Whisper API Key</label>
+            <input
+              type="password"
+              value={groqKeyInput}
+              onChange={(e) => {
+                setGroqKeyInput(e.target.value);
+                setStoredTranscriberKey(e.target.value, 'groq');
+              }}
+              placeholder="gsk_... (Dedicated for Groq STT)"
+              className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-700">Gemini Audio Transcriber API Key</label>
+            <input
+              type="password"
+              value={geminiKeyInput}
+              onChange={(e) => {
+                setGeminiKeyInput(e.target.value);
+                setStoredTranscriberKey(e.target.value, 'gemini');
+              }}
+              placeholder="AIzaSy... (Dedicated for Gemini Audio STT)"
+              className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
+            />
+          </div>
         </div>
       </div>
 

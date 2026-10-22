@@ -1,6 +1,6 @@
 import { db, auth } from '../firebase';
 import { getSectionForTaskType } from '../types/taskTypes';
-import { getAuthHeaders } from './apiKey';
+import { getAuthHeaders, getScholarUsername } from './apiKey';
 import { parseDialogueLine, DialogueVoiceManager } from './voices';
 import { stripSpeakerAndFormatting } from './audioSpeech';
 import {
@@ -86,6 +86,8 @@ export interface SharedQuestionRecord {
   contentHash: string;
   audioUrl?: string | null;
   audioClips?: Array<{ speaker: string; url: string }> | null;
+  source?: string;
+  generatedBy?: string;
   createdAt?: any;
   createdBy: string;
   useCount: number;
@@ -107,14 +109,23 @@ export async function saveQuestionToBank(params: {
   content: any;
   audioUrl?: string | null;
   audioClips?: Array<{ speaker: string; url: string }> | null;
+  source?: string;
+  generatedBy?: string;
 }): Promise<string | null> {
-  const { taskType, level, topic, content, audioUrl = null, audioClips = null } = params;
+  const { taskType, level, topic, content, audioUrl = null, audioClips = null, source = 'ai', generatedBy = getScholarUsername() } = params;
   const contentHash = await computeContentHash(taskType, content);
 
   const cleanAudioUrl = isValidBlobUrl(audioUrl) ? audioUrl : null;
   const cleanAudioClips = Array.isArray(audioClips)
     ? audioClips.filter((c) => isValidBlobUrl(c.url)).slice(0, 10)
     : null;
+
+  const enrichedContent = {
+    ...content,
+    source,
+    generatedBy: generatedBy || getScholarUsername(),
+    createdAt: content.createdAt || Date.now(),
+  };
 
   try {
     // 1. Check for existing duplicate by contentHash
@@ -136,10 +147,12 @@ export async function saveQuestionToBank(params: {
       taskType,
       level,
       topic,
-      content,
+      content: enrichedContent,
       contentHash,
       audioUrl: cleanAudioUrl,
       audioClips: cleanAudioClips && cleanAudioClips.length > 0 ? cleanAudioClips : null,
+      source,
+      generatedBy: enrichedContent.generatedBy,
       createdAt: serverTimestamp(),
       createdBy: auth?.currentUser?.uid || 'anonymous',
       useCount: 0,
@@ -152,6 +165,7 @@ export async function saveQuestionToBank(params: {
     return null;
   }
 }
+
 
 /**
  * Get the list of seen question IDs for the current user from userProgress/{uid}

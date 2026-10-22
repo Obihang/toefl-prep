@@ -21,7 +21,7 @@ const SECTIONS = [
   { id: 'reading', name: 'Reading Section', sectionKey: 'Reading' as const, time: 900, type: 'reading-passage' },
   { id: 'listening', name: 'Listening Section', sectionKey: 'Listening' as const, time: 900, type: 'listening-dialogue' },
   { id: 'speaking', name: 'Speaking Section', sectionKey: 'Speaking' as const, time: 300, type: 'speaking-interview' },
-  { id: 'writing', name: 'Writing Section (Academic Discussion)', sectionKey: 'Writing' as const, time: 600, type: 'academic-discussion' },
+  { id: 'writing', name: 'Writing Section', sectionKey: 'Writing' as const, time: 600, type: 'academic-discussion' },
 ];
 
 function pickRandomTasks() {

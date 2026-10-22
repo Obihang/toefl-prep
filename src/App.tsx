@@ -13,7 +13,7 @@ import {
   fetchRandomSharedQuestion,
   reportSharedQuestion,
 } from './utils/sharedQuestions';
-import { getApiHeaders, getStoredApiKey } from './utils/apiKey';
+import { getApiHeaders, getStoredApiKey, hasAnyStoredApiKey, getScholarUsername } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
 import { normalizeTaskData } from './utils/normalization';
 
@@ -46,6 +46,7 @@ import {
   getQuestionBankStats,
   getLoadedCuratedTasks,
   loadCuratedShard,
+  saveVerifiedQuestion,
 } from './utils/questionBankStorage';
 
 
@@ -540,10 +541,24 @@ export default function App() {
           ...json.data,
           level: lvl,
           topic: top,
-          id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          id: json.data.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           isPrefetched: true,
           createdAt: Date.now(),
+          source: 'ai',
+          generatedBy: json.data.generatedBy || getScholarUsername(),
         };
+
+        await saveVerifiedQuestion({
+          taskType: type,
+          level: lvl,
+          topic: top,
+          content: prefetchedItem,
+          audioUrl: prefetchedItem.audioUrl || null,
+          audioClips: prefetchedItem.audioClips || null,
+          source: 'ai',
+          generatedBy: prefetchedItem.generatedBy,
+        });
+
         setPrefetchedQueue((prev) => {
           const currentItems = prev[type] || [];
           // Ensure we don't exceed 1 question per task type

@@ -2,6 +2,7 @@ import { isHighQualityTask } from './questionValidator';
 import { normalizeTaskData } from './taskNormalizer';
 import { db, auth } from '../firebase';
 import { collection, doc, setDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
+import { getScholarUsername } from './apiKey';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
@@ -81,8 +82,10 @@ export async function saveVerifiedQuestion(params: {
   content: any;
   audioUrl?: string | null;
   audioClips?: any[] | null;
+  source?: 'ai' | 'curated';
+  generatedBy?: string;
 }): Promise<string | null> {
-  const { taskType, level, topic, content, audioUrl = null, audioClips = null } = params;
+  const { taskType, level, topic, content, audioUrl = null, audioClips = null, source = 'ai', generatedBy = getScholarUsername() } = params;
   
   if (!isHighQualityTask(content, taskType)) {
     console.warn(`Rejected low-quality question for taskType ${taskType} during save.`);
@@ -90,6 +93,12 @@ export async function saveVerifiedQuestion(params: {
   }
 
   const questionId = content.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const enrichedContent = {
+    ...content,
+    source,
+    generatedBy: generatedBy || getScholarUsername(),
+    createdAt: content.createdAt || Date.now(),
+  };
 
   // Save to IndexedDB
   try {
@@ -101,9 +110,11 @@ export async function saveVerifiedQuestion(params: {
       taskType,
       level,
       topic,
-      content,
+      content: enrichedContent,
       audioUrl,
       audioClips,
+      source,
+      generatedBy: enrichedContent.generatedBy,
       updatedAt: Date.now(),
     });
   } catch (err) {
@@ -118,9 +129,11 @@ export async function saveVerifiedQuestion(params: {
         taskType,
         level,
         topic,
-        content,
+        content: enrichedContent,
         audioUrl,
         audioClips,
+        source,
+        generatedBy: enrichedContent.generatedBy,
         createdAt: serverTimestamp(),
         createdBy: auth.currentUser.uid,
         useCount: 0,
@@ -245,18 +258,20 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
           qSnap.forEach((docSnap) => {
             const rawDoc = docSnap.data();
             const normalized = normalizeTaskData(rawDoc);
-            if (normalized && isHighQualityTask(normalized.content, normalized.taskType)) {
+            const contentToCheck = normalized?.content || rawDoc;
+            const targetTaskType = normalized?.taskType || rawDoc.taskType || rawDoc.type || 'academic-discussion';
+            if (normalized && isHighQualityTask(contentToCheck, targetTaskType)) {
               const qId = docSnap.id;
               store.put({
                 id: qId,
-                taskType: normalized.taskType,
-                level: normalized.level,
-                topic: normalized.topic,
-                content: normalized.content,
+                taskType: targetTaskType,
+                level: normalized.level || 'intermediate',
+                topic: normalized.topic || 'general',
+                content: contentToCheck,
                 isCurated: false,
                 updatedAt: Date.now(),
               });
-              counts[normalized.taskType] = (counts[normalized.taskType] || 0) + 1;
+              counts[targetTaskType] = (counts[targetTaskType] || 0) + 1;
               totalQuestions++;
             }
           });
