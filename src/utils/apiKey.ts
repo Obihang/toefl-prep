@@ -291,7 +291,9 @@ export function disconnectAllApiKeys(): void {
   localStorage.removeItem('toefl_purpose_models');
   localStorage.removeItem('toefl_tts_blocked_until');
   resetTtsQuotaBlock();
-  window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
+  }
 }
 
 export function getStoredVoiceKey(): string {
