@@ -92,6 +92,10 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
           </div>
         )}
       </div>
+
+      <div className="pt-4 border-t border-slate-100 text-center">
+        <p className="text-[11px] text-slate-400">Definitions: WordNet 3.1, Princeton University</p>
+      </div>
     </div>
   );
 };

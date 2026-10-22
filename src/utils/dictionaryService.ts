@@ -1,4 +1,5 @@
-import { getOfflineDefinition, getLookupCandidates } from './offlineDictionary';
+import { ACADEMIC_GLOSSARY } from './academicGlossary';
+import { lookupOffline, getCachedOnlineDefinition, cacheOnlineDefinition, getLookupCandidates } from './offlineDictionary';
 
 export function lemmatizeWord(word: string): string[] {
   return getLookupCandidates(word);
@@ -43,110 +44,128 @@ export function matchesPos(itemPos: string, detectedPos: 'v' | 'n' | 'adj' | 'ad
   return false;
 }
 
-/**
- * Primary Dictionary Lookup using api.dictionaryapi.dev with strict stem fallback,
- * falling back to offline IndexedDB/Academic Glossary. No junk APIs, no examples.
- */
 export async function getDefinition(word: string, context: string = '') {
   const cleanWord = word.trim().replace(/^[^a-zA-Z]+|[^a-zA-Z]+$/g, '').toLowerCase();
   if (!cleanWord) return null;
 
-  const stems = Array.from(new Set([
-    cleanWord,
-    cleanWord.replace(/s$/, ''),
-    cleanWord.replace(/es$/, ''),
-    cleanWord.replace(/ies$/, 'y'),
-    cleanWord.replace(/ly$/, ''),
-    cleanWord.replace(/ing$/, ''),
-    cleanWord.replace(/ed$/, ''),
-    cleanWord.replace(/d$/, ''),
-  ])).filter(s => s.length > 1);
+  const contextPos = detectPosInContext(word, context);
 
-  // 1. Try api.dictionaryapi.dev for each stem
-  for (const stem of stems) {
-    try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(stem)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const entry = data[0];
-          const phonetic = entry.phonetic || (entry.phonetics && entry.phonetics.find((p: any) => p.text)?.text) || '';
-          const meanings: { partOfSpeech: string; definition: string }[] = [];
+  // 1. ACADEMIC_GLOSSARY
+  if (ACADEMIC_GLOSSARY[cleanWord]) {
+    const item = ACADEMIC_GLOSSARY[cleanWord];
+    return {
+      word: cleanWord,
+      phonetic: '',
+      meanings: [{ partOfSpeech: item.partOfSpeech || 'noun', definition: item.definition, example: '', synonyms: item.synonyms || [] }],
+      synonyms: item.synonyms || [],
+      examples: [],
+      source: 'academic_glossary',
+      lookupWord: cleanWord,
+      contextPos,
+    };
+  }
 
-          if (Array.isArray(entry.meanings)) {
-            for (const m of entry.meanings) {
-              const pos = m.partOfSpeech || 'noun';
-              if (Array.isArray(m.definitions)) {
-                for (const d of m.definitions) {
-                  if (d.definition) {
-                    let shortDef = d.definition.split(/[.;]/)[0].trim();
-                    if (shortDef) {
-                      shortDef = shortDef.charAt(0).toUpperCase() + shortDef.slice(1);
-                      if (!shortDef.endsWith('.')) shortDef += '.';
-                    }
-                    if (shortDef && !meanings.some(x => x.definition.toLowerCase() === shortDef.toLowerCase())) {
-                      meanings.push({
-                        partOfSpeech: pos,
-                        definition: shortDef,
-                      });
-                    }
+  // 2. Offline WordNet
+  try {
+    const wordNetRes = await lookupOffline(cleanWord, contextPos);
+    if (wordNetRes && wordNetRes.meanings && wordNetRes.meanings.length > 0) {
+      return wordNetRes;
+    }
+  } catch {
+    // proceed
+  }
+
+  // 3. Cached online result in IndexedDB
+  try {
+    const cached = await getCachedOnlineDefinition(cleanWord);
+    if (cached && cached.meanings && cached.meanings.length > 0) {
+      return cached;
+    }
+  } catch {
+    // proceed
+  }
+
+  // 4. Server /api/dictionary
+  try {
+    const res = await fetch(`/api/dictionary?word=${encodeURIComponent(cleanWord)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.meanings && data.meanings.length > 0) {
+        const formatted = {
+          word: cleanWord,
+          phonetic: data.phonetic || '',
+          meanings: data.meanings.map((m: any) => ({
+            partOfSpeech: m.partOfSpeech || 'noun',
+            definition: m.definition || '',
+            example: m.example || '',
+            synonyms: m.synonyms || [],
+          })),
+          synonyms: data.synonyms || [],
+          examples: data.examples || [],
+          source: data.source || 'server',
+          lookupWord: cleanWord,
+          contextPos,
+        };
+        await cacheOnlineDefinition(cleanWord, formatted);
+        return formatted;
+      }
+    }
+  } catch {
+    // proceed
+  }
+
+  // 5. Direct dictionaryapi call
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const entry = data[0];
+        const phonetic = entry.phonetic || (entry.phonetics && entry.phonetics.find((p: any) => p.text)?.text) || '';
+        const meanings: Array<{ partOfSpeech: string; definition: string; example: string; synonyms: string[] }> = [];
+
+        if (Array.isArray(entry.meanings)) {
+          for (const m of entry.meanings) {
+            const pos = m.partOfSpeech || 'noun';
+            if (Array.isArray(m.definitions)) {
+              for (const d of m.definitions) {
+                if (d.definition) {
+                  let shortDef = d.definition.split(/[.;]/)[0].trim();
+                  if (shortDef) {
+                    shortDef = shortDef.charAt(0).toUpperCase() + shortDef.slice(1);
+                    if (!shortDef.endsWith('.')) shortDef += '.';
                   }
+                  meanings.push({
+                    partOfSpeech: pos,
+                    definition: shortDef,
+                    example: typeof d.example === 'string' ? d.example.trim() : '',
+                    synonyms: [],
+                  });
                 }
               }
             }
           }
-
-          if (meanings.length > 0) {
-            return {
-              word: entry.word || stem,
-              phonetic: phonetic.replace(/\//g, ''),
-              meanings: meanings.slice(0, 3), // Max 3 meanings
-              synonyms: [],
-              examples: [],
-              source: 'dictionaryapi.dev',
-              lookupWord: cleanWord,
-            };
-          }
         }
-      }
-    } catch {
-      // ignore network errors and proceed to offline fallback
-    }
-  }
 
-  // 2. Fall back to offline dictionary / ACADEMIC_GLOSSARY / IndexedDB
-  for (const stem of stems) {
-    try {
-      const offlineRes = await getOfflineDefinition(stem);
-      if (offlineRes && offlineRes.meanings && offlineRes.meanings.length > 0) {
-        const cleanMeanings = offlineRes.meanings.map(m => {
-          let shortDef = m.definition.split(/[.;]/)[0].trim();
-          if (shortDef) {
-            shortDef = shortDef.charAt(0).toUpperCase() + shortDef.slice(1);
-            if (!shortDef.endsWith('.')) shortDef += '.';
-          }
-          return {
-            partOfSpeech: m.partOfSpeech || 'noun',
-            definition: shortDef || m.definition,
-          };
-        }).filter(m => m.definition);
-
-        if (cleanMeanings.length > 0) {
-          return {
-            word: offlineRes.word || stem,
-            phonetic: offlineRes.phonetic || '',
-            meanings: cleanMeanings.slice(0, 3), // Max 3 meanings
-            synonyms: offlineRes.synonyms || [],
+        if (meanings.length > 0) {
+          const formatted = {
+            word: entry.word || cleanWord,
+            phonetic: phonetic.replace(/\//g, ''),
+            meanings: meanings.slice(0, 3),
+            synonyms: [],
             examples: [],
-            source: offlineRes.source,
+            source: 'dictionaryapi.dev',
             lookupWord: cleanWord,
+            contextPos,
           };
+          await cacheOnlineDefinition(cleanWord, formatted);
+          return formatted;
         }
       }
-    } catch {
-      // ignore offline error
     }
+  } catch {
+    // ignore
   }
 
-  return null; // Not found anywhere
+  return null;
 }

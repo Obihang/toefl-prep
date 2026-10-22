@@ -510,9 +510,45 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
     return score;
   };
 
-  // Cascade logic: 1. FreeDictionaryAPI (primary), 2. Datamuse (strict exact match only)
+  // Cascade logic: 1. Wikimedia Wiktionary REST, 2. FreeDictionaryAPI, 3. Datamuse
   const sources = [
-    async () => { // 1. DictionaryAPI (primary - clean definitions, real examples, audio)
+    async () => { // 1. Wikimedia Wiktionary REST API
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4500);
+      try {
+        const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(w)}`, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'TOEFLPrepStudio/1.0 (educational app)' }
+        });
+        clearTimeout(timeout);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const enEntries = data.en || [];
+        const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
+        for (const entry of enEntries) {
+          const pos = String(entry.partOfSpeech || 'noun').toLowerCase();
+          for (const defObj of (entry.definitions || [])) {
+            const defHtml = defObj.definition || '';
+            const cleanDef = String(defHtml).replace(/<[^>]*>?/gm, '').replace(/^\([^)]+\)\s*/, '').trim();
+            if (!cleanDef || /(obsolete|archaic|dated|rare|misspelling of|alternative form of)/i.test(cleanDef)) continue;
+            meanings.push({
+              partOfSpeech: pos,
+              definition: cleanDef,
+              example: '',
+            });
+          }
+        }
+        if (meanings.length === 0) return null;
+        return {
+          meanings: meanings.slice(0, 3),
+          source: 'wiktionary_rest',
+        };
+      } catch {
+        clearTimeout(timeout);
+        return null;
+      }
+    },
+    async () => { // 2. DictionaryAPI (clean definitions, real examples, audio)
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4500);
       try {

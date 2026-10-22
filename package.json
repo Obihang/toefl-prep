@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
+    "prebuild": "node scripts/build-dictionary.mjs",
     "build": "vite build",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:sim": "npx tsx scripts/tts-validation-sim.ts && npx tsx scripts/error-classification-sim.ts && npx tsx scripts/audiourl-rules-sim.ts"
+    "test:sim": "npx tsx scripts/tts-validation-sim.ts && npx tsx scripts/error-classification-sim.ts && npx tsx scripts/audiourl-rules-sim.ts",
+    "test:dict": "npx tsx scripts/dictionary-sim.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -42,6 +44,7 @@
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wordnet-db": "^3.1.14"
   }
 }

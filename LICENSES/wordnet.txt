@@ -1,0 +1,8 @@
+WordNet Release 3.1
+Copyright (c) 2006 by Princeton University. All rights reserved.
+
+This software and database is being provided to the user under the following license. By obtaining, using and/or copying this software and database, the user agrees that it has read, understood, and will comply with the following terms and conditions:
+
+Permission to use, copy, modify and distribute this database and its documentation for any purpose and without fee or royalty is hereby granted, provided that the above copyright notice and this paragraph appear in all copies.
+
+THE DATABASE IS PROVIDED "AS IS" AND PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED. BY WAY OF EXAMPLE, BUT NOT LIMITATION, PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES OF MERCHANT-ABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE DATABASE OR DOCUMENTATION WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS.

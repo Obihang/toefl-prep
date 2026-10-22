@@ -11,3 +11,4 @@ bun.lockb
 *.key
 serviceAccountKey.json
 *-credentials.json
+public/dict/

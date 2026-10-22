@@ -102,3 +102,8 @@ Run verification tests and simulations:
 npm run test:sim
 npm run lint
 ```
+
+---
+
+## 📚 Attribution & Licensing
+- **Definitions**: WordNet 3.1, Princeton University (see `LICENSES/wordnet.txt`).
