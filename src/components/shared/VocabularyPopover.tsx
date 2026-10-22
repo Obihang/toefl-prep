@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Volume2, BookmarkPlus, X, Check, Loader2, Play, Sparkles } from 'lucide-react';
+import { Volume2, BookmarkPlus, X, Check, Loader2, Sparkles } from 'lucide-react';
 import { playSpeech } from '../../utils/audioSpeech';
 import { saveVocabularyWord } from '../../utils/vocabulary';
 import { getDefinition } from '../../utils/dictionaryService';
-import { getApiHeaders } from '../../utils/apiKey';
+import { getApiHeaders, getAuthHeaders } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 
 interface Props {
@@ -22,6 +22,7 @@ export const VocabularyPopover: React.FC<Props> = ({
   onClose,
 }) => {
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [entry, setEntry] = useState<any | null>(null);
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -50,12 +51,14 @@ export const VocabularyPopover: React.FC<Props> = ({
   async function fetchData() {
     setLoading(true);
     setEntry(null);
+    setSavingStatus('idle');
     const result = await getDefinition(selectedText, contextSentence);
     if (result) {
       if (result.source === 'offline') {
         setEntry({
-          meanings: [{ partOfSpeech: result.partOfSpeech || 'noun', definition: result.definition || 'Definition unavailable', example: '' }],
-          phonetic: ''
+          meanings: [{ partOfSpeech: result.partOfSpeech || 'adjective', definition: result.definition || 'Definition unavailable', example: '' }],
+          phonetic: '',
+          synonyms: result.synonyms || [],
         });
       } else {
         setEntry(result);
@@ -64,17 +67,18 @@ export const VocabularyPopover: React.FC<Props> = ({
     setLoading(false);
   }
 
-  const handleSave = async () => {
-    if (savingStatus === 'saved') return;
+  const handleSave = async (targetEntry?: any) => {
+    const entryToSave = targetEntry || entry;
+    if (!entryToSave) return;
     setSavingStatus('saving');
     try {
-      const primary = entry?.meanings?.[0];
+      const primary = entryToSave?.meanings?.[0];
       await saveVocabularyWord(
-        selectedText.trim(),
+        (entryToSave.word || selectedText).trim(),
         primary?.definition || 'Manual entry',
-        entry?.phonetic || '',
+        entryToSave?.phonetic || '',
         primary?.partOfSpeech || 'noun',
-        [],
+        entryToSave?.synonyms || [],
         contextSentence,
         taskType
       );
@@ -84,91 +88,182 @@ export const VocabularyPopover: React.FC<Props> = ({
     }
   };
 
+  const handleAiDefine = async () => {
+    if (aiLoading) return;
+    setAiLoading(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const headers = { ...getApiHeaders(), ...authHeaders };
+      const json = await safeFetchJson('/api/generate-task', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          taskType: 'vocabulary_explanation',
+          promptData: {
+            word: selectedText.trim(),
+            context: contextSentence.trim(),
+          },
+        }),
+      });
+
+      if (json?.success && json?.data) {
+        setEntry(json.data);
+        await handleSave(json.data);
+      }
+    } catch (err) {
+      console.warn('AI Define request failed:', err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const primaryDef = entry?.meanings?.[0]?.definition?.trim().toLowerCase();
+  const otherMeanings = (entry?.meanings || [])
+    .slice(1)
+    .filter((m: any, idx: number, arr: any[]) => {
+      const def = m.definition?.trim().toLowerCase();
+      if (!def || def === primaryDef) return false;
+      return arr.findIndex((x: any) => x.definition?.trim().toLowerCase() === def) === idx;
+    })
+    .slice(0, 2);
+
+  const wordLabel = (entry?.word || selectedText).trim();
+  const simpleExample =
+    entry?.meanings?.find((m: any) => typeof m.example === 'string' && m.example.trim().length > 0)?.example ||
+    (Array.isArray(entry?.examples) && entry.examples.find((ex: string) => typeof ex === 'string' && ex.trim().length > 0)) ||
+    `A simple example using the word "${wordLabel}".`;
+
   return (
     <div
       ref={popoverRef}
       className="fixed z-50 w-96 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 text-xs space-y-3 animate-in fade-in zoom-in-95 duration-150"
       style={{
-        top: Math.min(window.innerHeight - 400, Math.max(20, position.y - 10)),
+        top: Math.min(window.innerHeight - 440, Math.max(20, position.y - 10)),
         left: Math.min(window.innerWidth - 420, Math.max(20, position.x - 160)),
       }}
     >
       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
         <div className="flex items-center gap-2">
-          <span className="font-bold text-slate-900 text-sm capitalize">{selectedText}</span>
+          <span className="font-bold text-slate-900 text-sm capitalize">{entry?.word || selectedText}</span>
           {entry?.phonetic && <span className="text-slate-400 font-mono">/{entry.phonetic.replace(/\//g, '')}/</span>}
+          <button
+            onClick={() => playSpeech(entry?.word || selectedText)}
+            title="Listen to pronunciation"
+            className="text-slate-400 hover:text-teal-600 transition-colors p-0.5 rounded"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+          </button>
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X className="w-4 h-4" /></button>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-6 gap-2 text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Looking up...</div>
+        <div className="flex items-center justify-center py-6 gap-2 text-slate-500">
+          <Loader2 className="w-4 h-4 animate-spin" /> Looking up...
+        </div>
       ) : entry ? (
-        <div className="space-y-4 max-h-[300px] overflow-y-auto">
+        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-0.5">
           {/* Context Meaning */}
-          {entry.meanings.length > 0 && (
+          {entry.meanings?.length > 0 && (
             <div className="bg-teal-50 p-3 rounded-xl border border-teal-100">
-              <p className="font-bold text-teal-900 mb-1">✓ Used in this sentence as: {entry.meanings[0].partOfSpeech.toUpperCase()}</p>
+              <p className="font-bold text-teal-900 mb-1">
+                ✓ Used in this sentence as: {entry.meanings[0].partOfSpeech?.toUpperCase() || 'WORD'}
+              </p>
               <p className="text-teal-950 font-medium">{entry.meanings[0].definition}</p>
-              {(entry.meanings[0].example) ? (
-                 <p className="text-teal-800 italic mt-2">"{entry.meanings[0].example}"</p>
-              ) : (
-                <p className="text-teal-800 italic mt-2">"{selectedText.charAt(0).toUpperCase() + selectedText.slice(1)} is often used in this context in academic writing."</p>
+
+              {/* Synonyms if available */}
+              {entry.synonyms && entry.synonyms.length > 0 && (
+                <p className="text-teal-900 text-[11px] mt-2 font-medium">
+                  <span className="font-semibold text-teal-950">Synonyms:</span> {entry.synonyms.slice(0, 4).join(', ')}
+                </p>
               )}
             </div>
           )}
           
-          {/* Other Meanings */}
-          {entry.meanings.length > 1 && (
-            <div className="space-y-2">
-                <p className="font-bold text-slate-900">Other Meanings:</p>
-                {entry.meanings.slice(1, 3).map((m: any, i: number) => (
-                    <div key={i} className="text-slate-600 border-l-2 border-slate-200 pl-2">
-                        <span className="font-semibold text-slate-800 capitalize">{m.partOfSpeech}:</span> {m.definition}
-                    </div>
-                ))}
+          {/* Other Meanings (max 2 distinct clean items, no duplicate of top box) */}
+          {otherMeanings.length > 0 && (
+            <div className="space-y-1.5 pt-0.5">
+              <p className="font-bold text-slate-900">Other Meanings:</p>
+              {otherMeanings.map((m: any, i: number) => (
+                <div key={i} className="text-slate-600 border-l-2 border-slate-300 pl-2.5 py-0.5">
+                  <span className="font-semibold text-slate-800 capitalize">{m.partOfSpeech}: </span>
+                  <span>{m.definition}</span>
+                </div>
+              ))}
             </div>
           )}
 
+          {/* Simple Example block replacing the heavy passage block */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
+            <p className="italic text-slate-800 text-xs leading-relaxed">
+              "{simpleExample}"
+            </p>
+          </div>
+
           <div className="pt-2 flex items-center gap-2">
             <button
-              onClick={handleSave}
-              disabled={savingStatus === 'saved'}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 font-semibold rounded-lg ${savingStatus === 'saved' ? 'bg-emerald-50 text-emerald-700' : 'bg-teal-700 text-white'}`}
+              onClick={() => handleSave()}
+              disabled={savingStatus === 'saved' || savingStatus === 'saving'}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 font-semibold rounded-lg transition-colors ${
+                savingStatus === 'saved'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-teal-700 text-white hover:bg-teal-800'
+              }`}
             >
-              {savingStatus === 'saved' ? <><Check className="w-3.5 h-3.5" /> Saved</> : <><BookmarkPlus className="w-3.5 h-3.5" /> Save</>}
+              {savingStatus === 'saved' ? (
+                <><Check className="w-3.5 h-3.5" /> Saved</>
+              ) : savingStatus === 'saving' ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+              ) : (
+                <><BookmarkPlus className="w-3.5 h-3.5" /> Save</>
+              )}
             </button>
             <button
-              onClick={async () => {
-                setSavingStatus('saving');
-                const json = await safeFetchJson('/api/generate-task', {
-                    method: 'POST',
-                    headers: getApiHeaders(),
-                    body: JSON.stringify({ taskType: 'vocabulary_explanation', promptData: { word: selectedText, context: contextSentence }, studentResponse: 'Provide definition, example sentences, synonyms, and other meanings in structured JSON' })
-                });
-                if(json.success) {
-                    setEntry(json.data);
-                    handleSave();
-                } else {
-                    setSavingStatus('idle');
-                }
-              }}
-              disabled={savingStatus === 'saving' || savingStatus === 'saved'}
-              className="flex items-center justify-center gap-1.5 py-2 px-3 font-semibold rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100"
+              onClick={handleAiDefine}
+              disabled={aiLoading || savingStatus === 'saving'}
+              className="flex items-center justify-center gap-1.5 py-2 px-3 font-semibold rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100 transition-colors disabled:opacity-50"
             >
-              <Sparkles className="w-3.5 h-3.5" /> AI Define
+              {aiLoading ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Defining...</>
+              ) : (
+                <><Sparkles className="w-3.5 h-3.5 text-teal-600" /> AI Define</>
+              )}
             </button>
           </div>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
+            <p className="italic text-slate-800 text-xs leading-relaxed">
+              "A simple example using the word \"{selectedText.trim()}\"."
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <p className="text-slate-600">Word not found. Add definition manually:</p>
             <textarea
-                className="w-full text-xs p-2 border border-slate-300 rounded-lg"
-                placeholder="Enter definition..."
-                onChange={(e) => setEntry({ meanings: [{ definition: e.target.value, partOfSpeech: 'noun', example: '' }] })}
+              className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
+              placeholder="Enter definition..."
+              onChange={(e) => setEntry({ meanings: [{ definition: e.target.value, partOfSpeech: 'noun', example: '' }] })}
             />
-            <button onClick={handleSave} className="w-full py-2 bg-teal-700 text-white rounded-lg text-xs font-semibold">Save Word</button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleSave()}
+                className="flex-1 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold"
+              >
+                Save Word
+              </button>
+              <button
+                onClick={handleAiDefine}
+                disabled={aiLoading}
+                className="py-2 px-3 font-semibold rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100 text-xs flex items-center gap-1.5"
+              >
+                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-teal-600" />} AI Define
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

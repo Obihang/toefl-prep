@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
+import { ACADEMIC_GLOSSARY } from '../utils/academicGlossary.ts';
 import { generateWithFallback } from './geminiUtils.ts';
 import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors.ts';
 import { inferGender } from '../utils/voices.ts';
@@ -138,6 +139,17 @@ const Schemas = {
     s1: z.object({ name: z.string(), text: z.string() }),
     s2: z.object({ name: z.string(), text: z.string() }),
     question: z.string(),
+  }),
+  vocabularyExplanation: z.object({
+    word: z.string(),
+    phonetic: z.string().optional().default(''),
+    meanings: z.array(z.object({
+      partOfSpeech: z.string(),
+      definition: z.string(),
+      example: z.string().optional().default(''),
+    })),
+    examples: z.array(z.string()).optional().default([]),
+    synonyms: z.array(z.string()).optional().default([]),
   }),
 };
 
@@ -457,6 +469,41 @@ function normalizeWriteEmail(data: any) {
   return { title, situation, recipient, goals, suggestedWordCount };
 }
 
+function normalizeVocabularyExplanation(data: any): any {
+  const word = String(data.word || '').trim();
+  const phonetic = String(data.phonetic || '').trim();
+  const rawMeanings = Array.isArray(data.meanings) ? data.meanings : [];
+  const meanings = rawMeanings.map((m: any) => ({
+    partOfSpeech: String(m.partOfSpeech || 'noun').toLowerCase().trim(),
+    definition: String(m.definition || '').trim(),
+    example: String(m.example || '').trim(),
+  })).filter((m: any) => m.definition.length > 0);
+
+  if (meanings.length === 0 && data.definition) {
+    meanings.push({
+      partOfSpeech: String(data.partOfSpeech || 'noun').toLowerCase().trim(),
+      definition: String(data.definition).trim(),
+      example: String(data.example || '').trim(),
+    });
+  }
+
+  const examples = Array.isArray(data.examples)
+    ? data.examples.map((e: any) => String(e).trim()).filter(Boolean)
+    : (meanings[0]?.example ? [meanings[0].example] : []);
+
+  const synonyms = Array.isArray(data.synonyms)
+    ? data.synonyms.map((s: any) => String(s).trim()).filter(Boolean)
+    : [];
+
+  return {
+    word: word || 'word',
+    phonetic,
+    meanings: meanings.length > 0 ? meanings : [{ partOfSpeech: 'noun', definition: 'Definition unavailable', example: '' }],
+    examples,
+    synonyms,
+  };
+}
+
 export function normalizeTask(taskType: string, data: any): any {
   if (!data || typeof data !== 'object') {
     throw new Error('Parsed data is not an object');
@@ -479,6 +526,9 @@ export function normalizeTask(taskType: string, data: any): any {
       return normalizeWriteEmail(data);
     case 'academic-discussion':
       return normalizeAcademicDiscussion(data);
+    case 'vocabulary_explanation':
+    case 'vocabulary-explanation':
+      return normalizeVocabularyExplanation(data);
     default:
       throw new Error(`Unknown task type: ${taskType}`);
   }
@@ -569,7 +619,7 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
   return { success: true, message: `Connected to Gemini (${modelUsed})`, model: modelUsed };
 }
 
-export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions) {
+export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions, promptData?: any) {
   const opts = typeof options === 'string' ? { apiKey: options } : options || {};
   let provider = opts.provider || 'gemini';
   const customApiKey = (opts.apiKey || '').trim();
@@ -593,6 +643,8 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     'build-sentence': 'buildSentence',
     'write-email': 'writeEmail',
     'academic-discussion': 'academicDiscussion',
+    'vocabulary_explanation': 'vocabularyExplanation',
+    'vocabulary-explanation': 'vocabularyExplanation',
   };
   const curatedMap: Record<string, string> = {
     'complete-words': 'CURATED_COMPLETE_WORDS',
@@ -633,6 +685,36 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
       case 'write-email':
         return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
+      case 'vocabulary_explanation':
+      case 'vocabulary-explanation': {
+        const targetWord = promptData?.word || top || 'word';
+        const sentenceContext = promptData?.context || '';
+        return `You are an expert English lexicographer and official TOEFL vocabulary instructor.
+Provide the precise modern academic definition and grammatical explanation for the word "${targetWord}" in the context of this sentence: "${sentenceContext}".
+Requirements:
+1. Identify the exact part of speech used in the context sentence (e.g. "adjective", "verb", "noun", "adverb"). Note: If the word modifies a noun (e.g. "academic topic"), it is an "adjective".
+2. Provide a modern, TOEFL-level definition explaining how the word is used in this specific context sentence. NEVER return archaic, historical, or ancient definitions (such as references to Plato, Platonists, sects, or obsolete meanings).
+3. Provide 2 authentic, high-quality modern example sentences demonstrating this exact usage.
+4. If the word has other common modern meanings, include them in the meanings array.
+5. Provide 2-4 academic synonyms.
+Return valid JSON matching this schema:
+{
+  "word": "${targetWord}",
+  "phonetic": "/.../",
+  "meanings": [
+    {
+      "partOfSpeech": "adjective",
+      "definition": "Relating to education, study, or scholarship at a college or university",
+      "example": "She excelled in her academic pursuits and was awarded a scholarship."
+    }
+  ],
+  "examples": [
+    "The university maintains rigorous academic standards.",
+    "They discussed several academic topics during the seminar."
+  ],
+  "synonyms": ["scholarly", "educational", "intellectual", "pedagogical"]
+}`;
+      }
       case 'academic-discussion':
       default:
         return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
@@ -665,6 +747,42 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
         console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
       } else {
         console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
+      }
+      if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
+        const targetWord = promptData?.word || topic || 'word';
+        const cleanW = targetWord.toLowerCase().trim();
+        const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
+        if (glossaryEntry) {
+          return {
+            word: targetWord,
+            phonetic: '',
+            meanings: [{
+              partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
+              definition: glossaryEntry.definition,
+              example: promptData?.context || '',
+            }],
+            examples: promptData?.context ? [promptData.context] : [],
+            synonyms: glossaryEntry.synonyms || [],
+            isFallback: false,
+            modelUsed: 'Academic Glossary',
+          };
+        }
+        const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
+        const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
+        const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
+        return {
+          word: targetWord,
+          phonetic: '',
+          meanings: [{
+            partOfSpeech: pos,
+            definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
+            example: promptData?.context || '',
+          }],
+          examples: promptData?.context ? [promptData.context] : [],
+          synonyms: [],
+          isFallback: true,
+          modelUsed: `Local fallback (${provider})`,
+        };
       }
       const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
       const curatedTasks = CURATED[curatedKey] as any[];
@@ -727,6 +845,42 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
     } else {
       console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
+    }
+    if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
+      const targetWord = promptData?.word || topic || 'word';
+      const cleanW = targetWord.toLowerCase().trim();
+      const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
+      if (glossaryEntry) {
+        return {
+          word: targetWord,
+          phonetic: '',
+          meanings: [{
+            partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
+            definition: glossaryEntry.definition,
+            example: promptData?.context || '',
+          }],
+          examples: promptData?.context ? [promptData.context] : [],
+          synonyms: glossaryEntry.synonyms || [],
+          isFallback: false,
+          modelUsed: 'Academic Glossary',
+        };
+      }
+      const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
+      const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
+      const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
+      return {
+        word: targetWord,
+        phonetic: '',
+        meanings: [{
+          partOfSpeech: pos,
+          definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
+          example: promptData?.context || '',
+        }],
+        examples: promptData?.context ? [promptData.context] : [],
+        synonyms: [],
+        isFallback: true,
+        modelUsed: 'Local fallback',
+      };
     }
     const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
     const curatedTasks = CURATED[curatedKey] as any[];

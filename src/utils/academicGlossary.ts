@@ -1,4 +1,7 @@
 export const ACADEMIC_GLOSSARY: Record<string, { definition: string, partOfSpeech: string, synonyms?: string[] }> = {
+  academic: { definition: "relating to education and scholarship, especially at a college or university", partOfSpeech: "adjective", synonyms: ["scholarly", "educational", "intellectual", "pedagogical"] },
+  urban: { definition: "relating to, characteristic of, or located in a city or town", partOfSpeech: "adjective", synonyms: ["city", "municipal", "metropolitan", "civic"] },
+  rural: { definition: "relating to, characteristic of, or located in the countryside rather than the town", partOfSpeech: "adjective", synonyms: ["countryside", "rustic", "agricultural"] },
   beneficial: { definition: "resulting in good; favorable or advantageous", partOfSpeech: "adjective", synonyms: ["advantageous", "helpful", "favorable"] },
   municipalities: { definition: "a city or town that has corporate status and local government", partOfSpeech: "noun", synonyms: ["city", "town", "borough"] },
   rezoning: { definition: "assign land or property to a different zone", partOfSpeech: "verb", synonyms: ["redesignate", "reclassify"] },
