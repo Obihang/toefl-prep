@@ -380,7 +380,7 @@ export function getApiHeaders(): Record<string, string> {
 
 export function getScholarUsername(): string {
   if (typeof localStorage === 'undefined') return 'Scholar';
-  const saved = localStorage.getItem('scholar_username');
+  const saved = localStorage.getItem('toefl_display_name');
   if (saved && saved.trim()) return saved.trim();
   const authUser = auth?.currentUser;
   if (authUser?.displayName) return authUser.displayName;
@@ -393,7 +393,7 @@ export function getScholarUsername(): string {
 
 export function setScholarUsername(name: string): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem('scholar_username', name.trim());
+  localStorage.setItem('toefl_display_name', name.trim());
 }
 
 export function getAvailableGenerationKeys(): Array<{ provider: string; key: string }> {
