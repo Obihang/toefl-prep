@@ -104,7 +104,11 @@ export function getLookupCandidates(word: string): string[] {
   if (!w) return [];
   const list = [w];
 
-  if (w.endsWith('ing') && w.length > 4) {
+  if (w.endsWith('ly') && w.length > 4) {
+    const stem = w.slice(0, -2);
+    list.push(stem); // aggressively -> aggressive
+    if (stem.endsWith('i')) list.push(stem.slice(0, -1) + 'y'); // happily -> happy
+  } else if (w.endsWith('ing') && w.length > 4) {
     const stem = w.slice(0, -3);
     if (/([bdfgklmnprstz])\1$/.test(stem)) list.push(stem.slice(0, -1)); // running -> run
     list.push(stem); // clicking -> click
@@ -131,6 +135,9 @@ export function getLookupCandidates(word: string): string[] {
  * Infers Part of Speech from definition text for grouping (Noun, Verb, Adjective, etc.).
  */
 function inferPosFromSense(senseText: string, word: string): string {
+  const w = word.toLowerCase();
+  if (w.endsWith('ly')) return 'adverb';
+
   const s = senseText.trim().toLowerCase();
   if (/^to\s+[a-z]/i.test(s)) return 'verb';
   if (/^(of or belonging to|belonging to|relating to|characteristic of|pertaining to|having|causing|resulting in|conferring|rashly|inattentive|heedless|useful|capable of)/i.test(s)) {
@@ -199,8 +206,9 @@ export function parseRawWebsterDefinition(word: string, raw: string): { meanings
       examples.push(example);
     }
 
-    // Clean definition text by removing citations and truncating to 1-liner
+    // Clean definition text by removing bracketed/parenthetical tags like (Feudal Law), (Mil.), etc.
     let cleanSense = sense
+      .replace(/^\([^)]+\)\s*/g, '')
       .replace(/"[^"]*"/g, '')
       .replace(/;\s*as,\s*[^.;]+[.;]/gi, '.')
       .replace(/\s{2,}/g, ' ')
@@ -210,8 +218,20 @@ export function parseRawWebsterDefinition(word: string, raw: string): { meanings
     const parts = cleanSense.split(/[.;]/);
     let shortDef = parts[0] ? parts[0].trim() : cleanSense;
 
+    // Strip leading/trailing bracketed tags again if any
+    shortDef = shortDef.replace(/^\([^)]+\)\s*/g, '').trim();
+
     // Strip trailing author references
     shortDef = shortDef.replace(/\b(?:Shak|Milton|Locke|Chaucer|Swift|Hume|Bacon|Dryden|Addison|Pope|Cowper|Spenser|Gower|Wyclif)\b\.?/gi, '').trim();
+
+    if (!shortDef || /^(mil|obs|rare|archaic)\.?$/i.test(shortDef)) {
+      continue;
+    }
+
+    // Filter out historical proper nouns / encyclopedia references
+    if (/\b(Aristotle|Plato|Shakespeare|Feudal|Milton|Hume|Chaucer|Swift)\b/i.test(shortDef)) {
+      continue;
+    }
 
     if (shortDef) {
       shortDef = shortDef.charAt(0).toUpperCase() + shortDef.slice(1);
@@ -219,7 +239,7 @@ export function parseRawWebsterDefinition(word: string, raw: string): { meanings
         shortDef += '.';
       }
     } else {
-      shortDef = cleanSense;
+      continue;
     }
 
     const pos = inferPosFromSense(shortDef, word);

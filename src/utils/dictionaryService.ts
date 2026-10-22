@@ -116,18 +116,18 @@ export async function getDefinition(word: string, context: string = '') {
   }
 
   // 2. Fallback offline stub if word not found in offline DB
+  const defaultPos = normalized.endsWith('ly') ? 'adverb' : (pos || 'noun');
   return {
     word: normalized,
     phonetic: '',
     meanings: [
       {
-        partOfSpeech: pos || 'noun',
+        partOfSpeech: defaultPos,
         definition: `Definition for "${normalized}" (Download full dictionary in Settings -> Data).`,
-        example: `A simple example using the word "${normalized}".`,
       },
     ],
     synonyms: [],
-    examples: [`A simple example using the word "${normalized}".`],
+    examples: [],
     source: 'offline_stub',
     lookupWord: normalized,
     contextPos: pos,

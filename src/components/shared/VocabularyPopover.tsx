@@ -111,11 +111,10 @@ export const VocabularyPopover: React.FC<Props> = ({
 
 
 
-  const wordLabel = (entry?.word || selectedText).trim();
   const simpleExample =
     entry?.meanings?.find((m: any) => typeof m.example === 'string' && m.example.trim().length > 0)?.example ||
     (Array.isArray(entry?.examples) && entry.examples.find((ex: string) => typeof ex === 'string' && ex.trim().length > 0)) ||
-    `A simple example using the word "${wordLabel}".`;
+    '';
 
   return (
     <div
@@ -167,12 +166,14 @@ export const VocabularyPopover: React.FC<Props> = ({
           )}
 
           {/* Simple Example block */}
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
-            <p className="italic text-slate-800 text-xs leading-relaxed">
-              "{simpleExample}"
-            </p>
-          </div>
+          {simpleExample && simpleExample.trim() !== '' && (
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
+              <p className="italic text-slate-800 text-xs leading-relaxed">
+                "{simpleExample}"
+              </p>
+            </div>
+          )}
 
           <div className="pt-2 flex items-center gap-2">
             <button
