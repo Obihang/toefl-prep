@@ -469,41 +469,13 @@ export async function getQuestionCountsPerSection(): Promise<Record<string, numb
 }
 
 export async function getQuestionCountsPerTaskType(): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {
-    'complete-words': 10,
-    'reading-passage': 10,
-    'listening-dialogue': 10,
-    'listen-repeat': 10,
-    'speaking-interview': 10,
-    'build-sentence': 10,
-    'write-email': 10,
-    'academic-discussion': 10,
-  };
-
   try {
     const { getQuestionBankStats } = await import('./questionBankStorage');
     const stats = await getQuestionBankStats();
-    for (const [k, v] of Object.entries(stats.countsPerTaskType)) {
-      if (counts[k] !== undefined) {
-        counts[k] = Math.max(counts[k], v);
-      }
-    }
-  } catch {}
-
-  try {
-    const qSnap = await getDocs(query(collection(db, 'questions'), limit(300)));
-    qSnap.forEach((docSnap) => {
-      const data = docSnap.data();
-      const tType = data.taskType;
-      if (tType && counts[tType] !== undefined) {
-        counts[tType]++;
-      }
-    });
+    return stats.countsPerTaskType;
   } catch {
-    // Return base counts if offline or unseeded
+    return {};
   }
-
-  return counts;
 }
 
 export async function seedDefaultQuestionsToFirestore(): Promise<{ created: number; skipped: number; failed: number }> {

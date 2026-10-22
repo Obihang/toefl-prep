@@ -1,4 +1,5 @@
 import { isHighQualityTask } from './questionValidator';
+import { normalizeTaskData } from './taskNormalizer';
 import { db, auth } from '../firebase';
 import { collection, doc, setDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 
@@ -242,21 +243,20 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
         const qSnap = await getDocs(collection(db, 'questions'));
         if (!qSnap.empty) {
           qSnap.forEach((docSnap) => {
-            const data = docSnap.data();
-            const taskType = data.taskType;
-            const content = data.content;
-            if (taskType && content && isHighQualityTask(content, taskType)) {
+            const rawDoc = docSnap.data();
+            const normalized = normalizeTaskData(rawDoc);
+            if (normalized && isHighQualityTask(normalized.content, normalized.taskType)) {
               const qId = docSnap.id;
               store.put({
                 id: qId,
-                taskType,
-                level: data.level || content.level || 'intermediate',
-                topic: data.topic || content.topic || 'general',
-                content,
+                taskType: normalized.taskType,
+                level: normalized.level,
+                topic: normalized.topic,
+                content: normalized.content,
                 isCurated: false,
                 updatedAt: Date.now(),
               });
-              counts[taskType] = (counts[taskType] || 0) + 1;
+              counts[normalized.taskType] = (counts[normalized.taskType] || 0) + 1;
               totalQuestions++;
             }
           });
