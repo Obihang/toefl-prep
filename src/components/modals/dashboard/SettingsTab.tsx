@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { safeFetchJson } from '../../../utils/apiHelper';
 import {
-  User,
   Mic,
   Key,
   CheckCircle2,
@@ -20,19 +19,14 @@ import { useAuth } from '../../../context/AuthContext';
 import {
   getStoredApiKey,
   setStoredApiKey,
-  getStoredProvider,
-  setStoredProvider,
   disconnectAllApiKeys,
-  PROVIDERS,
   ApiProvider,
   getScholarUsername,
   setScholarUsername,
 } from '../../../utils/apiKey';
-import { detectProviderFromKey, KeyDetectResult } from '../../../utils/keyDetect';
 import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
-import { getAiStatusInfo } from '../../../utils/aiFallbackChain';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
 import {
   exportQuestionBankJson,
@@ -53,25 +47,25 @@ interface SettingsTabProps {
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, currentTaskType }) => {
   const { displayName, setDisplayName } = useAuth();
-  const [nameInput, setNameInput] = useState('');
-  const [provider, setProvider] = useState<ApiProvider>('auto');
-
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [detected, setDetected] = useState<KeyDetectResult | null>(null);
-  const [isTestingKey, setIsTestingKey] = useState(false);
-  const [testKeyResult, setTestKeyResult] = useState<{ success?: boolean; message?: string } | null>(null);
+  const [scholarInput, setScholarInput] = useState('');
   const [dataMessage, setDataMessage] = useState<{ success: boolean; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Per-provider saved keys state for quick BYOK overview
+  // Per-provider keys state
   const [geminiKey, setGeminiKey] = useState('');
   const [groqKey, setGroqKey] = useState('');
   const [openRouterKey, setOpenRouterKey] = useState('');
+  const [nvidiaKey, setNvidiaKey] = useState('');
+
+  // Test states for each key
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { success?: boolean; message?: string }>>({});
 
   const syncKeys = () => {
     setGeminiKey(getStoredApiKey('gemini') || '');
     setGroqKey(getStoredApiKey('groq') || '');
     setOpenRouterKey(getStoredApiKey('openrouter') || '');
+    setNvidiaKey(getStoredApiKey('nvidia') || '');
   };
 
   const [bankStats, setBankStats] = useState<{
@@ -85,96 +79,81 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   }, []);
 
   useEffect(() => {
-    setNameInput(displayName || localStorage.getItem('toefl_display_name') || '');
-    const currentProvider = getStoredProvider();
-    setProvider(currentProvider);
-    setApiKeyInput(getStoredApiKey(currentProvider) || '');
+    const currentName = displayName || localStorage.getItem('toefl_display_name') || getScholarUsername();
+    setScholarInput(currentName);
     syncKeys();
   }, [displayName]);
-
-  useEffect(() => {
-    const res = detectProviderFromKey(apiKeyInput);
-    setDetected(res);
-  }, [apiKeyInput]);
-
-  const handleSwitchProvider = (newProvider: ApiProvider) => {
-    setProvider(newProvider);
-    setStoredProvider(newProvider);
-    // Load that provider's saved key into the key box
-    const saved = getStoredApiKey(newProvider) || '';
-    setApiKeyInput(saved);
-    setTestKeyResult(null);
-  };
 
   const handleSaveIndividualKey = (targetProvider: ApiProvider, val: string) => {
     setStoredApiKey(val.trim(), targetProvider);
     syncKeys();
-    if (provider === targetProvider) {
-      setApiKeyInput(val.trim());
-    }
     window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
   };
 
-  const handleTestAndSaveKey = async () => {
-    if (!apiKeyInput.trim()) return;
-    setIsTestingKey(true);
-    setTestKeyResult(null);
-
-    const trimmed = apiKeyInput.trim();
-    const targetProvider: ApiProvider =
-      detected?.provider ? (detected.provider as ApiProvider) : provider === 'auto' ? 'gemini' : provider;
+  const handleTestKey = async (targetProvider: ApiProvider, keyVal: string) => {
+    if (!keyVal.trim()) return;
+    setTestingProvider(targetProvider);
+    setTestResults((prev) => {
+      const copy = { ...prev };
+      delete copy[targetProvider];
+      return copy;
+    });
 
     try {
-      setStoredApiKey(trimmed, targetProvider);
-      if (provider !== 'auto') {
-        setProvider(targetProvider);
-        setStoredProvider(targetProvider);
-      }
+      setStoredApiKey(keyVal.trim(), targetProvider);
       syncKeys();
 
-      // Test key connectivity
       const json = await safeFetchJson('/api/test-key', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': trimmed,
+          'x-api-key': keyVal.trim(),
           'x-api-provider': targetProvider,
         },
         body: JSON.stringify({
           provider: targetProvider,
-          apiKey: trimmed,
+          apiKey: keyVal.trim(),
         }),
       });
 
       window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
 
       if (json.success) {
-        setTestKeyResult({
-          success: true,
-          message: `Connected successfully to ${PROVIDERS[targetProvider]?.name || targetProvider}! Key saved locally.`,
-        });
+        setTestResults((prev) => ({
+          ...prev,
+          [targetProvider]: { success: true, message: `Connected successfully!` },
+        }));
       } else {
-        setTestKeyResult({
-          success: false,
-          message: json.error || `Could not verify ${targetProvider} key.`,
-        });
+        setTestResults((prev) => ({
+          ...prev,
+          [targetProvider]: { success: false, message: json.error || `Could not verify key.` },
+        }));
       }
     } catch (err: any) {
-      setTestKeyResult({ success: false, message: err?.message || 'Connection test failed.' });
+      setTestResults((prev) => ({
+        ...prev,
+        [targetProvider]: { success: false, message: err?.message || 'Connection test failed.' },
+      }));
     } finally {
-      setIsTestingKey(false);
+      setTestingProvider(null);
     }
+  };
+
+  const handleClearKey = (targetProvider: ApiProvider) => {
+    setStoredApiKey('', targetProvider);
+    syncKeys();
+    if (targetProvider === 'gemini') setGeminiKey('');
+    if (targetProvider === 'groq') setGroqKey('');
+    if (targetProvider === 'openrouter') setOpenRouterKey('');
+    if (targetProvider === 'nvidia') setNvidiaKey('');
+    window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
   };
 
   const handleDisconnectAll = () => {
     disconnectAllApiKeys();
-    setApiKeyInput('');
     syncKeys();
-    setTestKeyResult({
-      success: true,
-      message: 'All API keys removed from browser localStorage.',
-    });
-    setTimeout(() => setTestKeyResult(null), 4000);
+    setDataMessage({ success: true, text: 'All API keys removed from browser localStorage.' });
+    setTimeout(() => setDataMessage(null), 4000);
   };
 
   // Data section handlers
@@ -240,9 +219,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
     setDataMessage({ success: true, text: 'Question bank exported successfully!' });
   };
 
-  const handlePurgeCache = async () => {
-    const count = await purgeLowQualityCache();
-    setDataMessage({ success: true, text: `Purged ${count} low-quality stub questions from cache successfully!` });
+  const handleSyncAndCleanBank = async () => {
+    setDataMessage({ success: true, text: 'Synchronizing question shards & purging low-quality stubs...' });
+    const purgeCount = await purgeLowQualityCache();
+    const syncRes = await syncCuratedQuestionBank();
+    const updated = await getQuestionBankStats();
+    setBankStats(updated);
+    setDataMessage({
+      success: true,
+      text: `Sync & Clean complete! Purged ${purgeCount} stubs, synced ${syncRes.totalQuestions} verified questions.`,
+    });
   };
 
   const [isPreCachingAudio, setIsPreCachingAudio] = useState(false);
@@ -289,10 +275,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       getStoredApiKey('gemini') ||
       getStoredApiKey('groq') ||
       getStoredApiKey('openrouter') ||
-      getStoredApiKey('openai') ||
-      getStoredApiKey('anthropic') ||
-      getStoredApiKey('deepseek') ||
-      getStoredApiKey('xai')
+      getStoredApiKey('nvidia')
     );
 
     if (!hasConfiguredKey) {
@@ -343,17 +326,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
                 content: generatedData,
               });
               successCount++;
-            } else {
-              console.warn(`Generated task failed quality check for ${bulkSeedTaskType}:`, generatedData);
             }
-          } else {
-            console.warn(`Failed to generate task ${i + 1}:`, json.error || 'Fallback returned');
           }
-        } catch (genErr) {
-          console.warn(`Error generating bulk item ${i + 1}:`, genErr);
-        }
+        } catch {}
 
-        // 2-second rate-limit throttle delay between sequential generations
         if (i < DIVERSE_TARGETS.length - 1) {
           setBulkSeedProgress(`Throttling 2s for rate limits (${i + 1}/5 generated)...`);
           await new Promise((r) => setTimeout(r, 2000));
@@ -363,7 +339,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       if (successCount > 0) {
         setDataMessage({
           success: true,
-          text: `Successfully generated and saved ${successCount}/5 verified questions for "${targetTaskName}" to IndexedDB & Firestore! Click "Export Question Bank (JSON)" to download the updated bank.`,
+          text: `Successfully generated and saved ${successCount}/5 verified questions for "${targetTaskName}" to IndexedDB & Firestore!`,
         });
       } else {
         setDataMessage({
@@ -382,8 +358,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
     }
   };
 
-  const aiStatus = getAiStatusInfo();
-
   const sections: AccordionSection[] = [
     // 1. AI Provider and API Keys
     {
@@ -392,220 +366,238 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       icon: <Key className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
-          {/* AI Status Panel */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+          {/* Clean Generation/Grading Key Inputs */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">Current AI Execution Status</span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
-                BYOK Fallback Chain
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-              <div className="p-2 bg-white rounded-lg border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">Generation</span>
-                <span className="font-bold text-slate-800 truncate block">{aiStatus.generation.provider}</span>
-                <span className="text-[10px] text-teal-600 truncate block">{aiStatus.generation.model}</span>
-              </div>
-              <div className="p-2 bg-white rounded-lg border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">Evaluation</span>
-                <span className="font-bold text-slate-800 truncate block">{aiStatus.evaluation.provider}</span>
-                <span className="text-[10px] text-teal-600 truncate block">{aiStatus.evaluation.model}</span>
-              </div>
-              <div className="p-2 bg-white rounded-lg border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">Speech-to-Text</span>
-                <span className="font-bold text-slate-800 truncate block">{aiStatus.stt.provider}</span>
-                <span className="text-[10px] text-teal-600 truncate block">{aiStatus.stt.model}</span>
-              </div>
-              <div className="p-2 bg-white rounded-lg border border-slate-200">
-                <span className="text-slate-400 block text-[10px]">TTS Audio</span>
-                <span className="font-bold text-slate-800 truncate block">Edge Neural</span>
-                <span className="text-[10px] text-teal-600 truncate block">en-US Neural</span>
-              </div>
+              <h5 className="text-xs font-bold text-slate-800">API Keys (Automatic Load Balancing &amp; Failover)</h5>
+              <button
+                type="button"
+                onClick={handleDisconnectAll}
+                className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="w-3 h-3" />
+                Clear All Keys
+              </button>
             </div>
 
-            {/* Rate limit status banner */}
-            {Object.keys(aiStatus.rateLimits).length > 0 && (
-              <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>
-                  Rate-limited providers:{' '}
-                  {Object.entries(aiStatus.rateLimits)
-                    .map(([p, info]) => `${p} (${info.remainingSeconds}s wait)`)
-                    .join(', ')}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Provider selector */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700">Active Routing Provider</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              {(['auto', 'gemini', 'groq', 'openrouter'] as ApiProvider[]).map((p) => {
-                const isSelected = provider === p;
-                const pKey = p === 'auto' ? '' : getStoredApiKey(p);
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => handleSwitchProvider(p)}
-                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                      isSelected
-                        ? 'bg-teal-50 border-teal-600 text-teal-900 font-bold shadow-2xs'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="capitalize">{p === 'auto' ? '⚡ Auto-Chain' : p}</span>
-                      {p !== 'auto' && (
-                        <span
-                          className={`w-2 h-2 rounded-full ${pKey ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                          title={pKey ? 'Key saved' : 'No key'}
-                        />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Per-Provider Keys Input Boxes */}
-          <div className="space-y-3 pt-1">
-            <h5 className="text-xs font-bold text-slate-800">Your Provider Keys (Stored in Browser Only)</h5>
-
-            {/* Gemini */}
-            <div className="space-y-1">
+            {/* Google Gemini */}
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-slate-700">Google Gemini API Key</span>
+                <span className="font-bold text-slate-800 flex items-center gap-2">
+                  Google Gemini API Key
+                  {Boolean(geminiKey.trim()) && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
+                      Saved ✓
+                    </span>
+                  )}
+                </span>
                 <a
                   href="https://aistudio.google.com/apikey"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-teal-700 hover:underline"
+                  className="text-teal-700 hover:underline text-[11px]"
                 >
                   Get free key
                 </a>
               </div>
-              <input
-                type="password"
-                value={geminiKey}
-                onChange={(e) => {
-                  setGeminiKey(e.target.value);
-                  handleSaveIndividualKey('gemini', e.target.value);
-                }}
-                placeholder="AIzaSy... (Gemini 2.5 Flash / Flash Lite)"
-                className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={geminiKey}
+                  onChange={(e) => {
+                    setGeminiKey(e.target.value);
+                    handleSaveIndividualKey('gemini', e.target.value);
+                  }}
+                  placeholder="AIzaSy... (Gemini 2.5 Flash / Flash Lite)"
+                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleTestKey('gemini', geminiKey)}
+                  disabled={testingProvider === 'gemini' || !geminiKey.trim()}
+                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  {testingProvider === 'gemini' ? 'Testing...' : 'Test'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClearKey('gemini')}
+                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  title="Clear key"
+                >
+                  Clear
+                </button>
+              </div>
+              {testResults['gemini'] && (
+                <p className={`text-[11px] font-medium ${testResults['gemini'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {testResults['gemini'].message}
+                </p>
+              )}
             </div>
 
             {/* Groq */}
-            <div className="space-y-1">
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-slate-700">Groq API Key (for Whisper STT &amp; Llama 3.3)</span>
+                <span className="font-bold text-slate-800 flex items-center gap-2">
+                  Groq API Key (for Question Generation &amp; Grading)
+                  {Boolean(groqKey.trim()) && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
+                      Saved ✓
+                    </span>
+                  )}
+                </span>
                 <a
                   href="https://console.groq.com/keys"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-teal-700 hover:underline"
+                  className="text-teal-700 hover:underline text-[11px]"
                 >
                   Get free key
                 </a>
               </div>
-              <input
-                type="password"
-                value={groqKey}
-                onChange={(e) => {
-                  setGroqKey(e.target.value);
-                  handleSaveIndividualKey('groq', e.target.value);
-                }}
-                placeholder="gsk_... (Whisper Large v3 Turbo &amp; Llama 3.3 70B)"
-                className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={groqKey}
+                  onChange={(e) => {
+                    setGroqKey(e.target.value);
+                    handleSaveIndividualKey('groq', e.target.value);
+                  }}
+                  placeholder="gsk_... (Llama 3.3 70B)"
+                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleTestKey('groq', groqKey)}
+                  disabled={testingProvider === 'groq' || !groqKey.trim()}
+                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  {testingProvider === 'groq' ? 'Testing...' : 'Test'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClearKey('groq')}
+                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  title="Clear key"
+                >
+                  Clear
+                </button>
+              </div>
+              {testResults['groq'] && (
+                <p className={`text-[11px] font-medium ${testResults['groq'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {testResults['groq'].message}
+                </p>
+              )}
             </div>
 
             {/* OpenRouter */}
-            <div className="space-y-1">
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="font-semibold text-slate-700">OpenRouter API Key</span>
+                <span className="font-bold text-slate-800 flex items-center gap-2">
+                  OpenRouter API Key
+                  {Boolean(openRouterKey.trim()) && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
+                      Saved ✓
+                    </span>
+                  )}
+                </span>
                 <a
                   href="https://openrouter.ai/keys"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-teal-700 hover:underline"
+                  className="text-teal-700 hover:underline text-[11px]"
                 >
                   Get key
                 </a>
               </div>
-              <input
-                type="password"
-                value={openRouterKey}
-                onChange={(e) => {
-                  setOpenRouterKey(e.target.value);
-                  handleSaveIndividualKey('openrouter', e.target.value);
-                }}
-                placeholder="sk-or-v1-... (Multi-model fallback)"
-                className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-              />
-            </div>
-          </div>
-
-          {/* Quick paste & test bar */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
-            <label className="text-xs font-semibold text-slate-600">Quick Connect &amp; Auto-Detect Key</label>
-            <div className="relative">
-              <input
-                type="password"
-                value={apiKeyInput}
-                onChange={(e) => {
-                  setApiKeyInput(e.target.value);
-                  setTestKeyResult(null);
-                }}
-                placeholder="Paste any key here to auto-detect and verify..."
-                className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 font-mono pr-28 outline-hidden focus:border-teal-600"
-              />
-              <button
-                type="button"
-                onClick={handleTestAndSaveKey}
-                disabled={isTestingKey || !apiKeyInput.trim()}
-                className="absolute right-1.5 top-1.5 bottom-1.5 px-3 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
-              >
-                {isTestingKey ? 'Verifying...' : 'Test & Save'}
-              </button>
-            </div>
-
-            {detected?.provider && (
-              <p className="text-[11px] text-slate-500">
-                Key format detected: <strong className="text-teal-800">{detected.label}</strong>
-              </p>
-            )}
-
-            {testKeyResult && (
-              <div
-                className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                  testKeyResult.success
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
-                }`}
-              >
-                {testKeyResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{testKeyResult.message}</span>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={openRouterKey}
+                  onChange={(e) => {
+                    setOpenRouterKey(e.target.value);
+                    handleSaveIndividualKey('openrouter', e.target.value);
+                  }}
+                  placeholder="sk-or-v1-... (Multi-model fallback)"
+                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleTestKey('openrouter', openRouterKey)}
+                  disabled={testingProvider === 'openrouter' || !openRouterKey.trim()}
+                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  {testingProvider === 'openrouter' ? 'Testing...' : 'Test'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClearKey('openrouter')}
+                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  title="Clear key"
+                >
+                  Clear
+                </button>
               </div>
-            )}
+              {testResults['openrouter'] && (
+                <p className={`text-[11px] font-medium ${testResults['openrouter'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {testResults['openrouter'].message}
+                </p>
+              )}
+            </div>
 
-            <div className="flex justify-end pt-1">
-              <button
-                type="button"
-                onClick={handleDisconnectAll}
-                className="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Clear All Saved Keys
-              </button>
+            {/* NVIDIA NIM */}
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-800 flex items-center gap-2">
+                  NVIDIA NIM API Key
+                  {Boolean(nvidiaKey.trim()) && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
+                      Saved ✓
+                    </span>
+                  )}
+                </span>
+                <a
+                  href="https://build.nvidia.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-teal-700 hover:underline text-[11px]"
+                >
+                  Get key
+                </a>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={nvidiaKey}
+                  onChange={(e) => {
+                    setNvidiaKey(e.target.value);
+                    handleSaveIndividualKey('nvidia', e.target.value);
+                  }}
+                  placeholder="nvapi-... (Llama 3.3 70B Instruct)"
+                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleTestKey('nvidia', nvidiaKey)}
+                  disabled={testingProvider === 'nvidia' || !nvidiaKey.trim()}
+                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  {testingProvider === 'nvidia' ? 'Testing...' : 'Test'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleClearKey('nvidia')}
+                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  title="Clear key"
+                >
+                  Clear
+                </button>
+              </div>
+              {testResults['nvidia'] && (
+                <p className={`text-[11px] font-medium ${testResults['nvidia'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {testResults['nvidia'].message}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -632,7 +624,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       content: <VoiceCheckingSection />,
     },
 
-    // 3. Microphone
+    // 4. Microphone
     {
       id: 'microphone',
       title: 'Microphone',
@@ -644,26 +636,46 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 4. Profile
+    // 5. Profile & Study Goals (Moved Scholar Username here)
     {
       id: 'profile',
-      title: 'Profile',
-      icon: <User className="w-4 h-4 text-teal-700" />,
+      title: 'Profile & Study Goals',
+      icon: <Target className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600">Display Name &amp; Community Question Attribution</label>
-            <input
-              type="text"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onBlur={() => {
-                if (nameInput.trim()) setDisplayName(nameInput.trim());
-              }}
-              placeholder="e.g. Alex Scholar"
-              className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden font-medium"
-            />
-            <p className="text-[11px] text-slate-400">Your display name is automatically used for question attribution (✨ Generated by @&lt;Name&gt;) when you generate and share tasks with the community bank.</p>
+          {/* Scholar Username Row moved here */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+            <label className="text-xs font-bold text-slate-800">Scholar Username (@username &amp; Attribution)</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={scholarInput}
+                onChange={(e) => setScholarInput(e.target.value)}
+                onBlur={() => {
+                  if (scholarInput.trim()) {
+                    setScholarUsername(scholarInput.trim());
+                    setDisplayName(scholarInput.trim());
+                  }
+                }}
+                placeholder="e.g. AlexScholar"
+                className="flex-1 text-xs font-medium border border-slate-300 rounded-lg px-3 py-2 bg-white focus:border-teal-600 outline-hidden font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (scholarInput.trim()) {
+                    setScholarUsername(scholarInput.trim());
+                    setDisplayName(scholarInput.trim());
+                    setDataMessage({ success: true, text: 'Scholar username saved successfully!' });
+                    setTimeout(() => setDataMessage(null), 3000);
+                  }
+                }}
+                className="px-3 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition cursor-pointer"
+              >
+                Save Name
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500">Display name and scholar attribution name are unified.</p>
           </div>
 
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2">
@@ -686,10 +698,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 5. Data
+    // 6. Data
     {
       id: 'data',
-      title: 'Data',
+      title: 'Data & Question Bank',
       icon: <Database className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
@@ -704,135 +716,109 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               </div>
               <button
                 type="button"
-                onClick={async () => {
-                  setDataMessage({ success: true, text: 'Synchronizing curated question shards...' });
-                  const res = await syncCuratedQuestionBank();
-                  const updated = await getQuestionBankStats();
-                  setBankStats(updated);
-                  setDataMessage({ success: true, text: `Successfully synced ${res.totalQuestions} curated questions into IndexedDB!` });
-                }}
-                className="px-2.5 py-1 text-xs font-semibold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer"
+                onClick={handleSyncAndCleanBank}
+                className="px-3 py-1.5 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
               >
-                Re-Sync All Shards
+                <span>🔄 Sync &amp; Clean Bank</span>
               </button>
             </div>
             <p className="text-[11px] text-slate-600">
-              All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline, zero-API practice with full rubric grading.
+              All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.
             </p>
-            {bankStats?.countsPerTaskType && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
-                {Object.entries(bankStats.countsPerTaskType).map(([taskKey, count]) => {
-                  const td = TASK_DEFINITIONS.find((t) => t.id === taskKey);
-                  const prettyName = td?.name || taskKey.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-                  return (
-                    <div key={taskKey} className="text-[11px] bg-white border border-teal-100 rounded-md px-2 py-1 flex items-center justify-between">
-                      <span className="text-slate-600 truncate mr-1">{prettyName}:</span>
-                      <span className="font-bold text-teal-800">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
-          <p className="text-xs text-slate-600">
-            Export your practice records, rubric scoring evaluations, and study history to a portable JSON file, or restore from a backup.
-          </p>
+          {/* Primary Action Row: Seed +5 AI Questions & Pre-Cache Audio */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+              <label className="text-xs font-bold text-slate-800 block">✨ Seed +5 AI Questions</label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={bulkSeedTaskType}
+                  onChange={(e) => setBulkSeedTaskType(e.target.value)}
+                  disabled={isBulkSeeding}
+                  className="flex-1 text-xs border border-slate-300 rounded-lg px-2.5 py-2 bg-slate-50 text-slate-800 font-semibold focus:border-teal-600 outline-hidden cursor-pointer"
+                >
+                  {TASK_DEFINITIONS.map((td) => (
+                    <option key={td.id} value={td.id}>
+                      {td.name}
+                    </option>
+                  ))}
+                </select>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleExportData}
-              className="px-3.5 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export History (JSON)
-            </button>
+                <button
+                  type="button"
+                  onClick={handleBulkSeedBank}
+                  disabled={isBulkSeeding}
+                  className="px-3.5 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shrink-0"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isBulkSeeding ? 'animate-spin text-teal-200' : 'text-teal-300'}`} />
+                  <span>{isBulkSeeding ? bulkSeedProgress || 'Seeding...' : 'Seed +5'}</span>
+                </button>
+              </div>
+            </div>
 
-            <button
-              type="button"
-              onClick={handleExportQuestionBank}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-teal-300 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              <Download className="w-3.5 h-3.5 text-teal-400" />
-              Export Question Bank (JSON)
-            </button>
-
-            {/* Bulk Seed Tool */}
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={bulkSeedTaskType}
-                onChange={(e) => setBulkSeedTaskType(e.target.value)}
-                disabled={isBulkSeeding}
-                className="text-xs border border-slate-300 rounded-lg px-2.5 py-2 bg-white text-slate-800 font-semibold focus:border-teal-600 outline-hidden cursor-pointer"
-                title="Select task type to bulk seed"
+            <div className="p-3 bg-white border border-slate-200 rounded-xl flex flex-col justify-between">
+              <div>
+                <label className="text-xs font-bold text-slate-800 block mb-1">🔊 Audio Pre-Caching</label>
+                <p className="text-[11px] text-slate-500">Cache all listening &amp; speaking audio lines into IndexedDB for 0ms playback.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handlePreCacheAllAudio}
+                disabled={isPreCachingAudio}
+                className="mt-2 px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
-                {TASK_DEFINITIONS.map((td) => (
-                  <option key={td.id} value={td.id}>
-                    {td.name} ({td.section})
-                  </option>
-                ))}
-              </select>
+                <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
+                <span>{isPreCachingAudio ? (preCacheAudioStatus || 'Caching audio...') : 'Pre-Cache Section Audio'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Secondary Footer Row: Export Bank, Export History, Import History, Reset History */}
+          <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleExportQuestionBank}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-teal-300 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+              >
+                <Download className="w-3 h-3 text-teal-400" />
+                Export Bank (JSON)
+              </button>
 
               <button
                 type="button"
-                onClick={handleBulkSeedBank}
-                disabled={isBulkSeeding}
-                className="px-3.5 py-2 bg-linear-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-60"
-                title="Sequentially generate 5 authentic questions across diverse topics/levels with 2s rate limit delay and save to IndexedDB & Firestore"
+                onClick={handleExportData}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
               >
-                <Sparkles className={`w-3.5 h-3.5 ${isBulkSeeding ? 'animate-spin text-teal-200' : 'text-teal-300'}`} />
-                <span>
-                  {isBulkSeeding
-                    ? bulkSeedProgress || 'Seeding 5 questions...'
-                    : 'Bulk Seed Current Section (+5 AI Questions)'}
-                </span>
+                <Download className="w-3 h-3" />
+                Export History
               </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+              >
+                <Upload className="w-3 h-3" />
+                Import History
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImportData}
+                accept=".json"
+                className="hidden"
+              />
             </div>
-
-            <button
-              type="button"
-              onClick={handlePurgeCache}
-              className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              Purge Low-Quality Stubs
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePreCacheAllAudio}
-              disabled={isPreCachingAudio}
-              className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title="Pre-cache dialogue and interview audio lines into IndexedDB for instantaneous 0ms playback"
-            >
-              <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
-              <span>{isPreCachingAudio ? (preCacheAudioStatus || 'Caching audio...') : 'Pre-Cache Section Audio (IndexedDB)'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Import History
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportData}
-              accept=".json"
-              className="hidden"
-            />
 
             <button
               type="button"
               onClick={handleResetData}
-              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
             >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              Reset All History
+              <Trash2 className="w-3 h-3 text-rose-600" />
+              Reset History
             </button>
           </div>
 
