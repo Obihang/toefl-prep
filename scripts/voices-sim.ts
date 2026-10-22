@@ -1,4 +1,4 @@
-import { inferGender, pickDialogueVoices, pickSingleVoice, NEURAL_FEMALE_VOICES, NEURAL_MALE_VOICES } from '../src/utils/voices';
+import { inferGender, pickDialogueVoices, pickSingleVoice, NEURAL_FEMALE_VOICES, NEURAL_MALE_VOICES } from '../src/utils/voices.ts';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -10,7 +10,9 @@ function assert(condition: boolean, msg: string) {
 console.log('Running voices simulation tests...');
 
 // 1. Specific name test cases
-assert(inferGender('Professor Vance') === 'unknown', 'Professor Vance should be unknown');
+assert(inferGender('Professor Vance') === 'male', 'Professor Vance should be male');
+assert(inferGender('Mr. Vance') === 'male', 'Mr. Vance should be male');
+assert(inferGender('Male Professor') === 'male', 'Male Professor should be male');
 assert(inferGender('Student (Chloe)') === 'female', 'Student (Chloe) should be female');
 assert(inferGender('Dr. Campbell') === 'unknown', 'Dr. Campbell should be unknown');
 assert(inferGender('Ms. Patel') === 'female', 'Ms. Patel should be female');
@@ -37,10 +39,11 @@ assert(single1 === single2, 'Single voice pick must be deterministic');
 assert((NEURAL_FEMALE_VOICES as readonly string[]).includes(single1), 'Single voice must be in NEURAL_FEMALE_VOICES');
 
 console.log('All voices simulation tests passed successfully!');
-process.exit(0);
 
 // 3. Consistency across sentence indexes (using same seed)
 const taskSeed = 'ConsistencyTask|ProfX';
 const vA = pickSingleVoice(taskSeed, 'male');
 const vB = pickSingleVoice(taskSeed, 'male'); // simulate different sentence call
 assert(vA === vB, 'Same seed should return consistent voice across sentence calls');
+
+process.exit(0);

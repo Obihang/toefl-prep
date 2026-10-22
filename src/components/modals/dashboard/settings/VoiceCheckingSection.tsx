@@ -3,6 +3,7 @@ import { Volume2, CheckCircle2, AlertCircle, Play, Sparkles } from 'lucide-react
 import {
   getVoices,
   playSpeech,
+  stopSpeaking,
   getVoiceEngine,
   setVoiceEngine,
 } from '../../../../utils/audioSpeech';
@@ -44,19 +45,20 @@ export const VoiceCheckingSection: React.FC = () => {
   };
 
   const handleTestVoice = async () => {
+    stopSpeaking();
     setIsTestingVoice(true);
     setTestResult(null);
 
     const testText =
       selectedVoice === 'female'
-        ? 'Hello! This is the female narrator voice for TOEFL listening and speaking exercises.'
-        : 'Good afternoon. This is the male professor voice for TOEFL classroom lectures and dialogues.';
+        ? 'Ms. Test (Female): This is a test of the female voice.'
+        : 'Mr. Test (Male): This is a test of the male voice.';
 
     try {
       const startTime = Date.now();
       await playSpeech(testText, {
         voiceName: selectedVoice === 'female' ? 'en-US-JennyNeural' : 'en-US-GuyNeural',
-        speaker: selectedVoice === 'female' ? 'Sarah (student)' : 'Professor Lee',
+        speaker: selectedVoice === 'female' ? 'Ms. Test (Female)' : 'Mr. Test (Male)',
         rate: speed,
         onStart: () => {
           const latency = Date.now() - startTime;

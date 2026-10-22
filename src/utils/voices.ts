@@ -113,6 +113,10 @@ export const MALE_NAMES_SET = new Set([
   'josiah', 'hunter', 'eli', 'connor', 'landon', 'adrian', 'asher', 'cameron', 'theodore', 'jeremiah',
   'hudson', 'easton', 'nolan', 'ezra', 'colton', 'carlos', 'luis', 'miguel', 'wei', 'raj',
   'arjun', 'omar', 'tariq', 'kenji', 'hiroshi', 'minho', 'marco', 'luca', 'diego',
+  'vance', 'henderson', 'smith', 'johnson', 'williams', 'brown', 'jones', 'miller', 'davis', 'garcia',
+  'rodriguez', 'wilson', 'martinez', 'anderson', 'taylor', 'thomas', 'hernandez', 'moore', 'martin',
+  'jackson', 'thompson', 'white', 'lopez', 'lee', 'gonzalez', 'harris', 'clark', 'lewis',
+  'robinson', 'walker', 'perez', 'hall', 'young', 'allen', 'sanchez', 'wright', 'king', 'scott',
 ]);
 
 export interface ParsedDialogueLine {
@@ -166,23 +170,35 @@ export function detectSpeakerGender(
   speakerName: string,
   speakerHint: string = ''
 ): 'female' | 'male' | 'unknown' {
-  const combined = `${speakerHint} ${speakerName}`.trim().toLowerCase();
+  const nameStr = (speakerName || '').trim().toLowerCase();
+  const hintStr = (speakerHint || '').trim().toLowerCase();
+  const combined = `${hintStr} ${nameStr}`.trim();
   if (!combined) return 'unknown';
 
-  // 1. Explicit Hints / Keywords First
-  if (/\b(female|woman|girl|ms|mrs|miss|madam|she|her)\b/i.test(combined)) {
-    return 'female';
-  }
-  if (/\b(male|man|boy|mr|sir|he|him)\b/i.test(combined)) {
-    return 'male';
+  // 1. Strict Explicit Keywords First (using word boundaries to prevent substring matches like 'female' containing 'male')
+  const femaleKeywords = ['female', 'woman', 'ms.', 'ms', 'mrs.', 'mrs', 'miss', 'madam', 'girl', 'her', 'she'];
+  const maleKeywords = ['male', 'man', 'mr.', 'mr', 'sir', 'boy', 'his', 'he'];
+
+  for (const kw of femaleKeywords) {
+    const regex = new RegExp(`\\b${kw.replace('.', '\\.')}\\b`, 'i');
+    if (regex.test(combined) || regex.test(nameStr) || regex.test(hintStr)) {
+      return 'female';
+    }
   }
 
-  // 2. Common First-Name Dictionary Lookup
-  const fullClean = `${speakerName} ${speakerHint}`
-    .replace(/\b(dr\.|prof\.|professor|coach|advisor|student|dean|instructor|faculty|librarian|doctor)\b/gi, '')
+  for (const kw of maleKeywords) {
+    const regex = new RegExp(`\\b${kw.replace('.', '\\.')}\\b`, 'i');
+    if (regex.test(combined) || regex.test(nameStr) || regex.test(hintStr)) {
+      return 'male';
+    }
+  }
+
+  // 2. Smart Title Parsing & First-Name/Surname Dictionary Lookup
+  const fullClean = `${nameStr} ${hintStr}`
+    .replace(/\b(prof\.|professor|dr\.|doctor|student|speaker|coach|advisor|dean|instructor|faculty|librarian)\b/gi, '')
     .trim();
 
-  const words = fullClean.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const words = fullClean.split(/[^a-z0-9]+/).filter(Boolean);
   for (const word of words) {
     if (FEMALE_NAMES_SET.has(word) && !MALE_NAMES_SET.has(word)) {
       return 'female';

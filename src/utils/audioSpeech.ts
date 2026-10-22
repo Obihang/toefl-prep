@@ -945,9 +945,26 @@ export async function playSpeech(
       const pitchRate = getBrowserSpeechPitchAndRate(spk, gender);
       const voiceObj = pickBrowserVoiceForGender(gender) || englishVoices[0];
 
+      let finalPitch = pitchRate.pitch;
+      let finalRate = pitchRate.rate;
+      if (voiceObj) {
+        const nameLower = voiceObj.name.toLowerCase();
+        const maleKeywords = ['david', 'mark', 'daniel', 'guy', 'christopher', 'arthur', 'male', 'steffan', 'eric'];
+        const femaleKeywords = ['zira', 'samantha', 'aria', 'jenny', 'female', 'michelle', 'emma'];
+        const hasMale = maleKeywords.some(kw => nameLower.includes(kw));
+        const hasFemale = femaleKeywords.some(kw => nameLower.includes(kw));
+
+        if (gender === 'male' && !hasMale) {
+          finalPitch = 0.85;
+          finalRate = 0.95;
+        } else if (gender === 'female' && !hasFemale) {
+          finalPitch = 1.15;
+        }
+      }
+
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
         options.onStart?.();
-        await speakScriptLineFallback(cleanText, pitchRate.pitch, voiceObj, pitchRate.rate);
+        await speakScriptLineFallback(cleanText, finalPitch, voiceObj, finalRate);
         options.onEnd?.();
         return { ok: true };
       }
@@ -962,10 +979,13 @@ export async function playSpeech(
   const policy = getVoiceFallbackPolicy();
   const stepOrder: Array<'cloud' | 'device'> = [];
   
-  // Fast path: if no API keys or engine set to device/offline, go straight to device
+  // Fast path: if no API keys or engine set to device/offline, or male voice without API key, go straight to device
   const hasKeys = !!(getStoredApiKey() || getStoredVoiceKey());
+  const spk = options.speaker || '';
+  const g = spk ? detectSpeakerGender(spk, '') : inferGender(voiceName);
+  const isMale = g === 'male' || /guy|christopher|eric|roger|steffan|puck|algenib|algieba|alnilam|charon|enceladus|fenrir|iapetus|orus|rasalgethi|sadachbia|sadaltager|schedar|umbriel|zubenelgenubi|male/i.test(voiceName);
   
-  if (engine === 'device' || engine === 'offline' || (!hasKeys && typeof window !== 'undefined')) {
+  if (engine === 'device' || engine === 'offline' || (isMale && !hasKeys) || (!hasKeys && typeof window !== 'undefined')) {
     stepOrder.push('device');
     stepOrder.push('cloud');
   } else {
@@ -1188,18 +1208,17 @@ export function pickBrowserVoiceForGender(gender: 'male' | 'female', lang: strin
     const matched = voices.find((v) => v.name === savedName);
     if (matched) return matched;
   }
-  
-  // Scoring function for voice quality
-  const getScore = (v: SpeechSynthesisVoice) => {
-    let score = 0;
-    if (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural') || v.name.includes('Online')) score += 10;
-    if (v.lang.startsWith(lang.substring(0, 2))) score += 5;
-    if (gender === 'male' && (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('man') || v.name.toLowerCase().includes('david') || v.name.toLowerCase().includes('guy'))) score += 5;
-    if (gender === 'female' && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman') || v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('jenny'))) score += 5;
-    return score;
-  };
 
-  return voices.sort((a, b) => getScore(b) - getScore(a))[0] || voices[0] || null;
+  const maleKeywords = ['david', 'mark', 'daniel', 'guy', 'christopher', 'arthur', 'male', 'steffan', 'eric'];
+  const femaleKeywords = ['zira', 'samantha', 'aria', 'jenny', 'female', 'michelle', 'emma'];
+  const keywords = gender === 'male' ? maleKeywords : femaleKeywords;
+
+  for (const kw of keywords) {
+    const found = voices.find((v) => v.name.toLowerCase().includes(kw) && v.lang.toLowerCase().startsWith('en'));
+    if (found) return found;
+  }
+
+  return voices.find((v) => v.lang.toLowerCase().startsWith('en')) || voices[0] || null;
 }
 
 export async function previewBrowserVoice(text: string, voiceName?: string, pitch: number = 1.0): Promise<void> {
