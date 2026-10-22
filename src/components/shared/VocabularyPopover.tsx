@@ -111,10 +111,7 @@ export const VocabularyPopover: React.FC<Props> = ({
 
 
 
-  const simpleExample =
-    entry?.meanings?.find((m: any) => typeof m.example === 'string' && m.example.trim().length > 0)?.example ||
-    (Array.isArray(entry?.examples) && entry.examples.find((ex: string) => typeof ex === 'string' && ex.trim().length > 0)) ||
-    '';
+
 
   return (
     <div
@@ -165,15 +162,7 @@ export const VocabularyPopover: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Simple Example block */}
-          {simpleExample && simpleExample.trim() !== '' && (
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-              <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
-              <p className="italic text-slate-800 text-xs leading-relaxed">
-                "{simpleExample}"
-              </p>
-            </div>
-          )}
+
 
           <div className="pt-2 flex items-center gap-2">
             <button
@@ -207,37 +196,21 @@ export const VocabularyPopover: React.FC<Props> = ({
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
-            <p className="italic text-slate-800 text-xs leading-relaxed">
-              "A simple example using the word \"{selectedText.trim()}\"."
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-slate-600">Word not found. Add definition manually:</p>
-            <textarea
-              className="w-full text-xs p-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
-              placeholder="Enter definition..."
-              onChange={(e) => setEntry({ meanings: [{ definition: e.target.value, partOfSpeech: 'noun', example: '' }] })}
-            />
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleSave()}
-                className="flex-1 py-2 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold"
-              >
-                Save Word
-              </button>
-              <button
-                onClick={handleAiDefine}
-                disabled={aiLoading}
-                className="py-2 px-3 font-semibold rounded-lg bg-teal-50 text-teal-800 hover:bg-teal-100 text-xs flex items-center gap-1.5"
-              >
-                {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-teal-600" />} AI Define
-              </button>
-            </div>
-          </div>
+        <div className="space-y-3 py-2 text-center">
+          <p className="text-slate-600 text-xs leading-relaxed">
+            Definition unavailable offline. Click <span className="font-semibold text-teal-800">✨ AI Define</span> to generate the contextual meaning.
+          </p>
+          <button
+            onClick={handleAiDefine}
+            disabled={aiLoading}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 px-3 font-semibold rounded-lg bg-teal-700 text-white hover:bg-teal-800 transition-colors cursor-pointer text-xs"
+          >
+            {aiLoading ? (
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating AI Definition...</>
+            ) : (
+              <><Sparkles className="w-3.5 h-3.5 text-teal-300" /> AI Define Word in Context</>
+            )}
+          </button>
         </div>
       )}
     </div>
