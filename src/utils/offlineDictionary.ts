@@ -199,25 +199,43 @@ export function parseRawWebsterDefinition(word: string, raw: string): { meanings
       examples.push(example);
     }
 
-    // Clean definition text by removing citations like "Hume.", "Chaucer.", "Swift."
-    const cleanSense = sense
+    // Clean definition text by removing citations and truncating to 1-liner
+    let cleanSense = sense
       .replace(/"[^"]*"/g, '')
       .replace(/;\s*as,\s*[^.;]+[.;]/gi, '.')
       .replace(/\s{2,}/g, ' ')
       .trim();
 
-    const pos = inferPosFromSense(cleanSense, word);
+    // Split by first period or semicolon to get 1-liner
+    const parts = cleanSense.split(/[.;]/);
+    let shortDef = parts[0] ? parts[0].trim() : cleanSense;
+
+    // Strip trailing author references
+    shortDef = shortDef.replace(/\b(?:Shak|Milton|Locke|Chaucer|Swift|Hume|Bacon|Dryden|Addison|Pope|Cowper|Spenser|Gower|Wyclif)\b\.?/gi, '').trim();
+
+    if (shortDef) {
+      shortDef = shortDef.charAt(0).toUpperCase() + shortDef.slice(1);
+      if (!shortDef.endsWith('.')) {
+        shortDef += '.';
+      }
+    } else {
+      shortDef = cleanSense;
+    }
+
+    const pos = inferPosFromSense(shortDef, word);
     posCounters[pos] = (posCounters[pos] || 0) + 1;
 
-    meanings.push({
-      partOfSpeech: pos,
-      definition: cleanSense,
-      example: example || undefined,
-      indexInGroup: posCounters[pos],
-    });
+    if (!meanings.some(m => m.definition.toLowerCase() === shortDef.toLowerCase())) {
+      meanings.push({
+        partOfSpeech: pos,
+        definition: shortDef,
+        example: example || undefined,
+        indexInGroup: posCounters[pos],
+      });
+    }
   }
 
-  return { meanings, synonyms, examples };
+  return { meanings: meanings.slice(0, 4), synonyms, examples };
 }
 
 /**

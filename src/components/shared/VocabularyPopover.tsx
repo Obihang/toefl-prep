@@ -109,15 +109,7 @@ export const VocabularyPopover: React.FC<Props> = ({
     }
   };
 
-  const primaryDef = entry?.meanings?.[0]?.definition?.trim().toLowerCase();
-  const otherMeanings = (entry?.meanings || [])
-    .slice(1)
-    .filter((m: any, idx: number, arr: any[]) => {
-      const def = m.definition?.trim().toLowerCase();
-      if (!def || def === primaryDef) return false;
-      return arr.findIndex((x: any) => x.definition?.trim().toLowerCase() === def) === idx;
-    })
-    .slice(0, 2);
+
 
   const wordLabel = (entry?.word || selectedText).trim();
   const simpleExample =
@@ -155,37 +147,26 @@ export const VocabularyPopover: React.FC<Props> = ({
         </div>
       ) : entry ? (
         <div className="space-y-3 max-h-[350px] overflow-y-auto pr-0.5">
-          {/* Context Meaning */}
+          {/* Clean flat list of meanings (max 4 distinct items) */}
           {entry.meanings?.length > 0 && (
-            <div className="bg-teal-50 p-3 rounded-xl border border-teal-100">
-              <p className="font-bold text-teal-900 mb-1">
-                ✓ Used in this sentence as: {entry.meanings[0].partOfSpeech?.toUpperCase() || 'WORD'}
-              </p>
-              <p className="text-teal-950 font-medium">{entry.meanings[0].definition}</p>
+            <div className="space-y-2">
+              <p className="font-bold text-slate-900">Meanings:</p>
+              {entry.meanings.slice(0, 4).map((m: any, i: number) => (
+                <div key={i} className="text-slate-700 border-l-2 border-teal-500 pl-2.5 py-1 bg-slate-50/50 rounded-r-lg">
+                  <span className="font-bold text-slate-900 uppercase text-[10px] bg-slate-200 px-1.5 py-0.5 rounded mr-1.5">{m.partOfSpeech}</span>
+                  <span>{m.definition}</span>
+                </div>
+              ))}
 
-              {/* Synonyms if available */}
               {entry.synonyms && entry.synonyms.length > 0 && (
-                <p className="text-teal-900 text-[11px] mt-2 font-medium">
-                  <span className="font-semibold text-teal-950">Synonyms:</span> {entry.synonyms.slice(0, 4).join(', ')}
+                <p className="text-slate-600 text-[11px] font-medium pt-1">
+                  <span className="font-semibold text-slate-800">Synonyms:</span> {entry.synonyms.slice(0, 4).join(', ')}
                 </p>
               )}
             </div>
           )}
-          
-          {/* Other Meanings (max 2 distinct clean items, no duplicate of top box) */}
-          {otherMeanings.length > 0 && (
-            <div className="space-y-1.5 pt-0.5">
-              <p className="font-bold text-slate-900">Other Meanings:</p>
-              {otherMeanings.map((m: any, i: number) => (
-                <div key={i} className="text-slate-600 border-l-2 border-slate-300 pl-2.5 py-0.5">
-                  <span className="font-semibold text-slate-800 capitalize">{m.partOfSpeech}: </span>
-                  <span>{m.definition}</span>
-                </div>
-              ))}
-            </div>
-          )}
 
-          {/* Simple Example block replacing the heavy passage block */}
+          {/* Simple Example block */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
             <p className="font-semibold text-slate-700 text-xs mb-1">📝 Simple Example:</p>
             <p className="italic text-slate-800 text-xs leading-relaxed">
