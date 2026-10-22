@@ -1,7 +1,5 @@
 import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { initializeApp, getApps, getApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
 import { head, put } from '@vercel/blob';
 import { getApiConfig } from './apiConfig.ts';
 import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey, handleSynthesizeSpeech } from './geminiHandler.ts';
@@ -12,44 +10,64 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
+import { firebasePublicConfig } from './firebasePublicConfig.ts';
 
 type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
 
-let adminApp: any = null;
-
-function getAdminApp() {
-  if (adminApp) return adminApp;
-  const apps = getApps();
-  if (apps.length > 0) {
-    adminApp = apps[0];
-    return adminApp;
-  }
-  let defaultProjectId: string | undefined = undefined;
-  try {
-    const cfgPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(cfgPath)) {
-      const raw = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
-      defaultProjectId = raw.projectId;
-    }
-  } catch {
-    // ignore
-  }
-  const projectId = process.env.FIREBASE_PROJECT_ID || defaultProjectId || 'your-firebase-project-id';
-  adminApp = initializeApp({ projectId });
-  return adminApp;
+interface CacheEntry {
+  uid: string;
+  expiresAt: number;
 }
+
+const tokenCache = new Map<string, CacheEntry>();
 
 async function verifyFirebaseToken(req: Req): Promise<string | null> {
   const authHeader = req.headers['authorization'] || req.headers['Authorization'];
   if (!authHeader || typeof authHeader !== 'string') return null;
   const parts = authHeader.split(' ');
   if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
-  const token = parts[1];
+  const token = parts[1].trim();
+  if (!token) return null;
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const now = Date.now();
+
+  const cached = tokenCache.get(tokenHash);
+  if (cached && now < cached.expiresAt) {
+    return cached.uid;
+  }
+
+  const apiKey = firebasePublicConfig.apiKey;
+  if (!apiKey) return null;
+
   try {
-    const app = getAdminApp();
-    const decoded = await getAuth(app).verifyIdToken(token);
-    return decoded.uid;
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idToken: token }),
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data: any = await res.json();
+    const localId = data?.users?.[0]?.localId;
+    if (localId && typeof localId === 'string') {
+      if (tokenCache.size >= 500) {
+        const firstKey = tokenCache.keys().next().value;
+        if (firstKey) tokenCache.delete(firstKey);
+      }
+      tokenCache.set(tokenHash, {
+        uid: localId,
+        expiresAt: now + 5 * 60 * 1000,
+      });
+      return localId;
+    }
+    return null;
   } catch {
     return null;
   }
