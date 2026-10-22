@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Trash2, Loader2, Sparkles, Volume2, RotateCcw } from 'lucide-react';
 import { VocabularyWord } from '../../../utils/vocabulary';
 import { getDefinition } from '../../../utils/dictionaryService';
+import { OfflineDictionarySection } from './settings/OfflineDictionarySection';
 
 interface VocabularyTabProps {
   vocab: VocabularyWord[];
@@ -30,9 +31,9 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
     if (!newWord) return;
     setIsAutoDefining(true);
     const result = await getDefinition(newWord);
-    if (result) {
-      const primary = result.source === 'offline' ? result : result.meanings?.[0];
-      const def = `${primary?.partOfSpeech || 'noun'}: ${primary?.definition || ''}`;
+    if (result && result.meanings && result.meanings.length > 0) {
+      const primary = result.meanings[0];
+      const def = `${primary.partOfSpeech || 'noun'}: ${primary.definition || ''}`;
       setNewDef(def);
     }
     setIsAutoDefining(false);
@@ -40,6 +41,8 @@ export const VocabularyTab: React.FC<VocabularyTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <OfflineDictionarySection />
+
       <form onSubmit={handleAddVocab} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
             <h3 className="font-semibold text-slate-900 text-sm">Add New Vocabulary Word</h3>

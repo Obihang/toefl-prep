@@ -54,15 +54,7 @@ export const VocabularyPopover: React.FC<Props> = ({
     setSavingStatus('idle');
     const result = await getDefinition(selectedText, contextSentence);
     if (result) {
-      if (result.source === 'offline') {
-        setEntry({
-          meanings: [{ partOfSpeech: result.partOfSpeech || 'adjective', definition: result.definition || 'Definition unavailable', example: '' }],
-          phonetic: '',
-          synonyms: result.synonyms || [],
-        });
-      } else {
-        setEntry(result);
-      }
+      setEntry(result);
     }
     setLoading(false);
   }
