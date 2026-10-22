@@ -2,6 +2,7 @@ import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp, getApps, getApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { head, put } from '@vercel/blob';
 import { getApiConfig } from './apiConfig.ts';
 import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey, handleSynthesizeSpeech } from './geminiHandler.ts';
 import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
@@ -46,8 +47,8 @@ async function verifyFirebaseToken(req: Req): Promise<string | null> {
   if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
   const token = parts[1];
   try {
-    const admin = getAdminApp();
-    const decoded = await getAuth(admin).verifyIdToken(token);
+    const app = getAdminApp();
+    const decoded = await getAuth(app).verifyIdToken(token);
     return decoded.uid;
   } catch {
     return null;
@@ -388,7 +389,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     // Check Vercel Blob existence via head() if BLOB_READ_WRITE_TOKEN is configured
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       try {
-        const { head } = await import('@vercel/blob');
         const blobInfo = await head(blobPath);
         if (blobInfo && blobInfo.url && blobInfo.url.includes(BLOB_DOMAIN_SUFFIX)) {
           audioUrl = blobInfo.url;
@@ -455,7 +455,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     // Try uploading to Vercel Blob
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       try {
-        const { put } = await import('@vercel/blob');
         const blob = await put(blobPath, audioBuffer, {
           access: 'public',
           addRandomSuffix: false,

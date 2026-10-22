@@ -2,9 +2,14 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { handleGenerateTaskEndpoint } from '../src/server/handlers.ts';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` });
+  try {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', ['POST']);
+      return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` });
+    }
+    return await handleGenerateTaskEndpoint(req, res);
+  } catch (err: any) {
+    console.error('Generate task route error:', err);
+    return res.status(500).json({ success: false, error: String(err?.message || err) });
   }
-  return handleGenerateTaskEndpoint(req, res);
 }
