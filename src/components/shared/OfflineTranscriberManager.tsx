@@ -50,6 +50,7 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
   const [transcriberProvider, setTranscriberProvider] = useState<TranscriberProvider>(getStoredTranscriberProvider());
   const [groqKeyInput, setGroqKeyInput] = useState(getStoredTranscriberKey('groq'));
   const [geminiKeyInput, setGeminiKeyInput] = useState(getStoredTranscriberKey('gemini'));
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   // Quick 3-Second Test State
   const [isTestRecording, setIsTestRecording] = useState(false);
@@ -340,16 +341,26 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-slate-700">Groq Whisper API Key</label>
-              <input
-                type="password"
-                value={groqKeyInput}
-                onChange={(e) => {
-                  setGroqKeyInput(e.target.value);
-                  setStoredTranscriberKey(e.target.value, 'groq');
-                }}
-                placeholder="gsk_... (Dedicated for Groq STT)"
-                className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={groqKeyInput}
+                  onChange={(e) => setGroqKeyInput(e.target.value)}
+                  placeholder="gsk_... (Dedicated for Groq STT)"
+                  className="flex-1 text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoredTranscriberKey(groqKeyInput.trim(), 'groq');
+                    setSavedNotice('Groq Whisper API key saved successfully!');
+                    setTimeout(() => setSavedNotice(null), 3000);
+                  }}
+                  className="px-3.5 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  Save Key
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-2.5">
               Uses Groq Whisper Large v3 Turbo (0.3s) and automatically falls back to Local Offline Whisper if quota is reached.
@@ -361,20 +372,37 @@ export const OfflineTranscriberManager: React.FC<Props> = ({ compact, onModelCha
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <div className="space-y-1">
               <label className="text-[11px] font-semibold text-slate-700">Dedicated Transcriber Gemini API Key</label>
-              <input
-                type="password"
-                value={geminiKeyInput}
-                onChange={(e) => {
-                  setGeminiKeyInput(e.target.value);
-                  setStoredTranscriberKey(e.target.value, 'gemini');
-                }}
-                placeholder="AIzaSy... (Dedicated for Gemini Audio STT)"
-                className="w-full text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                  placeholder="AIzaSy... (Dedicated for Gemini Audio STT)"
+                  className="flex-1 text-xs font-mono border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:border-teal-600 outline-hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStoredTranscriberKey(geminiKeyInput.trim(), 'gemini');
+                    setSavedNotice('Dedicated Gemini Transcriber API key saved successfully!');
+                    setTimeout(() => setSavedNotice(null), 3000);
+                  }}
+                  className="px-3.5 py-2 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                >
+                  Save Key
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-2.5">
               Uses Dedicated Gemini Audio and automatically falls back to Local Offline Whisper if quota is reached.
             </p>
+          </div>
+        )}
+
+        {savedNotice && (
+          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{savedNotice}</span>
           </div>
         )}
       </div>
