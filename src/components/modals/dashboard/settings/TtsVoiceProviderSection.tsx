@@ -105,31 +105,35 @@ export const TtsVoiceProviderSection: React.FC = () => {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        let errMessage = `HTTP ${res.status}`;
-        try {
-          const errData = await res.json();
-          errMessage = errData.error || errData.message || errMessage;
-        } catch {
-          const raw = await res.text();
-          if (raw) errMessage = raw;
-        }
-        setTtsTestError(errMessage);
-        throw new Error(errMessage);
+        setTtsTestError(data.error || "Unknown API Error");
+        return;
       }
 
-      const data = await res.json();
+      const ttsProvider = provider;
+      if (ttsProvider !== 'free' && (data.providerUsed === 'fallback' || data.providerUsed === 'neural' || data.modelUsed?.includes('Neural Stream'))) {
+        setTtsTestError("API crashed, server forced a neural fallback.");
+        return;
+      }
+
       const audioUrl = data.audioUrl || (data.audioBase64 ? `data:${data.mimeType || 'audio/mpeg'};base64,${data.audioBase64}` : null);
       if (!audioUrl) {
         const errMessage = data.error || 'No audio returned from TTS server';
         setTtsTestError(errMessage);
-        throw new Error(errMessage);
+        return;
       }
 
       const audio = new Audio(audioUrl);
-      if (provider === 'free' && (!data.modelUsed || data.modelUsed.includes('Neural Stream'))) {
-        audio.playbackRate = isMale ? 0.98 : 1.02;
-      }
+      const isNeuralFallback = data.providerUsed === 'fallback' || data.providerUsed === 'neural' || (!data.modelUsed || data.modelUsed.includes('Neural Stream'));
+      // Generate a stable float between 0.92 and 1.06 based on text/name
+      const seedString = testSpeaker || testText.slice(0, 20);
+      const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
+      const dynamicRate = 0.92 + ((hash % 100) / 100) * 0.14;
+
+      audio.preservesPitch = false;
+      audio.playbackRate = isNeuralFallback ? dynamicRate : 1.0;
       await audio.play();
 
       const latency = Date.now() - startTime;
@@ -140,10 +144,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
     } catch (err: any) {
       const msg = err?.message || 'Error testing voice synthesis.';
       setTtsTestError(msg);
-      setTestResult({
-        success: false,
-        message: msg,
-      });
+      setTestResult(null);
     } finally {
       setIsTesting(false);
     }
@@ -315,9 +316,16 @@ export const TtsVoiceProviderSection: React.FC = () => {
               ✓ {saveNotice}
             </span>
           )}
+
+          {ttsTestError && (
+            <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200 flex items-center gap-1 max-w-sm truncate" title={ttsTestError}>
+              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              <span>{ttsTestError}</span>
+            </span>
+          )}
         </div>
 
-        {testResult && testResult.success && (
+        {testResult && testResult.success && !ttsTestError && (
           <div className="text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span className="text-[11px]">{testResult.message}</span>

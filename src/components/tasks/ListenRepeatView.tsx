@@ -182,6 +182,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           const audio = new Audio(savedClipUrl);
           audio.loop = false;
           activeAudioRef.current = audio;
+          const seedString = effSpeaker || cleanSentence.slice(0, 20);
+          const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
+          const dynamicRate = 0.92 + ((hash % 100) / 100) * 0.14;
+          audio.preservesPitch = false;
+          audio.playbackRate = dynamicRate;
           audio.onended = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
             if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
@@ -256,6 +261,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           const audio = new Audio(audioSrc);
           audio.loop = false;
           activeAudioRef.current = audio;
+          const isNeuralFallback = !ttsJson.modelUsed || ttsJson.modelUsed.includes('Neural Stream') || ttsJson.providerUsed === 'fallback';
+          const seedString = effSpeaker || cleanSentence.slice(0, 20);
+          const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
+          const dynamicRate = 0.92 + ((hash % 100) / 100) * 0.14;
+          audio.preservesPitch = false;
+          audio.playbackRate = isNeuralFallback ? dynamicRate : 1.0;
           audio.onended = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
             if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;

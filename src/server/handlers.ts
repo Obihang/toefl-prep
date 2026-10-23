@@ -456,6 +456,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         audioUrl,
         mimeType: 'audio/mpeg',
         modelUsed: `Cached Voice (${selectedVoice})`,
+        providerUsed: 'cached',
         hash,
         cached: true,
         isMale,
@@ -500,6 +501,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           audioBase64: base64Audio,
           mimeType: 'audio/mpeg',
           modelUsed: `OpenAI TTS (${isMale ? 'onyx' : 'nova'})`,
+          providerUsed: 'openai',
           isMale,
         });
       } catch (openAiErr) {
@@ -550,6 +552,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           audioBase64: base64Audio,
           mimeType: respMime,
           modelUsed: `Gemini TTS (${geminiVoice})`,
+          providerUsed: 'gemini',
           isMale,
         });
       } catch (geminiErr) {
@@ -605,6 +608,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       audioUrl: audioUrl,
       mimeType,
       modelUsed,
+      providerUsed: 'fallback',
       hash,
       cached: false,
       isMale,
