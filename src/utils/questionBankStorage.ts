@@ -31,19 +31,31 @@ export async function purgeLowQualityCache(): Promise<number> {
   let purgedCount = 0;
   try {
     const dbInstance = await openIndexedDB();
-    const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
-    const store = tx.objectStore('toefl_question_bank');
-    const request = store.getAll();
+    const allItems: any[] = await new Promise((resolve, reject) => {
+      const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
+      const store = tx.objectStore('toefl_question_bank');
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
 
-    request.onsuccess = () => {
-      const allItems = request.result || [];
-      for (const item of allItems) {
-        if (!isHighQualityTask(item.content, item.taskType)) {
-          store.delete(item.id);
-          purgedCount++;
+    const idsToDelete = allItems
+      .filter((item) => item?.content && !isHighQualityTask(item.content, item.taskType))
+      .map((item) => item.id);
+
+    if (idsToDelete.length > 0) {
+      await new Promise<void>((resolve, reject) => {
+        const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
+        const store = tx.objectStore('toefl_question_bank');
+        for (const id of idsToDelete) {
+          store.delete(id);
         }
-      }
-    };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      purgedCount = idsToDelete.length;
+    }
   } catch (err) {
     console.warn('Failed to purge IndexedDB low quality cache:', err);
   }
@@ -116,6 +128,11 @@ export async function saveVerifiedQuestion(params: {
       source,
       generatedBy: enrichedContent.generatedBy,
       updatedAt: Date.now(),
+    });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   } catch (err) {
     console.warn('Failed to save to local IndexedDB question bank:', err);
@@ -212,76 +229,99 @@ export function getLoadedCuratedTasks(taskType: string, level?: string, topic?: 
 export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: number; counts: Record<string, number> }> {
   const counts: Record<string, number> = {};
   let totalQuestions = 0;
+  const questionsToStore: Array<{
+    id: string;
+    taskType: string;
+    level: string;
+    topic: string;
+    content: any;
+    isCurated: boolean;
+    updatedAt: number;
+  }> = [];
 
-  try {
-    const dbInstance = await openIndexedDB();
-    const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
-    const store = tx.objectStore('toefl_question_bank');
+  // 1. Fetch all curated shards completely into memory first BEFORE opening IDB transaction
+  for (const shard of SHARD_FILES) {
+    try {
+      const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, { cache: 'no-cache' });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json)) {
+          const valid = json.filter((item) => isHighQualityTask(item, shard));
+          curatedMemoryCache[shard] = valid;
+          counts[shard] = valid.length;
+          totalQuestions += valid.length;
 
-    for (const shard of SHARD_FILES) {
-      try {
-        const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, { cache: 'no-cache' });
-        if (res.ok) {
-          const json = await res.json();
-          if (Array.isArray(json)) {
-            const valid = json.filter((item) => isHighQualityTask(item, shard));
-            curatedMemoryCache[shard] = valid;
-            counts[shard] = valid.length;
-            totalQuestions += valid.length;
-
-            // Upsert each item into IndexedDB
-            for (let idx = 0; idx < valid.length; idx++) {
-              const item = valid[idx];
-              const qId = item.id || `${shard}-curated-${idx + 1}`;
-              store.put({
-                id: qId,
-                taskType: shard,
-                level: item.level || 'intermediate',
-                topic: item.topic || 'general',
-                content: item,
-                isCurated: true,
-                updatedAt: Date.now(),
-              });
-            }
+          // Stage items for IndexedDB commit
+          for (let idx = 0; idx < valid.length; idx++) {
+            const item = valid[idx];
+            const qId = item.id || `${shard}-curated-${idx + 1}`;
+            questionsToStore.push({
+              id: qId,
+              taskType: shard,
+              level: item.level || 'intermediate',
+              topic: item.topic || 'general',
+              content: item,
+              isCurated: true,
+              updatedAt: Date.now(),
+            });
           }
         }
-      } catch (shardErr) {
-        console.warn(`Failed to sync shard ${shard}:`, shardErr);
       }
+    } catch (shardErr) {
+      console.warn(`Failed to sync shard ${shard}:`, shardErr);
     }
+  }
 
-    // Also fetch and merge validated questions from Firestore 'questions' collection if available
-    try {
-      if (db) {
-        const qSnap = await getDocs(collection(db, 'questions'));
-        if (!qSnap.empty) {
-          qSnap.forEach((docSnap) => {
-            const rawDoc = docSnap.data();
-            const normalized = normalizeTaskData(rawDoc);
-            const contentToCheck = normalized?.content || rawDoc;
-            const targetTaskType = normalized?.taskType || rawDoc.taskType || rawDoc.type || 'academic-discussion';
-            if (normalized && isHighQualityTask(contentToCheck, targetTaskType)) {
-              const qId = docSnap.id;
-              store.put({
-                id: qId,
-                taskType: targetTaskType,
-                level: normalized.level || 'intermediate',
-                topic: normalized.topic || 'general',
-                content: contentToCheck,
-                isCurated: false,
-                updatedAt: Date.now(),
-              });
-              counts[targetTaskType] = (counts[targetTaskType] || 0) + 1;
-              totalQuestions++;
-            }
-          });
-        }
+  // 2. Fetch and merge validated questions from Firestore into local memory array BEFORE opening IDB transaction
+  try {
+    if (db) {
+      const qSnap = await getDocs(collection(db, 'questions'));
+      if (!qSnap.empty) {
+        qSnap.forEach((docSnap) => {
+          const rawDoc = docSnap.data();
+          const normalized = normalizeTaskData(rawDoc);
+          const contentToCheck = normalized?.content || rawDoc;
+          const targetTaskType = normalized?.taskType || rawDoc.taskType || rawDoc.type || 'academic-discussion';
+          if (normalized && isHighQualityTask(contentToCheck, targetTaskType)) {
+            const qId = docSnap.id;
+            questionsToStore.push({
+              id: qId,
+              taskType: targetTaskType,
+              level: normalized.level || 'intermediate',
+              topic: normalized.topic || 'general',
+              content: contentToCheck,
+              isCurated: false,
+              updatedAt: Date.now(),
+            });
+            counts[targetTaskType] = (counts[targetTaskType] || 0) + 1;
+            totalQuestions++;
+          }
+        });
       }
-    } catch (firestoreErr) {
-      console.warn('Failed to sync questions from Firestore into local bank:', firestoreErr);
     }
-  } catch (err) {
-    console.warn('Failed to open IndexedDB during question bank sync:', err);
+  } catch (firestoreErr) {
+    console.warn('Failed to sync questions from Firestore into local bank:', firestoreErr);
+  }
+
+  // 3. AFTER all network requests are 100% complete, open the IndexedDB transaction and write in one synchronous batch
+  if (questionsToStore.length > 0) {
+    try {
+      const dbInstance = await openIndexedDB();
+      const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
+      const store = tx.objectStore('toefl_question_bank');
+
+      for (const q of questionsToStore) {
+        store.put(q);
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } catch (idbErr) {
+      console.warn('Failed to commit questions to IndexedDB:', idbErr);
+    }
   }
 
   return { totalQuestions, counts };
@@ -367,6 +407,11 @@ export async function setCachedAudio(cacheKey: string, audioUrl: string): Promis
     const tx = dbInstance.transaction('toefl_audio_cache', 'readwrite');
     const store = tx.objectStore('toefl_audio_cache');
     store.put({ cacheKey, audioUrl, updatedAt: Date.now() });
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
   } catch (err) {
     console.warn('Failed to cache audio in IndexedDB:', err);
   }
