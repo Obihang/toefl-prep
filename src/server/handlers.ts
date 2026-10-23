@@ -381,9 +381,18 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       return res.status(400).json({ success: false, error: 'Speech rate must be between 0.7 and 1.3' });
     }
 
-    const parsedLine = parseDialogueLine(text);
-    const speakerName = (speaker || parsedLine.speakerName).toString().trim();
-    const cleanText = parsedLine.spokenText || stripSpeakerAndFormatting(text);
+    let isMale = /Male|Guy|Christopher|Eric|onyx|alloy|Puck/i.test(voiceName || speaker);
+    let cleanText = text;
+    const prefixMatch = text.match(/^\s*(?:\*\*|__)?([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?(?:\*\*|__)?\s*:/i);
+    if (prefixMatch) {
+      const speakerName = prefixMatch[1].trim();
+      const speakerHint = prefixMatch[2] ? prefixMatch[2].trim() : '';
+      if (detectSpeakerGender(speakerName, speakerHint) === 'male') {
+        isMale = true;
+      }
+      cleanText = text.replace(/^\s*(?:\*\*|__)?(?:[A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\([^)]+\))?(?:\*\*|__)?\s*:\s*/i, '').trim();
+    }
+    const speakerName = speaker || (prefixMatch ? prefixMatch[1].trim() : '');
 
     if (!cleanText) {
       return res.status(200).json({
@@ -395,7 +404,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    const gender = detectSpeakerGender(speakerName, parsedLine.speakerHint);
+    const gender = detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
     let selectedVoice = voiceName || (gender === 'female' ? 'en-US-AriaNeural' : gender === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural');
 
     const ratePercent = Math.round((numRate - 1.0) * 100);
@@ -444,7 +453,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString().trim();
     const provider = (req.headers['x-api-provider'] || '').toString().trim().toLowerCase();
 
-    const isMale = /Male|Guy|Christopher|Eric/i.test(selectedVoice || speakerName);
     const isTest = req.headers['x-tts-test'] === 'true';
 
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
@@ -470,6 +478,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed: `OpenAI TTS (${isMale ? 'onyx' : 'nova'})`,
         });
       } catch (openAiErr) {
+        if (isTest) return res.status(500).json({ error: openAiErr instanceof Error ? openAiErr.message : String(openAiErr) });
         console.error("TTS API Failed, executing fallback. Error:", openAiErr);
         console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
       }
@@ -502,6 +511,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed: `Gemini TTS (${isMale ? 'Puck' : 'Kore'})`,
         });
       } catch (geminiErr) {
+        if (isTest) return res.status(500).json({ error: geminiErr instanceof Error ? geminiErr.message : String(geminiErr) });
         console.error("TTS API Failed, executing fallback. Error:", geminiErr);
         console.warn('Gemini TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(geminiErr));
       }

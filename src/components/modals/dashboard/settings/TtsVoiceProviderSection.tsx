@@ -68,7 +68,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
     setIsTesting(true);
     setTestResult(null);
 
-    const testText = 'This is a test of the API voice engine.';
+    const testText = "Marcus (Male): This is a test of the API voice engine.";
     const startTime = Date.now();
 
     try {
@@ -76,7 +76,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
         'Content-Type': 'application/json',
         'x-tts-provider': provider,
         'x-tts-api-key': apiKey,
-        'x-tts-test': 'true',
+        'x-tts-test': 'true'
       };
       if (baseUrl) {
         headers['x-tts-base-url'] = baseUrl;
@@ -89,7 +89,8 @@ export const TtsVoiceProviderSection: React.FC = () => {
       });
 
       if (!res.ok) {
-        throw new Error(`TTS server responded with HTTP ${res.status}`);
+        const errData = await res.json();
+        throw new Error(errData.error || `TTS server responded with HTTP ${res.status}`);
       }
 
       const data = await res.json();
