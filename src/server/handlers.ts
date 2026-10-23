@@ -381,68 +381,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       return res.status(400).json({ success: false, error: 'Speech rate must be between 0.7 and 1.3' });
     }
 
-    let isMale = /Male|Guy|Christopher|Eric|onyx|alloy|Puck/i.test(voiceName || speaker);
-    let cleanText = text;
-    const prefixMatch = text.match(/^\s*(?:\*\*|__)?([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?(?:\*\*|__)?\s*:/i);
-    if (prefixMatch) {
-      const speakerName = prefixMatch[1].trim();
-      const speakerHint = prefixMatch[2] ? prefixMatch[2].trim() : '';
-      if (detectSpeakerGender(speakerName, speakerHint) === 'male') {
-        isMale = true;
-      }
-      cleanText = text.replace(/^\s*(?:\*\*|__)?(?:[A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\([^)]+\))?(?:\*\*|__)?\s*:\s*/i, '').trim();
-    }
-    const speakerName = speaker || (prefixMatch ? prefixMatch[1].trim() : '');
-
-    if (!cleanText) {
-      return res.status(200).json({
-        success: true,
-        audioBase64: '',
-        audioUrl: undefined,
-        mimeType: 'audio/mpeg',
-        modelUsed: 'Empty text',
-      });
-    }
-
-    const gender = detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
-    let selectedVoice = voiceName || (gender === 'female' ? 'en-US-AriaNeural' : gender === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural');
-
-    const ratePercent = Math.round((numRate - 1.0) * 100);
-    const rateStr = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`;
-
-    const hash = crypto
-      .createHash('sha256')
-      .update(`${cleanText}:::${selectedVoice}:::${rateStr}`)
-      .digest('hex');
-
-    const blobPath = `toefl-tts/${hash}.mp3`;
-    let audioUrl: string | undefined;
-
-    // Check Vercel Blob existence via head() if BLOB_READ_WRITE_TOKEN is configured
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      try {
-        const blobInfo = await head(blobPath);
-        if (blobInfo && blobInfo.url && blobInfo.url.includes(BLOB_DOMAIN_SUFFIX)) {
-          audioUrl = blobInfo.url;
-        }
-      } catch {}
-    }
-
-    if (audioUrl) {
-      return res.status(200).json({
-        success: true,
-        audioUrl,
-        mimeType: 'audio/mpeg',
-        modelUsed: `Cached Voice (${selectedVoice})`,
-        hash,
-        cached: true,
-      });
-    }
-
-    let audioBuffer: Buffer | null = null;
-    let mimeType = 'audio/mpeg';
-    let modelUsed = `Neural Stream (${selectedVoice})`;
-
     // TTS Provider headers:
     const ttsProvider = (req.headers['x-tts-provider'] || '').toString().trim().toLowerCase();
     const ttsApiKey = (req.headers['x-tts-api-key'] || '').toString().trim();
@@ -455,9 +393,82 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const isTest = req.headers['x-tts-test'] === 'true';
 
+    const isMaleExplicit = body.isMale === true || body.gender === 'male';
+    let isMale = isMaleExplicit || /Male|Guy|Christopher|Eric|onyx|alloy|Puck/i.test(voiceName || speaker);
+    let cleanText = text;
+    const prefixMatch = text.match(/^\s*(?:\*\*|__)?([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?(?:\*\*|__)?\s*:/i);
+    if (prefixMatch) {
+      const pSpeakerName = prefixMatch[1].trim();
+      const pSpeakerHint = prefixMatch[2] ? prefixMatch[2].trim() : '';
+      if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'male' || /male/i.test(pSpeakerHint)) {
+        isMale = true;
+      } else if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'female' || /female/i.test(pSpeakerHint)) {
+        if (!isMaleExplicit) isMale = false;
+      }
+      cleanText = text.replace(/^\s*(?:\*\*|__)?(?:[A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\([^)]+\))?(?:\*\*|__)?\s*:\s*/i, '').trim();
+    }
+    const speakerName = speaker || (prefixMatch ? prefixMatch[1].trim() : '');
+    const speakerHint = body.speakerHint || (prefixMatch ? (prefixMatch[2] || '') : '');
+    if (!isMale && (detectSpeakerGender(speakerName, speakerHint) === 'male' || /male/i.test(speakerHint))) {
+      isMale = true;
+    }
+
+    if (!cleanText) {
+      return res.status(200).json({
+        success: true,
+        audioBase64: '',
+        audioUrl: undefined,
+        mimeType: 'audio/mpeg',
+        modelUsed: 'Empty text',
+      });
+    }
+
+    const gender = isMale ? 'male' : detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
+    let selectedVoice = voiceName || (gender === 'female' ? 'en-US-AriaNeural' : gender === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural');
+    if (isMale && (selectedVoice === 'en-US-JennyNeural' || selectedVoice === 'en-US-AriaNeural')) {
+      selectedVoice = 'en-US-GuyNeural';
+    }
+
+    const ratePercent = Math.round((numRate - 1.0) * 100);
+    const rateStr = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`;
+
+    const hash = crypto
+      .createHash('sha256')
+      .update(`${cleanText}:::${selectedVoice}:::${rateStr}`)
+      .digest('hex');
+
+    const blobPath = `toefl-tts/${hash}.mp3`;
+    let audioUrl: string | undefined;
+
+    // Check Vercel Blob existence via head() if BLOB_READ_WRITE_TOKEN is configured (strictly bypass cache during tests)
+    if (!isTest && process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const blobInfo = await head(blobPath);
+        if (blobInfo && blobInfo.url && blobInfo.url.includes(BLOB_DOMAIN_SUFFIX)) {
+          audioUrl = blobInfo.url;
+        }
+      } catch {}
+    }
+
+    if (!isTest && audioUrl) {
+      return res.status(200).json({
+        success: true,
+        audioUrl,
+        mimeType: 'audio/mpeg',
+        modelUsed: `Cached Voice (${selectedVoice})`,
+        hash,
+        cached: true,
+        isMale,
+      });
+    }
+
+    let audioBuffer: Buffer | null = null;
+    let mimeType = 'audio/mpeg';
+    let modelUsed = `Neural Stream (${selectedVoice})`;
+
     // If testing OpenAI or Gemini but no API key is configured, return explicit error immediately
     if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini') && !ttsApiKey && !userApiKey) {
-      return res.status(400).json({ error: `API Error: Missing API key for ${ttsProvider.toUpperCase()} TTS.` });
+      return res.status(400).json({ error: `API Error: Missing API key for ${ttsProvider.toUpperCase()} TTS. Please paste a valid API key in Settings.` });
     }
 
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
@@ -474,7 +485,12 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         });
         if (!openAiRes.ok) {
           const errText = await openAiRes.text();
-          throw new Error(`OpenAI HTTP ${openAiRes.status}: ${errText || openAiRes.statusText}`);
+          let errDetail = errText;
+          try {
+            const errJson = JSON.parse(errText);
+            errDetail = errJson.error?.message || errDetail;
+          } catch {}
+          throw new Error(`OpenAI HTTP ${openAiRes.status}: ${errDetail || openAiRes.statusText}`);
         }
         const buffer = await openAiRes.arrayBuffer();
         const base64Audio = Buffer.from(buffer).toString('base64');
@@ -484,6 +500,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           audioBase64: base64Audio,
           mimeType: 'audio/mpeg',
           modelUsed: `OpenAI TTS (${isMale ? 'onyx' : 'nova'})`,
+          isMale,
         });
       } catch (openAiErr) {
         if (isTest) {
@@ -493,33 +510,64 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         console.error("TTS API Failed, executing fallback. Error:", openAiErr);
         console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
       }
-    } else if ((ttsProvider === 'gemini' || provider === 'gemini') && (ttsApiKey || userApiKey || voiceApiKey || process.env.GEMINI_API_KEY)) {
+    } else if ((ttsProvider === 'gemini' || provider === 'gemini') && (ttsApiKey || userApiKey || voiceApiKey || (!isTest && process.env.GEMINI_API_KEY))) {
       try {
-        const apiKey = ttsApiKey || userApiKey || voiceApiKey || process.env.GEMINI_API_KEY || '';
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const apiKey = ttsApiKey || userApiKey || voiceApiKey || (!isTest ? process.env.GEMINI_API_KEY : '') || '';
+        if (!apiKey) {
+          throw new Error('Please enter a valid Gemini API key.');
+        }
+        const geminiVoice = isMale ? 'Puck' : 'Kore';
+
+        let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: cleanText }] }],
             generationConfig: {
               responseModalities: ["AUDIO"],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: isMale ? "Puck" : "Kore" } } }
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } } }
             }
           })
         });
+
+        if (!geminiRes.ok && geminiRes.status === 404) {
+          const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: cleanText }] }],
+              generationConfig: {
+                responseModalities: ["AUDIO"],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } } }
+              }
+            })
+          });
+          if (fallbackRes.ok) {
+            geminiRes = fallbackRes;
+          }
+        }
+
         if (!geminiRes.ok) {
           const errText = await geminiRes.text();
-          throw new Error(`Gemini API Error: ${errText}`);
+          let errDetail = errText;
+          try {
+            const errJson = JSON.parse(errText);
+            errDetail = errJson.error?.message || errDetail;
+          } catch {}
+          throw new Error(`Gemini HTTP ${geminiRes.status}: ${errDetail}`);
         }
+
         const geminiData = await geminiRes.json();
         const base64Audio = geminiData.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        const respMime = geminiData.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType || 'audio/wav';
         if (!base64Audio) throw new Error('No audio data in Gemini response');
         return res.status(200).json({
           success: true,
-          audioUrl: `data:audio/wav;base64,${base64Audio}`,
+          audioUrl: `data:${respMime};base64,${base64Audio}`,
           audioBase64: base64Audio,
-          mimeType: 'audio/wav',
-          modelUsed: `Gemini TTS (${isMale ? 'Puck' : 'Kore'})`,
+          mimeType: respMime,
+          modelUsed: `Gemini TTS (${geminiVoice})`,
+          isMale,
         });
       } catch (geminiErr) {
         if (isTest) {
@@ -537,7 +585,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     }
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
-    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, gender);
+    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : gender);
     if (zeroKeyRes) {
       audioBuffer = zeroKeyRes.buffer;
       mimeType = 'audio/mpeg';
@@ -576,6 +624,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       modelUsed,
       hash,
       cached: false,
+      isMale,
     });
   } catch (error: any) {
     console.error('TTS endpoint error:', redactSensitiveInfo(error));

@@ -1,4 +1,4 @@
-import { pickDialogueVoices, inferGender, parseDialogueLine, DialogueVoiceManager } from '../../utils/voices';
+import { pickDialogueVoices, inferGender, parseDialogueLine, detectSpeakerGender, DialogueVoiceManager } from '../../utils/voices';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
@@ -142,12 +142,21 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             if (!parsed.spokenText) continue;
 
             const speakerName = parsed.speakerName || (i % 2 === 0 ? (task.speakers?.A || 'Speaker A') : (task.speakers?.B || 'Speaker B'));
+            const isMaleSpeaker = /male/i.test(parsed.speakerHint) ||
+              detectSpeakerGender(speakerName, parsed.speakerHint) === 'male' ||
+              (task.speakerGenders && ((i % 2 === 0 && task.speakerGenders.A === 'male') || (i % 2 === 1 && task.speakerGenders.B === 'male')));
             const voiceName = voiceManager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
 
             const ttsRes = await fetch('/api/tts', {
               method: 'POST',
               headers,
-              body: JSON.stringify({ text: parsed.spokenText, voiceName, speaker: speakerName }),
+              body: JSON.stringify({
+                text: parsed.spokenText,
+                voiceName,
+                speaker: speakerName,
+                speakerHint: parsed.speakerHint,
+                isMale: isMaleSpeaker,
+              }),
             });
             const ttsJson = await ttsRes.json();
             const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
@@ -165,6 +174,10 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
                 }
                 const audio = new Audio(audioSrc);
                 activeAudioRef.current = audio;
+                if (isMaleSpeaker && (!ttsJson.modelUsed || ttsJson.modelUsed.includes('Neural Stream'))) {
+                  (audio as any).preservesPitch = false;
+                  audio.playbackRate = 0.88;
+                }
                 audio.onended = () => {
                   if (activeAudioRef.current === audio) activeAudioRef.current = null;
                   resolve();
@@ -411,11 +424,16 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         {showTranscript && (
           <div className="mt-4 pt-4 border-t border-slate-800 bg-slate-950/60 rounded-lg p-4 space-y-2.5 max-h-56 overflow-y-auto text-xs sm:text-sm">
             {lines.map((line, idx) => {
+              const parsed = parseDialogueLine(line);
               const isSpeakerB =
+                (parsed.speakerName && (parsed.speakerName.toLowerCase().includes('student') || parsed.speakerName.toLowerCase() === (task.speakers?.B || '').toLowerCase())) ||
                 line.startsWith('Speaker B:') ||
                 line.startsWith('B:') ||
-                line.toLowerCase().startsWith('student:');
+                line.toLowerCase().startsWith('student:') ||
+                idx % 2 === 1;
               const isCurrent = activeLine === idx;
+              const speakerLabel = parsed.speakerName || (isSpeakerB ? task.speakers.B : task.speakers.A);
+              const spokenText = parsed.spokenText || line.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '');
 
               return (
                 <div
@@ -427,9 +445,9 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
                   }`}
                 >
                   <strong className={isSpeakerB ? 'text-cyan-400' : 'text-emerald-400'}>
-                    {isSpeakerB ? task.speakers.B : task.speakers.A}:
+                    {speakerLabel}:
                   </strong>{' '}
-                  <span>{line.replace(/^(Speaker [AB]:|[AB]:|Professor.*?:|Student.*?:)\s*/i, '')}</span>
+                  <span>{spokenText}</span>
                 </div>
               );
             })}

@@ -72,16 +72,24 @@ export const TtsVoiceProviderSection: React.FC = () => {
     setTestResult(null);
     setTtsTestError(null);
 
-    const testText = "Marcus (Male): This is a test of the API voice engine.";
+    const testSpeaker = isMale ? 'Marcus (Male)' : 'Victoria (Female)';
+    const testText = isMale
+      ? 'Marcus (Male): This is a test of the API voice engine.'
+      : 'Victoria (Female): This is a test of the API voice engine.';
+    const voiceName = isMale
+      ? (provider === 'gemini' ? 'Puck' : provider === 'openai' ? 'onyx' : 'en-US-GuyNeural')
+      : (provider === 'gemini' ? 'Kore' : provider === 'openai' ? 'nova' : 'en-US-JennyNeural');
     const startTime = Date.now();
 
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-tts-provider': provider,
-        'x-tts-api-key': apiKey,
         'x-tts-test': 'true'
       };
+      if (provider !== 'free' && apiKey) {
+        headers['x-tts-api-key'] = apiKey;
+      }
       if (baseUrl) {
         headers['x-tts-base-url'] = baseUrl;
       }
@@ -89,7 +97,12 @@ export const TtsVoiceProviderSection: React.FC = () => {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: testText, isMale }),
+        body: JSON.stringify({
+          text: testText,
+          isMale,
+          voiceName,
+          speaker: testSpeaker,
+        }),
       });
 
       if (!res.ok) {
@@ -114,6 +127,10 @@ export const TtsVoiceProviderSection: React.FC = () => {
       }
 
       const audio = new Audio(audioUrl);
+      if (provider === 'free' && isMale && (!data.modelUsed || data.modelUsed.includes('Neural Stream'))) {
+        (audio as any).preservesPitch = false;
+        audio.playbackRate = 0.88;
+      }
       await audio.play();
 
       const latency = Date.now() - startTime;
@@ -190,8 +207,28 @@ export const TtsVoiceProviderSection: React.FC = () => {
         </div>
 
         <div className="flex gap-2">
-          <button type="button" onClick={() => setIsMale(false)} className={`py-1 px-3 rounded-lg text-xs font-semibold ${!isMale ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-700'}`}>Female Voice</button>
-          <button type="button" onClick={() => setIsMale(true)} className={`py-1 px-3 rounded-lg text-xs font-semibold ${isMale ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-700'}`}>Male Voice</button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMale(false);
+              setTtsTestError(null);
+              setTestResult(null);
+            }}
+            className={`py-1 px-3 rounded-lg text-xs font-semibold cursor-pointer transition ${!isMale ? 'bg-teal-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+          >
+            Female Voice
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMale(true);
+              setTtsTestError(null);
+              setTestResult(null);
+            }}
+            className={`py-1 px-3 rounded-lg text-xs font-semibold cursor-pointer transition ${isMale ? 'bg-teal-700 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+          >
+            Male Voice
+          </button>
         </div>
       </div>
 
