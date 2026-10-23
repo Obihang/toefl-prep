@@ -19,6 +19,7 @@ export interface RoleModelsResult {
 
 const DROP_PATTERN = /embed|whisper|tts|speech|guard|moderat|rerank|vision|image|audio|transcri|safety|ocr|parse|clip|diffusion|stable|flux|\bvl\b|-vl-|reward|retriev|orpheus|playai|moderation/i;
 const REASONING_PATTERN = /r1\b|reason|thinking|qwq|o1|o3/i;
+const CHAT_EXCLUDE_PATTERN = /deep-research|computer-use|robotics|omni|agent|argon|aqa|learnlm|thinking-exp|\bexp-/i;
 
 // Dead model cache (24 hours)
 const deadModelsCache = new Map<string, number>();
@@ -79,57 +80,204 @@ export function clearModelChainsCache(): void {
   roleChainsCache.clear();
 }
 
-function extractVersionNumber(id: string): number {
-  // Strip parameter sizes (e.g. 120b, 70b, 20b, 8b) and context sizes (e.g. 128k, 32k)
-  const cleanId = id.replace(/[-_]?\d+[bBkK]\b/g, '');
-  const match = cleanId.match(/(\d+(?:\.\d+)?)/);
-  if (match) {
-    return parseFloat(match[1]);
+/**
+ * Scoring for Gemini models:
+ * Tier 1 = stable GA IDs matching /^gemini-(\d+(?:\.\d+)?)-(flash-lite|flash|pro)$/
+ * Tier 2 = "-latest" aliases (gemini-flash-latest, gemini-flash-lite-latest, gemini-pro-latest)
+ * Tier 3 = preview models (matching /^gemini-(\d+(?:\.\d+)?)/ with "preview" or "exp")
+ * Generation prefers flash-lite, then flash; evaluation prefers pro or newest non-lite flash.
+ * Within a tier, pick the highest version.
+ */
+function scoreGeminiModel(id: string, role: 'generation' | 'evaluation'): number {
+  const lower = id.toLowerCase();
+
+  // Tier 1: Stable GA IDs matching /^gemini-(\d+(?:\.\d+)?)-(flash-lite|flash|pro)$/
+  const gaMatch = lower.match(/^gemini-(\d+(?:\.\d+)?)-(flash-lite|flash|pro)$/);
+  if (gaMatch) {
+    const version = parseFloat(gaMatch[1]);
+    const kind = gaMatch[2];
+    let score = 100000 + version * 1000;
+    if (role === 'generation') {
+      if (kind === 'flash-lite') score += 500;
+      else if (kind === 'flash') score += 200;
+      else if (kind === 'pro') score += 50;
+    } else {
+      // Evaluation prefers pro or the newest non-lite flash
+      if (kind === 'pro') score += 500;
+      else if (kind === 'flash') score += 300;
+      else if (kind === 'flash-lite') score += 50;
+    }
+    return score;
   }
-  return 1.0;
+
+  // Tier 2: The "-latest" aliases (gemini-flash-latest, gemini-flash-lite-latest, gemini-pro-latest)
+  const latestMatch = lower.match(/^gemini-(?:(\d+(?:\.\d+)?)-)?(flash-lite|flash|pro)-latest$/);
+  if (latestMatch) {
+    const version = latestMatch[1] ? parseFloat(latestMatch[1]) : 2.5;
+    const kind = latestMatch[2];
+    let score = 50000 + version * 1000;
+    if (role === 'generation') {
+      if (kind === 'flash-lite') score += 500;
+      else if (kind === 'flash') score += 200;
+      else if (kind === 'pro') score += 50;
+    } else {
+      if (kind === 'pro') score += 500;
+      else if (kind === 'flash') score += 300;
+      else if (kind === 'flash-lite') score += 50;
+    }
+    return score;
+  }
+
+  // Tier 3: Preview models
+  if (/preview|exp/i.test(lower) && /^gemini-/i.test(lower)) {
+    const verMatch = lower.match(/^gemini-(\d+(?:\.\d+)?)/);
+    const version = verMatch ? parseFloat(verMatch[1]) : 1.0;
+    let score = 10000 + version * 1000;
+    if (role === 'generation') {
+      if (/flash-lite/i.test(lower)) score += 500;
+      else if (/flash/i.test(lower)) score += 200;
+      else if (/pro/i.test(lower)) score += 50;
+    } else {
+      if (/pro/i.test(lower)) score += 500;
+      else if (/flash\b(?!-lite)/i.test(lower)) score += 300;
+      else if (/flash-lite/i.test(lower)) score += 50;
+    }
+    return score;
+  }
+
+  // Any other valid gemini- prefixed model
+  if (/^gemini-/i.test(lower)) {
+    const verMatch = lower.match(/^gemini-(\d+(?:\.\d+)?)/);
+    const version = verMatch ? parseFloat(verMatch[1]) : 1.0;
+    return 1000 + version * 100;
+  }
+
+  return -10000;
+}
+
+/**
+ * Scoring for non-Gemini models (NVIDIA, OpenRouter, Groq, etc.):
+ * Rank by known good families in order:
+ * 1. gpt-oss
+ * 2. llama (3.3, 4, 3.1)
+ * 3. qwen
+ * 4. deepseek
+ * 5. nemotron
+ * 6. mistral
+ * 7. gemma
+ * Unknown families (e.g. jamba) go last (used only if nothing else is available).
+ */
+function scoreNonGeminiModel(id: string, role: 'generation' | 'evaluation'): number {
+  const lower = id.toLowerCase();
+  let familyScore = 0;
+
+  if (/gpt-oss/i.test(lower)) {
+    familyScore = 70000;
+  } else if (/llama/i.test(lower) && !/nemotron/i.test(lower)) {
+    familyScore = 60000;
+    // Llama version order: 3.3, 4, 3.1, 3.2
+    if (/llama-?3\.3/i.test(lower)) {
+      familyScore += 4000;
+    } else if (/llama-?4/i.test(lower)) {
+      familyScore += 3000;
+    } else if (/llama-?3\.1/i.test(lower)) {
+      familyScore += 2000;
+    } else if (/llama-?3\.2/i.test(lower)) {
+      familyScore += 1000;
+    }
+  } else if (/qwen/i.test(lower)) {
+    familyScore = 50000;
+    if (/qwen-?3(?:\.6)?/i.test(lower)) familyScore += 2000;
+    else if (/qwen-?2\.5/i.test(lower)) familyScore += 1000;
+  } else if (/deepseek/i.test(lower)) {
+    familyScore = 40000;
+    if (REASONING_PATTERN.test(lower)) {
+      familyScore -= 10000; // Reasoning models rank last among chat models
+    }
+  } else if (/nemotron/i.test(lower)) {
+    familyScore = 30000;
+  } else if (/mistral|mixtral/i.test(lower)) {
+    familyScore = 20000;
+  } else if (/gemma/i.test(lower)) {
+    familyScore = 10000;
+  } else {
+    // Unknown families (e.g. jamba) go last
+    familyScore = 1000;
+  }
+
+  // Role adjustments within family
+  if (role === 'generation') {
+    // Generation prefers cheapest/fastest family: 8b, 20b, mini, small, 3b, 7b
+    if (/8b|20b|mini|small|3b|7b/i.test(lower)) {
+      familyScore += 500;
+    } else if (/70b|120b|large/i.test(lower)) {
+      familyScore += 100;
+    }
+  } else {
+    // Evaluation prefers strongest available: 120b, 70b, 72b, large, pro
+    if (/120b|70b|72b|large|pro/i.test(lower)) {
+      familyScore += 500;
+    } else if (/8b|20b|mini|small|3b|7b/i.test(lower)) {
+      familyScore += 100;
+    }
+  }
+
+  return familyScore;
 }
 
 export function scoreModelForRole(id: string, role: 'generation' | 'evaluation', provider: string): number {
+  if (isModelDead(id)) return -99999;
+  const p = (provider || '').toLowerCase();
   const lower = id.toLowerCase();
-  if (isModelDead(id)) return -9999;
-  if (DROP_PATTERN.test(lower)) return -1000;
-  if (REASONING_PATTERN.test(lower)) return -500;
 
-  let score = 10;
-  const version = extractVersionNumber(lower);
+  // Exclude audio / embedding models
+  if (DROP_PATTERN.test(lower)) return -10000;
 
-  if (role === 'generation') {
-    // Prefer cheapest/fastest family: flash-lite, 8b, 20b, mini, small
-    if (/flash-lite|8b|20b|mini|small/i.test(lower)) {
-      score += 100;
-    } else if (/flash|70b|instruct/i.test(lower)) {
-      score += 50;
-    }
-  } else {
-    // Evaluation role: prefer strongest available: pro, 120b, 70b, large, or newest non-lite flash
-    if (/pro|120b|70b|large/i.test(lower)) {
-      score += 120;
-    } else if (/flash\b(?!-lite)/i.test(lower) || /gpt-4o\b/i.test(lower)) {
-      score += 100;
-    } else if (/instruct|chat/i.test(lower)) {
-      score += 60;
-    }
+  // Exclude non-chat / codenames
+  if (CHAT_EXCLUDE_PATTERN.test(lower)) {
+    return -10000;
   }
 
-  score += version * 5;
-  return score;
+  if (p === 'gemini') {
+    // On Gemini, gemma models and non-gemini codenames are excluded from chat
+    if (/gemma/i.test(lower) || !/^gemini-/i.test(lower)) {
+      return -10000;
+    }
+    return scoreGeminiModel(id, role);
+  }
+
+  return scoreNonGeminiModel(id, role);
 }
 
-export function rankModelsForRole(provider: string, ids: string[], role: 'generation' | 'evaluation'): string[] {
+export function rankModelsForRole(
+  provider: string,
+  ids: string[],
+  role: 'generation' | 'evaluation',
+  preferredModel?: string
+): string[] {
+  const p = (provider || '').toLowerCase();
   let filtered = ids.filter((id) => !DROP_PATTERN.test(id) && !isModelDead(id));
 
-  if (provider === 'openrouter') {
-    const freeModels = filtered.filter((id) => id.endsWith(':free'));
-    const nonFreeModels = filtered.filter((id) => !id.endsWith(':free'));
-    filtered = [...freeModels, ...nonFreeModels];
+  // Chat exclusions:
+  filtered = filtered.filter((id) => !CHAT_EXCLUDE_PATTERN.test(id));
+
+  if (p === 'gemini') {
+    filtered = filtered.filter((id) => /^gemini-/i.test(id) && !/gemma/i.test(id));
+  } else if (p === 'openrouter') {
+    filtered = filtered.filter((id) => id.endsWith(':free'));
   }
 
-  return filtered.sort((a, b) => scoreModelForRole(b, role, provider) - scoreModelForRole(a, role, provider));
+  const sorted = filtered.sort((a, b) => scoreModelForRole(b, role, p) - scoreModelForRole(a, role, p));
+
+  if (preferredModel && sorted.includes(preferredModel)) {
+    return [preferredModel, ...sorted.filter((m) => m !== preferredModel)];
+  }
+
+  return sorted;
+}
+
+export function rankModels(provider: string, ids: string[], preferredModel?: string): string[] {
+  return rankModelsForRole(provider, ids, 'generation', preferredModel);
 }
 
 export function classifyAudioModels(ids: string[]): { stt: string[]; tts: string[] } {
@@ -292,18 +440,34 @@ export async function resolveModelChains(
     setLastListError(p, { status: 500, message: redactKeyInText(err?.message || String(err), cleanKey) });
   }
 
+  // OpenRouter: keep only ':free' models with verified free pricing
   if (p === 'openrouter') {
     rawModels = rawModels.filter((m: any) => {
-      const id = String(m?.id || '');
-      if (id.endsWith(':free')) return true;
-      const promptPrice = Number(m?.pricing?.prompt ?? 1);
-      const completionPrice = Number(m?.pricing?.completion ?? 1);
-      return promptPrice === 0 && completionPrice === 0;
+      const id = typeof m === 'string' ? m : String(m?.id || '');
+      if (!id.endsWith(':free')) return false;
+      if (typeof m === 'object' && m?.pricing) {
+        const promptPrice = Number(m.pricing.prompt ?? 0);
+        const completionPrice = Number(m.pricing.completion ?? 0);
+        if (promptPrice > 0 || completionPrice > 0) return false;
+      }
+      return true;
     });
   }
 
+  // Build model ID list:
+  // Gemini -> m.name with "models/" removed (fallback to id)
+  // Every other provider -> m.id (fallback to name only if id missing)
   const all = rawModels
-    .map((m: any) => String(m?.name?.replace(/^models\//, '') || m?.id || m?.name || ''))
+    .map((m: any) => {
+      if (p === 'gemini') {
+        const name = typeof m === 'string' ? m : String(m?.name || '');
+        const stripped = name.replace(/^models\//, '');
+        return stripped || (typeof m === 'object' ? String(m?.id || '') : '');
+      } else {
+        const id = typeof m === 'string' ? m : String(m?.id || '');
+        return id || (typeof m === 'object' ? String(m?.name || '') : '');
+      }
+    })
     .filter(Boolean);
 
   let sttCandidates: string[] = [];

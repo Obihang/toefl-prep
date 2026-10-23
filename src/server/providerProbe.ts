@@ -5,7 +5,10 @@ import {
   redactKeyInText,
   isModelGone,
   getLastListError,
+  rankModels,
 } from './modelRoles.ts';
+
+export { rankModels };
 
 export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Google Gemini',
@@ -118,6 +121,25 @@ export async function probeProvider(
         throw Object.assign(new Error(errInfo.error), { status: 401, details: errInfo });
       }
 
+      if (res.status === 429) {
+        return {
+          success: true,
+          provider,
+          providerName,
+          model: modelToTest,
+          models: chains.all.slice(0, 30),
+          generationModel,
+          evaluationModel,
+          warning: 'Rate limit reached during key probe. Key is valid, but provider is currently throttling.',
+          roles: {
+            chat: modelToTest,
+            stt: chains.stt[0] || null,
+            tts: chains.tts[0] || null,
+          },
+          message: `Connected to ${providerName} (Rate limited). Generation model: ${generationModel}, Evaluation model: ${evaluationModel}.`,
+        };
+      }
+
       if (!res.ok) {
         const errText = await res.text();
         if (isModelGone(res.status, errText)) {
@@ -160,7 +182,7 @@ export async function probeProvider(
   // If all tried models failed, format detailed real error report
   const lastErr = triedModels[triedModels.length - 1] || { model: candidates[0], error: 'Unknown failure', status: 502 };
   const errInfo = formatProviderError(provider, lastErr.model, lastErr.status, lastErr.error, cleanKey);
-  throw Object.assign(new Error(errInfo.error), { status: lastErr.status || 502, details: errInfo });
+  throw Object.assign(new Error(errInfo.error), { status: 502, details: errInfo });
 }
 
 export async function probeAuto(
