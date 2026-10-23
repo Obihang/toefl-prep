@@ -974,10 +974,10 @@ export async function playSpeech(
         const hasFemale = femaleKeywords.some(kw => nameLower.includes(kw));
 
         if (gender === 'male' && !hasMale) {
-          finalPitch = 0.85;
-          finalRate = 0.95;
+          finalPitch = 0.96;
+          finalRate = 0.98;
         } else if (gender === 'female' && !hasFemale) {
-          finalPitch = 1.15;
+          finalPitch = 1.04;
         }
       }
 

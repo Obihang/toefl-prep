@@ -127,9 +127,8 @@ export const TtsVoiceProviderSection: React.FC = () => {
       }
 
       const audio = new Audio(audioUrl);
-      if (provider === 'free' && isMale && (!data.modelUsed || data.modelUsed.includes('Neural Stream'))) {
-        (audio as any).preservesPitch = false;
-        audio.playbackRate = 0.88;
+      if (provider === 'free' && (!data.modelUsed || data.modelUsed.includes('Neural Stream'))) {
+        audio.playbackRate = isMale ? 0.98 : 1.02;
       }
       await audio.play();
 

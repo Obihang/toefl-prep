@@ -88,13 +88,13 @@ assert.strictEqual(cleaned, 'This is a test of the API voice engine.', 'PASS: pr
 function simulateTtsErrorHandling(isTest: boolean, error: Error) {
   if (isTest) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    return { status: 400, body: { error: `API Error: ${errMsg}` } };
+    return { status: 400, body: { error: `API Failed: ${errMsg}` } };
   }
   return { status: 200, fallback: 'neural' };
 }
 const testResult = simulateTtsErrorHandling(true, new Error('Invalid API Key (HTTP 403)'));
 assert.strictEqual(testResult.status, 400);
-assert.strictEqual(testResult.body.error, 'API Error: Invalid API Key (HTTP 403)', 'PASS: isTest returns explicit 400 API error without fallback');
+assert.strictEqual(testResult.body.error, 'API Failed: Invalid API Key (HTTP 403)', 'PASS: isTest returns explicit 400 API error without fallback');
 
 const normalResult = simulateTtsErrorHandling(false, new Error('Quota exceeded'));
 assert.strictEqual(normalResult.status, 200);

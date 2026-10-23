@@ -174,9 +174,9 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
                 }
                 const audio = new Audio(audioSrc);
                 activeAudioRef.current = audio;
-                if (isMaleSpeaker && (!ttsJson.modelUsed || ttsJson.modelUsed.includes('Neural Stream'))) {
-                  (audio as any).preservesPitch = false;
-                  audio.playbackRate = 0.88;
+                const isProfessor = /prof|doctor|dr\.|instructor|dean|advisor|faculty/i.test(speakerName);
+                if (ttsJson.modelUsed?.includes('Neural Stream')) {
+                  audio.playbackRate = isProfessor ? 0.98 : 1.03;
                 }
                 audio.onended = () => {
                   if (activeAudioRef.current === audio) activeAudioRef.current = null;

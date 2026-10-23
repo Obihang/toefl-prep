@@ -468,7 +468,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     // If testing OpenAI or Gemini but no API key is configured, return explicit error immediately
     if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini') && !ttsApiKey && !userApiKey) {
-      return res.status(400).json({ error: `API Error: Missing API key for ${ttsProvider.toUpperCase()} TTS. Please paste a valid API key in Settings.` });
+      return res.status(400).json({ error: `API Failed: Missing API key for ${ttsProvider.toUpperCase()} TTS. Please paste a valid API key in Settings.` });
     }
 
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
@@ -504,8 +504,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         });
       } catch (openAiErr) {
         if (isTest) {
-          const errMsg = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
-          return res.status(400).json({ error: `API Error: ${errMsg}` });
+          const errText = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
+          return res.status(400).json({ error: `API Failed: ${errText}` });
         }
         console.error("TTS API Failed, executing fallback. Error:", openAiErr);
         console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
@@ -518,7 +518,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         }
         const geminiVoice = isMale ? 'Puck' : 'Kore';
 
-        let geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -529,23 +529,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
             }
           })
         });
-
-        if (!geminiRes.ok && geminiRes.status === 404) {
-          const fallbackRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: cleanText }] }],
-              generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } } }
-              }
-            })
-          });
-          if (fallbackRes.ok) {
-            geminiRes = fallbackRes;
-          }
-        }
 
         if (!geminiRes.ok) {
           const errText = await geminiRes.text();
@@ -571,8 +554,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         });
       } catch (geminiErr) {
         if (isTest) {
-          const errMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
-          return res.status(400).json({ error: `API Error: ${errMsg}` });
+          const errText = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+          return res.status(400).json({ error: `API Failed: ${errText}` });
         }
         console.error("TTS API Failed, executing fallback. Error:", geminiErr);
         console.warn('Gemini TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(geminiErr));
@@ -581,7 +564,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     // Never fall back to neural during test calls for API providers
     if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini')) {
-      return res.status(400).json({ error: `API Error: Failed to generate audio using ${ttsProvider.toUpperCase()} TTS.` });
+      return res.status(400).json({ error: `API Failed: Failed to generate audio using ${ttsProvider.toUpperCase()} TTS.` });
     }
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
