@@ -1,4 +1,4 @@
-import { pickDialogueVoices, inferGender, parseDialogueLine, detectSpeakerGender, DialogueVoiceManager } from '../../utils/voices';
+import { pickDialogueVoices, inferGender, parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, assignTaskSpeakerVoices } from '../../utils/voices';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
@@ -138,6 +138,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           const authHdrs = await getAuthHeaders();
           const headers = { ...getApiHeaders(), ...authHdrs };
 
+          const speakerVoices = assignTaskSpeakerVoices(task);
           const voiceManager = new DialogueVoiceManager();
 
           for (let i = 0; i < lines.length; i++) {
@@ -151,14 +152,17 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             const isMaleSpeaker = /male/i.test(parsed.speakerHint) ||
               detectSpeakerGender(speakerName, parsed.speakerHint) === 'male' ||
               (task.speakerGenders && ((i % 2 === 0 && task.speakerGenders.A === 'male') || (i % 2 === 1 && task.speakerGenders.B === 'male')));
-            const voiceName = voiceManager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
+            const speakerGender = isMaleSpeaker ? 'male' : 'female';
+            const voice = speakerVoices[speakerName] || speakerVoices[i % 2 === 0 ? 'A' : 'B'] || voiceManager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
 
             const ttsRes = await fetch('/api/tts', {
               method: 'POST',
               headers,
               body: JSON.stringify({
                 text: parsed.spokenText,
-                voiceName,
+                voice,
+                voiceName: voice,
+                gender: speakerGender,
                 speaker: speakerName,
                 speakerHint: parsed.speakerHint,
                 isMale: isMaleSpeaker,

@@ -1,4 +1,4 @@
-import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender } from '../../utils/voices';
+import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender, assignTaskSpeakerVoices } from '../../utils/voices';
 import React, { useState, useEffect, useRef } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
@@ -163,12 +163,15 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(currentQ.question);
     const effInterviewer = parsed.speakerName || interviewerName;
     const effGender = detectSpeakerGender(effInterviewer, parsed.speakerHint || interviewerGender);
-    const voiceName = pickSingleVoice(`${task.id || task.title}|${effInterviewer}|q_${currentQIndex}`, effGender);
+    const speakerVoices = assignTaskSpeakerVoices(task);
+    const voice = speakerVoices[effInterviewer] || pickSingleVoice(`${task.id || task.title}|${effInterviewer}`, effGender);
     const browserVoice = pickBrowserVoiceForGender(effGender);
     try {
       await speakScriptLine(cleanQ, {
         rate: 0.95,
-        voiceName,
+        voice,
+        voiceName: voice,
+        gender: effGender,
         browserVoice,
         onEnd: () => {
           if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;

@@ -105,13 +105,13 @@ export function stripSpeakerAndFormatting(text: string): string {
 const audioBufferMemoryCache = new Map<string, AudioBuffer>();
 
 // Pre-fetch speech audio silently in the background
-export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kore'): Promise<void> {
+export async function prefetchSpeechAudio(text: string, voiceName?: string, gender?: string): Promise<void> {
   if (typeof window === 'undefined') return;
   const cleanText = stripSpeakerAndFormatting(text);
   if (!cleanText) return;
 
   const provider = getStoredProvider();
-  const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
+  const cacheKey = `cache_${provider}_${voiceName || 'default'}_${cleanText}`;
 
   if (audioBufferMemoryCache.has(cacheKey)) return;
 
@@ -132,7 +132,7 @@ export async function prefetchSpeechAudio(text: string, voiceName: string = 'Kor
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { ...getApiHeaders(), ...authHdrs },
-      body: JSON.stringify({ text: cleanText, voiceName }),
+      body: JSON.stringify({ text: cleanText, voice: voiceName, voiceName, gender }),
     });
     const json = await res.json();
     if (res.ok && json.success && json.audioBase64) {
@@ -632,8 +632,8 @@ export function getTtsUsageCount(): number {
 }
 
 // Fetch Cloud Audio from /api/tts via Gemini with in-memory & IndexedDB caching
-export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): Promise<Blob> {
-  const cacheKey = `${voiceName}:::${text}`;
+export async function fetchAudioBlob(text: string, voiceName?: string, gender?: string): Promise<Blob> {
+  const cacheKey = `${voiceName || 'default'}:::${text}`;
   const db = await dbPromise;
   
   // Check cache
@@ -663,7 +663,7 @@ export async function fetchAudioBlob(text: string, voiceName: string = 'Kore'): 
     res = await fetch('/api/tts', {
       method: 'POST',
       headers: { ...getApiHeaders(), ...authHdrs },
-      body: JSON.stringify({ text, voiceName }),
+      body: JSON.stringify({ text, voice: voiceName, voiceName, gender }),
       signal: controller.signal,
     });
     json = await res.json();
@@ -810,7 +810,9 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
 }
 
 export interface PlaySpeechOptions {
+  voice?: string;
   voiceName?: string;
+  gender?: 'female' | 'male' | 'unknown';
   speaker?: string;
   rate?: number;
   onEngineDetected?: (engineLabel: string) => void;
@@ -833,7 +835,9 @@ export async function playSpeech(
   const currentSession = options.sessionId ?? ++currentDialogueSessionId;
 
   const provider = getStoredProvider();
-  const voiceName = options.voiceName || 'Kore';
+  const voice = options.voice || options.voiceName;
+  const voiceName = voice || 'en-US-AvaNeural';
+  const gender = options.gender && options.gender !== 'unknown' ? options.gender : undefined;
   const cleanText = stripSpeakerAndFormatting(text);
   if (!cleanText) return;
 
@@ -870,7 +874,14 @@ export async function playSpeech(
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { ...getApiHeaders(), ...authHdrs },
-        body: JSON.stringify({ text: cleanText, voiceName }),
+        body: JSON.stringify({
+          text: cleanText,
+          voice,
+          voiceName,
+          gender,
+          speaker: options.speaker,
+          rate: options.rate,
+        }),
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -1254,7 +1265,9 @@ export async function speakScriptLine(
   options: {
     rate?: number;
     pitch?: number;
+    voice?: string;
     voiceName?: string;
+    gender?: 'female' | 'male' | 'unknown';
     browserVoice?: SpeechSynthesisVoice | null;
     onStart?: () => void;
     onEnd?: () => void;
@@ -1263,10 +1276,12 @@ export async function speakScriptLine(
     onEngineDetected?: (engine: string) => void;
   } = {}
 ): Promise<void> {
-  const defaultVoice = options.pitch && options.pitch < 0.95 ? 'Puck' : 'Kore';
-  const voice = options.voiceName || defaultVoice;
+  const voice = options.voice || options.voiceName || 'en-US-AvaNeural';
   return playSpeech(text, {
+    voice,
     voiceName: voice,
+    gender: options.gender,
+    rate: options.rate,
     onStart: options.onStart,
     onEnd: options.onEnd,
     onError: options.onError,

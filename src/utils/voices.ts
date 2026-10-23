@@ -1,81 +1,39 @@
 // 30 TTS voices and voice assignment utilities for TOEFL Studio
 
 export const FEMALE_VOICES = [
-  'Achernar',
-  'Aoede',
-  'Autonoe',
-  'Callirrhoe',
-  'Despina',
-  'Erinome',
-  'Gacrux',
-  'Kore',
-  'Laomedeia',
-  'Leda',
-  'Pulcherrima',
-  'Sulafat',
-  'Vindemiatrix',
-  'Zephyr',
+  "en-US-AvaNeural",
+  "en-US-EmmaNeural",
+  "en-US-AriaNeural",
+  "en-US-JennyNeural",
+  "en-GB-SoniaNeural",
+  "en-GB-LibbyNeural"
 ] as const;
 
 export const MALE_VOICES = [
-  'Achird',
-  'Algenib',
-  'Algieba',
-  'Alnilam',
-  'Charon',
-  'Enceladus',
-  'Fenrir',
-  'Iapetus',
-  'Orus',
-  'Puck',
-  'Rasalgethi',
-  'Sadachbia',
-  'Sadaltager',
-  'Schedar',
-  'Umbriel',
-  'Zubenelgenubi',
+  "en-US-AndrewNeural",
+  "en-US-GuyNeural",
+  "en-US-BrianNeural",
+  "en-US-ChristopherNeural",
+  "en-GB-RyanNeural",
+  "en-GB-ThomasNeural"
 ] as const;
 
-export const NEURAL_FEMALE_VOICES = [
-  'en-US-AriaNeural',
-  'en-US-JennyNeural',
-  'en-US-MichelleNeural',
-  'en-US-AnaNeural',
-  'en-US-EmmaNeural',
-] as const;
+export const ALL_EDGE_VOICES = [...FEMALE_VOICES, ...MALE_VOICES] as const;
 
-export const NEURAL_MALE_VOICES = [
-  'en-US-GuyNeural',
-  'en-US-ChristopherNeural',
-  'en-US-EricNeural',
-  'en-US-RogerNeural',
-  'en-US-SteffanNeural',
-] as const;
+export const NEURAL_FEMALE_VOICES = FEMALE_VOICES;
+export const NEURAL_MALE_VOICES = MALE_VOICES;
 
 export type NeuralFemaleVoice = typeof NEURAL_FEMALE_VOICES[number];
 export type NeuralMaleVoice = typeof NEURAL_MALE_VOICES[number];
 export type NeuralVoiceName = NeuralFemaleVoice | NeuralMaleVoice;
 
-export type FemaleVoice = typeof FEMALE_VOICES[number] | NeuralFemaleVoice;
-export type MaleVoice = typeof MALE_VOICES[number] | NeuralMaleVoice;
+export type FemaleVoice = typeof FEMALE_VOICES[number];
+export type MaleVoice = typeof MALE_VOICES[number];
 export type VoiceName = FemaleVoice | MaleVoice;
 
 // Distinct Per-Speaker Neural Voice Pools
-export const MALE_VOICE_POOL: readonly string[] = [
-  'en-US-GuyNeural',
-  'en-US-ChristopherNeural',
-  'en-US-EricNeural',
-  'en-US-RogerNeural',
-  'en-US-SteffanNeural',
-];
-
-export const FEMALE_VOICE_POOL: readonly string[] = [
-  'en-US-AriaNeural',
-  'en-US-JennyNeural',
-  'en-US-MichelleNeural',
-  'en-US-AnaNeural',
-  'en-US-EmmaNeural',
-];
+export const MALE_VOICE_POOL: readonly string[] = MALE_VOICES;
+export const FEMALE_VOICE_POOL: readonly string[] = FEMALE_VOICES;
 
 export const FEMALE_NAMES_SET = new Set([
   'sarah', 'emily', 'jessica', 'ashley', 'amanda', 'samantha', 'jennifer', 'elizabeth', 'taylor', 'megan',
@@ -215,6 +173,102 @@ export function inferGender(nameStr: string): 'female' | 'male' | 'unknown' {
   if (!nameStr) return 'unknown';
   const parsed = parseDialogueLine(`${nameStr}: dummy`);
   return detectSpeakerGender(parsed.speakerName || nameStr, parsed.speakerHint);
+}
+
+export function assignTaskSpeakerVoices(task: any): Record<string, string> {
+  if (!task) return {};
+  if (task.speakerVoices && typeof task.speakerVoices === 'object' && Object.keys(task.speakerVoices).length > 0) {
+    return task.speakerVoices;
+  }
+
+  const speakerVoices: Record<string, string> = {};
+  const usedVoices = new Set<string>();
+
+  interface SpeakerInfo {
+    key: string;
+    name: string;
+    gender: 'female' | 'male' | 'unknown';
+  }
+
+  const speakers: SpeakerInfo[] = [];
+
+  if (Array.isArray(task.speakers)) {
+    task.speakers.forEach((s: any, idx: number) => {
+      if (typeof s === 'string') {
+        speakers.push({ key: s, name: s, gender: detectSpeakerGender(s) });
+      } else if (s && typeof s === 'object') {
+        const name = s.name || s.speaker || `Speaker ${idx + 1}`;
+        const gender = s.gender || detectSpeakerGender(name);
+        speakers.push({ key: name, name, gender });
+      }
+    });
+  } else if (task.speakers && typeof task.speakers === 'object') {
+    const nameA = task.speakers.A || 'Speaker A';
+    const genderA = task.speakerGenders?.A || task.speakerGenderA || detectSpeakerGender(nameA);
+    speakers.push({ key: 'A', name: nameA, gender: genderA });
+    speakers.push({ key: nameA, name: nameA, gender: genderA });
+
+    const nameB = task.speakers.B || 'Speaker B';
+    const genderB = task.speakerGenders?.B || task.speakerGenderB || detectSpeakerGender(nameB);
+    speakers.push({ key: 'B', name: nameB, gender: genderB });
+    speakers.push({ key: nameB, name: nameB, gender: genderB });
+  }
+
+  if (task.speakerName) {
+    const name = task.speakerName;
+    const gender = task.speakerGender || detectSpeakerGender(name);
+    if (!speakers.some((s) => s.name === name)) {
+      speakers.push({ key: name, name, gender });
+    }
+  }
+
+  if (task.interviewerName) {
+    const name = task.interviewerName;
+    const gender = task.interviewerGender || detectSpeakerGender(name);
+    if (!speakers.some((s) => s.name === name)) {
+      speakers.push({ key: name, name, gender });
+    }
+  }
+
+  if (task.professorName) {
+    const name = task.professorName;
+    const gender = task.professorGender || detectSpeakerGender(name);
+    if (!speakers.some((s) => s.name === name)) {
+      speakers.push({ key: name, name, gender });
+    }
+  }
+
+  const seedStr = `${task.id || ''}:${task.title || ''}:${task.topic || ''}`;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = (hash << 5) - hash + seedStr.charCodeAt(i);
+    hash |= 0;
+  }
+  hash = Math.abs(hash);
+
+  if (speakers.length === 0) {
+    const narratorGender = task.narratorGender || task.gender || 'female';
+    const pool = narratorGender === 'male' ? MALE_VOICES : narratorGender === 'female' ? FEMALE_VOICES : ALL_EDGE_VOICES;
+    const voice = pool[hash % pool.length];
+    speakerVoices['Narrator'] = voice;
+    speakerVoices['default'] = voice;
+  } else {
+    speakers.forEach((spk, idx) => {
+      const gender = spk.gender && spk.gender !== 'unknown' ? spk.gender : detectSpeakerGender(spk.name);
+      const pool = gender === 'male' ? MALE_VOICES : gender === 'female' ? FEMALE_VOICES : ALL_EDGE_VOICES;
+      let available = pool.filter((v) => !usedVoices.has(v));
+      if (available.length === 0) available = [...pool];
+
+      const chosenIndex = (hash + idx * 7) % available.length;
+      const voice = available[chosenIndex];
+      speakerVoices[spk.name] = voice;
+      speakerVoices[spk.key] = voice;
+      usedVoices.add(voice);
+    });
+  }
+
+  task.speakerVoices = speakerVoices;
+  return speakerVoices;
 }
 
 export class DialogueVoiceManager {

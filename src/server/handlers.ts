@@ -13,6 +13,26 @@ import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 
+export const FEMALE_VOICES = [
+  "en-US-AvaNeural",
+  "en-US-EmmaNeural",
+  "en-US-AriaNeural",
+  "en-US-JennyNeural",
+  "en-GB-SoniaNeural",
+  "en-GB-LibbyNeural"
+];
+
+export const MALE_VOICES = [
+  "en-US-AndrewNeural",
+  "en-US-GuyNeural",
+  "en-US-BrianNeural",
+  "en-US-ChristopherNeural",
+  "en-GB-RyanNeural",
+  "en-GB-ThomasNeural"
+];
+
+export const ALL_EDGE_VOICES = [...FEMALE_VOICES, ...MALE_VOICES];
+
 type Req = ExpressReq | VercelRequest;
 type Res = ExpressRes | VercelResponse;
 
@@ -296,28 +316,23 @@ function splitTextIntoSentences(text: string, maxLen = 180): string[] {
 async function synthesizeWithZeroKeyFetch(
   text: string,
   speakerName: string,
-  gender: string
+  gender: string,
+  voiceName?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
   const chunks = splitTextIntoSentences(text, 180);
   if (chunks.length === 0) return null;
 
-  // Map speaker/gender to distinct English regional accents for clear natural speaker separation
   let accent = 'en-US';
-  const normSpk = (speakerName || '').toLowerCase();
-
-  if (gender === 'male' || normSpk.includes('mark') || normSpk.includes('prof') || normSpk.includes('john') || normSpk.includes('puck') || normSpk.includes('guy')) {
-    if (normSpk.includes('b') || normSpk.includes('2') || normSpk.includes('prof')) {
-      accent = 'en-GB'; // British English
-    } else if (normSpk.includes('c') || normSpk.includes('dean')) {
-      accent = 'en-AU'; // Australian English
-    } else {
-      accent = 'en-CA'; // Canadian / US English
-    }
+  if (voiceName && voiceName.startsWith('en-GB')) {
+    accent = 'en-GB';
   } else {
-    if (normSpk.includes('b') || normSpk.includes('2')) {
-      accent = 'en-GB'; // British Female
-    } else {
-      accent = 'en-US'; // US Female
+    const normSpk = (speakerName || '').toLowerCase();
+    if (gender === 'male' || normSpk.includes('mark') || normSpk.includes('prof') || normSpk.includes('john') || normSpk.includes('guy')) {
+      if (normSpk.includes('b') || normSpk.includes('2') || normSpk.includes('prof')) {
+        accent = 'en-GB';
+      } else {
+        accent = 'en-US';
+      }
     }
   }
 
@@ -344,9 +359,10 @@ async function synthesizeWithZeroKeyFetch(
     }
 
     if (buffers.length > 0) {
+      const modelLabel = voiceName ? `Edge TTS (${voiceName})` : `Neural Stream (${accent})`;
       return {
         buffer: Buffer.concat(buffers),
-        modelUsed: `Neural Stream (${accent})`,
+        modelUsed: modelLabel,
       };
     }
   } catch (fetchErr) {
@@ -423,11 +439,26 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    const gender = isMale ? 'male' : detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
-    let selectedVoice = voiceName || (gender === 'female' ? 'en-US-AriaNeural' : gender === 'male' ? 'en-US-GuyNeural' : 'en-US-JennyNeural');
-    if (isMale && (selectedVoice === 'en-US-JennyNeural' || selectedVoice === 'en-US-AriaNeural')) {
-      selectedVoice = 'en-US-GuyNeural';
+    const reqVoice = (body.voice || body.voiceName || voiceName || '').toString().trim();
+    const reqGender = (body.gender || (body.isMale === true ? 'male' : body.isMale === false ? 'female' : '')).toString().toLowerCase();
+
+    let selectedVoice = '';
+    if (reqVoice && (FEMALE_VOICES.includes(reqVoice) || MALE_VOICES.includes(reqVoice))) {
+      selectedVoice = reqVoice;
+    } else if (reqGender === 'male' || reqGender === 'female') {
+      const pool = reqGender === 'male' ? MALE_VOICES : FEMALE_VOICES;
+      selectedVoice = pool[Math.floor(Math.random() * pool.length)];
+    } else {
+      const gender = isMale ? 'male' : detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
+      if (gender === 'male' || gender === 'female') {
+        const pool = gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
+        selectedVoice = pool[Math.floor(Math.random() * pool.length)];
+      } else {
+        selectedVoice = ALL_EDGE_VOICES[Math.floor(Math.random() * ALL_EDGE_VOICES.length)];
+      }
     }
+
+    isMale = MALE_VOICES.includes(selectedVoice) || reqGender === 'male';
 
     const ratePercent = Math.round((numRate - 1.0) * 100);
     const rateStr = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`;
@@ -564,7 +595,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     }
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
-    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : gender);
+    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice);
     if (zeroKeyRes) {
       audioBuffer = zeroKeyRes.buffer;
       mimeType = 'audio/mpeg';
