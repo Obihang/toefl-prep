@@ -335,14 +335,14 @@ export function setStoredTtsProvider(provider: string): void {
   localStorage.setItem('toefl_tts_provider', clean);
 }
 
-export function getStoredTtsApiKey(): string {
+export function getStoredTtsApiKey(provider: string): string {
   if (typeof localStorage === 'undefined') return '';
-  return (localStorage.getItem('tts_api_key') || '').trim();
+  return (localStorage.getItem(`tts_api_key_${provider}`) || '').trim();
 }
 
-export function setStoredTtsApiKey(key: string): void {
+export function setStoredTtsApiKey(provider: string, key: string): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem('tts_api_key', key.trim());
+  localStorage.setItem(`tts_api_key_${provider}`, key.trim());
 }
 
 export function getStoredTtsBaseUrl(): string {
@@ -364,7 +364,7 @@ export function getApiHeaders(): Record<string, string> {
   const roles = getStoredRoles(provider);
   const audio8Url = getStoredAudio8Url();
   const ttsProvider = getStoredTtsProvider();
-  const ttsApiKey = getStoredTtsApiKey();
+  const ttsApiKey = getStoredTtsApiKey(ttsProvider);
   const ttsBaseUrl = getStoredTtsBaseUrl();
 
   const headers: Record<string, string> = {

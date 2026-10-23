@@ -20,30 +20,31 @@ export const TtsVoiceProviderSection: React.FC = () => {
     return 'free';
   });
 
-  const [apiKey, setApiKey] = useState<string>(() => getStoredTtsApiKey());
+  const [apiKey, setApiKey] = useState<string>(() => getStoredTtsApiKey(provider));
   const [baseUrl, setBaseUrl] = useState<string>(() => getStoredTtsBaseUrl());
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    const curP = getStoredTtsProvider();
-    if (curP === 'openai' || curP === 'gemini') setProvider(curP);
-    else setProvider('free');
-    setApiKey(getStoredTtsApiKey());
+    const curP = getStoredTtsProvider() as TtsProviderOption;
+    const actualP = (curP === 'openai' || curP === 'gemini') ? curP : 'free';
+    setProvider(actualP);
+    setApiKey(getStoredTtsApiKey(actualP));
     setBaseUrl(getStoredTtsBaseUrl());
   }, []);
 
   const handleProviderSelect = (newP: TtsProviderOption) => {
     setProvider(newP);
     setStoredTtsProvider(newP);
+    setApiKey(getStoredTtsApiKey(newP));
     showNotice(`TTS provider set to ${newP === 'free' ? 'Free Neural Server' : newP === 'openai' ? 'OpenAI TTS' : 'Gemini TTS'}`);
     setTestResult(null);
   };
 
   const handleApiKeyChange = (val: string) => {
     setApiKey(val);
-    setStoredTtsApiKey(val);
+    setStoredTtsApiKey(provider, val);
     showNotice('TTS API Key saved');
   };
 
