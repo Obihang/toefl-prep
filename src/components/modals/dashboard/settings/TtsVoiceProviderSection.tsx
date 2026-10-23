@@ -235,7 +235,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
             Zero-API Neural Synthesis Active
           </div>
           <p className="text-[11px] text-teal-700 font-normal">
-            Uses high-fidelity neural streaming audio with natural British and American multi-speaker accents. No API key or setup required.
+            Uses high-fidelity neural streaming audio via Edge TTS. Supports native male and female voices. No API key required.
           </p>
         </div>
       )}

@@ -12,6 +12,8 @@ import fs from 'fs';
 import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
+import { EdgeTTS } from 'node-edge-tts';
+import os from 'os';
 
 export const FEMALE_VOICES = [
   "en-US-AvaNeural",
@@ -319,19 +321,37 @@ async function synthesizeWithZeroKeyFetch(
   gender: string,
   voiceName?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
-  const chunks = splitTextIntoSentences(text, 180);
-  if (chunks.length === 0) return null;
+  const selectedVoice = voiceName || (gender === 'male' ? 'en-US-GuyNeural' : 'en-US-AvaNeural');
+  const tmpFile = path.join(os.tmpdir(), `edge_tts_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
 
-  let accent = 'en-US';
-  if (voiceName && voiceName.startsWith('en-GB')) {
-    accent = 'en-GB';
-  } else {
-    const normSpk = (speakerName || '').toLowerCase();
-    if (gender === 'male' || normSpk.includes('mark') || normSpk.includes('prof') || normSpk.includes('john') || normSpk.includes('guy') || normSpk.includes('marcus') || normSpk.includes('male')) {
-      accent = 'en-GB';
+  try {
+    const tts = new EdgeTTS({
+      voice: selectedVoice,
+      lang: selectedVoice.startsWith('en-GB') ? 'en-GB' : 'en-US',
+      outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+    });
+    await tts.ttsPromise(text, tmpFile);
+    if (fs.existsSync(tmpFile)) {
+      const buffer = fs.readFileSync(tmpFile);
+      try { fs.unlinkSync(tmpFile); } catch {}
+      if (buffer.length > 0) {
+        return {
+          buffer,
+          modelUsed: `Edge TTS (${selectedVoice})`,
+        };
+      }
     }
+  } catch (edgeErr) {
+    if (fs.existsSync(tmpFile)) {
+      try { fs.unlinkSync(tmpFile); } catch {}
+    }
+    console.warn('Edge TTS synthesis warning, attempting fallback stream:', redactSensitiveInfo(edgeErr));
   }
 
+  // Fallback stream if EdgeTTS synthesis encounters temporary issues
+  const chunks = splitTextIntoSentences(text, 180);
+  if (chunks.length === 0) return null;
+  let accent = (gender === 'male' || (speakerName && detectSpeakerGender(speakerName) === 'male')) ? 'en-GB' : 'en-US';
   const buffers: Buffer[] = [];
   try {
     for (const chunk of chunks) {
@@ -343,22 +363,18 @@ async function synthesizeWithZeroKeyFetch(
         },
       });
 
-      if (!response.ok) {
-        console.warn(`Zero-key TTS fetch returned status ${response.status}`);
-        return null;
-      }
-
-      const arrBuf = await response.arrayBuffer();
-      if (arrBuf && arrBuf.byteLength > 0) {
-        buffers.push(Buffer.from(arrBuf));
+      if (response.ok) {
+        const arrBuf = await response.arrayBuffer();
+        if (arrBuf && arrBuf.byteLength > 0) {
+          buffers.push(Buffer.from(arrBuf));
+        }
       }
     }
 
     if (buffers.length > 0) {
-      const modelLabel = voiceName ? `Edge TTS (${voiceName})` : `Neural Stream (${accent})`;
       return {
         buffer: Buffer.concat(buffers),
-        modelUsed: modelLabel,
+        modelUsed: `Neural Stream (${accent})`,
       };
     }
   } catch (fetchErr) {
