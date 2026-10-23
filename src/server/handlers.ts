@@ -440,64 +440,69 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString().trim();
     const provider = (req.headers['x-api-provider'] || '').toString().trim().toLowerCase();
 
-    // Stage 1: If an API provider is specified and a key is present, wrap in try/catch
-    if (ttsProvider === 'openai' && ttsApiKey) {
+    const isMale = gender === 'male' || (voiceName && (voiceName.toLowerCase().includes('guy') || voiceName.toLowerCase().includes('male') || voiceName.toLowerCase().includes('puck') || voiceName.toLowerCase().includes('onyx')));
+
+    // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
+    if ((ttsProvider === 'openai' || provider === 'openai') && (ttsApiKey || userApiKey)) {
       try {
-        const openAiRes = await callOpenAiTts({
-          apiKey: ttsApiKey,
-          text: cleanText,
-          voiceName: selectedVoice,
-          baseUrl: ttsBaseUrl || undefined,
+        const apiKey = ttsApiKey || userApiKey;
+        const openAiUrl = ttsBaseUrl
+          ? (ttsBaseUrl.endsWith('/audio/speech') ? ttsBaseUrl : `${ttsBaseUrl.replace(/\/+$/, '')}/audio/speech`)
+          : 'https://api.openai.com/v1/audio/speech';
+        const openAiRes = await fetch(openAiUrl, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: 'tts-1', voice: isMale ? 'onyx' : 'nova', input: cleanText })
         });
-        if (openAiRes && openAiRes.audioBase64) {
-          audioBuffer = Buffer.from(openAiRes.audioBase64, 'base64');
-          mimeType = openAiRes.mimeType || 'audio/mpeg';
-          modelUsed = openAiRes.modelUsed || 'OpenAI TTS';
-        }
+        if (!openAiRes.ok) throw new Error('OpenAI TTS failed');
+        const buffer = await openAiRes.arrayBuffer();
+        const base64Audio = Buffer.from(buffer).toString('base64');
+        return res.status(200).json({
+          success: true,
+          audioUrl: `data:audio/mpeg;base64,${base64Audio}`,
+          audioBase64: base64Audio,
+          mimeType: 'audio/mpeg',
+          modelUsed: `OpenAI TTS (${isMale ? 'onyx' : 'nova'})`,
+        });
       } catch (openAiErr) {
-        console.warn('OpenAI TTS API call failed, falling through to free neural fallback:', redactSensitiveInfo(openAiErr));
+        console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
       }
-    } else if (ttsProvider === 'gemini' && (ttsApiKey || userApiKey || voiceApiKey)) {
+    } else if ((ttsProvider === 'gemini' || provider === 'gemini') && (ttsApiKey || userApiKey || voiceApiKey || process.env.GEMINI_API_KEY)) {
       try {
-        const gemKey = ttsApiKey || voiceApiKey || userApiKey;
-        const geminiRes = await handleSynthesizeSpeech(cleanText, selectedVoice, {
-          apiKey: gemKey,
-          voiceApiKey: gemKey,
-          provider: 'gemini',
+        const apiKey = ttsApiKey || userApiKey || voiceApiKey || process.env.GEMINI_API_KEY || '';
+        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: cleanText }] }],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: isMale ? "Puck" : "Kore" } } }
+            }
+          })
         });
-        if (geminiRes && geminiRes.audioBase64) {
-          audioBuffer = Buffer.from(geminiRes.audioBase64, 'base64');
-          mimeType = geminiRes.mimeType || 'audio/wav';
-          modelUsed = geminiRes.modelUsed || 'Gemini Cloud TTS';
-        }
+        if (!geminiRes.ok) throw new Error('Gemini TTS failed');
+        const geminiData = await geminiRes.json();
+        const base64Audio = geminiData.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!base64Audio) throw new Error('No audio data in Gemini response');
+        return res.status(200).json({
+          success: true,
+          audioUrl: `data:audio/wav;base64,${base64Audio}`,
+          audioBase64: base64Audio,
+          mimeType: 'audio/wav',
+          modelUsed: `Gemini TTS (${isMale ? 'Puck' : 'Kore'})`,
+        });
       } catch (geminiErr) {
-        console.warn('Gemini TTS API call failed, falling through to free neural fallback:', redactSensitiveInfo(geminiErr));
-      }
-    } else if (ttsProvider !== 'free' && ttsProvider !== 'zero-api' && (userApiKey || voiceApiKey)) {
-      try {
-        const geminiRes = await handleSynthesizeSpeech(cleanText, selectedVoice, {
-          apiKey: userApiKey,
-          voiceApiKey,
-          provider: provider as any,
-        });
-        if (geminiRes && geminiRes.audioBase64) {
-          audioBuffer = Buffer.from(geminiRes.audioBase64, 'base64');
-          mimeType = geminiRes.mimeType || 'audio/wav';
-          modelUsed = geminiRes.modelUsed || 'Gemini Cloud TTS';
-        }
-      } catch (apiErr) {
-        console.warn('API TTS call failed, falling through to free neural fallback:', redactSensitiveInfo(apiErr));
+        console.warn('Gemini TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(geminiErr));
       }
     }
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
-    if (!audioBuffer || audioBuffer.length === 0) {
-      const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, gender);
-      if (zeroKeyRes) {
-        audioBuffer = zeroKeyRes.buffer;
-        mimeType = 'audio/mpeg';
-        modelUsed = zeroKeyRes.modelUsed;
-      }
+    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, gender);
+    if (zeroKeyRes) {
+      audioBuffer = zeroKeyRes.buffer;
+      mimeType = 'audio/mpeg';
+      modelUsed = zeroKeyRes.modelUsed;
     }
 
     if (!audioBuffer || audioBuffer.length === 0) {

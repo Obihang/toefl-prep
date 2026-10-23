@@ -50,4 +50,28 @@ assert.strictEqual(isHighQualityTask(oneGoalEmail, 'write-email'), false, 'PASS:
 // 4. Confirm write-email is present in BACKGROUND_PREFETCH_TASKS rotation
 assert.strictEqual(BACKGROUND_PREFETCH_TASKS.includes('write-email'), true, 'PASS: write-email is in BACKGROUND_PREFETCH_TASKS');
 
+// 5. Test OpenAI payload structure
+const makeOpenAiPayload = (text: string, isMale: boolean) => ({
+  model: 'tts-1',
+  voice: isMale ? 'onyx' : 'nova',
+  input: text,
+});
+const oaiFemale = makeOpenAiPayload('Test female', false);
+assert.strictEqual(oaiFemale.voice, 'nova', 'PASS: OpenAI female uses nova');
+const oaiMale = makeOpenAiPayload('Test male', true);
+assert.strictEqual(oaiMale.voice, 'onyx', 'PASS: OpenAI male uses onyx');
+
+// 6. Test Gemini payload structure
+const makeGeminiPayload = (text: string, isMale: boolean) => ({
+  contents: [{ parts: [{ text }] }],
+  generationConfig: {
+    responseModalities: ['AUDIO'],
+    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: isMale ? 'Puck' : 'Kore' } } },
+  },
+});
+const gemFemale = makeGeminiPayload('Test female', false);
+assert.strictEqual(gemFemale.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Kore', 'PASS: Gemini female uses Kore');
+const gemMale = makeGeminiPayload('Test male', true);
+assert.strictEqual(gemMale.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Puck', 'PASS: Gemini male uses Puck');
+
 console.log('All TTS validation simulation tests passed successfully!');

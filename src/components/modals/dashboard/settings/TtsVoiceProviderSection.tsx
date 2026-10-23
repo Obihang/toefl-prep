@@ -65,38 +65,47 @@ export const TtsVoiceProviderSection: React.FC = () => {
     setIsTesting(true);
     setTestResult(null);
 
-    const testPhrase = 'Hello! This is a test of your configured TOEFL text-to-speech engine.';
+    const testText = 'This is a test of the API voice engine.';
     const startTime = Date.now();
 
     try {
-      await playSpeech(testPhrase, {
-        voiceName: 'en-US-JennyNeural',
-        speaker: 'Examiner',
-        rate: 1.0,
-        onStart: () => {
-          const latency = Date.now() - startTime;
-          setTestResult({
-            success: true,
-            message: `Speech synthesized and playing (${latency}ms)! Engine: ${
-              provider === 'free'
-                ? 'Free Neural Server (Zero-API)'
-                : provider === 'openai'
-                ? 'OpenAI TTS API'
-                : 'Gemini TTS API'
-            }`,
-          });
-        },
-        onError: (err) => {
-          setTestResult({
-            success: false,
-            message: err?.message || 'Voice playback failed. Automatic fallback active.',
-          });
-        },
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-tts-provider': provider,
+        'x-tts-api-key': apiKey,
+      };
+      if (baseUrl) {
+        headers['x-tts-base-url'] = baseUrl;
+      }
+
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ text: testText }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`TTS server responded with HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      const audioUrl = data.audioUrl || (data.audioBase64 ? `data:${data.mimeType || 'audio/mpeg'};base64,${data.audioBase64}` : null);
+      if (!audioUrl) {
+        throw new Error(data.error || 'No audio returned from TTS server');
+      }
+
+      const audio = new Audio(audioUrl);
+      await audio.play();
+
+      const latency = Date.now() - startTime;
+      setTestResult({
+        success: true,
+        message: `Playing (${latency}ms) via ${data.modelUsed || provider.toUpperCase()}`,
       });
     } catch (err: any) {
       setTestResult({
         success: false,
-        message: err?.message || 'Error initializing voice test.',
+        message: err?.message || 'Error testing voice synthesis.',
       });
     } finally {
       setIsTesting(false);
