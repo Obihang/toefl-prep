@@ -366,7 +366,12 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       // Ignored for guest mode
     }
 
-    const { text, voiceName, speaker, rate = 1.0 } = req.body || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const text = body.text || '';
+    const voiceName = body.voiceName || '';
+    const speaker = body.speaker || '';
+    const rate = body.rate || 1.0;
+    const isMale = /Male|Guy|Christopher|Eric/i.test(voiceName || speaker);
 
     if (!text || typeof text !== 'string' || text.trim().length === 0 || text.length > 3000) {
       return res.status(400).json({ success: false, error: 'Text must be between 1 and 3000 characters for TTS synthesis' });
@@ -440,8 +445,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString().trim();
     const provider = (req.headers['x-api-provider'] || '').toString().trim().toLowerCase();
 
-    const isMale = gender === 'male' || (voiceName && (voiceName.toLowerCase().includes('guy') || voiceName.toLowerCase().includes('male') || voiceName.toLowerCase().includes('puck') || voiceName.toLowerCase().includes('onyx')));
-
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
     if ((ttsProvider === 'openai' || provider === 'openai') && (ttsApiKey || userApiKey)) {
       try {
@@ -465,12 +468,13 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed: `OpenAI TTS (${isMale ? 'onyx' : 'nova'})`,
         });
       } catch (openAiErr) {
+        console.error("TTS API Failed, executing fallback. Error:", openAiErr);
         console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
       }
     } else if ((ttsProvider === 'gemini' || provider === 'gemini') && (ttsApiKey || userApiKey || voiceApiKey || process.env.GEMINI_API_KEY)) {
       try {
         const apiKey = ttsApiKey || userApiKey || voiceApiKey || process.env.GEMINI_API_KEY || '';
-        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -481,7 +485,10 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
             }
           })
         });
-        if (!geminiRes.ok) throw new Error('Gemini TTS failed');
+        if (!geminiRes.ok) {
+          const errText = await geminiRes.text();
+          throw new Error(`Gemini API Error: ${errText}`);
+        }
         const geminiData = await geminiRes.json();
         const base64Audio = geminiData.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (!base64Audio) throw new Error('No audio data in Gemini response');
@@ -493,6 +500,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed: `Gemini TTS (${isMale ? 'Puck' : 'Kore'})`,
         });
       } catch (geminiErr) {
+        console.error("TTS API Failed, executing fallback. Error:", geminiErr);
         console.warn('Gemini TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(geminiErr));
       }
     }
