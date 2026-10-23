@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { GENERATION_CHAIN, EVALUATION_CHAIN, TTS_CHAIN, TRANSCRIBE_CHAIN } from '../constants/models.ts';
+import { resolveModelChains } from './modelRoles.ts';
 import * as CURATED from '../data/curatedQuestions.ts';
 import { ACADEMIC_GLOSSARY } from '../utils/academicGlossary.ts';
 import { generateWithFallback } from './geminiUtils.ts';
@@ -563,7 +563,15 @@ function getAiClient(customApiKey?: string) {
   });
 }
 
-export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ success: true; message: string; model: string }> {
+export async function handleTestApiKey(options?: ApiCallOptions): Promise<{
+  success: true;
+  message: string;
+  model: string;
+  provider?: string;
+  providerName?: string;
+  generationModel?: string;
+  evaluationModel?: string;
+}> {
   const opts = typeof options === 'string' ? { apiKey: options } : options || {};
   let provider = opts.provider || 'gemini';
   const rawKey = (opts.apiKey || (typeof options === 'string' ? options : '')).trim();
@@ -590,6 +598,13 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
     throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
   }
 
+  const chains = await resolveModelChains('gemini', apiKey.trim());
+  const customModel =
+    opts.model && opts.model.trim() && opts.model !== 'Auto-Routed by Purpose' && opts.model !== 'Auto-Optimized'
+      ? opts.model.trim()
+      : null;
+  const chain = customModel ? [customModel, ...chains.generation] : chains.generation;
+
   const ai = new GoogleGenAI({
     apiKey: apiKey.trim(),
     httpOptions: {
@@ -598,12 +613,6 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
       },
     },
   });
-
-  const customModel =
-    opts.model && opts.model.trim() && opts.model !== 'Auto-Routed by Purpose' && opts.model !== 'Auto-Optimized'
-      ? opts.model.trim()
-      : null;
-  const chain = customModel ? [customModel, ...GENERATION_CHAIN] : GENERATION_CHAIN;
 
   const { modelUsed } = await generateWithFallback(ai, chain, async (model) => {
     await ai.models.generateContent({
@@ -616,7 +625,18 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{ succ
     return true;
   });
 
-  return { success: true, message: `Connected to Gemini (${modelUsed})`, model: modelUsed };
+  const genModel = chains.generation[0] || modelUsed;
+  const evalModel = chains.evaluation[0] || genModel;
+
+  return {
+    success: true,
+    provider: 'gemini',
+    providerName: 'Google Gemini',
+    message: `Connected to Google Gemini. Generation model: ${genModel}, Evaluation model: ${evalModel}.`,
+    model: modelUsed,
+    generationModel: genModel,
+    evaluationModel: evalModel,
+  };
 }
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions, promptData?: any) {
@@ -801,7 +821,8 @@ Return valid JSON matching this schema:
       throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
     }
 
-    const { result, modelUsed } = await generateWithFallback(ai, GENERATION_CHAIN, async (model) => {
+    const chains = await resolveModelChains('gemini', customApiKey || process.env.GEMINI_API_KEY || '');
+    const { result, modelUsed } = await generateWithFallback(ai, chains.generation, async (model) => {
       const prompt = getPrompt(taskType, level, topic);
       const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
       const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
@@ -1037,7 +1058,9 @@ Return valid JSON format matching this schema:
       throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
     }
 
-    const { result, modelUsed } = await generateWithFallback(ai, EVALUATION_CHAIN, async (model) => {
+    const chains = await resolveModelChains('gemini', customApiKey || process.env.GEMINI_API_KEY || '');
+    const evalChain = chains.evaluation.length > 0 ? chains.evaluation : chains.generation;
+    const { result, modelUsed } = await generateWithFallback(ai, evalChain, async (model) => {
       const thinkingConfig = getModelThinkingConfig(model, 'evaluation');
       const response = await ai.models.generateContent({
         model,
@@ -1145,9 +1168,8 @@ export async function handleSynthesizeSpeech(
       let ttsModel = opts.ttsModel || '';
       if (!ttsModel) {
         try {
-          const { getRoleModels } = await import('./modelRoles.ts');
-          const roles = await getRoleModels('groq', customApiKey);
-          ttsModel = roles.tts[0] || 'playai-tts';
+          const chains = await resolveModelChains('groq', customApiKey);
+          ttsModel = chains.tts[0] || 'playai-tts';
         } catch {
           ttsModel = 'playai-tts';
         }
@@ -1219,7 +1241,10 @@ export async function handleSynthesizeSpeech(
   const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
 
   try {
-    const { result, modelUsed } = await generateWithFallback(ai, TTS_CHAIN, async (model) => {
+    const chains = await resolveModelChains('gemini', geminiKey);
+    const chain = chains.tts.length > 0 ? chains.tts : ['gemini-2.0-flash'];
+
+    const { result, modelUsed } = await generateWithFallback(ai, chain, async (model) => {
       let audioData: string | undefined;
       let mimeType: string = 'audio/wav';
 
@@ -1305,7 +1330,8 @@ export async function handleTranscribeAudio(
   }
 
   const startTime = Date.now();
-  const { result, modelUsed } = await generateWithFallback(ai, TRANSCRIBE_CHAIN, async (model) => {
+  const chains = await resolveModelChains('gemini', geminiKey);
+  const { result, modelUsed } = await generateWithFallback(ai, chains.generation, async (model) => {
     const thinkingConfig = getModelThinkingConfig(model, 'transcribe');
     const promptText = opts.prompt
       ? `Transcribe the spoken speech in this audio accurately. Target sentence reference: "${opts.prompt}". Return only the transcribed speech.`

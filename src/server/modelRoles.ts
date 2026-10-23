@@ -1,4 +1,12 @@
-import crypto from 'crypto';
+import { GENERATION_MODELS, EVALUATION_MODELS } from '../config/models.ts';
+
+export interface ModelChainsResult {
+  generation: string[];
+  evaluation: string[];
+  tts: string[];
+  stt: string[];
+  all: string[];
+}
 
 export interface RoleModelsResult {
   chat: string[];
@@ -25,8 +33,35 @@ export function isModelDead(modelId: string): boolean {
   return true;
 }
 
-export function markModelDead(modelId: string) {
+export function markModelDead(modelId: string): void {
   deadModelsCache.set(modelId, Date.now() + 24 * 3600 * 1000);
+}
+
+export function clearDeadModels(): void {
+  deadModelsCache.clear();
+}
+
+/**
+ * Universal helper to check if a model error indicates the model is retired, not found, or gone.
+ * Returns true for HTTP 404, 410, and error messages matching dead model patterns.
+ */
+export function isModelGone(status?: number, message?: string): boolean {
+  if (status === 404 || status === 410) {
+    return true;
+  }
+  if (!message) return false;
+  return /not found|does not exist|no access|retired|end of life|deprecated|gone|no endpoints/i.test(message);
+}
+
+// Track last list error per provider to report descriptive errors if chain is empty
+const lastListErrors = new Map<string, { status: number; message: string }>();
+
+export function getLastListError(provider: string): { status: number; message: string } | null {
+  return lastListErrors.get(provider.toLowerCase()) || null;
+}
+
+export function setLastListError(provider: string, err: { status: number; message: string }): void {
+  lastListErrors.set(provider.toLowerCase(), err);
 }
 
 function hashKey(key: string): string {
@@ -38,10 +73,16 @@ function hashKey(key: string): string {
   return `k${hash}_len${key.length}`;
 }
 
-const roleModelsCache = new Map<string, { data: RoleModelsResult; expiresAt: number }>();
+const roleChainsCache = new Map<string, { data: ModelChainsResult; expiresAt: number }>();
+
+export function clearModelChainsCache(): void {
+  roleChainsCache.clear();
+}
 
 function extractVersionNumber(id: string): number {
-  const match = id.match(/(\d+(?:\.\d+)?)/);
+  // Strip parameter sizes (e.g. 120b, 70b, 20b, 8b) and context sizes (e.g. 128k, 32k)
+  const cleanId = id.replace(/[-_]?\d+[bBkK]\b/g, '');
+  const match = cleanId.match(/(\d+(?:\.\d+)?)/);
   if (match) {
     return parseFloat(match[1]);
   }
@@ -124,28 +165,28 @@ export function resolveModelName(
   return { model: null, exact: false };
 }
 
-export async function getRoleModels(
+/**
+ * Shared function to resolve ranked model chains { generation, evaluation, tts, stt }
+ * from the provider's real /models endpoint, cached for 6 hours per provider and hashed key.
+ */
+export async function resolveModelChains(
   provider: string,
   apiKey: string,
   force = false
-): Promise<RoleModelsResult> {
-  const p = (provider || '').toLowerCase();
+): Promise<ModelChainsResult> {
+  const p = (provider || 'gemini').toLowerCase();
   const cleanKey = (apiKey || '').trim();
-  if (!cleanKey) {
-    return { chat: [], stt: [], tts: [], all: [], generationModel: '', evaluationModel: '' };
-  }
 
   const cacheKey = `${p}:${hashKey(cleanKey)}`;
   const now = Date.now();
 
   if (!force) {
-    const cached = roleModelsCache.get(cacheKey);
+    const cached = roleChainsCache.get(cacheKey);
     if (cached && now < cached.expiresAt) {
       return cached.data;
     }
   }
 
-  let rawModels: any[] = [];
   const baseUrls: Record<string, string> = {
     nvidia: 'https://integrate.api.nvidia.com/v1',
     groq: 'https://api.groq.com/openai/v1',
@@ -153,6 +194,15 @@ export async function getRoleModels(
     openai: 'https://api.openai.com/v1',
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
   };
+
+  let rawModels: any[] = [];
+  let geminiTtsModels: string[] = [];
+  let fetchFailed = false;
+
+  if (!cleanKey) {
+    setLastListError(p, { status: 401, message: 'No API key provided' });
+    return getFallbackChains(p);
+  }
 
   try {
     if (p === 'gemini') {
@@ -163,16 +213,39 @@ export async function getRoleModels(
           'Content-Type': 'application/json',
         },
       });
-      if (res.ok) {
+
+      if (!res.ok) {
+        fetchFailed = true;
+        const errText = await res.text();
+        let errMsg = errText;
+        try {
+          const j = JSON.parse(errText);
+          errMsg = j.error?.message || j.message || errText;
+        } catch {}
+        setLastListError('gemini', { status: res.status, message: redactKeyInText(errMsg, cleanKey) });
+      } else {
         const json = await res.json();
-        rawModels = Array.isArray(json?.models) ? json.models : [];
-        rawModels = rawModels.filter((m: any) => {
+        const list = Array.isArray(json?.models) ? json.models : [];
+        if (list.length === 0) {
+          setLastListError('gemini', { status: 200, message: 'No models found in Gemini /models response' });
+        }
+
+        // Gemini models supporting generateContent
+        const contentModels = list.filter((m: any) => {
           const methods = m?.supportedGenerationMethods || [];
-          const name = String(m?.name || '');
-          const isContent = methods.includes('generateContent');
-          const isExcluded = /image|tts|live|audio|embedding|imagen|veo|lyria|robotics|native-audio/i.test(name);
-          return isContent && !isExcluded;
+          return methods.includes('generateContent');
         });
+
+        // Chat models: exclude image, tts, live, audio, embedding, imagen, veo, lyria, robotics, native-audio
+        rawModels = contentModels.filter((m: any) => {
+          const name = String(m?.name || '');
+          return !/image|tts|live|audio|embedding|imagen|veo|lyria|robotics|native-audio/i.test(name);
+        });
+
+        // TTS models: keep only models whose name contains "tts" (never 'tts-1')
+        geminiTtsModels = list
+          .map((m: any) => String(m?.name || '').replace(/^models\//, ''))
+          .filter((name: string) => /tts/i.test(name) && !/tts-1/i.test(name));
       }
     } else {
       const baseUrl = baseUrls[p];
@@ -189,13 +262,35 @@ export async function getRoleModels(
           method: 'GET',
           headers,
         });
-        if (res.ok) {
+
+        if (!res.ok) {
+          fetchFailed = true;
+          const errText = await res.text();
+          let errMsg = errText;
+          try {
+            const j = JSON.parse(errText);
+            errMsg = j.error?.message || j.message || errText;
+          } catch {}
+          setLastListError(p, { status: res.status, message: redactKeyInText(errMsg, cleanKey) });
+        } else {
           const json = await res.json();
-          rawModels = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : [];
+          rawModels = Array.isArray(json?.data)
+            ? json.data
+            : Array.isArray(json?.models)
+            ? json.models
+            : Array.isArray(json)
+            ? json
+            : [];
+          if (rawModels.length === 0) {
+            setLastListError(p, { status: 200, message: `No models returned from ${p} /models` });
+          }
         }
       }
     }
-  } catch {}
+  } catch (err: any) {
+    fetchFailed = true;
+    setLastListError(p, { status: 500, message: redactKeyInText(err?.message || String(err), cleanKey) });
+  }
 
   if (p === 'openrouter') {
     rawModels = rawModels.filter((m: any) => {
@@ -207,29 +302,82 @@ export async function getRoleModels(
     });
   }
 
-  const all = rawModels.map((m: any) => String(m?.name?.replace('models/', '') || m?.id || m?.name || '')).filter(Boolean);
-  const { stt, tts } = classifyAudioModels(all);
-  const sttTtsSet = new Set([...stt, ...tts]);
-  const chatCandidateIds = all.filter((id) => !sttTtsSet.has(id));
+  const all = rawModels
+    .map((m: any) => String(m?.name?.replace(/^models\//, '') || m?.id || m?.name || ''))
+    .filter(Boolean);
 
-  const genRanked = rankModelsForRole(p, chatCandidateIds, 'generation');
-  const evalRanked = rankModelsForRole(p, chatCandidateIds, 'evaluation');
+  let sttCandidates: string[] = [];
+  let ttsCandidates: string[] = [];
 
-  const result: RoleModelsResult = {
-    chat: genRanked,
-    stt,
-    tts,
+  if (p === 'gemini') {
+    ttsCandidates = geminiTtsModels;
+    sttCandidates = all; // Gemini multimodal audio transcription
+  } else {
+    const audio = classifyAudioModels(all);
+    sttCandidates = audio.stt;
+    ttsCandidates = audio.tts;
+  }
+
+  const sttTtsSet = new Set([...sttCandidates, ...ttsCandidates]);
+  const chatCandidateIds = p === 'gemini' ? all : all.filter((id) => !sttTtsSet.has(id));
+
+  let genRanked = rankModelsForRole(p, chatCandidateIds, 'generation');
+  let evalRanked = rankModelsForRole(p, chatCandidateIds, 'evaluation');
+
+  // If live discovery failed and yielded 0 candidates, use static fallback config
+  if (fetchFailed && genRanked.length === 0) {
+    const fallbacks = getFallbackChains(p);
+    genRanked = fallbacks.generation;
+    evalRanked = fallbacks.evaluation;
+    if (sttCandidates.length === 0) sttCandidates = fallbacks.stt;
+    if (ttsCandidates.length === 0) ttsCandidates = fallbacks.tts;
+  }
+
+  const result: ModelChainsResult = {
+    generation: genRanked,
+    evaluation: evalRanked,
+    tts: ttsCandidates,
+    stt: sttCandidates,
     all,
-    generationModel: genRanked[0] || (p === 'gemini' ? 'gemini-1.5-flash' : ''),
-    evaluationModel: evalRanked[0] || genRanked[0] || '',
   };
 
-  roleModelsCache.set(cacheKey, {
-    data: result,
-    expiresAt: now + 6 * 3600 * 1000, // 6 hours caching per provider+key hash
-  });
+  if (!fetchFailed && (genRanked.length > 0 || all.length > 0)) {
+    roleChainsCache.set(cacheKey, {
+      data: result,
+      expiresAt: now + 6 * 3600 * 1000, // 6 hours
+    });
+  }
 
   return result;
+}
+
+function getFallbackChains(provider: string): ModelChainsResult {
+  const p = (provider || '').toLowerCase() as keyof typeof GENERATION_MODELS;
+  const gen = (GENERATION_MODELS[p] || []).filter((m) => !isModelDead(m));
+  const ev = (EVALUATION_MODELS[p] || []).filter((m) => !isModelDead(m));
+  return {
+    generation: gen,
+    evaluation: ev.length > 0 ? ev : gen,
+    tts: [],
+    stt: [],
+    all: [...gen, ...ev],
+  };
+}
+
+export async function getRoleModels(
+  provider: string,
+  apiKey: string,
+  force = false
+): Promise<RoleModelsResult> {
+  const chains = await resolveModelChains(provider, apiKey, force);
+  return {
+    chat: chains.generation,
+    stt: chains.stt,
+    tts: chains.tts,
+    all: chains.all,
+    generationModel: chains.generation[0] || '',
+    evaluationModel: chains.evaluation[0] || chains.generation[0] || '',
+  };
 }
 
 export function redactKeyInText(text: string, apiKey?: string): string {
@@ -252,7 +400,7 @@ export function formatProviderError(provider: string, model: string, status: num
 
   if (status === 401 || status === 403 || lower.includes('invalid api key') || lower.includes('unauthorized') || lower.includes('api key not valid')) {
     humanExplanation = 'Invalid API key or unauthorized access.';
-  } else if (status === 404 || lower.includes('model not found') || lower.includes('does not exist') || lower.includes('no access') || lower.includes('retired')) {
+  } else if (status === 404 || status === 410 || lower.includes('model not found') || lower.includes('does not exist') || lower.includes('no access') || lower.includes('retired') || lower.includes('gone')) {
     humanExplanation = 'Model retired, not found, or no access.';
   } else if (status === 429 || lower.includes('rate limit') || lower.includes('quota') || lower.includes('resource_exhausted')) {
     humanExplanation = 'Rate limited or quota exhausted.';

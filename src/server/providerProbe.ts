@@ -1,4 +1,11 @@
-import { getRoleModels, markModelDead, formatProviderError, redactKeyInText, rankModelsForRole } from './modelRoles.ts';
+import {
+  resolveModelChains,
+  markModelDead,
+  formatProviderError,
+  redactKeyInText,
+  isModelGone,
+  getLastListError,
+} from './modelRoles.ts';
 
 export const PROVIDER_LABELS: Record<string, string> = {
   gemini: 'Google Gemini',
@@ -49,23 +56,21 @@ export async function probeProvider(
   }
 
   // 1. Discovery first: fetch models via real endpoint
-  let roleData = await getRoleModels(provider, cleanKey, true);
-  let candidates = roleData.chat;
+  const chains = await resolveModelChains(provider, cleanKey, true);
+  let candidates = chains.generation;
 
   if (candidates.length === 0) {
-    // If discovery failed or returned empty, use fallback discovery or throw detailed error
-    roleData = await getRoleModels(provider, cleanKey, true);
-    candidates = roleData.chat;
-    if (candidates.length === 0) {
-      const errInfo = formatProviderError(provider, preferredModel || 'default', 502, `${providerName} models endpoint returned no chat models.`, cleanKey);
-      throw Object.assign(new Error(errInfo.error), { status: 502, details: errInfo });
-    }
+    const listErr = getLastListError(provider);
+    const status = listErr?.status || 502;
+    const msg = listErr?.message || `${providerName} models endpoint returned no chat models.`;
+    const errInfo = formatProviderError(provider, preferredModel || 'default', status, msg, cleanKey);
+    throw Object.assign(new Error(errInfo.error), { status, details: errInfo });
   }
 
-  const generationModel = roleData.generationModel || candidates[0];
-  const evaluationModel = roleData.evaluationModel || generationModel;
+  const generationModel = chains.generation[0] || candidates[0];
+  const evaluationModel = chains.evaluation[0] || generationModel;
 
-  // OpenRouter: try up to 3 ranked :free models before giving up
+  // OpenRouter: try up to 3 ranked :free models before giving up; up to 5 for others
   const maxTries = provider === 'openrouter' ? Math.min(3, candidates.length) : Math.min(5, candidates.length);
   const triedModels: Array<{ model: string; error: string; status: number }> = [];
 
@@ -113,22 +118,11 @@ export async function probeProvider(
         throw Object.assign(new Error(errInfo.error), { status: 401, details: errInfo });
       }
 
-      if (res.status === 404 || res.status === 400) {
-        const errText = await res.text();
-        if (res.status === 404 || /not found|does not exist|no access|retired/i.test(errText)) {
-          markModelDead(modelToTest);
-        }
-        triedModels.push({ model: modelToTest, error: errText, status: res.status });
-        continue;
-      }
-
-      if (res.status === 429) {
-        triedModels.push({ model: modelToTest, error: 'Rate limit / quota exhausted', status: 429 });
-        continue;
-      }
-
       if (!res.ok) {
         const errText = await res.text();
+        if (isModelGone(res.status, errText)) {
+          markModelDead(modelToTest);
+        }
         triedModels.push({ model: modelToTest, error: errText, status: res.status });
         continue;
       }
@@ -139,19 +133,24 @@ export async function probeProvider(
         provider,
         providerName,
         model: modelToTest,
-        models: roleData.all.slice(0, 30),
+        models: chains.all.slice(0, 30),
         generationModel,
         evaluationModel,
         roles: {
           chat: modelToTest,
-          stt: roleData.stt[0] || null,
-          tts: roleData.tts[0] || null,
+          stt: chains.stt[0] || null,
+          tts: chains.tts[0] || null,
         },
         message: `Connected to ${providerName}. Generation model: ${generationModel}, Evaluation model: ${evaluationModel}.`,
       };
     } catch (err: any) {
       if (err?.status === 401) throw err;
-      triedModels.push({ model: modelToTest, error: err?.message || String(err), status: err?.status || 500 });
+      const status = err?.status || 500;
+      const errMsg = err?.message || String(err);
+      if (isModelGone(status, errMsg)) {
+        markModelDead(modelToTest);
+      }
+      triedModels.push({ model: modelToTest, error: errMsg, status });
       continue;
     } finally {
       clearTimeout(timer);

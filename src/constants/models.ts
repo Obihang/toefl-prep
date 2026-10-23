@@ -2,7 +2,7 @@ import { GENERATION_MODELS, EVALUATION_MODELS, STT_MODEL, PROVIDER_ORDER } from 
 
 export const GENERATION_CHAIN = GENERATION_MODELS.gemini;
 export const EVALUATION_CHAIN = EVALUATION_MODELS.gemini;
-export const TTS_CHAIN = ['tts-1'];
+export const TTS_CHAIN: string[] = [];
 export const TRANSCRIBE_CHAIN = GENERATION_MODELS.gemini;
 
 export const MODELS = {

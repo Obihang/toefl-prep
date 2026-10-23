@@ -123,7 +123,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       if (json.success) {
         setTestResults((prev) => ({
           ...prev,
-          [targetProvider]: { success: true, message: `Connected successfully!` },
+          [targetProvider]: { success: true, message: json.message || `Connected successfully!` },
         }));
       } else {
         setTestResults((prev) => ({
@@ -467,7 +467,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
                     setGroqKey(e.target.value);
                     handleSaveIndividualKey('groq', e.target.value);
                   }}
-                  placeholder="gsk_... (Llama 3.3 70B)"
+                  placeholder="gsk_..."
                   className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
                 />
                 <button
