@@ -371,7 +371,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     const voiceName = body.voiceName || '';
     const speaker = body.speaker || '';
     const rate = body.rate || 1.0;
-    const isMale = /Male|Guy|Christopher|Eric/i.test(voiceName || speaker);
 
     if (!text || typeof text !== 'string' || text.trim().length === 0 || text.length > 3000) {
       return res.status(400).json({ success: false, error: 'Text must be between 1 and 3000 characters for TTS synthesis' });
@@ -444,6 +443,9 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     const userApiKey = (req.headers['x-api-key'] || req.headers['x-gemini-api-key'] || '').toString().trim();
     const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString().trim();
     const provider = (req.headers['x-api-provider'] || '').toString().trim().toLowerCase();
+
+    const isMale = /Male|Guy|Christopher|Eric/i.test(selectedVoice || speakerName);
+    const isTest = req.headers['x-tts-test'] === 'true';
 
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
     if ((ttsProvider === 'openai' || provider === 'openai') && (ttsApiKey || userApiKey)) {

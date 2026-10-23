@@ -345,14 +345,14 @@ export function setStoredTtsApiKey(provider: string, key: string): void {
   localStorage.setItem(`tts_api_key_${provider}`, key.trim());
 }
 
-export function getStoredTtsBaseUrl(): string {
+export function getStoredTtsBaseUrl(provider: string): string {
   if (typeof localStorage === 'undefined') return '';
-  return (localStorage.getItem('tts_base_url') || '').trim();
+  return (localStorage.getItem(`tts_base_url_${provider}`) || '').trim();
 }
 
-export function setStoredTtsBaseUrl(url: string): void {
+export function setStoredTtsBaseUrl(provider: string, url: string): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem('tts_base_url', url.trim());
+  localStorage.setItem(`tts_base_url_${provider}`, url.trim());
 }
 
 export function getApiHeaders(): Record<string, string> {
@@ -365,7 +365,7 @@ export function getApiHeaders(): Record<string, string> {
   const audio8Url = getStoredAudio8Url();
   const ttsProvider = getStoredTtsProvider();
   const ttsApiKey = getStoredTtsApiKey(ttsProvider);
-  const ttsBaseUrl = getStoredTtsBaseUrl();
+  const ttsBaseUrl = getStoredTtsBaseUrl(ttsProvider);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

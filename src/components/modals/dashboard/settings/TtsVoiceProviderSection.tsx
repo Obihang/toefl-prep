@@ -21,23 +21,25 @@ export const TtsVoiceProviderSection: React.FC = () => {
   });
 
   const [apiKey, setApiKey] = useState<string>(() => getStoredTtsApiKey(provider));
-  const [baseUrl, setBaseUrl] = useState<string>(() => getStoredTtsBaseUrl());
+  const [baseUrl, setBaseUrl] = useState<string>(() => getStoredTtsBaseUrl(provider));
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isMale, setIsMale] = useState(false);
 
   useEffect(() => {
     const curP = getStoredTtsProvider() as TtsProviderOption;
     const actualP = (curP === 'openai' || curP === 'gemini') ? curP : 'free';
     setProvider(actualP);
     setApiKey(getStoredTtsApiKey(actualP));
-    setBaseUrl(getStoredTtsBaseUrl());
+    setBaseUrl(getStoredTtsBaseUrl(actualP));
   }, []);
 
   const handleProviderSelect = (newP: TtsProviderOption) => {
     setProvider(newP);
     setStoredTtsProvider(newP);
     setApiKey(getStoredTtsApiKey(newP));
+    setBaseUrl(getStoredTtsBaseUrl(newP));
     showNotice(`TTS provider set to ${newP === 'free' ? 'Free Neural Server' : newP === 'openai' ? 'OpenAI TTS' : 'Gemini TTS'}`);
     setTestResult(null);
   };
@@ -50,7 +52,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
 
   const handleBaseUrlChange = (val: string) => {
     setBaseUrl(val);
-    setStoredTtsBaseUrl(val);
+    setStoredTtsBaseUrl(provider, val);
     showNotice('TTS Base URL saved');
   };
 
@@ -74,6 +76,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
         'Content-Type': 'application/json',
         'x-tts-provider': provider,
         'x-tts-api-key': apiKey,
+        'x-tts-test': 'true',
       };
       if (baseUrl) {
         headers['x-tts-base-url'] = baseUrl;
@@ -82,7 +85,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text: testText }),
+        body: JSON.stringify({ text: testText, isMale }),
       });
 
       if (!res.ok) {
@@ -167,6 +170,11 @@ export const TtsVoiceProviderSection: React.FC = () => {
             <Key className="w-3.5 h-3.5" />
             <span>Gemini TTS API</span>
           </button>
+        </div>
+
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setIsMale(false)} className={`py-1 px-3 rounded-lg text-xs font-semibold ${!isMale ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-700'}`}>Female Voice</button>
+          <button type="button" onClick={() => setIsMale(true)} className={`py-1 px-3 rounded-lg text-xs font-semibold ${isMale ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-700'}`}>Male Voice</button>
         </div>
       </div>
 
