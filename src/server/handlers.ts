@@ -455,6 +455,11 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const isTest = req.headers['x-tts-test'] === 'true';
 
+    // If testing OpenAI or Gemini but no API key is configured, return explicit error immediately
+    if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini') && !ttsApiKey && !userApiKey) {
+      return res.status(400).json({ error: `API Error: Missing API key for ${ttsProvider.toUpperCase()} TTS.` });
+    }
+
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
     if ((ttsProvider === 'openai' || provider === 'openai') && (ttsApiKey || userApiKey)) {
       try {
@@ -467,7 +472,10 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: 'tts-1', voice: isMale ? 'onyx' : 'nova', input: cleanText })
         });
-        if (!openAiRes.ok) throw new Error('OpenAI TTS failed');
+        if (!openAiRes.ok) {
+          const errText = await openAiRes.text();
+          throw new Error(`OpenAI HTTP ${openAiRes.status}: ${errText || openAiRes.statusText}`);
+        }
         const buffer = await openAiRes.arrayBuffer();
         const base64Audio = Buffer.from(buffer).toString('base64');
         return res.status(200).json({
@@ -478,7 +486,10 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed: `OpenAI TTS (${isMale ? 'onyx' : 'nova'})`,
         });
       } catch (openAiErr) {
-        if (isTest) return res.status(500).json({ error: openAiErr instanceof Error ? openAiErr.message : String(openAiErr) });
+        if (isTest) {
+          const errMsg = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
+          return res.status(400).json({ error: `API Error: ${errMsg}` });
+        }
         console.error("TTS API Failed, executing fallback. Error:", openAiErr);
         console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
       }
@@ -511,10 +522,18 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           modelUsed: `Gemini TTS (${isMale ? 'Puck' : 'Kore'})`,
         });
       } catch (geminiErr) {
-        if (isTest) return res.status(500).json({ error: geminiErr instanceof Error ? geminiErr.message : String(geminiErr) });
+        if (isTest) {
+          const errMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+          return res.status(400).json({ error: `API Error: ${errMsg}` });
+        }
         console.error("TTS API Failed, executing fallback. Error:", geminiErr);
         console.warn('Gemini TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(geminiErr));
       }
+    }
+
+    // Never fall back to neural during test calls for API providers
+    if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini')) {
+      return res.status(400).json({ error: `API Error: Failed to generate audio using ${ttsProvider.toUpperCase()} TTS.` });
     }
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)

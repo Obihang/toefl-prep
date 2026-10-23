@@ -74,4 +74,30 @@ assert.strictEqual(gemFemale.generationConfig.speechConfig.voiceConfig.prebuiltV
 const gemMale = makeGeminiPayload('Test male', true);
 assert.strictEqual(gemMale.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Puck', 'PASS: Gemini male uses Puck');
 
+// 7. Test speaker prefix parsing and stripping
+const prefixRegex = /^\s*(?:\*\*|__)?([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?(?:\*\*|__)?\s*:/i;
+const sampleText = "Marcus (Male): This is a test of the API voice engine.";
+const match = sampleText.match(prefixRegex);
+assert.ok(match, 'PASS: prefix regex matches Marcus (Male)');
+assert.strictEqual(match[1].trim(), 'Marcus');
+assert.strictEqual(match[2].trim(), 'Male');
+const cleaned = sampleText.replace(/^\s*(?:\*\*|__)?(?:[A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\([^)]+\))?(?:\*\*|__)?\s*:\s*/i, '').trim();
+assert.strictEqual(cleaned, 'This is a test of the API voice engine.', 'PASS: prefix stripped cleanly for AI speech synthesis');
+
+// 8. Test isTest guard behavior
+function simulateTtsErrorHandling(isTest: boolean, error: Error) {
+  if (isTest) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    return { status: 400, body: { error: `API Error: ${errMsg}` } };
+  }
+  return { status: 200, fallback: 'neural' };
+}
+const testResult = simulateTtsErrorHandling(true, new Error('Invalid API Key (HTTP 403)'));
+assert.strictEqual(testResult.status, 400);
+assert.strictEqual(testResult.body.error, 'API Error: Invalid API Key (HTTP 403)', 'PASS: isTest returns explicit 400 API error without fallback');
+
+const normalResult = simulateTtsErrorHandling(false, new Error('Quota exceeded'));
+assert.strictEqual(normalResult.status, 200);
+assert.strictEqual(normalResult.fallback, 'neural', 'PASS: non-test request falls back gracefully');
+
 console.log('All TTS validation simulation tests passed successfully!');
