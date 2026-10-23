@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:sim": "node scripts/build-dictionary.mjs && npx tsx scripts/api-import-check.ts && npx tsx scripts/prefetch-sim.ts && npx tsx scripts/voices-sim.ts && npx tsx scripts/llm-sim.ts && npx tsx scripts/keydetect-sim.ts && npx tsx scripts/keyflow-sim.ts && npx tsx scripts/dashboard-stats-sim.ts && npx tsx scripts/tts-validation-sim.ts && npx tsx scripts/error-classification-sim.ts && npx tsx scripts/audiourl-rules-sim.ts && npx tsx scripts/model-resolution-sim.ts && npx tsx scripts/provider-flow-sim.ts && npx tsx scripts/dictionary-sim.ts",
+    "test:sim": "node scripts/build-dictionary.mjs && npx tsx scripts/api-import-check.ts && npx tsx scripts/prefetch-sim.ts && npx tsx scripts/voices-sim.ts && npx tsx scripts/llm-sim.ts && npx tsx scripts/keydetect-sim.ts && npx tsx scripts/keyflow-sim.ts && npx tsx scripts/dashboard-stats-sim.ts && npx tsx scripts/tts-validation-sim.ts && npx tsx scripts/error-classification-sim.ts && npx tsx scripts/audiourl-rules-sim.ts && npx tsx scripts/model-resolution-sim.ts && npx tsx scripts/provider-flow-sim.ts && npx tsx scripts/dictionary-sim.ts && npx tsx scripts/tts-regression-sim.ts",
     "test:api": "npx tsx scripts/api-import-check.ts",
     "test:dict": "npx tsx scripts/dictionary-sim.ts",
     "test:keyflow": "npx tsx scripts/keyflow-sim.ts"

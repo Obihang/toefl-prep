@@ -1225,65 +1225,17 @@ export async function handleSynthesizeSpeech(
   const rawVoiceKey = (opts.voiceApiKey || '').trim();
   const voiceApiKey = rawVoiceKey && isGeminiKey(rawVoiceKey) ? rawVoiceKey : '';
   const validCustomGeminiKey = customApiKey && isGeminiKey(customApiKey) ? customApiKey : '';
-  const envKey = process.env.GEMINI_API_KEY && isGeminiKey(process.env.GEMINI_API_KEY) ? process.env.GEMINI_API_KEY : '';
+  const envKey = process.env.GEMINI_TTS_API_KEY && isGeminiKey(process.env.GEMINI_TTS_API_KEY) ? process.env.GEMINI_TTS_API_KEY : '';
 
   const geminiKey = voiceApiKey || validCustomGeminiKey || envKey;
-  const ai = getAiClient(geminiKey);
-  if (!ai) {
-    throw new Error('TTS_INVALID_CREDENTIALS: No valid Gemini API key configured for Cloud TTS.');
+  if (!geminiKey) {
+    throw new Error('TTS_INVALID_CREDENTIALS: No valid dedicated Gemini API key configured for Cloud TTS.');
   }
 
-  const validVoices = [
-    'Achernar', 'Aoede', 'Autonoe', 'Callirrhoe', 'Despina', 'Erinome', 'Gacrux', 'Kore', 'Laomedeia', 'Leda', 'Pulcherrima', 'Sulafat', 'Vindemiatrix', 'Zephyr',
-    'Achird', 'Algenib', 'Algieba', 'Alnilam', 'Charon', 'Enceladus', 'Fenrir', 'Iapetus', 'Orus', 'Puck', 'Rasalgethi', 'Sadachbia', 'Sadaltager', 'Schedar', 'Umbriel', 'Zubenelgenubi'
-  ];
-
-  const resolvedVoice = validVoices.includes(voiceName) ? voiceName : 'Kore';
-
   try {
-    const chains = await resolveModelChains('gemini', geminiKey);
-    const chain = chains.tts.length > 0 ? chains.tts : ['gemini-2.0-flash'];
-
-    const { result, modelUsed } = await generateWithFallback(ai, chain, async (model) => {
-      let audioData: string | undefined;
-      let mimeType: string = 'audio/wav';
-
-      const resp = await ai.models.generateContent({
-        model: model,
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: text.trim() }],
-          },
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: resolvedVoice },
-            },
-          },
-        },
-      });
-      audioData = resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (resp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.mimeType) {
-        mimeType = resp.candidates[0].content.parts[0].inlineData.mimeType;
-      }
-
-      if (!audioData) {
-        throw new Error('No audio data returned from model');
-      }
-
-      let pcmBuf = Buffer.from(audioData, 'base64');
-      const sampleRate = parseSampleRateFromMime(mimeType, 24000);
-      pcmBuf = wrapWavHeaderIfNeeded(pcmBuf, sampleRate, 1, 16) as any;
-      audioData = pcmBuf.toString('base64');
-      mimeType = 'audio/wav';
-
-      return { audioBase64: audioData, mimeType };
-    });
-
-    return { audioBase64: result.audioBase64, mimeType: result.mimeType, modelUsed };
+    const isMale = /Male|Guy|Christopher|Eric|Puck/i.test(voiceName);
+    const result = await synthesizeGeminiTts(text, geminiKey, { voiceName, isMale });
+    return { audioBase64: result.base64Audio, mimeType: result.mimeType, modelUsed: result.modelUsed };
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('401') || msg.includes('API_KEY_INVALID') || msg.includes('PERMISSION_DENIED')) {
@@ -1294,6 +1246,89 @@ export async function handleSynthesizeSpeech(
     }
     throw new Error(`Gemini TTS error: ${msg}`);
   }
+}
+
+export async function synthesizeGeminiTts(
+  cleanText: string,
+  apiKey: string,
+  options: { voiceName?: string; isMale?: boolean } = {}
+): Promise<{
+  base64Audio: string;
+  mimeType: string;
+  modelUsed: string;
+  voiceUsed: string;
+}> {
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error('Missing dedicated Gemini TTS API key. Please enter a valid Gemini TTS API key in Settings.');
+  }
+
+  // Prebuilt Gemini 3.8 TTS voices: Puck, Charon, Kore, Fenrir, Zephyr
+  const validVoices = new Set(['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr']);
+  let geminiVoice = options.voiceName || '';
+  if (!validVoices.has(geminiVoice)) {
+    geminiVoice = options.isMale ? 'Puck' : 'Kore';
+  }
+
+  const model = 'gemini-3.8-flash-lite-tts';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+
+  const payload = {
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: cleanText,
+            speechMetadata: {
+              style: 'Clear, professional voice',
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      responseModalities: ['AUDIO'],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: geminiVoice,
+          },
+        },
+      },
+    },
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    let detail = errText;
+    try {
+      const errJson = JSON.parse(errText);
+      detail = errJson.error?.message || detail;
+    } catch {}
+    throw new Error(`Gemini HTTP ${response.status}: ${detail}`);
+  }
+
+  const data = await response.json();
+  const part = data.candidates?.[0]?.content?.parts?.[0];
+  const base64Audio = part?.inlineData?.data;
+  let mimeType = part?.inlineData?.mimeType || 'audio/wav';
+
+  if (!base64Audio || typeof base64Audio !== 'string' || base64Audio.length < 100) {
+    throw new Error('No valid audio data returned from Gemini TTS API.');
+  }
+
+  return {
+    base64Audio,
+    mimeType,
+    modelUsed: `${model} (${geminiVoice})`,
+    voiceUsed: geminiVoice,
+  };
 }
 
 export async function handleTranscribeAudio(
