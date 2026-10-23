@@ -327,12 +327,8 @@ async function synthesizeWithZeroKeyFetch(
     accent = 'en-GB';
   } else {
     const normSpk = (speakerName || '').toLowerCase();
-    if (gender === 'male' || normSpk.includes('mark') || normSpk.includes('prof') || normSpk.includes('john') || normSpk.includes('guy')) {
-      if (normSpk.includes('b') || normSpk.includes('2') || normSpk.includes('prof')) {
-        accent = 'en-GB';
-      } else {
-        accent = 'en-US';
-      }
+    if (gender === 'male' || normSpk.includes('mark') || normSpk.includes('prof') || normSpk.includes('john') || normSpk.includes('guy') || normSpk.includes('marcus') || normSpk.includes('male')) {
+      accent = 'en-GB';
     }
   }
 

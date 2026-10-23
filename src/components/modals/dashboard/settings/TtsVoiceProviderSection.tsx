@@ -128,14 +128,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
       }
 
       const audio = new Audio(audioUrl);
-      const isNeuralFallback = data.providerUsed === 'fallback' || data.providerUsed === 'neural' || (!data.modelUsed || data.modelUsed.includes('Neural Stream'));
-      // Generate a stable float between 0.92 and 1.06 based on text/name
-      const seedString = testSpeaker || testText.slice(0, 20);
-      const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
-      const dynamicRate = 0.92 + ((hash % 100) / 100) * 0.14;
-
-      audio.preservesPitch = false;
-      audio.playbackRate = isNeuralFallback ? dynamicRate : 1.0;
+      audio.playbackRate = 1.0;
       await audio.play();
 
       const latency = Date.now() - startTime;

@@ -378,7 +378,8 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
 export async function playDecodedSpeech(
   audioBuffer: AudioBuffer,
   onEnd?: () => void,
-  rawBlob?: Blob
+  rawBlob?: Blob,
+  playbackRate: number = 1.0
 ): Promise<void> {
   const ctx = getAudioContext();
   if (ctx && ctx.state === 'suspended') {
@@ -394,6 +395,10 @@ export async function playDecodedSpeech(
         const blob = rawBlob || audioBufferToWavBlob(audioBuffer);
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
+        if (playbackRate !== 1.0) {
+          audio.preservesPitch = false;
+          audio.playbackRate = playbackRate;
+        }
         activeHtmlAudio = audio;
         audio.dataset.isBlobUrl = 'true';
 
@@ -441,6 +446,9 @@ export async function playDecodedSpeech(
 
   const sourceNode = ctx.createBufferSource();
   sourceNode.buffer = audioBuffer;
+  if (playbackRate !== 1.0) {
+    sourceNode.playbackRate.value = playbackRate;
+  }
   sourceNode.connect(ctx.destination);
   activeSourceNode = sourceNode;
 
@@ -731,7 +739,7 @@ export function playAudioBlob(blob: Blob): Promise<void> {
 }
 
 // Play HTML Audio Data URI (or Blob URL) with promise resolution
-export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): Promise<void> {
+export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false, playbackRate: number = 1.0): Promise<void> {
   if (activeHtmlAudio) {
     const prevSrc = activeHtmlAudio.dataset.blobUrl || activeHtmlAudio.src || '';
     const prevIsBlob = activeHtmlAudio.dataset.isBlobUrl === 'true';
@@ -750,6 +758,10 @@ export function playAudioDataUri(dataUri: string, isBlobUrl: boolean = false): P
 
   isAudioPlayingState = true;
   const audio = new Audio(dataUri);
+  if (playbackRate !== 1.0) {
+    audio.preservesPitch = false;
+    audio.playbackRate = playbackRate;
+  }
   audio.dataset.isBlobUrl = isBlobUrl ? 'true' : 'false';
   audio.dataset.blobUrl = dataUri;
   activeHtmlAudio = audio;
@@ -920,7 +932,6 @@ export async function playSpeech(
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
         options.onStatus?.(`Voice: ${engineName}`);
         options.onEngineDetected?.(`Voice: ${engineName}`);
-        options.onStart?.();
         try {
           if (audioBuffer) {
             await playDecodedSpeech(audioBuffer, options.onEnd);
