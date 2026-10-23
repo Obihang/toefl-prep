@@ -5,6 +5,7 @@ import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
+import { pickSingleVoice } from '../../utils/voices';
 
 interface Props {
   task: ReadingPassageTask;
@@ -34,7 +35,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
       setIsPlayingAudio(true);
       setAudioStatus('Starting passage audio...');
       playSpeech(stripSpeakerAndFormatting(task.passage), {
-        voiceName: 'Kore',
+        voiceName: pickSingleVoice(`${task.id || task.title}|passage`, 'female'),
         onStart: () => setAudioStatus('Playing audio...'),
         onStatus: (st) => setAudioStatus(st),
         onEnd: () => {

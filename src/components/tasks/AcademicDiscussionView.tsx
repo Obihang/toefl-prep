@@ -10,6 +10,7 @@ import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
+import { pickSingleVoice, inferGender } from '../../utils/voices';
 
 interface Props {
   task: AcademicDiscussionTask;
@@ -228,7 +229,7 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
                   } else {
                     setIsLoadingProfAudio(true);
                     playSpeech(stripSpeakerAndFormatting(task.professorPrompt), {
-                      voiceName: 'Puck',
+                      voiceName: pickSingleVoice(`${task.id || task.title}|${task.professorName}`, inferGender(task.professorName)),
                       onStart: () => {
                         setIsLoadingProfAudio(false);
                         setIsPlayingProfAudio(true);

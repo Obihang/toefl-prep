@@ -108,10 +108,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   // Silent background pre-synthesis so clicking "Hear sentence" is INSTANT (0 ms delay)
   useEffect(() => {
     if (!task?.sentences || task.sentences.length === 0) return;
-    task.sentences.forEach((sentence) => {
-      prefetchSpeechAudio(sentence, speakerVoice).catch(() => {});
+    task.sentences.forEach((sentence, idx) => {
+      const sentenceVoice = pickSingleVoice(`${task.id || task.title}|${speakerName}|s_${idx}`, speakerGender);
+      prefetchSpeechAudio(sentence, sentenceVoice).catch(() => {});
     });
-  }, [task.id, task.title, speakerVoice]);
+  }, [task.id, task.title, speakerName, speakerGender]);
 
   useEffect(() => {
     return () => {
@@ -220,7 +221,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     try {
       const authHdrs = await getAuthHeaders();
       const headers = { ...getApiHeaders(), ...authHdrs };
-      const voiceName = pickSingleVoice(`${task.title}|${effSpeaker}`, effGender);
+      const voiceName = pickSingleVoice(`${task.id || task.title}|${effSpeaker}|s_${index}`, effGender);
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers,
@@ -294,7 +295,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
 
     if (playbackSessionIdRef.current !== currentSession) return;
 
-    const voiceName = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
+    const voiceName = pickSingleVoice(`${task.id || task.title}|${speakerName}|s_${index}`, speakerGender);
     const browserVoice = pickBrowserVoiceForGender(speakerGender);
     try {
       await speakScriptLine(cleanSentence, {

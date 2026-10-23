@@ -483,10 +483,21 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         const openAiUrl = ttsBaseUrl
           ? (ttsBaseUrl.endsWith('/audio/speech') ? ttsBaseUrl : `${ttsBaseUrl.replace(/\/+$/, '')}/audio/speech`)
           : 'https://api.openai.com/v1/audio/speech';
+        const openAiFemalePool = ['nova', 'shimmer', 'alloy'];
+        const openAiMalePool = ['onyx', 'echo', 'fable'];
+        const validOpenAiVoices = new Set([...openAiFemalePool, ...openAiMalePool]);
+        let selectedOpenAiVoice = voiceName || '';
+        if (!validOpenAiVoices.has(selectedOpenAiVoice)) {
+          const seedString = voiceName || speakerName || cleanText.slice(0, 20);
+          const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
+          const pool = isMale ? openAiMalePool : openAiFemalePool;
+          selectedOpenAiVoice = pool[hash % pool.length];
+        }
+
         const openAiRes = await fetch(openAiUrl, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'tts-1', voice: isMale ? 'onyx' : 'nova', input: cleanText })
+          body: JSON.stringify({ model: 'tts-1', voice: selectedOpenAiVoice, input: cleanText })
         });
         if (!openAiRes.ok) {
           const errText = await openAiRes.text();
@@ -499,7 +510,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
         }
         const buffer = await openAiRes.arrayBuffer();
         const base64Audio = Buffer.from(buffer).toString('base64');
-        const selectedOpenAiVoice = isMale ? 'onyx' : 'nova';
         return res.status(200).json({
           success: true,
           audioUrl: `data:audio/mpeg;base64,${base64Audio}`,

@@ -96,10 +96,11 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   // Silent background pre-synthesis of interviewer questions
   useEffect(() => {
     if (!task?.questions) return;
-    task.questions.forEach((q) => {
-      prefetchSpeechAudio(q.question, interviewerVoice).catch(() => {});
+    task.questions.forEach((q, idx) => {
+      const qVoice = pickSingleVoice(`${task.id || task.title}|${interviewerName}|q_${idx}`, interviewerGender);
+      prefetchSpeechAudio(q.question, qVoice).catch(() => {});
     });
-  }, [task.id, task.title, interviewerVoice]);
+  }, [task.id, task.title, interviewerName, interviewerGender]);
 
   // Stop audio/timers/voice session on unmount
   useEffect(() => {
@@ -162,7 +163,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(currentQ.question);
     const effInterviewer = parsed.speakerName || interviewerName;
     const effGender = detectSpeakerGender(effInterviewer, parsed.speakerHint || interviewerGender);
-    const voiceName = pickSingleVoice(`${task.title}|${effInterviewer}`, effGender);
+    const voiceName = pickSingleVoice(`${task.id || task.title}|${effInterviewer}|q_${currentQIndex}`, effGender);
     const browserVoice = pickBrowserVoiceForGender(effGender);
     try {
       await speakScriptLine(cleanQ, {

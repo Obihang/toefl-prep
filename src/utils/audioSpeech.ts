@@ -1004,7 +1004,7 @@ export async function playSpeech(
   const g = spk ? detectSpeakerGender(spk, '') : inferGender(voiceName);
   const isMale = g === 'male' || /guy|christopher|eric|roger|steffan|puck|algenib|algieba|alnilam|charon|enceladus|fenrir|iapetus|orus|rasalgethi|sadachbia|sadaltager|schedar|umbriel|zubenelgenubi|male/i.test(voiceName);
   
-  if (engine === 'device' || engine === 'offline' || (isMale && !hasKeys) || (!hasKeys && typeof window !== 'undefined')) {
+  if (engine === 'device' || engine === 'offline') {
     stepOrder.push('device');
     stepOrder.push('cloud');
   } else {
