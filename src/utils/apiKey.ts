@@ -337,7 +337,16 @@ export function setStoredTtsProvider(provider: string): void {
 
 export function getStoredTtsApiKey(provider: string): string {
   if (typeof localStorage === 'undefined') return '';
-  return (localStorage.getItem(`tts_api_key_${provider}`) || '').trim();
+  const specificKey = (localStorage.getItem(`tts_api_key_${provider}`) || localStorage.getItem('tts_api_key') || '').trim();
+  if (specificKey) return specificKey;
+
+  if (provider === 'gemini') {
+    return (localStorage.getItem('toefl_key_gemini') || localStorage.getItem('toefl_gemini_api_key') || '').trim();
+  }
+  if (provider === 'openai') {
+    return (localStorage.getItem('toefl_key_openai') || '').trim();
+  }
+  return '';
 }
 
 export function setStoredTtsApiKey(provider: string, key: string): void {

@@ -505,87 +505,89 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
     if (ttsProvider === 'openai' || provider === 'openai') {
-      try {
-        const apiKey = ttsApiKey || process.env.OPENAI_TTS_API_KEY || '';
-        if (!apiKey) {
-          throw new Error('Missing dedicated OpenAI TTS API key. Please enter a valid OpenAI TTS API key in Settings.');
-        }
-
-        const openAiUrl = ttsBaseUrl
-          ? (ttsBaseUrl.endsWith('/audio/speech') ? ttsBaseUrl : `${ttsBaseUrl.replace(/\/+$/, '')}/audio/speech`)
-          : 'https://api.openai.com/v1/audio/speech';
-        const openAiFemalePool = ['nova', 'shimmer', 'alloy'];
-        const openAiMalePool = ['onyx', 'echo', 'fable'];
-        const validOpenAiVoices = new Set([...openAiFemalePool, ...openAiMalePool]);
-        let selectedOpenAiVoice = voiceName || '';
-        if (!validOpenAiVoices.has(selectedOpenAiVoice)) {
-          const seedString = voiceName || speakerName || cleanText.slice(0, 20);
-          const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
-          const pool = isMale ? openAiMalePool : openAiFemalePool;
-          selectedOpenAiVoice = pool[hash % pool.length];
-        }
-
-        const openAiRes = await fetch(openAiUrl, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'tts-1', voice: selectedOpenAiVoice, input: cleanText })
-        });
-        if (!openAiRes.ok) {
-          const errText = await openAiRes.text();
-          let errDetail = errText;
-          try {
-            const errJson = JSON.parse(errText);
-            errDetail = errJson.error?.message || errDetail;
-          } catch {}
-          throw new Error(`OpenAI HTTP ${openAiRes.status}: ${errDetail || openAiRes.statusText}`);
-        }
-        const buffer = await openAiRes.arrayBuffer();
-        const base64Audio = Buffer.from(buffer).toString('base64');
-        return res.status(200).json({
-          success: true,
-          audioUrl: `data:audio/mpeg;base64,${base64Audio}`,
-          audioBase64: base64Audio,
-          mimeType: 'audio/mpeg',
-          modelUsed: `OpenAI TTS (${selectedOpenAiVoice})`,
-          providerUsed: 'openai',
-          voiceUsed: selectedOpenAiVoice,
-          fallbackUsed: false,
-          isMale,
-        });
-      } catch (openAiErr) {
+      const apiKey = ttsApiKey || process.env.OPENAI_TTS_API_KEY || userApiKey || process.env.OPENAI_API_KEY || '';
+      if (!apiKey) {
         if (isTest) {
-          const errText = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
-          return res.status(400).json({ error: `API Failed: ${errText}` });
+          return res.status(400).json({ error: 'Missing OpenAI TTS API key. Please enter a valid OpenAI API key in Settings.' });
         }
-        console.error("TTS API Failed, executing fallback. Error:", openAiErr);
-        console.warn('OpenAI TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(openAiErr));
+      } else {
+        try {
+          const openAiUrl = ttsBaseUrl
+            ? (ttsBaseUrl.endsWith('/audio/speech') ? ttsBaseUrl : `${ttsBaseUrl.replace(/\/+$/, '')}/audio/speech`)
+            : 'https://api.openai.com/v1/audio/speech';
+          const openAiFemalePool = ['nova', 'shimmer', 'alloy'];
+          const openAiMalePool = ['onyx', 'echo', 'fable'];
+          const validOpenAiVoices = new Set([...openAiFemalePool, ...openAiMalePool]);
+          let selectedOpenAiVoice = voiceName || '';
+          if (!validOpenAiVoices.has(selectedOpenAiVoice)) {
+            const seedString = voiceName || speakerName || cleanText.slice(0, 20);
+            const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
+            const pool = isMale ? openAiMalePool : openAiFemalePool;
+            selectedOpenAiVoice = pool[hash % pool.length];
+          }
+
+          const openAiRes = await fetch(openAiUrl, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: 'tts-1', voice: selectedOpenAiVoice, input: cleanText })
+          });
+          if (!openAiRes.ok) {
+            const errText = await openAiRes.text();
+            let errDetail = errText;
+            try {
+              const errJson = JSON.parse(errText);
+              errDetail = errJson.error?.message || errDetail;
+            } catch {}
+            throw new Error(`OpenAI HTTP ${openAiRes.status}: ${errDetail || openAiRes.statusText}`);
+          }
+          const buffer = await openAiRes.arrayBuffer();
+          const base64Audio = Buffer.from(buffer).toString('base64');
+          return res.status(200).json({
+            success: true,
+            audioUrl: `data:audio/mpeg;base64,${base64Audio}`,
+            audioBase64: base64Audio,
+            mimeType: 'audio/mpeg',
+            modelUsed: `OpenAI TTS (${selectedOpenAiVoice})`,
+            providerUsed: 'openai',
+            voiceUsed: selectedOpenAiVoice,
+            fallbackUsed: false,
+            isMale,
+          });
+        } catch (openAiErr) {
+          if (isTest) {
+            const errText = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
+            return res.status(400).json({ error: `API Failed: ${errText}` });
+          }
+          console.warn('OpenAI TTS failed, falling through to zero-key stream:', redactSensitiveInfo(openAiErr));
+        }
       }
     } else if (ttsProvider === 'gemini' || provider === 'gemini') {
-      try {
-        const apiKey = ttsApiKey || process.env.GEMINI_TTS_API_KEY || '';
-        if (!apiKey) {
-          throw new Error('Missing dedicated Gemini TTS API key. Please enter a valid Gemini TTS API key in Settings.');
-        }
-
-        const resData = await synthesizeGeminiTts(cleanText, apiKey, { voiceName, isMale });
-        return res.status(200).json({
-          success: true,
-          audioUrl: `data:${resData.mimeType};base64,${resData.base64Audio}`,
-          audioBase64: resData.base64Audio,
-          mimeType: resData.mimeType,
-          modelUsed: `Gemini TTS (${resData.voiceUsed})`,
-          providerUsed: 'gemini',
-          voiceUsed: resData.voiceUsed,
-          fallbackUsed: false,
-          isMale,
-        });
-      } catch (geminiErr) {
+      const apiKey = ttsApiKey || process.env.GEMINI_TTS_API_KEY || userApiKey || process.env.GEMINI_API_KEY || '';
+      if (!apiKey) {
         if (isTest) {
-          const errText = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
-          return res.status(400).json({ error: `API Failed: ${errText}` });
+          return res.status(400).json({ error: 'Missing Gemini TTS API key. Please enter a valid Gemini API key in Settings.' });
         }
-        console.error("TTS API Failed, executing fallback. Error:", geminiErr);
-        console.warn('Gemini TTS failed, falling through to neural zero-key stream:', redactSensitiveInfo(geminiErr));
+      } else {
+        try {
+          const resData = await synthesizeGeminiTts(cleanText, apiKey, { voiceName, isMale });
+          return res.status(200).json({
+            success: true,
+            audioUrl: `data:${resData.mimeType};base64,${resData.base64Audio}`,
+            audioBase64: resData.base64Audio,
+            mimeType: resData.mimeType,
+            modelUsed: `Gemini TTS (${resData.voiceUsed})`,
+            providerUsed: 'gemini',
+            voiceUsed: resData.voiceUsed,
+            fallbackUsed: false,
+            isMale,
+          });
+        } catch (geminiErr) {
+          if (isTest) {
+            const errText = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
+            return res.status(400).json({ error: `API Failed: ${errText}` });
+          }
+          console.warn('Gemini TTS failed, falling through to zero-key stream:', redactSensitiveInfo(geminiErr));
+        }
       }
     }
 
