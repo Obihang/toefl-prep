@@ -460,12 +460,13 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     isMale = MALE_VOICES.includes(selectedVoice) || reqGender === 'male';
 
+    const pitch = (body.pitch || '0Hz').toString().trim();
     const ratePercent = Math.round((numRate - 1.0) * 100);
     const rateStr = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`;
 
     const hash = crypto
       .createHash('sha256')
-      .update(`${cleanText}:::${selectedVoice}:::${rateStr}`)
+      .update(`${cleanText}:::${selectedVoice}:::${pitch}:::${rateStr}`)
       .digest('hex');
 
     const blobPath = `toefl-tts/${hash}.mp3`;

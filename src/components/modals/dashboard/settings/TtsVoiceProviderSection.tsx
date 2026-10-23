@@ -99,8 +99,10 @@ export const TtsVoiceProviderSection: React.FC = () => {
         headers,
         body: JSON.stringify({
           text: testText,
-          isMale,
+          voice: voiceName,
           voiceName,
+          gender: isMale ? 'male' : 'female',
+          isMale,
           speaker: testSpeaker,
         }),
       });
