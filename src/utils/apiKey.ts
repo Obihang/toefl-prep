@@ -288,6 +288,9 @@ export function disconnectAllApiKeys(): void {
   localStorage.removeItem('toefl_voice_api_key');
   localStorage.removeItem('toefl_audio8_url');
   localStorage.removeItem('toefl_tts_provider');
+  localStorage.removeItem('tts_provider');
+  localStorage.removeItem('tts_api_key');
+  localStorage.removeItem('tts_base_url');
   localStorage.removeItem('toefl_purpose_models');
   localStorage.removeItem('toefl_tts_blocked_until');
   resetTtsQuotaBlock();
@@ -317,13 +320,39 @@ export function setStoredAudio8Url(url: string): void {
 }
 
 export function getStoredTtsProvider(): string {
-  if (typeof localStorage === 'undefined') return '';
-  return (localStorage.getItem('toefl_tts_provider') || '').trim();
+  if (typeof localStorage === 'undefined') return 'free';
+  return (
+    localStorage.getItem('tts_provider') ||
+    localStorage.getItem('toefl_tts_provider') ||
+    'free'
+  ).trim();
 }
 
 export function setStoredTtsProvider(provider: string): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem('toefl_tts_provider', provider.trim());
+  const clean = provider.trim() || 'free';
+  localStorage.setItem('tts_provider', clean);
+  localStorage.setItem('toefl_tts_provider', clean);
+}
+
+export function getStoredTtsApiKey(): string {
+  if (typeof localStorage === 'undefined') return '';
+  return (localStorage.getItem('tts_api_key') || '').trim();
+}
+
+export function setStoredTtsApiKey(key: string): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('tts_api_key', key.trim());
+}
+
+export function getStoredTtsBaseUrl(): string {
+  if (typeof localStorage === 'undefined') return '';
+  return (localStorage.getItem('tts_base_url') || '').trim();
+}
+
+export function setStoredTtsBaseUrl(url: string): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('tts_base_url', url.trim());
 }
 
 export function getApiHeaders(): Record<string, string> {
@@ -335,6 +364,8 @@ export function getApiHeaders(): Record<string, string> {
   const roles = getStoredRoles(provider);
   const audio8Url = getStoredAudio8Url();
   const ttsProvider = getStoredTtsProvider();
+  const ttsApiKey = getStoredTtsApiKey();
+  const ttsBaseUrl = getStoredTtsBaseUrl();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -375,6 +406,14 @@ export function getApiHeaders(): Record<string, string> {
 
   if (ttsProvider) {
     headers['x-tts-provider'] = ttsProvider;
+  }
+
+  if (ttsApiKey) {
+    headers['x-tts-api-key'] = ttsApiKey;
+  }
+
+  if (ttsBaseUrl) {
+    headers['x-tts-base-url'] = ttsBaseUrl;
   }
 
   return headers;

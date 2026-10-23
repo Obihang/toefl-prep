@@ -27,6 +27,7 @@ import {
 import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
 import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
+import { TtsVoiceProviderSection } from './settings/TtsVoiceProviderSection';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
 import { clearVocabularyList } from '../../../utils/vocabularyStore';
 import { clearAllMistakes } from '../../../utils/mistakesTracker';
@@ -620,7 +621,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 3. Voice and Speech
+    // 3. TTS Voice Provider
+    {
+      id: 'tts_provider',
+      title: 'TTS Voice Provider',
+      icon: <Volume2 className="w-4 h-4 text-teal-700" />,
+      content: (
+        <div className="pt-2">
+          <TtsVoiceProviderSection />
+        </div>
+      ),
+    },
+
+    // 4. Voice and Speech
     {
       id: 'voice_speech',
       title: 'Voice and speech',

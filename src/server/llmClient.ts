@@ -192,8 +192,9 @@ export async function callOpenAiTts(options: {
   text: string;
   voiceName?: string;
   model?: string;
+  baseUrl?: string;
 }): Promise<{ audioBase64: string; mimeType: string; modelUsed: string }> {
-  const { apiKey, text, voiceName = 'alloy' } = options;
+  const { apiKey, text, voiceName = 'alloy', model = 'tts-1', baseUrl } = options;
   if (!apiKey || !apiKey.trim()) {
     throw new Error('OpenAI API key missing for TTS');
   }
@@ -208,7 +209,10 @@ export async function callOpenAiTts(options: {
     selectedVoice = lowerVoice;
   }
 
-  const endpoint = 'https://api.openai.com/v1/audio/speech';
+  const rawBase = (baseUrl || '').trim().replace(/\/+$/, '');
+  const endpoint = rawBase
+    ? (rawBase.endsWith('/audio/speech') ? rawBase : (rawBase.endsWith('/v1') ? `${rawBase}/audio/speech` : `${rawBase}/v1/audio/speech`))
+    : 'https://api.openai.com/v1/audio/speech';
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {

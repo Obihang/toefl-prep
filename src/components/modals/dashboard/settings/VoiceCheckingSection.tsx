@@ -9,6 +9,7 @@ import {
 } from '../../../../utils/audioSpeech';
 import { getStoredApiKey } from '../../../../utils/apiKey';
 import { getAiStatusInfo } from '../../../../utils/aiFallbackChain';
+import { TtsVoiceProviderSection } from './TtsVoiceProviderSection';
 
 export const VoiceCheckingSection: React.FC = () => {
   const [engine, setEngine] = useState<'auto' | 'edge' | 'cloud' | 'device'>('auto');
@@ -90,7 +91,10 @@ export const VoiceCheckingSection: React.FC = () => {
 
   return (
     <div className="space-y-5 pt-2">
-      {/* 1. Voice Provider Selector */}
+      {/* 0. Dedicated TTS Voice Provider */}
+      <TtsVoiceProviderSection />
+
+      {/* 1. Voice Synthesis Engine */}
       <div className="space-y-2">
         <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
           <span>Voice Synthesis Engine</span>

@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { head, put } from '@vercel/blob';
 import { getApiConfig } from './apiConfig.ts';
 import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey, handleSynthesizeSpeech } from './geminiHandler.ts';
+import { callOpenAiTts } from './llmClient.ts';
 import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
 import { STT_MODEL } from '../config/models.ts';
 import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
@@ -429,12 +430,50 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     let mimeType = 'audio/mpeg';
     let modelUsed = `Neural Stream (${selectedVoice})`;
 
-    // Stage 1: Try Gemini Cloud TTS if API key provided in headers
-    const userApiKey = (req.headers['x-api-key'] || req.headers['x-gemini-api-key'] || '').toString();
-    const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString();
-    const provider = (req.headers['x-api-provider'] || '').toString();
+    // TTS Provider headers:
+    const ttsProvider = (req.headers['x-tts-provider'] || '').toString().trim().toLowerCase();
+    const ttsApiKey = (req.headers['x-tts-api-key'] || '').toString().trim();
+    const ttsBaseUrl = (req.headers['x-tts-base-url'] || '').toString().trim();
 
-    if (userApiKey || voiceApiKey) {
+    // Legacy headers fallback
+    const userApiKey = (req.headers['x-api-key'] || req.headers['x-gemini-api-key'] || '').toString().trim();
+    const voiceApiKey = (req.headers['x-voice-api-key'] || '').toString().trim();
+    const provider = (req.headers['x-api-provider'] || '').toString().trim().toLowerCase();
+
+    // Stage 1: If an API provider is specified and a key is present, wrap in try/catch
+    if (ttsProvider === 'openai' && ttsApiKey) {
+      try {
+        const openAiRes = await callOpenAiTts({
+          apiKey: ttsApiKey,
+          text: cleanText,
+          voiceName: selectedVoice,
+          baseUrl: ttsBaseUrl || undefined,
+        });
+        if (openAiRes && openAiRes.audioBase64) {
+          audioBuffer = Buffer.from(openAiRes.audioBase64, 'base64');
+          mimeType = openAiRes.mimeType || 'audio/mpeg';
+          modelUsed = openAiRes.modelUsed || 'OpenAI TTS';
+        }
+      } catch (openAiErr) {
+        console.warn('OpenAI TTS API call failed, falling through to free neural fallback:', redactSensitiveInfo(openAiErr));
+      }
+    } else if (ttsProvider === 'gemini' && (ttsApiKey || userApiKey || voiceApiKey)) {
+      try {
+        const gemKey = ttsApiKey || voiceApiKey || userApiKey;
+        const geminiRes = await handleSynthesizeSpeech(cleanText, selectedVoice, {
+          apiKey: gemKey,
+          voiceApiKey: gemKey,
+          provider: 'gemini',
+        });
+        if (geminiRes && geminiRes.audioBase64) {
+          audioBuffer = Buffer.from(geminiRes.audioBase64, 'base64');
+          mimeType = geminiRes.mimeType || 'audio/wav';
+          modelUsed = geminiRes.modelUsed || 'Gemini Cloud TTS';
+        }
+      } catch (geminiErr) {
+        console.warn('Gemini TTS API call failed, falling through to free neural fallback:', redactSensitiveInfo(geminiErr));
+      }
+    } else if (ttsProvider !== 'free' && ttsProvider !== 'zero-api' && (userApiKey || voiceApiKey)) {
       try {
         const geminiRes = await handleSynthesizeSpeech(cleanText, selectedVoice, {
           apiKey: userApiKey,
@@ -446,8 +485,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
           mimeType = geminiRes.mimeType || 'audio/wav';
           modelUsed = geminiRes.modelUsed || 'Gemini Cloud TTS';
         }
-      } catch (geminiErr) {
-        console.warn('Gemini TTS attempt failed:', redactSensitiveInfo(geminiErr));
+      } catch (apiErr) {
+        console.warn('API TTS call failed, falling through to free neural fallback:', redactSensitiveInfo(apiErr));
       }
     }
 

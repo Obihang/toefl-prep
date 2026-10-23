@@ -1,4 +1,23 @@
-import { getApiHeaders, getStoredProvider, getStoredApiKey, getStoredVoiceKey } from './apiKey';
+import {
+  getApiHeaders,
+  getStoredProvider,
+  getStoredApiKey,
+  getStoredVoiceKey,
+  getStoredTtsProvider,
+  setStoredTtsProvider,
+  getStoredTtsApiKey,
+  setStoredTtsApiKey,
+  getStoredTtsBaseUrl,
+  setStoredTtsBaseUrl,
+} from './apiKey';
+export {
+  getStoredTtsProvider,
+  setStoredTtsProvider,
+  getStoredTtsApiKey,
+  setStoredTtsApiKey,
+  getStoredTtsBaseUrl,
+  setStoredTtsBaseUrl,
+};
 import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender, getBrowserSpeechPitchAndRate } from './voices';

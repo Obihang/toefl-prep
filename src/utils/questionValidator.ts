@@ -32,10 +32,12 @@ export function isHighQualityTask(task: any, taskType: string): boolean {
     }
 
     case 'write-email': {
-      const situation = String(task.situation || '');
-      const goals = Array.isArray(task.goals) ? task.goals : [];
+      const situation = String(task.situation || task.context || task.prompt || '');
+      const goals = Array.isArray(task.goals) ? task.goals : (Array.isArray(task.bulletPoints) ? task.bulletPoints : []);
       const sitWords = countWords(situation);
-      return sitWords >= 40 && goals.length >= 3;
+      const modelAnswer = String(task.sampleResponse || task.modelAnswer || task.exemplar || task.sampleEmail || '');
+      const modelWords = countWords(modelAnswer);
+      return sitWords > 15 && goals.length >= 2 && (!modelAnswer || modelWords > 40);
     }
 
     case 'reading-passage': {

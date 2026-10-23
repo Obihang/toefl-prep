@@ -21,4 +21,33 @@ assert.strictEqual(validateTtsInput('a'.repeat(3001), 1.0, 'en-US-JennyNeural', 
 assert.strictEqual(validateTtsInput('Hello', 0.5, 'en-US-JennyNeural', true).status, 400, 'PASS rate < 0.7 returns 400');
 assert.strictEqual(validateTtsInput('Hello', 1.5, 'en-US-JennyNeural', true).status, 400, 'PASS rate > 1.3 returns 400');
 assert.strictEqual(validateTtsInput('Hello', 1.0, 'en-US-JennyNeural', true).status, 200, 'PASS valid parameters succeed');
+
+// Validate relaxed write-email quality gate rules
+import { isHighQualityTask } from '../src/utils/questionValidator.ts';
+import { BACKGROUND_PREFETCH_TASKS } from '../src/utils/prefetchManager.ts';
+
+// 1. Valid write-email with > 15 words situation and 2 goals
+const validEmail1 = {
+  situation: 'You are writing an email to your biology professor regarding missed office hours due to a medical appointment last Tuesday morning.',
+  goals: ['Explain why you could not attend the scheduled meeting', 'Request to reschedule for Friday'],
+};
+assert.strictEqual(isHighQualityTask(validEmail1, 'write-email'), true, 'PASS: relaxed write-email with 18 words and 2 goals succeeds');
+
+// 2. Reject short situation (<= 15 words)
+const shortEmail = {
+  situation: 'Tell professor you were absent.',
+  goals: ['Explain reason', 'Ask for notes'],
+};
+assert.strictEqual(isHighQualityTask(shortEmail, 'write-email'), false, 'PASS: write-email with short situation is rejected');
+
+// 3. Reject insufficient goals (< 2)
+const oneGoalEmail = {
+  situation: 'You are writing an email to your biology professor regarding missed office hours due to a medical appointment last Tuesday morning.',
+  goals: ['Explain reason'],
+};
+assert.strictEqual(isHighQualityTask(oneGoalEmail, 'write-email'), false, 'PASS: write-email with 1 goal is rejected');
+
+// 4. Confirm write-email is present in BACKGROUND_PREFETCH_TASKS rotation
+assert.strictEqual(BACKGROUND_PREFETCH_TASKS.includes('write-email'), true, 'PASS: write-email is in BACKGROUND_PREFETCH_TASKS');
+
 console.log('All TTS validation simulation tests passed successfully!');

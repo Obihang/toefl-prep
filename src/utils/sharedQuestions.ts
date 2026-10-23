@@ -1,6 +1,6 @@
 import { db, auth } from '../firebase';
 import { getSectionForTaskType } from '../types/taskTypes';
-import { getAuthHeaders, getScholarUsername } from './apiKey';
+import { getAuthHeaders, getScholarUsername, getApiHeaders } from './apiKey';
 import { parseDialogueLine, DialogueVoiceManager } from './voices';
 import { stripSpeakerAndFormatting } from './audioSpeech';
 import {
@@ -365,7 +365,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
           if (taskType === 'listening-dialogue' || taskType === 'listen-repeat') {
             try {
               const authHdrs = await getAuthHeaders();
-              const headers = { 'Content-Type': 'application/json', ...authHdrs };
+              const headers = { ...getApiHeaders(), ...authHdrs };
 
               if (taskType === 'listening-dialogue' && Array.isArray(item.turns) && item.turns.length > 0) {
                 audioClips = [];

@@ -93,6 +93,17 @@ export function getPrefetchProgress(
   return { done, filled: totalFilled, total: 8 };
 }
 
+export const BACKGROUND_PREFETCH_TASKS: TaskTypeId[] = [
+  'complete-words',
+  'reading-passage',
+  'listening-dialogue',
+  'listen-repeat',
+  'speaking-interview',
+  'build-sentence',
+  'write-email',
+  'academic-discussion',
+];
+
 export function getNextTaskToPrefetch(
   currentTaskType: TaskTypeId,
   queue: PrefetchQueue,
@@ -110,14 +121,14 @@ export function getNextTaskToPrefetch(
     return (cooldowns[taskId] || 0) <= now;
   };
 
-  const tasks = TASK_DEFINITIONS;
-  const orderedTasks = [
-    tasks.find(t => t.id === currentTaskType)!,
-    ...tasks.filter(t => t.id !== currentTaskType)
+  const activeTaskIds = BACKGROUND_PREFETCH_TASKS;
+  const orderedTaskIds = [
+    activeTaskIds.find((id) => id === currentTaskType) || activeTaskIds[0],
+    ...activeTaskIds.filter((id) => id !== currentTaskType),
   ];
 
-  for (const task of orderedTasks) {
-    if (isEligible(task.id) && getCount(task.id) === 0) return task.id;
+  for (const taskId of orderedTaskIds) {
+    if (isEligible(taskId) && getCount(taskId) === 0) return taskId;
   }
 
   return null;

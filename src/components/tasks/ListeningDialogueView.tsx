@@ -6,7 +6,7 @@ import { playDialogue, stopSpeaking, prefetchSpeechAudio, stripSpeakerAndFormatt
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth, db } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { getAuthHeaders } from '../../utils/apiKey';
+import { getAuthHeaders, getApiHeaders } from '../../utils/apiKey';
 import { updateDoc, doc } from 'firebase/firestore';
 
 interface Props {
@@ -130,7 +130,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         let generatedClips: Array<{ speaker: string; url: string }> = [];
         try {
           const authHdrs = await getAuthHeaders();
-          const headers = { 'Content-Type': 'application/json', ...authHdrs };
+          const headers = { ...getApiHeaders(), ...authHdrs };
 
           const voiceManager = new DialogueVoiceManager();
 

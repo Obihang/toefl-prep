@@ -9,7 +9,7 @@ import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calcul
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { db } from '../../firebase';
-import { getAuthHeaders } from '../../utils/apiKey';
+import { getAuthHeaders, getApiHeaders } from '../../utils/apiKey';
 import { updateDoc, doc } from 'firebase/firestore';
 
 interface Props {
@@ -211,10 +211,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       return;
     }
 
-    // Try /api/tts with getAuthHeaders()
+    // Try /api/tts with getAuthHeaders() and getApiHeaders()
     try {
       const authHdrs = await getAuthHeaders();
-      const headers = { 'Content-Type': 'application/json', ...authHdrs };
+      const headers = { ...getApiHeaders(), ...authHdrs };
       const voiceName = pickSingleVoice(`${task.title}|${effSpeaker}`, effGender);
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
