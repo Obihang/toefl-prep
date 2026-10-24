@@ -3,6 +3,8 @@ import { normalizeTaskData } from './taskNormalizer';
 import { db, auth } from '../firebase';
 import { collection, doc, setDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { getScholarUsername } from './apiKey';
+import { isValidLevel, isValidAcademicTopic, Level, AcademicTopic } from '../constants/filters';
+import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
@@ -97,16 +99,33 @@ export async function saveVerifiedQuestion(params: {
   source?: 'ai' | 'curated';
   generatedBy?: string;
 }): Promise<string | null> {
-  const { taskType, level, topic, content, audioUrl = null, audioClips = null, source = 'ai', generatedBy = getScholarUsername() } = params;
+  const { taskType, content, audioUrl = null, audioClips = null, source = 'ai', generatedBy = getScholarUsername() } = params;
   
   if (!isHighQualityTask(content, taskType)) {
     console.warn(`Rejected low-quality question for taskType ${taskType} during save.`);
     return null;
   }
 
+  // Sanitize level and topic
+  let validLevel: Level = 'intermediate';
+  if (isValidLevel(params.level)) {
+    validLevel = params.level;
+  } else if (isValidLevel(content?.level)) {
+    validLevel = content.level;
+  }
+
+  let validTopic: AcademicTopic;
+  if (isValidAcademicTopic(params.topic) && params.topic !== ('all' as any) && params.topic !== ('general' as any)) {
+    validTopic = params.topic;
+  } else {
+    validTopic = inferTopic(content);
+  }
+
   const questionId = content.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const enrichedContent = {
     ...content,
+    level: validLevel,
+    topic: validTopic,
     source,
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
@@ -120,8 +139,8 @@ export async function saveVerifiedQuestion(params: {
     store.put({
       id: questionId,
       taskType,
-      level,
-      topic,
+      level: validLevel,
+      topic: validTopic,
       content: enrichedContent,
       audioUrl,
       audioClips,
@@ -144,8 +163,8 @@ export async function saveVerifiedQuestion(params: {
       const docRef = doc(db, 'questions', questionId);
       await setDoc(docRef, {
         taskType,
-        level,
-        topic,
+        level: validLevel,
+        topic: validTopic,
         content: enrichedContent,
         audioUrl,
         audioClips,

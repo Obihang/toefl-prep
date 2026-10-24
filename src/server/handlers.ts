@@ -14,7 +14,6 @@ import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/vo
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 import os from 'os';
 import WebSocket from 'ws';
-import * as admin from 'firebase-admin';
 
 export const FEMALE_VOICES = [
   "en-US-AvaNeural",
@@ -527,27 +526,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
   }
 }
 export { handleTtsCheckEndpoint } from './api/tts-check.ts';
-export async function handleReportEndpoint(req: Req, res: Res) {
-  try {
-    const { text, username, context } = (typeof req.body === 'string' ? JSON.parse(req.body) : req.body) || {};
-    if (!text) return res.status(400).json({ success: false, error: 'Report text required' });
-
-    const firebaseAdmin: any = admin;
-    const db = firebaseAdmin.firestore();
-    
-    await db.collection('reports').add({
-      text,
-      username: username || 'Anonymous',
-      context: context || 'Unknown',
-      timestamp: firebaseAdmin.firestore.FieldValue.serverTimestamp(),
-      resolved: false
-    });
-    return res.status(200).json({ success: true });
-  } catch (error) {
-    console.error('Report endpoint error:', error);
-    return res.status(500).json({ error: String(error) });
-  }
-}
 
 export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const { word } = req.query;

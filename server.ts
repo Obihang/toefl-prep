@@ -12,7 +12,6 @@ import {
   handleTtsEndpoint,
   handleDictionaryEndpoint,
   handleTtsCheckEndpoint,
-  handleReportEndpoint,
 } from './src/server/handlers.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,7 +53,6 @@ export async function createServer() {
   app.post('/api/evaluate-response', handleEvaluateResponseEndpoint);
   app.post('/api/tts', handleTtsEndpoint);
   app.get('/api/tts-check', handleTtsCheckEndpoint);
-  app.post('/api/report', handleReportEndpoint);
   app.post('/api/stt', handleSttEndpoint);
   app.post('/api/transcribe', handleSttEndpoint);
   app.post('/api/test-key', handleTestKeyEndpoint);

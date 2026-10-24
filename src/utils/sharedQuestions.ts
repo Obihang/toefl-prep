@@ -4,6 +4,15 @@ import { getAuthHeaders, getScholarUsername, getApiHeaders } from './apiKey';
 import { parseDialogueLine, DialogueVoiceManager } from './voices';
 import { stripSpeakerAndFormatting } from './audioSpeech';
 import {
+  LEVELS,
+  ACADEMIC_TOPICS,
+  AcademicTopic,
+  Level,
+  isValidLevel,
+  isValidAcademicTopic,
+} from '../constants/filters';
+import { inferTopic } from './inferTopic';
+import {
   collection,
   doc,
   getDoc,
@@ -12,10 +21,13 @@ import {
   query,
   where,
   limit,
+  startAfter,
   getDocs,
   serverTimestamp,
   increment,
   arrayUnion,
+  writeBatch,
+  DocumentSnapshot,
 } from 'firebase/firestore';
 
 const LOCAL_SEEN_KEY = 'toefl_seen_question_ids';
@@ -91,6 +103,7 @@ export interface SharedQuestionRecord {
   createdAt?: any;
   createdBy: string;
   useCount: number;
+  reportCount?: number;
 }
 
 const BLOB_DOMAIN_SUFFIX = 'blob.vercel-storage.com';
@@ -101,6 +114,7 @@ function isValidBlobUrl(url: any): boolean {
 
 /**
  * Deduplicate by contentHash and save a question to Firestore collection 'questions'.
+ * Validates level against LEVELS and infers topic if missing, 'all' or 'general'.
  */
 export async function saveQuestionToBank(params: {
   taskType: string;
@@ -112,7 +126,24 @@ export async function saveQuestionToBank(params: {
   source?: string;
   generatedBy?: string;
 }): Promise<string | null> {
-  const { taskType, level, topic, content, audioUrl = null, audioClips = null, source = 'ai', generatedBy = getScholarUsername() } = params;
+  const { taskType, content, audioUrl = null, audioClips = null, source = 'ai', generatedBy = getScholarUsername() } = params;
+
+  // Validate & normalize level
+  let validatedLevel: Level = 'intermediate';
+  if (isValidLevel(params.level)) {
+    validatedLevel = params.level;
+  } else if (isValidLevel(content?.level)) {
+    validatedLevel = content.level;
+  }
+
+  // Validate & infer topic (never save 'all' or 'general')
+  let validatedTopic: AcademicTopic;
+  if (isValidAcademicTopic(params.topic) && params.topic !== ('all' as any) && params.topic !== ('general' as any)) {
+    validatedTopic = params.topic;
+  } else {
+    validatedTopic = inferTopic(content);
+  }
+
   const contentHash = await computeContentHash(taskType, content);
 
   const cleanAudioUrl = isValidBlobUrl(audioUrl) ? audioUrl : null;
@@ -122,6 +153,8 @@ export async function saveQuestionToBank(params: {
 
   const enrichedContent = {
     ...content,
+    level: validatedLevel,
+    topic: validatedTopic,
     source,
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
@@ -145,8 +178,8 @@ export async function saveQuestionToBank(params: {
 
     const record: SharedQuestionRecord = {
       taskType,
-      level,
-      topic,
+      level: validatedLevel,
+      topic: validatedTopic,
       content: enrichedContent,
       contentHash,
       audioUrl: cleanAudioUrl,
@@ -156,6 +189,7 @@ export async function saveQuestionToBank(params: {
       createdAt: serverTimestamp(),
       createdBy: auth?.currentUser?.uid || 'anonymous',
       useCount: 0,
+      reportCount: 0,
     };
 
     await setDoc(docRef, record, { merge: false });
@@ -165,7 +199,6 @@ export async function saveQuestionToBank(params: {
     return null;
   }
 }
-
 
 /**
  * Get the list of seen question IDs for the current user from userProgress/{uid}
@@ -212,48 +245,152 @@ export async function markQuestionAsSeen(questionId: string, uid?: string): Prom
   }
 }
 
+export type MatchTier = 'exact' | 'topic-only' | 'level-only' | 'any';
+
+export interface UnseenQuestionResult {
+  question: any;
+  tier: MatchTier;
+}
+
+export interface TierQueryConfig {
+  tier: MatchTier;
+  level?: string;
+  topic?: string;
+}
+
 /**
- * Fetch an unseen question from Firestore questions bank.
- * If found, increments useCount and records to userProgress.
+ * Pure helper defining the 4-tier querying plan for a given level and topic request.
+ * (level+topic) -> (topic only) -> (level only) -> any
+ */
+export function getQueryTiers(level: string = 'all', topic: string = 'all'): TierQueryConfig[] {
+  const isLevelConcrete = level && level !== 'all' && isValidLevel(level);
+  const isTopicConcrete = topic && topic !== 'all' && isValidAcademicTopic(topic);
+
+  if (isLevelConcrete && isTopicConcrete) {
+    return [
+      { tier: 'exact', level, topic },
+      { tier: 'topic-only', topic },
+      { tier: 'level-only', level },
+      { tier: 'any' },
+    ];
+  } else if (isLevelConcrete) {
+    return [
+      { tier: 'exact', level },
+      { tier: 'any' },
+    ];
+  } else if (isTopicConcrete) {
+    return [
+      { tier: 'exact', topic },
+      { tier: 'any' },
+    ];
+  } else {
+    return [{ tier: 'exact' }];
+  }
+}
+
+/**
+ * Pure function to select a question from an in-memory bank matching tier requirements.
+ * Used for simulated tests and offline tier verification.
+ */
+export function selectQuestionFromBankTiers(
+  bank: SharedQuestionRecord[],
+  seenIds: string[],
+  level: string = 'all',
+  topic: string = 'all',
+  taskType?: string
+): UnseenQuestionResult | null {
+  const tiers = getQueryTiers(level, topic);
+
+  for (const tierConfig of tiers) {
+    const matched = bank.filter((item) => {
+      if (taskType && item.taskType !== taskType) return false;
+      if ((item.reportCount || 0) >= 3) return false;
+      const itemId = item.id || (item as any).questionDocId;
+      if (itemId && seenIds.includes(itemId)) return false;
+
+      if (tierConfig.level && item.level !== tierConfig.level) return false;
+      if (tierConfig.topic && item.topic !== tierConfig.topic) return false;
+
+      return true;
+    });
+
+    if (matched.length > 0) {
+      return {
+        question: matched[0],
+        tier: tierConfig.tier,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fetch an unseen question from Firestore questions bank using tier querying:
+ * (level+topic) -> (topic only) -> (level only) -> any.
+ * Skips items with reportCount >= 3 and already seen questions.
+ * Applies lazy backfill if document has outdated/missing topic or level.
  */
 export async function fetchUnseenQuestion(
   taskType: string,
-  level: string,
-  topic?: string
-): Promise<any | null> {
+  level: string = 'all',
+  topic: string = 'all'
+): Promise<UnseenQuestionResult | null> {
   try {
     const currentUid = auth?.currentUser?.uid;
     const seenIds = await getUserSeenQuestionIds(currentUid);
+    const tiers = getQueryTiers(level, topic);
 
-    // 1. Try querying by taskType and level
-    let q = query(
-      collection(db, 'questions'),
-      where('taskType', '==', taskType),
-      where('level', '==', level),
-      limit(35)
-    );
+    for (const tierConfig of tiers) {
+      let q = query(collection(db, 'questions'), where('taskType', '==', taskType));
+      if (tierConfig.level) {
+        q = query(q, where('level', '==', tierConfig.level));
+      }
+      if (tierConfig.topic) {
+        q = query(q, where('topic', '==', tierConfig.topic));
+      }
+      q = query(q, limit(35));
 
-    let snapshot = await getDocs(q);
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) continue;
 
-    // 2. If empty, try querying just by taskType (any level)
-    if (snapshot.empty) {
-      const qAnyLevel = query(
-        collection(db, 'questions'),
-        where('taskType', '==', taskType),
-        limit(35)
-      );
-      snapshot = await getDocs(qAnyLevel);
-    }
-
-    if (snapshot.empty) return null;
-
-    const docs = snapshot.docs;
-
-    // First try to find an unseen question
-    for (const docSnap of docs) {
-      if (!seenIds.includes(docSnap.id)) {
+      for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
 
+        // 1. Skip reported questions (reportCount >= 3)
+        if ((data.reportCount || 0) >= 3) {
+          continue;
+        }
+
+        // 2. Skip already seen questions
+        if (seenIds.includes(docSnap.id)) {
+          continue;
+        }
+
+        // 3. Lazy backfill check: if topic or level not in allowed lists, repair doc
+        const isTopicValid = isValidAcademicTopic(data.topic);
+        const isLevelValid = isValidLevel(data.level);
+
+        let activeTopic = data.topic;
+        let activeLevel = data.level;
+
+        if (!isTopicValid || !isLevelValid) {
+          const updates: Record<string, any> = {};
+          if (!isTopicValid) {
+            activeTopic = inferTopic(data.content || data);
+            updates.topic = activeTopic;
+          }
+          if (!isLevelValid) {
+            const candidateLevel = data.content?.level;
+            activeLevel = isValidLevel(candidateLevel) ? candidateLevel : 'intermediate';
+            updates.level = activeLevel;
+          }
+          updateDoc(doc(db, 'questions', docSnap.id), updates).catch((err) => {
+            console.warn(`Lazy backfill update failed for ${docSnap.id}:`, err);
+          });
+        }
+
+        // 4. Mark usage and update userProgress
         updateDoc(doc(db, 'questions', docSnap.id), {
           useCount: increment(1),
         }).catch(() => {});
@@ -261,40 +398,21 @@ export async function fetchUnseenQuestion(
         markQuestionAsSeen(docSnap.id, currentUid).catch(() => {});
 
         return {
-          ...data.content,
-          id: docSnap.id,
-          questionDocId: docSnap.id,
-          taskType: data.taskType,
-          level: data.level,
-          topic: data.topic,
-          audioUrl: data.audioUrl || null,
-          audioClips: data.audioClips || null,
-          isSharedBank: true,
+          question: {
+            ...data.content,
+            id: docSnap.id,
+            questionDocId: docSnap.id,
+            taskType: data.taskType,
+            level: activeLevel,
+            topic: activeTopic,
+            reportCount: data.reportCount || 0,
+            audioUrl: data.audioUrl || null,
+            audioClips: data.audioClips || null,
+            isSharedBank: true,
+          },
+          tier: tierConfig.tier,
         };
       }
-    }
-
-    // If all questions have been seen, cycle back to any random question in the bank for this taskType!
-    if (docs.length > 0) {
-      const randomIndex = Math.floor(Math.random() * docs.length);
-      const docSnap = docs[randomIndex];
-      const data = docSnap.data();
-
-      updateDoc(doc(db, 'questions', docSnap.id), {
-        useCount: increment(1),
-      }).catch(() => {});
-
-      return {
-        ...data.content,
-        id: docSnap.id,
-        questionDocId: docSnap.id,
-        taskType: data.taskType,
-        level: data.level,
-        topic: data.topic,
-        audioUrl: data.audioUrl || null,
-        audioClips: data.audioClips || null,
-        isSharedBank: true,
-      };
     }
   } catch (err) {
     console.warn('Error fetching unseen question from bank:', err);
@@ -304,21 +422,48 @@ export async function fetchUnseenQuestion(
 }
 
 /**
- * Get count of unseen questions currently available in bank for taskType & level
+ * Fetch a random shared question passing filter options and attaching tier match information.
  */
-export async function getUnseenQuestionCount(taskType: string, level: string): Promise<number> {
+export async function fetchRandomSharedQuestion(
+  taskType: string,
+  level: string = 'all',
+  topic: string = 'all'
+): Promise<any | null> {
+  const result = await fetchUnseenQuestion(taskType, level, topic);
+  if (!result) return null;
+  return {
+    ...result.question,
+    matchTier: result.tier,
+    tier: result.tier,
+  };
+}
+
+/**
+ * Get count of unseen questions currently available in bank for taskType, level, and topic.
+ * Skips items with reportCount >= 3.
+ */
+export async function getUnseenQuestionCount(
+  taskType: string,
+  level: string = 'all',
+  topic: string = 'all'
+): Promise<number> {
   try {
     const seenIds = await getUserSeenQuestionIds();
-    const q = query(
-      collection(db, 'questions'),
-      where('taskType', '==', taskType),
-      where('level', '==', level),
-      limit(30)
-    );
+    let q = query(collection(db, 'questions'), where('taskType', '==', taskType));
+    if (level && level !== 'all' && isValidLevel(level)) {
+      q = query(q, where('level', '==', level));
+    }
+    if (topic && topic !== 'all' && isValidAcademicTopic(topic)) {
+      q = query(q, where('topic', '==', topic));
+    }
+    q = query(q, limit(40));
     const snap = await getDocs(q);
     let unseen = 0;
     snap.docs.forEach((d) => {
-      if (!seenIds.includes(d.id)) unseen++;
+      const data = d.data();
+      if ((data.reportCount || 0) < 3 && !seenIds.includes(d.id)) {
+        unseen++;
+      }
     });
     return unseen;
   } catch {
@@ -334,25 +479,48 @@ export function isPrefetchActive(): boolean {
 }
 
 /**
- * Check bank count and trigger background batch generation if unseen count < 5
+ * Check bank count and trigger background batch generation if unseen count < 5.
+ * Never sends 'all' or 'general' to generator or bank; selects concrete level and topic with fewest questions.
  */
 export async function triggerBackgroundPrefetchIfNeeded(
   taskType: string,
-  level: string,
-  topic: string,
+  level: string = 'all',
+  topic: string = 'all',
   generateBatchFn: (tType: string, lvl: string, top: string) => Promise<any[]>
 ): Promise<void> {
   if (isBackgroundPrefetching) return;
 
-  const count = await getUnseenQuestionCount(taskType, level);
+  const count = await getUnseenQuestionCount(taskType, level, topic);
   if (count >= 5) return;
+
+  // Determine concrete level (never 'all')
+  const concreteLevel: Level = (level !== 'all' && isValidLevel(level)) ? level : 'intermediate';
+
+  // Determine concrete topic (never 'all' or 'general'): pick topic with fewest unseen questions
+  let concreteTopic: AcademicTopic = 'campus-life';
+  if (topic !== 'all' && isValidAcademicTopic(topic)) {
+    concreteTopic = topic;
+  } else {
+    try {
+      let minCount = Infinity;
+      for (const candTopic of ACADEMIC_TOPICS) {
+        const unseenForTopic = await getUnseenQuestionCount(taskType, concreteLevel, candTopic);
+        if (unseenForTopic < minCount) {
+          minCount = unseenForTopic;
+          concreteTopic = candTopic;
+        }
+      }
+    } catch {
+      concreteTopic = ACADEMIC_TOPICS[Math.floor(Math.random() * ACADEMIC_TOPICS.length)];
+    }
+  }
 
   isBackgroundPrefetching = true;
   window.dispatchEvent(new CustomEvent('toefl_prefetch_status', { detail: { isPrefetching: true } }));
 
   try {
-    const items = await generateBatchFn(taskType, level, topic);
-    
+    const items = await generateBatchFn(taskType, concreteLevel, concreteTopic);
+
     // Process items with max concurrency of 2
     const chunkLimit = 2;
     for (let i = 0; i < items.length; i += chunkLimit) {
@@ -441,8 +609,8 @@ export async function triggerBackgroundPrefetchIfNeeded(
 
           await saveQuestionToBank({
             taskType,
-            level,
-            topic,
+            level: concreteLevel,
+            topic: concreteTopic,
             content: item,
             audioUrl,
             audioClips,
@@ -456,6 +624,102 @@ export async function triggerBackgroundPrefetchIfNeeded(
     isBackgroundPrefetching = false;
     window.dispatchEvent(new CustomEvent('toefl_prefetch_status', { detail: { isPrefetching: false } }));
   }
+}
+
+/**
+ * Report a shared question using writeBatch:
+ * - sets questionReports/{questionDocId}__{uid}
+ * - increments reportCount on questions/{questionDocId}
+ */
+export async function reportSharedQuestion(
+  questionDocId: string,
+  userId?: string,
+  reason: string = 'User flagged question'
+): Promise<boolean> {
+  const currentUid = userId || auth?.currentUser?.uid;
+  if (!currentUid) {
+    throw new Error('You must be signed in to report a question.');
+  }
+  if (!questionDocId) {
+    throw new Error('Question ID is missing.');
+  }
+
+  const batch = writeBatch(db);
+  const reportDocId = `${questionDocId}__${currentUid}`;
+  const reportRef = doc(db, 'questionReports', reportDocId);
+
+  batch.set(reportRef, {
+    questionId: questionDocId,
+    uid: currentUid,
+    reason: reason || 'User flagged question',
+    createdAt: serverTimestamp(),
+  });
+
+  const questionRef = doc(db, 'questions', questionDocId);
+  batch.update(questionRef, {
+    reportCount: increment(1),
+  });
+
+  await batch.commit();
+  return true;
+}
+
+/**
+ * Repair Question Bank:
+ * Loops through all questions (200 per page). If a question has an invalid
+ * topic or level, applies rule-guarded updates with inferred values.
+ */
+export async function repairQuestionBank(
+  onProgress?: (processed: number, fixed: number) => void
+): Promise<{ totalProcessed: number; totalFixed: number }> {
+  let totalProcessed = 0;
+  let totalFixed = 0;
+  let lastVisible: DocumentSnapshot | null = null;
+
+  while (true) {
+    let q = query(collection(db, 'questions'), limit(200));
+    if (lastVisible) {
+      q = query(collection(db, 'questions'), startAfter(lastVisible), limit(200));
+    }
+
+    const snap = await getDocs(q);
+    if (snap.empty) break;
+
+    for (const docSnap of snap.docs) {
+      totalProcessed++;
+      const data = docSnap.data();
+
+      const isTopicValid = isValidAcademicTopic(data.topic);
+      const isLevelValid = isValidLevel(data.level);
+
+      if (!isTopicValid || !isLevelValid) {
+        const updates: Record<string, any> = {};
+        if (!isTopicValid) {
+          updates.topic = inferTopic(data.content || data);
+        }
+        if (!isLevelValid) {
+          const cand = data.content?.level;
+          updates.level = isValidLevel(cand) ? cand : 'intermediate';
+        }
+
+        try {
+          await updateDoc(doc(db, 'questions', docSnap.id), updates);
+          totalFixed++;
+        } catch (err) {
+          console.warn(`Failed to repair doc ${docSnap.id}:`, err);
+        }
+      }
+    }
+
+    if (onProgress) {
+      onProgress(totalProcessed, totalFixed);
+    }
+
+    if (snap.docs.length < 200) break;
+    lastVisible = snap.docs[snap.docs.length - 1];
+  }
+
+  return { totalProcessed, totalFixed };
 }
 
 export async function getQuestionCountsPerSection(): Promise<Record<string, number>> {
@@ -520,10 +784,13 @@ export async function seedDefaultQuestionsToFirestore(): Promise<{ created: numb
 
     for (const item of seedList) {
       try {
+        const itemLevel = isValidLevel(item.data.level) ? item.data.level : 'upper-intermediate';
+        const itemTopic = isValidAcademicTopic(item.data.topic) ? item.data.topic : inferTopic(item.data);
+
         const id = await saveQuestionToBank({
           taskType: item.taskType,
-          level: item.data.level || 'upper-intermediate',
-          topic: item.data.topic || 'general',
+          level: itemLevel,
+          topic: itemTopic,
           content: item.data,
         });
         if (id) report.created++;
@@ -539,24 +806,19 @@ export async function seedDefaultQuestionsToFirestore(): Promise<{ created: numb
   return report;
 }
 
-export async function reportSharedQuestion(questionDocId: string, userId?: string): Promise<boolean> {
-  return true;
-}
-
 export function generateQuestionDocId(taskType: string, taskData: any): Promise<string> {
   return computeContentHash(taskType, taskData).then((h) => `q_${h.slice(0, 24)}`);
 }
 
 export function saveSharedQuestion(params: any): Promise<string> {
+  const itemLevel = isValidLevel(params.level) ? params.level : 'upper-intermediate';
+  const itemTopic = isValidAcademicTopic(params.topic) ? params.topic : inferTopic(params.data);
+
   return saveQuestionToBank({
     taskType: params.taskType,
-    level: params.level || 'upper-intermediate',
-    topic: params.topic || 'general',
+    level: itemLevel,
+    topic: itemTopic,
     content: params.data,
     audioUrl: params.audioUrl,
   }).then((id) => id || `local_${Date.now()}`);
-}
-
-export function fetchRandomSharedQuestion(taskType: string): Promise<any | null> {
-  return fetchUnseenQuestion(taskType, 'upper-intermediate');
 }

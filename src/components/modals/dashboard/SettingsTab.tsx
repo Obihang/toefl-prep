@@ -41,6 +41,7 @@ import { isHighQualityTask } from '../../../utils/questionValidator';
 import { getApiHeaders } from '../../../utils/apiKey';
 import { TASK_DEFINITIONS } from '../../../types/taskTypes';
 import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
+import { repairQuestionBank } from '../../../utils/sharedQuestions';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -233,6 +234,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       success: true,
       text: `Sync & Clean complete! Purged ${purgeCount} stubs, synced ${syncRes.totalQuestions} verified questions.`,
     });
+  };
+
+  const [isRepairingBank, setIsRepairingBank] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<string | null>(null);
+
+  const handleRepairBank = async () => {
+    if (isRepairingBank) return;
+    setIsRepairingBank(true);
+    setRepairStatus('Repairing question bank topics and levels...');
+    try {
+      const res = await repairQuestionBank((processed, fixed) => {
+        setRepairStatus(`Scanned ${processed} questions, fixed ${fixed}...`);
+      });
+      const updated = await getQuestionBankStats();
+      setBankStats(updated);
+      setDataMessage({
+        success: true,
+        text: `Bank repair complete! Scanned ${res.totalProcessed} questions and fixed ${res.totalFixed} outdated items.`,
+      });
+    } catch (err: any) {
+      setDataMessage({
+        success: false,
+        text: err?.message || 'Failed to repair question bank.',
+      });
+    } finally {
+      setIsRepairingBank(false);
+      setRepairStatus(null);
+    }
   };
 
   const [isPreCachingAudio, setIsPreCachingAudio] = useState(false);
@@ -702,13 +731,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
                   Section bank: {bankStats?.totalQuestions || 0} match current filter
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleSyncAndCleanBank}
-                className="px-3 py-1.5 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-              >
-                <span>🔄 Sync &amp; Clean Bank</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleRepairBank}
+                  disabled={isRepairingBank}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-teal-300 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                  title="Loop through all questions and repair missing/invalid topics and levels"
+                >
+                  <span>{isRepairingBank ? (repairStatus || 'Repairing...') : '🛠️ Repair question bank'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncAndCleanBank}
+                  className="px-3 py-1.5 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span>🔄 Sync &amp; Clean Bank</span>
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-slate-600">
               All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.

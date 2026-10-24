@@ -13,9 +13,36 @@
         "audioUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "createdBy": { "type": "string" },
-        "useCount": { "type": "number" }
+        "useCount": { "type": "number" },
+        "reportCount": { "type": "number" }
       },
       "required": ["taskType", "level", "topic", "content", "contentHash", "createdBy", "useCount"]
+    },
+    "Report": {
+      "title": "Global User Report",
+      "description": "User submitted issue or feedback report.",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "username": { "type": "string" },
+        "context": { "type": "string" },
+        "uid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "resolved": { "type": "boolean" }
+      },
+      "required": ["text", "username", "context", "uid", "createdAt", "resolved"]
+    },
+    "QuestionReport": {
+      "title": "Question Report",
+      "description": "Per-question user flag / report.",
+      "type": "object",
+      "properties": {
+        "questionId": { "type": "string" },
+        "uid": { "type": "string" },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["questionId", "uid", "reason", "createdAt"]
     },
     "UserProgress": {
       "title": "User Progress",
@@ -96,6 +123,14 @@
     "/questions/{questionId}": {
       "schema": "Question",
       "description": "Storage for shared question bank."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Global issue and feedback reports."
+    },
+    "/questionReports/{reportDocId}": {
+      "schema": "QuestionReport",
+      "description": "Per-question user reports."
     },
     "/userProgress/{userId}": {
       "schema": "UserProgress",
