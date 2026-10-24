@@ -1,4 +1,4 @@
-import { inferGender, pickDialogueVoices, pickSingleVoice, NEURAL_FEMALE_VOICES, NEURAL_MALE_VOICES } from '../src/utils/voices';
+import { inferGender, pickDialogueVoices, pickSingleVoice, NEURAL_FEMALE_VOICES, NEURAL_MALE_VOICES } from '../src/utils/voices.ts';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
