@@ -471,102 +471,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     let mimeType = 'audio/mpeg';
     let modelUsed = `Neural Stream (${selectedVoice})`;
 
-    // If testing OpenAI or Gemini but no API key is configured, return explicit error immediately
-    if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini') && !ttsApiKey && !process.env.GEMINI_TTS_API_KEY && !process.env.OPENAI_TTS_API_KEY) {
-      return res.status(400).json({ error: `API Failed: Missing dedicated API key for ${ttsProvider.toUpperCase()} TTS. Please paste a valid key in Settings.` });
-    }
-
-    // Stage 1: Exact REST API Payloads for OpenAI and Gemini TTS
-    if (ttsProvider === 'openai' || provider === 'openai') {
-      const apiKey = ttsApiKey || process.env.OPENAI_TTS_API_KEY || userApiKey || process.env.OPENAI_API_KEY || '';
-      if (!apiKey) {
-        if (isTest) {
-          return res.status(400).json({ error: 'Missing OpenAI TTS API key. Please enter a valid OpenAI API key in Settings.' });
-        }
-      } else {
-        try {
-          const openAiUrl = ttsBaseUrl
-            ? (ttsBaseUrl.endsWith('/audio/speech') ? ttsBaseUrl : `${ttsBaseUrl.replace(/\/+$/, '')}/audio/speech`)
-            : 'https://api.openai.com/v1/audio/speech';
-          const openAiFemalePool = ['nova', 'shimmer', 'alloy'];
-          const openAiMalePool = ['onyx', 'echo', 'fable'];
-          const validOpenAiVoices = new Set([...openAiFemalePool, ...openAiMalePool]);
-          let selectedOpenAiVoice = voiceName || '';
-          if (!validOpenAiVoices.has(selectedOpenAiVoice)) {
-            const seedString = voiceName || speakerName || cleanText.slice(0, 20);
-            const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
-            const pool = isMale ? openAiMalePool : openAiFemalePool;
-            selectedOpenAiVoice = pool[hash % pool.length];
-          }
-
-          const openAiRes = await fetch(openAiUrl, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'tts-1', voice: selectedOpenAiVoice, input: cleanText })
-          });
-          if (!openAiRes.ok) {
-            const errText = await openAiRes.text();
-            let errDetail = errText;
-            try {
-              const errJson = JSON.parse(errText);
-              errDetail = errJson.error?.message || errDetail;
-            } catch {}
-            throw new Error(`OpenAI HTTP ${openAiRes.status}: ${errDetail || openAiRes.statusText}`);
-          }
-          const buffer = await openAiRes.arrayBuffer();
-          const base64Audio = Buffer.from(buffer).toString('base64');
-          return res.status(200).json({
-            success: true,
-            audioUrl: `data:audio/mpeg;base64,${base64Audio}`,
-            audioBase64: base64Audio,
-            mimeType: 'audio/mpeg',
-            modelUsed: `OpenAI TTS (${selectedOpenAiVoice})`,
-            providerUsed: 'openai',
-            voiceUsed: selectedOpenAiVoice,
-            fallbackUsed: false,
-            isMale,
-          });
-        } catch (openAiErr) {
-          if (isTest) {
-            const errText = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
-            return res.status(400).json({ error: `API Failed: ${errText}` });
-          }
-        }
-      }
-    } else if (ttsProvider === 'gemini' || provider === 'gemini') {
-      const apiKey = ttsApiKey || process.env.GEMINI_TTS_API_KEY || userApiKey || process.env.GEMINI_API_KEY || '';
-      if (!apiKey) {
-        if (isTest) {
-          return res.status(400).json({ error: 'Missing Gemini TTS API key. Please enter a valid Gemini API key in Settings.' });
-        }
-      } else {
-        try {
-          const resData = await synthesizeGeminiTts(cleanText, apiKey, { voiceName, isMale });
-          return res.status(200).json({
-            success: true,
-            audioUrl: `data:${resData.mimeType};base64,${resData.base64Audio}`,
-            audioBase64: resData.base64Audio,
-            mimeType: resData.mimeType,
-            modelUsed: `Gemini TTS (${resData.voiceUsed})`,
-            providerUsed: 'gemini',
-            voiceUsed: resData.voiceUsed,
-            fallbackUsed: false,
-            isMale,
-          });
-        } catch (geminiErr) {
-          if (isTest) {
-            const errText = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
-            return res.status(400).json({ error: `API Failed: ${errText}` });
-          }
-        }
-      }
-    }
-
-    // Never fall back to neural during test calls for API providers
-    if (isTest && (ttsProvider === 'openai' || ttsProvider === 'gemini')) {
-      return res.status(400).json({ error: `API Failed: Failed to generate audio using ${ttsProvider.toUpperCase()} TTS.` });
-    }
-
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
     const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice);
     if (zeroKeyRes) {
@@ -576,9 +480,10 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     }
 
     if (!audioBuffer || audioBuffer.length === 0) {
-      return res.status(500).json({
+      return res.status(502).json({
         success: false,
-        error: 'Speech synthesis temporarily unavailable. Please try again.',
+        error: 'EDGE_TTS_FAILED',
+        detail: 'Speech synthesis temporarily unavailable.'
       });
     }
 
@@ -621,6 +526,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
   }
 }
 export { handleTtsCheckEndpoint } from './api/tts-check.ts';
+
 export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const { word } = req.query;
   if (!word || typeof word !== 'string') return res.status(400).json({ success: false, error: 'Word required' });

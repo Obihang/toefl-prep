@@ -1,3 +1,6 @@
+import { inferTopic } from './inferTopic';
+import { isValidAcademicTopic, isValidLevel } from '../constants/filters';
+
 export function normalizeTaskData(task: any, taskType: string): any {
   if (!task || typeof task !== 'object') {
     return getFallbackTask(taskType);
@@ -5,12 +8,18 @@ export function normalizeTaskData(task: any, taskType: string): any {
 
   const fallback = getFallbackTask(taskType);
 
+  const rawLevel = task.level || task.content?.level || fallback.level || 'intermediate';
+  const validLevel = isValidLevel(rawLevel) ? rawLevel : 'intermediate';
+
+  const rawTopic = task.topic || task.content?.topic;
+  const validTopic = isValidAcademicTopic(rawTopic) ? rawTopic : inferTopic(task);
+
   const result: any = {
     ...task,
     id: String(task.id || task.questionDocId || fallback.id),
     title: String(task.title || fallback.title),
-    level: String(task.level || fallback.level || 'intermediate'),
-    topic: String(task.topic || fallback.topic || 'general'),
+    level: validLevel,
+    topic: validTopic,
   };
 
   switch (taskType) {

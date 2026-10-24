@@ -10,6 +10,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isValidLevel(l) {
+      return l in ['beginner', 'intermediate', 'upper-intermediate', 'advanced'];
+    }
+
+    function isValidTopic(t) {
+      return t in ['science-tech', 'campus-life', 'social-sciences', 'environment', 'business-economics', 'arts-humanities'];
+    }
+
     function isValidTaskType(t) {
       return t in [
         'complete-words',
@@ -93,10 +101,48 @@ service cloud.firestore {
             (!resource.data.keys().hasAll(['audioClips']) || resource.data.audioClips == null || resource.data.audioClips.size() == 0)
             && isValidAudioClips(request.resource.data.audioClips)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['audioClips'])
+          ) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
+            && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)
+            && !exists(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+          ) ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['topic', 'level'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['topic']) || (
+              !isValidTopic(resource.data.get('topic', ''))
+              && isValidTopic(request.resource.data.topic)
+            ))
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['level']) || (
+              !isValidLevel(resource.data.get('level', ''))
+              && isValidLevel(request.resource.data.level)
+            ))
           )
         );
 
       allow delete: if false;
+    }
+
+    // Global User Reports
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['text', 'username', 'context', 'uid', 'createdAt', 'resolved'])
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.resolved == false;
+      allow read, update, delete: if false;
+    }
+
+    // Per-Question User Reports
+    match /questionReports/{reportDocId} {
+      allow create: if isSignedIn()
+        && reportDocId == request.resource.data.questionId + '__' + request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['questionId', 'uid', 'reason', 'createdAt']);
+      allow read, update, delete: if false;
     }
 
     // Per-User Progress (seen question IDs)

@@ -26,8 +26,7 @@ import {
 } from '../../../utils/apiKey';
 import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
-import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
-import { TtsVoiceProviderSection } from './settings/TtsVoiceProviderSection';
+import { VoiceAndSpeechSection } from './settings/VoiceAndSpeechSection';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
 import { clearVocabularyList } from '../../../utils/vocabularyStore';
 import { clearAllMistakes } from '../../../utils/mistakesTracker';
@@ -42,6 +41,7 @@ import { isHighQualityTask } from '../../../utils/questionValidator';
 import { getApiHeaders } from '../../../utils/apiKey';
 import { TASK_DEFINITIONS } from '../../../types/taskTypes';
 import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
+import { repairQuestionBank } from '../../../utils/sharedQuestions';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -234,6 +234,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       success: true,
       text: `Sync & Clean complete! Purged ${purgeCount} stubs, synced ${syncRes.totalQuestions} verified questions.`,
     });
+  };
+
+  const [isRepairingBank, setIsRepairingBank] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<string | null>(null);
+
+  const handleRepairBank = async () => {
+    if (isRepairingBank) return;
+    setIsRepairingBank(true);
+    setRepairStatus('Repairing question bank topics and levels...');
+    try {
+      const res = await repairQuestionBank((processed, fixed) => {
+        setRepairStatus(`Scanned ${processed} questions, fixed ${fixed}...`);
+      });
+      const updated = await getQuestionBankStats();
+      setBankStats(updated);
+      setDataMessage({
+        success: true,
+        text: `Bank repair complete! Scanned ${res.totalProcessed} questions and fixed ${res.totalFixed} outdated items.`,
+      });
+    } catch (err: any) {
+      setDataMessage({
+        success: false,
+        text: err?.message || 'Failed to repair question bank.',
+      });
+    } finally {
+      setIsRepairingBank(false);
+      setRepairStatus(null);
+    }
   };
 
   const [isPreCachingAudio, setIsPreCachingAudio] = useState(false);
@@ -621,24 +649,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 3. TTS Voice Provider
-    {
-      id: 'tts_provider',
-      title: 'TTS Voice Provider',
-      icon: <Volume2 className="w-4 h-4 text-teal-700" />,
-      content: (
-        <div className="pt-2">
-          <TtsVoiceProviderSection />
-        </div>
-      ),
-    },
 
     // 4. Voice and Speech
     {
       id: 'voice_speech',
       title: 'Voice and speech',
       icon: <Volume2 className="w-4 h-4 text-teal-700" />,
-      content: <VoiceCheckingSection />,
+      content: <VoiceAndSpeechSection />,
     },
 
     // 4. Microphone
@@ -653,14 +670,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 5. Profile & Study Goals (Moved Scholar Username here)
+    // 5. Profile
     {
       id: 'profile',
-      title: 'Profile & Study Goals',
+      title: 'Profile',
       icon: <Target className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
-          {/* Scholar Username Row moved here */}
+          {/* Scholar Username Row */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
             <label className="text-xs font-bold text-slate-800">Scholar Username (@username &amp; Attribution)</label>
             <div className="flex gap-2">
@@ -694,23 +711,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
             </div>
             <p className="text-[11px] text-slate-500">Display name and scholar attribution name are unified.</p>
           </div>
-
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h5 className="text-xs font-bold text-slate-800">TOEFL Target Score &amp; Weekly Goals</h5>
-              <p className="text-[11px] text-slate-500">Configure your target band score and weekly test targets.</p>
-            </div>
-            {onConfigureGoals && (
-              <button
-                type="button"
-                onClick={onConfigureGoals}
-                className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <Target className="w-3.5 h-3.5" />
-                Configure Study Goals
-              </button>
-            )}
-          </div>
         </div>
       ),
     },
@@ -728,16 +728,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-teal-700 shrink-0" />
                 <span className="text-xs font-bold text-slate-900">
-                  Local Question Bank: {bankStats?.totalCurated || 80} Curated Questions ({bankStats?.totalQuestions || 80} Total in IndexedDB)
+                  Section bank: {bankStats?.totalQuestions || 0} match current filter
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleSyncAndCleanBank}
-                className="px-3 py-1.5 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-              >
-                <span>🔄 Sync &amp; Clean Bank</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleRepairBank}
+                  disabled={isRepairingBank}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-900 text-teal-300 rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                  title="Loop through all questions and repair missing/invalid topics and levels"
+                >
+                  <span>{isRepairingBank ? (repairStatus || 'Repairing...') : '🛠️ Repair question bank'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncAndCleanBank}
+                  className="px-3 py-1.5 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                >
+                  <span>🔄 Sync &amp; Clean Bank</span>
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-slate-600">
               All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.

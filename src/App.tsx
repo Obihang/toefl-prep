@@ -12,10 +12,38 @@ import {
   saveSharedQuestion,
   fetchRandomSharedQuestion,
   reportSharedQuestion,
+  triggerBackgroundPrefetchIfNeeded,
 } from './utils/sharedQuestions';
+import {
+  LEVELS,
+  ACADEMIC_TOPICS,
+  LEVEL_LABELS,
+  TOPIC_LABELS,
+  isValidLevel,
+  isValidAcademicTopic,
+  AcademicTopic,
+} from './constants/filters';
 import { getApiHeaders, getStoredApiKey, hasAnyStoredApiKey, getScholarUsername } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
 import { normalizeTaskData } from './utils/normalization';
+
+function getReportedByMe(): string[] {
+  try {
+    const raw = localStorage.getItem('toefl_reported_by_me');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function markReportedByMe(id: string) {
+  try {
+    const current = getReportedByMe();
+    if (!current.includes(id)) {
+      localStorage.setItem('toefl_reported_by_me', JSON.stringify([...current, id]));
+    }
+  } catch {}
+}
 
 import {
   BookOpen,
@@ -41,6 +69,7 @@ import {
   Database,
 } from 'lucide-react';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
+import { GlobalReportButton } from './components/shared/GlobalReportButton';
 import {
   syncCuratedQuestionBank,
   getQuestionBankStats,
@@ -117,6 +146,8 @@ export default function App() {
   const [lastModelUsed, setLastModelUsed] = useState<string | null>(null);
   const [isMockTest, setIsMockTest] = useState(false);
   const [reportedQuestionId, setReportedQuestionId] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [tierNotice, setTierNotice] = useState<string | null>(null);
 
   // Stop all playing audio whenever the user switches task types or enters/exits mock test mode
   useEffect(() => {
@@ -326,55 +357,86 @@ export default function App() {
     });
   };
 
-  // Serve a random question: either from shared bank (using rand) or curated pool
+  // Serve a random question: either from shared bank (using tier plan) or curated pool
   const handleNextQuestion = async (type: TaskTypeId) => {
     setReportedQuestionId(null);
-    // Sometimes (60% probability) serve a random unseen question from the shared bank
-    if (Math.random() < 0.6) {
+    setReportError(null);
+
+    // 100% of the time if either filter is not 'all', query shared bank first;
+    // 60% probability if both are 'all'.
+    const hasFilter = level !== 'all' || topic !== 'all';
+    const shouldQueryBank = hasFilter || Math.random() < 0.6;
+
+    if (shouldQueryBank) {
       try {
-        const shared = await fetchRandomSharedQuestion(type);
+        const shared = await fetchRandomSharedQuestion(type, level, topic);
         if (shared) {
+          if (shared.tier && shared.tier !== 'exact') {
+            const lvlLabel = level !== 'all' && isValidLevel(level) ? LEVEL_LABELS[level] : level;
+            const topLabel = topic !== 'all' && isValidAcademicTopic(topic) ? TOPIC_LABELS[topic] : topic;
+            setTierNotice(`No exact match for ${lvlLabel} in ${topLabel}, showing a nearby question.`);
+
+            // Trigger background prefetch so the bank learns
+            triggerBackgroundPrefetchIfNeeded(type, level, topic, async (tType, lvl, top) => {
+              const resp = await safeFetchJson('/api/generate-task', {
+                method: 'POST',
+                headers: getApiHeaders(),
+                body: JSON.stringify({ taskType: tType, level: lvl, topic: top }),
+              });
+              return resp.success && resp.data ? [resp.data] : [];
+            });
+          } else {
+            setTierNotice(null);
+          }
+
           setCustomTasks((prev) => ({
             ...prev,
             [type]: normalizeTaskData(shared, type),
           }));
           return;
         }
-        // Fall back to curated pool if shared bank yielded nothing
-        handleNextCurated(type);
-        return;
       } catch (err) {
         console.warn('Shared question bank query failed, falling back to curated:', err);
-        handleNextCurated(type);
       }
     }
 
-    // Fall back to curated pool
+    setTierNotice(null);
     handleNextCurated(type);
   };
 
   const handleReportQuestion = async (questionDocId: string) => {
-    if (!user) return;
-    const currentTask = customTasks[currentTaskType];
-    if (currentTask?.reportedBy?.includes(user.uid)) {
-      return; // Already reported by this user
+    setReportError(null);
+    if (!user) {
+      setReportError('Please sign in to report questions.');
+      return;
+    }
+    const alreadyReported = getReportedByMe().includes(questionDocId);
+    if (alreadyReported) {
+      return;
     }
     try {
-      const success = await reportSharedQuestion(questionDocId, user.uid);
-      if (success) {
-        setReportedQuestionId(questionDocId);
-        if (currentTask) {
-          currentTask.reportedBy = [...(currentTask.reportedBy || []), user.uid];
-          currentTask.reportCount = (currentTask.reportCount || 0) + 1;
-        }
-        if (currentTask && (currentTask.reportCount ?? 0) >= 3) {
+      await reportSharedQuestion(questionDocId, user.uid);
+      markReportedByMe(questionDocId);
+      setReportedQuestionId(questionDocId);
+      const currentTask = customTasks[currentTaskType];
+      if (currentTask) {
+        const nextReportCount = (currentTask.reportCount || 0) + 1;
+        setCustomTasks((prev) => ({
+          ...prev,
+          [currentTaskType]: {
+            ...prev[currentTaskType],
+            reportCount: nextReportCount,
+          },
+        }));
+        if (nextReportCount >= 3) {
           setTimeout(() => {
             handleNextQuestion(currentTaskType);
           }, 800);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to report question:', err);
+      setReportError(err?.message || 'Failed to submit report. Please try again.');
     }
   };
 
@@ -516,6 +578,9 @@ export default function App() {
     if (Date.now() < quotaExhaustedUntilRef.current) { logEarlyExit('quota pause'); return; }
     if (Date.now() - getLastUserAiRequestTime() < 20000 || Date.now() - lastPrefetchTimeRef.current < PREFETCH_GAP_MS) { logEarlyExit('cooldown'); return; }
 
+    const concreteLevel = isValidLevel(lvl) ? lvl : 'intermediate';
+    const concreteTopic = isValidAcademicTopic(top) ? top : 'science-tech';
+
     inFlightLock.current = true;
     isPrefetchingRef.current[type] = true;
     setIsPrefetching(true);
@@ -527,8 +592,8 @@ export default function App() {
         headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: type,
-          level: lvl,
-          topic: top,
+          level: concreteLevel,
+          topic: concreteTopic,
         }),
       });
 
@@ -539,8 +604,8 @@ export default function App() {
 
         const prefetchedItem: PrefetchedItem = {
           ...json.data,
-          level: lvl,
-          topic: top,
+          level: concreteLevel,
+          topic: concreteTopic,
           id: json.data.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           isPrefetched: true,
           createdAt: Date.now(),
@@ -550,8 +615,8 @@ export default function App() {
 
         await saveVerifiedQuestion({
           taskType: type,
-          level: lvl,
-          topic: top,
+          level: concreteLevel,
+          topic: concreteTopic,
           content: prefetchedItem,
           audioUrl: prefetchedItem.audioUrl || null,
           audioClips: prefetchedItem.audioClips || null,
@@ -706,9 +771,12 @@ export default function App() {
   // Generate fresh task: Instant swap if ready in background queue, or fetch on demand
   const handleGenerateNewAiTask = async () => {
     markUserAiRequest();
+    const concreteLevel = isValidLevel(level) ? level : 'intermediate';
+    const concreteTopic = isValidAcademicTopic(topic) ? topic : 'science-tech';
+
     // 1. Instant delivery if pre-fetched question is ready in the queue!
-    if (hasReadyTask(prefetchedQueue, currentTaskType, level, topic)) {
-      const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType, level, topic);
+    if (hasReadyTask(prefetchedQueue, currentTaskType, concreteLevel, concreteTopic)) {
+      const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType, concreteLevel, concreteTopic);
       if (readyTask) {
         setPrefetchedQueue(updatedQueue);
 
@@ -730,8 +798,8 @@ export default function App() {
         if (user) {
           saveSharedQuestion({
             taskType: currentTaskType,
-            level,
-            topic,
+            level: concreteLevel,
+            topic: concreteTopic,
             data: readyTask,
             createdByName: displayName || 'Anonymous Scholar',
             createdByUid: user.uid,
@@ -741,7 +809,7 @@ export default function App() {
         // Immediately replenish the next question in the background if empty
         if (enablePrefetching && getStoredApiKey().trim()) {
           setTimeout(() => {
-            prefetchTaskInBackground(currentTaskType, level, topic);
+            prefetchTaskInBackground(currentTaskType, concreteLevel, concreteTopic);
           }, 300);
         }
         return;
@@ -761,8 +829,8 @@ export default function App() {
         headers: getApiHeaders(),
         body: JSON.stringify({
           taskType: currentTaskType,
-          level,
-          topic,
+          level: concreteLevel,
+          topic: concreteTopic,
         }),
       });
 
@@ -792,8 +860,8 @@ export default function App() {
 
       const newTask: any = normalizeTaskData({
         ...json.data,
-        level,
-        topic,
+        level: concreteLevel,
+        topic: concreteTopic,
         id: `ai-${Date.now()}`,
       }, currentTaskType);
 
@@ -801,8 +869,8 @@ export default function App() {
         try {
           const docId = await saveSharedQuestion({
             taskType: currentTaskType,
-            level,
-            topic,
+            level: concreteLevel,
+            topic: concreteTopic,
             data: newTask,
             createdByName: displayName || 'Anonymous Scholar',
             createdByUid: user.uid,
@@ -907,6 +975,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
+      <GlobalReportButton />
       {/* Top Bar Contract: 3 Zones (Wordmark - 4 Nav Links - 1 Action CTA) */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
@@ -1153,16 +1222,7 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                   <span className="font-bold text-slate-900">
-                    Section Bank: {sectionTotalCount} Curated Questions
-                  </span>
-                  <span className="text-teal-400">·</span>
-                  <span className="font-semibold text-teal-900 bg-teal-100/70 px-2 py-0.5 rounded-full border border-teal-300">
-                    {level === 'all' && topic === 'all'
-                      ? `Browsing all ${sectionTotalCount}`
-                      : `${filteredMatches.length} match current filter`}
-                  </span>
-                  <span className="text-slate-600">
-                    ({totalAcrossAllSections} Total across all sections)
+                    Section bank: {filteredMatches.length} match current filter
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-teal-800">
@@ -1214,11 +1274,12 @@ export default function App() {
                 onChange={(e) => setLevel(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
-                <option value="all">All Levels (Full Bank)</option>
-                <option value="beginner">Beginner</option>
-                <option value="intermediate">Intermediate (B1-B2 · 60-80)</option>
-                <option value="upper-intermediate">Upper-Intermediate (B2-C1 · 80-100)</option>
-                <option value="advanced">Advanced (C1 · 100-120)</option>
+                <option value="all">All Levels</option>
+                {LEVELS.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {LEVEL_LABELS[lvl]}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -1238,13 +1299,12 @@ export default function App() {
                 onChange={(e) => setTopic(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
-                <option value="all">All Academic Topics (Full Bank)</option>
-                <option value="science-tech">Science & Technology</option>
-                <option value="campus-life">Campus Life & Academics</option>
-                <option value="social-sciences">Social Sciences & History</option>
-                <option value="environment">Ecology & Environment</option>
-                <option value="business-economics">Business & Economics</option>
-                <option value="arts-humanities">Arts & Humanities</option>
+                <option value="all">All Topics</option>
+                {ACADEMIC_TOPICS.map((top) => (
+                  <option key={top} value={top}>
+                    {TOPIC_LABELS[top]}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -1481,6 +1541,21 @@ export default function App() {
           </div>
         )}
 
+        {tierNotice && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{tierNotice}</span>
+            </div>
+            <button
+              onClick={() => setTierNotice(null)}
+              className="text-amber-600 hover:text-amber-800 p-0.5 rounded cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {generationSuccess && (
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-3 text-xs text-teal-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1510,7 +1585,7 @@ export default function App() {
             </Suspense>
           ) : (
             <>
-              {activeTask?.modelUsed && !activeTask.createdByName && (
+              {activeTask?.modelUsed && !activeTask.createdByName && !activeTask.questionDocId && (
                 <div className="mb-4 flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
                     Generated with {activeTask.modelUsed}
@@ -1522,13 +1597,22 @@ export default function App() {
                   )}
                 </div>
               )}
-              {activeTask?.createdByName && (!activeTask.reportCount || activeTask.reportCount < 3) && (
+              {activeTask?.questionDocId && (!activeTask.reportCount || activeTask.reportCount < 3) && (
                 <div className="mb-6 flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="w-2 h-2 rounded-full bg-teal-600"></span>
-                    <span>Created by <strong className="text-slate-900 font-semibold">{activeTask.createdByName}</strong></span>
+                    <span>
+                      {activeTask.createdByName ? (
+                        <>Created by <strong className="text-slate-900 font-semibold">{activeTask.createdByName}</strong></>
+                      ) : (
+                        <strong className="text-slate-900 font-semibold">Shared Question Bank</strong>
+                      )}
+                    </span>
                     {activeTask.level && (
                       <span className="text-[11px] text-slate-400 capitalize">· {activeTask.level}</span>
+                    )}
+                    {activeTask.topic && (
+                      <span className="text-[11px] text-slate-400">· {TOPIC_LABELS[activeTask.topic as AcademicTopic] || activeTask.topic}</span>
                     )}
                     {activeTask.modelUsed && (
                       <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
@@ -1537,21 +1621,35 @@ export default function App() {
                     )}
                   </div>
                   {activeTask.questionDocId && (
-                    reportedQuestionId === activeTask.questionDocId ? (
+                    reportedQuestionId === activeTask.questionDocId || getReportedByMe().includes(activeTask.questionDocId) ? (
                       <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
                         <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" /> Question reported
                       </span>
                     ) : (
                       <button
                         onClick={() => handleReportQuestion(activeTask.questionDocId)}
-                        className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-600 transition-colors px-2 py-1 rounded-md hover:bg-rose-50 cursor-pointer"
+                        className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-rose-600 transition-colors px-2 py-1 rounded-md hover:bg-rose-50 cursor-pointer"
                         title="Report this question"
                       >
                         <Flag className="w-3.5 h-3.5" />
-                        <span>Report this question</span>
+                        <span>Report question</span>
+                        {typeof activeTask.reportCount === 'number' && activeTask.reportCount > 0 && (
+                          <span className="text-[10px] text-slate-400 font-mono">({activeTask.reportCount})</span>
+                        )}
                       </button>
                     )
                   )}
+                </div>
+              )}
+              {reportError && (
+                <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{reportError}</span>
+                  </div>
+                  <button onClick={() => setReportError(null)} className="text-rose-600 hover:text-rose-800 p-0.5 cursor-pointer">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 
