@@ -13,6 +13,7 @@ import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
+import { EdgeTTS } from 'node-edge-tts';
 import os from 'os';
 
 export const FEMALE_VOICES = [
@@ -324,65 +325,82 @@ async function synthesizeWithZeroKeyFetch(
   const isMale = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
   const selectedVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-  try {
-    const tts = new MsEdgeTTS();
-    await tts.setMetadata(
-      selectedVoice,
-      OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
-    );
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Attempt 1: MsEdgeTTS with 10s timeout
+    try {
+      const buffer = await Promise.race([
+        (async () => {
+          const tts = new MsEdgeTTS();
+          await tts.setMetadata(
+            selectedVoice,
+            OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
+          );
+          const { audioStream } = tts.toStream(text);
+          const chunks: Buffer[] = [];
+          await new Promise<void>((resolve, reject) => {
+            audioStream.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)));
+            audioStream.on('end', () => resolve());
+            audioStream.on('error', (err: any) => reject(err));
+          });
+          return Buffer.concat(chunks);
+        })(),
+        new Promise<Buffer>((_, reject) => setTimeout(() => reject(new Error('MsEdgeTTS timeout')), 10000))
+      ]);
 
-    // Chunk the stream into a complete buffer
-    const { audioStream } = tts.toStream(text);
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      audioStream.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)));
-      audioStream.on('end', () => resolve());
-      audioStream.on('error', (err: any) => reject(err));
-    });
-    const buffer = Buffer.concat(chunks);
-    if (buffer.length > 0) {
-      return {
-        buffer,
-        modelUsed: `Edge TTS (${selectedVoice})`,
-      };
-    }
-  } catch (fallbackErr) {
-    console.error("Edge TTS Fallback Failed:", fallbackErr);
-  }
-
-  // Fallback if msedge-tts websocket encounters environment restrictions
-  const sentenceChunks = splitTextIntoSentences(text, 180);
-  if (sentenceChunks.length === 0) return null;
-  const accent = isMale ? 'en-GB' : 'en-US';
-  const buffers: Buffer[] = [];
-  try {
-    for (const chunk of sentenceChunks) {
-      const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${accent}&q=${encodeURIComponent(chunk)}`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://translate.google.com/',
-        },
-      });
-
-      if (response.ok) {
-        const arrBuf = await response.arrayBuffer();
-        if (arrBuf && arrBuf.byteLength > 0) {
-          buffers.push(Buffer.from(arrBuf));
-        }
+      if (buffer && buffer.length > 500) {
+        return {
+          buffer,
+          modelUsed: `Edge TTS (${selectedVoice})`,
+        };
       }
+    } catch (err) {
+      console.warn(`MsEdgeTTS attempt ${attempt} failed:`, err instanceof Error ? err.message : String(err));
     }
 
-    if (buffers.length > 0) {
-      return {
-        buffer: Buffer.concat(buffers),
-        modelUsed: `Neural Stream (${accent})`,
-      };
+    // Attempt 2: NodeEdgeTTS secondary fallback
+    try {
+      const buffer = await Promise.race([
+        (async () => {
+          const tmpFile = path.join(os.tmpdir(), `edge_tts_${crypto.randomUUID()}.mp3`);
+          try {
+            const tts = new EdgeTTS({
+              voice: selectedVoice,
+              lang: selectedVoice.startsWith('en-GB') ? 'en-GB' : 'en-US',
+              outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+            });
+            await tts.ttsPromise(text, tmpFile);
+            if (fs.existsSync(tmpFile)) {
+              const buf = fs.readFileSync(tmpFile);
+              try { fs.unlinkSync(tmpFile); } catch {}
+              return buf;
+            }
+            return Buffer.alloc(0);
+          } finally {
+            if (fs.existsSync(tmpFile)) {
+              try { fs.unlinkSync(tmpFile); } catch {}
+            }
+          }
+        })(),
+        new Promise<Buffer>((_, reject) => setTimeout(() => reject(new Error('EdgeTTS timeout')), 10000))
+      ]);
+
+      if (buffer && buffer.length > 500) {
+        return {
+          buffer,
+          modelUsed: `Edge TTS (${selectedVoice})`,
+        };
+      }
+    } catch (err) {
+      console.warn(`EdgeTTS secondary attempt ${attempt} failed:`, err instanceof Error ? err.message : String(err));
     }
-  } catch (fetchErr) {
-    console.warn('Zero-key TTS fetch error:', fetchErr);
+
+    if (attempt < maxRetries) {
+      await new Promise((r) => setTimeout(r, 600 * attempt));
+    }
   }
 
+  console.error(`All Edge TTS synthesis attempts failed for voice: ${selectedVoice}. No low-quality fallback used.`);
   return null;
 }
 
