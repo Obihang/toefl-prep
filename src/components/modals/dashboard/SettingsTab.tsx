@@ -620,16 +620,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 3. TTS Voice Provider
-    {
-      id: 'tts_provider',
-      title: 'TTS Voice Provider',
-      icon: <Volume2 className="w-4 h-4 text-teal-700" />,
-      content: (
-        <div className="pt-2">
-        </div>
-      ),
-    },
 
     // 4. Voice and Speech
     {
