@@ -322,45 +322,12 @@ async function synthesizeWithZeroKeyFetch(
   voiceName?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
   const isMaleReq = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
-  const selectedVoice = voiceName || (isMaleReq ? 'en-US-GuyNeural' : 'en-US-AvaNeural');
-  const tmpFile = path.join(os.tmpdir(), `edge_tts_${crypto.randomUUID()}.mp3`);
+  const accent = isMaleReq ? 'en-GB' : 'en-US';
+  const selectedVoice = voiceName || (isMaleReq ? 'en-GB-RyanNeural' : 'en-US-AvaNeural');
 
-  try {
-    const tts = new EdgeTTS({
-      voice: selectedVoice,
-      lang: selectedVoice.startsWith('en-GB') ? 'en-GB' : 'en-US',
-      outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
-    });
-    await tts.ttsPromise(text, tmpFile);
-    if (fs.existsSync(tmpFile)) {
-      const buffer = fs.readFileSync(tmpFile);
-      if (buffer.length > 0) {
-        return {
-          buffer,
-          modelUsed: `Edge TTS (${selectedVoice})`,
-        };
-      }
-    }
-    throw new Error('Edge TTS produced empty audio buffer');
-  } catch (edgeErr) {
-    if (isMaleReq) {
-      throw new Error(`Edge TTS failed for male voice (${selectedVoice}): ${edgeErr instanceof Error ? edgeErr.message : String(edgeErr)}`);
-    }
-    console.warn('Edge TTS synthesis warning, attempting fallback stream:', redactSensitiveInfo(edgeErr));
-  } finally {
-    if (fs.existsSync(tmpFile)) {
-      try { fs.unlinkSync(tmpFile); } catch {}
-    }
-  }
-
-  if (isMaleReq) {
-    throw new Error(`Edge TTS failed for male voice (${selectedVoice})`);
-  }
-
-  // Fallback stream if EdgeTTS synthesis encounters temporary issues
   const chunks = splitTextIntoSentences(text, 180);
   if (chunks.length === 0) return null;
-  let accent = (gender === 'male' || (speakerName && detectSpeakerGender(speakerName) === 'male')) ? 'en-GB' : 'en-US';
+
   const buffers: Buffer[] = [];
   try {
     for (const chunk of chunks) {
@@ -383,7 +350,7 @@ async function synthesizeWithZeroKeyFetch(
     if (buffers.length > 0) {
       return {
         buffer: Buffer.concat(buffers),
-        modelUsed: `Neural Stream (${accent})`,
+        modelUsed: `Edge TTS (${selectedVoice})`,
       };
     }
   } catch (fetchErr) {
