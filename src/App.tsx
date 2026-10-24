@@ -41,6 +41,7 @@ import {
   Database,
 } from 'lucide-react';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
+import { GlobalReportButton } from './components/shared/GlobalReportButton';
 import {
   syncCuratedQuestionBank,
   getQuestionBankStats,
@@ -907,6 +908,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
+      <GlobalReportButton />
       {/* Top Bar Contract: 3 Zones (Wordmark - 4 Nav Links - 1 Action CTA) */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
@@ -1153,16 +1155,7 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                   <span className="font-bold text-slate-900">
-                    Section Bank: {sectionTotalCount} Curated Questions
-                  </span>
-                  <span className="text-teal-400">·</span>
-                  <span className="font-semibold text-teal-900 bg-teal-100/70 px-2 py-0.5 rounded-full border border-teal-300">
-                    {level === 'all' && topic === 'all'
-                      ? `Browsing all ${sectionTotalCount}`
-                      : `${filteredMatches.length} match current filter`}
-                  </span>
-                  <span className="text-slate-600">
-                    ({totalAcrossAllSections} Total across all sections)
+                    Section bank: {filteredMatches.length} match current filter
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-teal-800">
@@ -1214,7 +1207,7 @@ export default function App() {
                 onChange={(e) => setLevel(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
-                <option value="all">All Levels (Full Bank)</option>
+                <option value="all">All Levels</option>
                 <option value="beginner">Beginner</option>
                 <option value="intermediate">Intermediate (B1-B2 · 60-80)</option>
                 <option value="upper-intermediate">Upper-Intermediate (B2-C1 · 80-100)</option>
@@ -1238,7 +1231,7 @@ export default function App() {
                 onChange={(e) => setTopic(e.target.value)}
                 className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
               >
-                <option value="all">All Academic Topics (Full Bank)</option>
+                <option value="all">All Topics</option>
                 <option value="science-tech">Science & Technology</option>
                 <option value="campus-life">Campus Life & Academics</option>
                 <option value="social-sciences">Social Sciences & History</option>

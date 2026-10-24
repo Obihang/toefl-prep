@@ -13,6 +13,15 @@ export function normalizeTaskData(task: any, taskType: string): any {
     topic: String(task.topic || fallback.topic || 'general'),
   };
 
+  if (!result.topic || result.topic === 'general') {
+    const topics = ['science-tech', 'arts-humanities', 'social-sciences', 'business-economics', 'campus-life', 'environment'];
+    const hash = String(result.title || result.passage || result.prompt || result.id || 'a').length;
+    result.topic = topics[hash % topics.length];
+  }
+  if (!result.level) {
+    result.level = 'intermediate';
+  }
+
   switch (taskType) {
     case 'complete-words':
       {

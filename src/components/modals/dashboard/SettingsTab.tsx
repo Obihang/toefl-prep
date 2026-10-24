@@ -699,7 +699,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-teal-700 shrink-0" />
                 <span className="text-xs font-bold text-slate-900">
-                  Local Question Bank: {bankStats?.totalCurated || 80} Curated Questions ({bankStats?.totalQuestions || 80} Total in IndexedDB)
+                  Section bank: {bankStats?.totalQuestions || 0} match current filter
                 </span>
               </div>
               <button
