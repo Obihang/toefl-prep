@@ -641,14 +641,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       ),
     },
 
-    // 5. Profile & Study Goals (Moved Scholar Username here)
+    // 5. Profile
     {
       id: 'profile',
-      title: 'Profile & Study Goals',
+      title: 'Profile',
       icon: <Target className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="space-y-4 pt-2">
-          {/* Scholar Username Row moved here */}
+          {/* Scholar Username Row */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
             <label className="text-xs font-bold text-slate-800">Scholar Username (@username &amp; Attribution)</label>
             <div className="flex gap-2">
@@ -681,23 +681,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               </button>
             </div>
             <p className="text-[11px] text-slate-500">Display name and scholar attribution name are unified.</p>
-          </div>
-
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h5 className="text-xs font-bold text-slate-800">TOEFL Target Score &amp; Weekly Goals</h5>
-              <p className="text-[11px] text-slate-500">Configure your target band score and weekly test targets.</p>
-            </div>
-            {onConfigureGoals && (
-              <button
-                type="button"
-                onClick={onConfigureGoals}
-                className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-              >
-                <Target className="w-3.5 h-3.5" />
-                Configure Study Goals
-              </button>
-            )}
           </div>
         </div>
       ),
