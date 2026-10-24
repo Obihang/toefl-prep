@@ -13,8 +13,8 @@ import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
-import { EdgeTTS } from 'node-edge-tts';
 import os from 'os';
+import WebSocket from 'ws';
 
 export const FEMALE_VOICES = [
   "en-US-AvaNeural",
@@ -321,7 +321,6 @@ async function synthesizeWithEdgeWebSocket(
   voiceName: string
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const WebSocket = require('ws');
     const requestId = crypto.randomUUID().replace(/-/g, '');
     const url = `wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1?Ocp-Apim-Subscription-Key=6A5AA1D4EA6542C85E50B57041075765`;
     
@@ -390,6 +389,10 @@ async function synthesizeWithEdgeWebSocket(
   });
 }
 
+import { synthesizeEdge, EdgeTtsError } from './edgeTts.ts';
+
+// ... (other imports)
+
 async function synthesizeWithZeroKeyFetch(
   text: string,
   speakerName: string,
@@ -399,67 +402,19 @@ async function synthesizeWithZeroKeyFetch(
   const isMale = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
   const selectedVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-  const maxRetries = 2;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    // Attempt 1: Direct Edge TTS WebSocket on api.msedgeservices.com
-    try {
-      const buffer = await synthesizeWithEdgeWebSocket(text, selectedVoice);
-      if (buffer && buffer.length > 500) {
-        return {
-          buffer,
-          modelUsed: `Edge TTS (${selectedVoice})`,
-        };
-      }
-    } catch (err) {
-      console.warn(`Edge WebSocket attempt ${attempt} failed:`, err instanceof Error ? err.message : String(err));
+  try {
+    const buffer = await synthesizeEdge(text, selectedVoice);
+    if (buffer && buffer.length > 500) {
+      return {
+        buffer,
+        modelUsed: `Edge TTS (${selectedVoice})`,
+      };
     }
-
-    // Attempt 2: MsEdgeTTS package
-    try {
-      const tts = new MsEdgeTTS();
-      await tts.setMetadata(
-        selectedVoice,
-        OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
-      );
-      const { audioStream } = tts.toStream(text);
-      const chunks: Buffer[] = [];
-      await new Promise<void>((resolve, reject) => {
-        audioStream.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)));
-        audioStream.on('end', () => resolve());
-        audioStream.on('error', (err: any) => reject(err));
-      });
-      const buffer = Buffer.concat(chunks);
-      if (buffer && buffer.length > 500) {
-        return {
-          buffer,
-          modelUsed: `Edge TTS (${selectedVoice})`,
-        };
-      }
-    } catch (err) {
-      console.warn(`MsEdgeTTS attempt ${attempt} failed:`, err instanceof Error ? err.message : String(err));
-    }
-
-    if (attempt < maxRetries) {
-      await new Promise((r) => setTimeout(r, 500 * attempt));
-    }
+  } catch (err) {
+    console.error('Edge TTS synthesis failed:', err instanceof EdgeTtsError ? `${err.step}: ${err.message} (status: ${err.status})` : String(err));
+    throw err;
   }
 
-  // Reliable production fallback generator for live preview / sandbox testing so voice tests always succeed
-  try {
-    const fallbackApiKey = process.env.GEMINI_TTS_API_KEY || process.env.GEMINI_API_KEY || '';
-    if (fallbackApiKey) {
-      const resData = await synthesizeGeminiTts(text, fallbackApiKey, { voiceName: isMale ? 'Puck' : 'Kore', isMale: Boolean(isMale) });
-      const buf = Buffer.from(resData.base64Audio, 'base64');
-      if (buf.length > 500) {
-        return {
-          buffer: buf,
-          modelUsed: `Edge TTS (${selectedVoice})`,
-        };
-      }
-    }
-  } catch {}
-
-  console.error(`All Edge TTS synthesis attempts failed for voice: ${selectedVoice}. No low-quality Google Translate fallback used.`);
   return null;
 }
 
@@ -730,11 +685,16 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       isMale,
     });
   } catch (error: any) {
-    console.error('TTS endpoint error:', redactSensitiveInfo(error));
-    const msg = redactSensitiveInfo(error?.message || 'TTS synthesis failed');
-    return res.status(500).json({ success: false, error: msg });
+    const isEdgeError = error instanceof EdgeTtsError;
+    console.error('TTS endpoint error:', isEdgeError ? error : redactSensitiveInfo(error));
+    return res.status(502).json({ 
+      success: false, 
+      error: 'EDGE_TTS_FAILED', 
+      detail: isEdgeError ? `${error.step}: ${error.message} (status: ${error.status})` : redactSensitiveInfo(error?.message || 'TTS synthesis failed')
+    });
   }
 }
+export { handleTtsCheckEndpoint } from './api/tts-check.ts';
 export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const { word } = req.query;
   if (!word || typeof word !== 'string') return res.status(400).json({ success: false, error: 'Word required' });
