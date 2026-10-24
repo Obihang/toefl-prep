@@ -26,8 +26,7 @@ import {
 } from '../../../utils/apiKey';
 import { Accordion, AccordionSection } from './Accordion';
 import { MicSection } from './MicSection';
-import { VoiceCheckingSection } from './settings/VoiceCheckingSection';
-import { TtsVoiceProviderSection } from './settings/TtsVoiceProviderSection';
+import { VoiceAndSpeechSection } from './settings/VoiceAndSpeechSection';
 import { getPracticeHistory, resetPracticeHistory } from '../../../utils/scoreTracker';
 import { clearVocabularyList } from '../../../utils/vocabularyStore';
 import { clearAllMistakes } from '../../../utils/mistakesTracker';
@@ -628,7 +627,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       icon: <Volume2 className="w-4 h-4 text-teal-700" />,
       content: (
         <div className="pt-2">
-          <TtsVoiceProviderSection />
         </div>
       ),
     },
@@ -638,7 +636,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       id: 'voice_speech',
       title: 'Voice and speech',
       icon: <Volume2 className="w-4 h-4 text-teal-700" />,
-      content: <VoiceCheckingSection />,
+      content: <VoiceAndSpeechSection />,
     },
 
     // 4. Microphone

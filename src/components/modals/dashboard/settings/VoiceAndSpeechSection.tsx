@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Volume2, CheckCircle2, Play, AlertCircle } from 'lucide-react';
-import { playSpeech, stopSpeaking } from '../../../../utils/audioSpeech';
+import { stopSpeaking } from '../../../../utils/audioSpeech';
 
-export const TtsVoiceProviderSection: React.FC = () => {
+export const VoiceAndSpeechSection: React.FC = () => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [ttsTestError, setTtsTestError] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export const TtsVoiceProviderSection: React.FC = () => {
         <div>
           <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
             <Volume2 className="w-4 h-4 text-teal-700" />
-            Voice Engine
+            Voice and Speech
           </h4>
         </div>
         <div className="flex gap-2">
