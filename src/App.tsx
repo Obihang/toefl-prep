@@ -1222,7 +1222,7 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                   <span className="font-bold text-slate-900">
-                    Section bank: {filteredMatches.length} match current filter
+                    Section bank: {filteredMatches.length} match current filter ({sectionTotalCount} in section &bull; {totalAcrossAllSections} in global bank)
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-teal-800">

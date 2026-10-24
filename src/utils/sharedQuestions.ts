@@ -731,7 +731,7 @@ export async function getQuestionCountsPerSection(): Promise<Record<string, numb
   };
 
   try {
-    const qSnap = await getDocs(query(collection(db, 'questions'), limit(100)));
+    const qSnap = await getDocs(collection(db, 'questions'));
     qSnap.forEach((docSnap) => {
       const data = docSnap.data();
       const section = getSectionForTaskType(data.taskType || '');

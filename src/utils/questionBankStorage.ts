@@ -199,27 +199,54 @@ const curatedMemoryCache: Record<string, any[]> = {};
 
 /**
  * Load static curated shard for taskType from public/question-bank/<taskType>.json
- * with memory caching and cache-busting.
+ * and merge with any cached IndexedDB questions for that taskType.
  */
 export async function loadCuratedShard(taskType: string): Promise<any[]> {
-  if (curatedMemoryCache[taskType] && curatedMemoryCache[taskType].length > 0) {
-    return curatedMemoryCache[taskType];
+  if (!curatedMemoryCache[taskType] || curatedMemoryCache[taskType].length === 0) {
+    try {
+      const res = await fetch(`/question-bank/${taskType}.json?v=${Date.now()}`, { cache: 'no-cache' });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json)) {
+          const valid = json.filter((item) => isHighQualityTask(item, taskType));
+          curatedMemoryCache[taskType] = [...valid];
+        }
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch curated shard for ${taskType}:`, err);
+    }
   }
 
+  // Also merge any questions from local IndexedDB for this taskType
   try {
-    const res = await fetch(`/question-bank/${taskType}.json?v=${Date.now()}`, { cache: 'no-cache' });
-    if (res.ok) {
-      const json = await res.json();
-      if (Array.isArray(json)) {
-        const valid = json.filter((item) => isHighQualityTask(item, taskType));
-        curatedMemoryCache[taskType] = valid;
-        return valid;
+    const dbInstance = await openIndexedDB();
+    const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
+    const store = tx.objectStore('toefl_question_bank');
+    const all = await new Promise<any[]>((resolve) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+      req.onerror = () => resolve([]);
+    });
+
+    if (!curatedMemoryCache[taskType]) {
+      curatedMemoryCache[taskType] = [];
+    }
+
+    const currentList = curatedMemoryCache[taskType];
+    for (const row of all) {
+      if (row.taskType === taskType && row.content) {
+        const qId = row.content.id || row.id;
+        const exists = currentList.some((item) => (item.id || item._id) === qId);
+        if (!exists) {
+          currentList.push(row.content);
+        }
       }
     }
-  } catch (err) {
-    console.warn(`Failed to fetch curated shard for ${taskType}:`, err);
+  } catch (idbErr) {
+    console.warn(`Failed to load cached IDB questions for ${taskType}:`, idbErr);
   }
-  return [];
+
+  return curatedMemoryCache[taskType] || [];
 }
 
 /**
@@ -241,12 +268,23 @@ export function getLoadedCuratedTasks(taskType: string, level?: string, topic?: 
   return filtered.length > 0 ? filtered : all;
 }
 
+export interface QuestionBankSyncResult {
+  totalQuestions: number;
+  totalCurated: number;
+  counts: Record<string, number>;
+  countsPerTaskType: Record<string, number>;
+}
+
 /**
  * Sync all curated question shards into IndexedDB and in-memory cache.
- * Always upserts by id so newly added curated questions appear immediately on startup.
+ * Pulls all static JSON shards AND all global questions from Firestore (without userId filtering).
+ * Merges everything into the local IndexedDB ('toefl_question_bank') and memory cache.
  */
-export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: number; counts: Record<string, number> }> {
+export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult> {
   const counts: Record<string, number> = {};
+  for (const s of SHARD_FILES) {
+    counts[s] = 0;
+  }
   let totalQuestions = 0;
   const questionsToStore: Array<{
     id: string;
@@ -266,7 +304,7 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
         const json = await res.json();
         if (Array.isArray(json)) {
           const valid = json.filter((item) => isHighQualityTask(item, shard));
-          curatedMemoryCache[shard] = valid;
+          curatedMemoryCache[shard] = [...valid];
           counts[shard] = valid.length;
           totalQuestions += valid.length;
 
@@ -292,6 +330,7 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
   }
 
   // 2. Fetch and merge validated questions from Firestore into local memory array BEFORE opening IDB transaction
+  // The Question Bank is a global shared resource for all users; do NOT filter by userId!
   try {
     if (db) {
       const qSnap = await getDocs(collection(db, 'questions'));
@@ -301,17 +340,32 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
           const normalized = normalizeTaskData(rawDoc);
           const contentToCheck = normalized?.content || rawDoc;
           const targetTaskType = normalized?.taskType || rawDoc.taskType || rawDoc.type || 'academic-discussion';
-          if (normalized && isHighQualityTask(contentToCheck, targetTaskType)) {
+          if (contentToCheck && targetTaskType) {
             const qId = docSnap.id;
+            const validLevel = normalized?.level || rawDoc.level || 'intermediate';
+            const validTopic = normalized?.topic || rawDoc.topic || 'general';
+
             questionsToStore.push({
               id: qId,
               taskType: targetTaskType,
-              level: normalized.level || 'intermediate',
-              topic: normalized.topic || 'general',
+              level: validLevel,
+              topic: validTopic,
               content: contentToCheck,
               isCurated: false,
               updatedAt: Date.now(),
             });
+
+            // Also merge into memory cache
+            if (!curatedMemoryCache[targetTaskType]) {
+              curatedMemoryCache[targetTaskType] = [];
+            }
+            const exists = curatedMemoryCache[targetTaskType].some(
+              (item) => item.id === qId || item.id === contentToCheck.id
+            );
+            if (!exists) {
+              curatedMemoryCache[targetTaskType].push(contentToCheck);
+            }
+
             counts[targetTaskType] = (counts[targetTaskType] || 0) + 1;
             totalQuestions++;
           }
@@ -343,7 +397,29 @@ export async function syncCuratedQuestionBank(): Promise<{ totalQuestions: numbe
     }
   }
 
-  return { totalQuestions, counts };
+  return {
+    totalQuestions,
+    totalCurated: totalQuestions,
+    counts,
+    countsPerTaskType: counts,
+  };
+}
+
+/**
+ * Synchronizes global questions from Firestore without userId filtering,
+ * commits them to IndexedDB 'toefl_question_bank', updates memory cache,
+ * and returns the updated counts across all task types.
+ */
+export async function syncFirestoreGlobalCounts(): Promise<QuestionBankSyncResult> {
+  return syncCuratedQuestionBank();
+}
+
+/**
+ * Re-Sync All Shards: Pulls all 9 static JSON shards AND all global Firestore questions,
+ * merges everything into IndexedDB and in-memory cache, and returns the updated stats.
+ */
+export async function reSyncAllShards(): Promise<QuestionBankSyncResult> {
+  return syncCuratedQuestionBank();
 }
 
 /**
@@ -355,14 +431,45 @@ export async function getQuestionBankStats(): Promise<{
   countsPerTaskType: Record<string, number>;
 }> {
   const counts: Record<string, number> = {};
-  SHARD_FILES.forEach((s) => {
+  for (const s of SHARD_FILES) {
     counts[s] = (curatedMemoryCache[s] || []).length;
-  });
+  }
 
-  let totalCurated = Object.values(counts).reduce((a, b) => a + b, 0);
+  // Read all distinct questions from IndexedDB
+  try {
+    const dbInstance = await openIndexedDB();
+    const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
+    const store = tx.objectStore('toefl_question_bank');
+    const all = await new Promise<any[]>((resolve) => {
+      const req = store.getAll();
+      req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+      req.onerror = () => resolve([]);
+    });
 
-  // If cache is cold, do a fast shard count
-  if (totalCurated === 0) {
+    if (all.length > 0) {
+      for (const s of SHARD_FILES) {
+        counts[s] = 0;
+      }
+      let curatedTotal = 0;
+      for (const item of all) {
+        const tType = item.taskType;
+        if (tType) {
+          counts[tType] = (counts[tType] || 0) + 1;
+          if (item.isCurated) curatedTotal++;
+        }
+      }
+      const totalQuestions = Object.values(counts).reduce((a, b) => a + b, 0);
+      return {
+        totalQuestions,
+        totalCurated: curatedTotal,
+        countsPerTaskType: counts,
+      };
+    }
+  } catch {}
+
+  // If cache is cold and IDB empty, run full sync
+  const totalInCache = Object.values(counts).reduce((a, b) => a + b, 0);
+  if (totalInCache === 0) {
     const syncRes = await syncCuratedQuestionBank();
     return {
       totalQuestions: syncRes.totalQuestions,
@@ -371,31 +478,10 @@ export async function getQuestionBankStats(): Promise<{
     };
   }
 
-  // Also count any additional custom user-generated questions from IndexedDB
-  try {
-    const dbInstance = await openIndexedDB();
-    const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
-    const store = tx.objectStore('toefl_question_bank');
-    const req = store.getAll();
-    await new Promise((resolve) => {
-      req.onsuccess = () => {
-        if (Array.isArray(req.result)) {
-          for (const row of req.result) {
-            if (row.taskType && !row.isCurated && counts[row.taskType] !== undefined) {
-              counts[row.taskType]++;
-            }
-          }
-        }
-        resolve(null);
-      };
-      req.onerror = () => resolve(null);
-    });
-  } catch {}
-
   const totalQuestions = Object.values(counts).reduce((a, b) => a + b, 0);
   return {
     totalQuestions,
-    totalCurated,
+    totalCurated: totalQuestions,
     countsPerTaskType: counts,
   };
 }
