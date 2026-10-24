@@ -12,7 +12,6 @@ import fs from 'fs';
 import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
-import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import os from 'os';
 import WebSocket from 'ws';
 
@@ -314,79 +313,6 @@ function splitTextIntoSentences(text: string, maxLen = 180): string[] {
   }
 
   return chunks.length > 0 ? chunks : [text.trim()];
-}
-
-async function synthesizeWithEdgeWebSocket(
-  text: string,
-  voiceName: string
-): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const requestId = crypto.randomUUID().replace(/-/g, '');
-    const url = `wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1?Ocp-Apim-Subscription-Key=6A5AA1D4EA6542C85E50B57041075765`;
-    
-    const ws = new WebSocket(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
-        'Origin': 'chrome-extension://jdiccldimpdaibcomobbfflhhbcngdbk',
-        'Pragma': 'no-cache',
-        'Cache-Control': 'no-cache'
-      }
-    });
-
-    const audioChunks: Buffer[] = [];
-    let isResolved = false;
-
-    const timer = setTimeout(() => {
-      if (!isResolved) {
-        isResolved = true;
-        try { ws.close(); } catch {}
-        reject(new Error('Edge WebSocket timeout'));
-      }
-    }, 9000);
-
-    ws.on('open', () => {
-      const timestamp = new Date().toUTCString();
-      const configMessage = `X-Timestamp:${timestamp}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataversion":"2020-02-04","format":"audio-24khz-48kbitrate-mono-mp3"}}}}`;
-      ws.send(configMessage);
-
-      const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voiceName}'><prosody pitch='+0Hz' rate='+0%'>${text}</prosody></voice></speak>`;
-      const ssmlMessage = `X-RequestId:${requestId}\r\nContent-Type:application/ssml+xml\r\nPath:ssml\r\n\r\n${ssml}`;
-      ws.send(ssmlMessage);
-    });
-
-    ws.on('message', (data: any, isBinary: boolean) => {
-      if (isBinary || Buffer.isBuffer(data)) {
-        const headerLen = data.readUInt16BE(0);
-        const payload = data.subarray(2 + headerLen);
-        if (payload.length > 0) {
-          audioChunks.push(Buffer.from(payload));
-        }
-      } else if (typeof data === 'string' && data.includes('Path:turn.end')) {
-        if (!isResolved) {
-          isResolved = true;
-          clearTimeout(timer);
-          try { ws.close(); } catch {}
-          resolve(Buffer.concat(audioChunks));
-        }
-      }
-    });
-
-    ws.on('close', () => {
-      if (!isResolved) {
-        isResolved = true;
-        clearTimeout(timer);
-        resolve(Buffer.concat(audioChunks));
-      }
-    });
-
-    ws.on('error', (err: any) => {
-      if (!isResolved) {
-        isResolved = true;
-        clearTimeout(timer);
-        reject(err);
-      }
-    });
-  });
 }
 
 import { synthesizeEdge, EdgeTtsError } from './edgeTts.ts';

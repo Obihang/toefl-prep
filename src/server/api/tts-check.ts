@@ -1,39 +1,37 @@
 import type { Request, Response } from 'express';
-import { synthesizeEdge, EdgeTtsError, OUTPUT_FORMAT } from '../edgeTts.ts';
-import { MsEdgeTTS } from 'msedge-tts';
+import { synthesizeEdge, listEdgeVoices, EdgeTtsError, SEC_MS_GEC_VERSION, getClockSkewSeconds } from '../edgeTts.ts';
 
-export async function handleTtsCheckEndpoint(req: Request, res: Response) {
-  const results: any = { ok: true, diagnostics: {} };
-  
-  // 1. Check voices
-  const tts = new MsEdgeTTS();
+/** Diagnostic: shows the exact Edge TTS result (or error) so problems are visible instead of guessed. */
+export async function handleTtsCheckEndpoint(_req: Request, res: Response) {
+  const results: any = { ok: true, diagnostics: { secMsGecVersion: SEC_MS_GEC_VERSION } };
+
   try {
-    const voices = await tts.getVoices();
-    results.diagnostics.edgeVoicesCount = voices.filter(v => v.Name.startsWith('en-')).length;
-    results.diagnostics.msedgeTtsVersion = '2.1.0';
+    const voices = await listEdgeVoices();
+    const english = voices.filter((v) => v.Locale?.startsWith('en-'));
+    results.diagnostics.voicesTotal = voices.length;
+    results.diagnostics.englishVoices = english.length;
+    results.diagnostics.englishMale = english.filter((v) => v.Gender === 'Male').length;
+    results.diagnostics.englishFemale = english.filter((v) => v.Gender === 'Female').length;
   } catch (err: any) {
-    results.diagnostics.edgeVoicesError = err.message;
+    results.ok = false;
+    results.diagnostics.voicesError =
+      err instanceof EdgeTtsError ? `${err.step}: ${err.message} (status: ${err.status})` : String(err?.message || err);
   }
 
-  // 2. Test voices
-  const testVoices = ['en-US-AriaNeural', 'en-US-GuyNeural'];
-  for (const voice of testVoices) {
+  for (const voice of ['en-US-AriaNeural', 'en-US-GuyNeural']) {
     const start = Date.now();
     try {
       const buffer = await synthesizeEdge('This is a test.', voice);
-      results.diagnostics[voice] = {
-        ok: true,
-        bytes: buffer.length,
-        elapsedMs: Date.now() - start
-      };
+      results.diagnostics[voice] = { ok: true, bytes: buffer.length, elapsedMs: Date.now() - start };
     } catch (err: any) {
+      results.ok = false;
       results.diagnostics[voice] = {
         ok: false,
-        error: err instanceof EdgeTtsError ? `${err.step}: ${err.message} (status: ${err.status})` : err.message
+        elapsedMs: Date.now() - start,
+        error: err instanceof EdgeTtsError ? `${err.step}: ${err.message} (status: ${err.status})` : String(err?.message || err),
       };
-      results.ok = false;
     }
   }
-
+  results.diagnostics.clockSkewSeconds = Math.round(getClockSkewSeconds());
   res.status(results.ok ? 200 : 502).json(results);
 }
