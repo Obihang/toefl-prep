@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
-import { EdgeTTS } from 'node-edge-tts';
+import { MsEdgeTTS, OUTPUT_FORMAT } from 'msedge-tts';
 import os from 'os';
 
 export const FEMALE_VOICES = [
@@ -321,16 +321,42 @@ async function synthesizeWithZeroKeyFetch(
   gender: string,
   voiceName?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
-  const isMaleReq = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
-  const accent = isMaleReq ? 'en-GB' : 'en-US';
-  const selectedVoice = voiceName || (isMaleReq ? 'en-GB-RyanNeural' : 'en-US-AvaNeural');
+  const isMale = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
+  const selectedVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-  const chunks = splitTextIntoSentences(text, 180);
-  if (chunks.length === 0) return null;
+  try {
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(
+      selectedVoice,
+      OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
+    );
 
+    // Chunk the stream into a complete buffer
+    const { audioStream } = tts.toStream(text);
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      audioStream.on('data', (chunk: any) => chunks.push(Buffer.from(chunk)));
+      audioStream.on('end', () => resolve());
+      audioStream.on('error', (err: any) => reject(err));
+    });
+    const buffer = Buffer.concat(chunks);
+    if (buffer.length > 0) {
+      return {
+        buffer,
+        modelUsed: `Edge TTS (${selectedVoice})`,
+      };
+    }
+  } catch (fallbackErr) {
+    console.error("Edge TTS Fallback Failed:", fallbackErr);
+  }
+
+  // Fallback if msedge-tts websocket encounters environment restrictions
+  const sentenceChunks = splitTextIntoSentences(text, 180);
+  if (sentenceChunks.length === 0) return null;
+  const accent = isMale ? 'en-GB' : 'en-US';
   const buffers: Buffer[] = [];
   try {
-    for (const chunk of chunks) {
+    for (const chunk of sentenceChunks) {
       const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${accent}&q=${encodeURIComponent(chunk)}`;
       const response = await fetch(url, {
         headers: {
@@ -350,7 +376,7 @@ async function synthesizeWithZeroKeyFetch(
     if (buffers.length > 0) {
       return {
         buffer: Buffer.concat(buffers),
-        modelUsed: `Edge TTS (${selectedVoice})`,
+        modelUsed: `Neural Stream (${accent})`,
       };
     }
   } catch (fetchErr) {

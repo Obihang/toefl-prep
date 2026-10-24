@@ -87,12 +87,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               }
               const audio = new Audio(clipUrl);
               activeAudioRef.current = audio;
-              const spk = audioClips[i]?.speaker || (i % 2 === 0 ? task.speakers?.A : task.speakers?.B) || '';
-              const seedString = spk || lines[i]?.slice(0, 20) || '';
-              const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
-              const dynamicRate = 0.92 + ((hash % 100) / 100) * 0.14;
-              audio.preservesPitch = false;
-              audio.playbackRate = dynamicRate;
+              audio.playbackRate = 1.0;
               audio.onended = () => {
                 if (activeAudioRef.current === audio) activeAudioRef.current = null;
                 resolve();
@@ -184,14 +179,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
                 }
                 const audio = new Audio(audioSrc);
                 activeAudioRef.current = audio;
-                const isNeuralFallback = !ttsJson.modelUsed || ttsJson.modelUsed.includes('Neural Stream') || ttsJson.providerUsed === 'fallback';
-                // Generate a stable float between 0.92 and 1.06 based on text/name
-                const seedString = speakerName || parsed.spokenText.slice(0, 20);
-                const hash = seedString.split('').reduce((acc: number, char: string) => char.charCodeAt(0) + acc, 0);
-                const dynamicRate = 0.92 + ((hash % 100) / 100) * 0.14;
-
-                audio.preservesPitch = false;
-                audio.playbackRate = isNeuralFallback ? dynamicRate : 1.0;
+                audio.playbackRate = 1.0;
                 audio.onended = () => {
                   if (activeAudioRef.current === audio) activeAudioRef.current = null;
                   resolve();
