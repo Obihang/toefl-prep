@@ -182,92 +182,91 @@ export function assignTaskSpeakerVoices(task: any): Record<string, string> {
   }
 
   const speakerVoices: Record<string, string> = {};
+  const speakerGenders: Record<string, 'male' | 'female'> = {};
   const usedVoices = new Set<string>();
 
-  interface SpeakerInfo {
-    key: string;
-    name: string;
-    gender: 'female' | 'male' | 'unknown';
-  }
-
-  const speakers: SpeakerInfo[] = [];
+  const rawSpeakers: Array<{ key: string; name: string; hint?: string }> = [];
 
   if (Array.isArray(task.speakers)) {
     task.speakers.forEach((s: any, idx: number) => {
       if (typeof s === 'string') {
-        speakers.push({ key: s, name: s, gender: detectSpeakerGender(s) });
+        rawSpeakers.push({ key: s, name: s });
       } else if (s && typeof s === 'object') {
         const name = s.name || s.speaker || `Speaker ${idx + 1}`;
-        const gender = s.gender || detectSpeakerGender(name);
-        speakers.push({ key: name, name, gender });
+        rawSpeakers.push({ key: name, name, hint: s.hint });
       }
     });
   } else if (task.speakers && typeof task.speakers === 'object') {
-    const nameA = task.speakers.A || 'Speaker A';
-    const genderA = task.speakerGenders?.A || task.speakerGenderA || detectSpeakerGender(nameA);
-    speakers.push({ key: 'A', name: nameA, gender: genderA });
-    speakers.push({ key: nameA, name: nameA, gender: genderA });
-
-    const nameB = task.speakers.B || 'Speaker B';
-    const genderB = task.speakerGenders?.B || task.speakerGenderB || detectSpeakerGender(nameB);
-    speakers.push({ key: 'B', name: nameB, gender: genderB });
-    speakers.push({ key: nameB, name: nameB, gender: genderB });
+    if (task.speakers.A) rawSpeakers.push({ key: 'A', name: task.speakers.A });
+    if (task.speakers.B) rawSpeakers.push({ key: 'B', name: task.speakers.B });
   }
 
-  if (task.speakerName) {
-    const name = task.speakerName;
-    const gender = task.speakerGender || detectSpeakerGender(name);
-    if (!speakers.some((s) => s.name === name)) {
-      speakers.push({ key: name, name, gender });
+  const lines = task.script || task.dialogue || (Array.isArray(task.questions) ? task.questions.map((q: any) => q.question || q.script) : []);
+  if (Array.isArray(lines)) {
+    lines.forEach((l: any) => {
+      const text = typeof l === 'string' ? l : (l.question || l.text || '');
+      const parsed = parseDialogueLine(text);
+      if (parsed.speakerName) {
+        if (!rawSpeakers.some((s) => s.name.toLowerCase() === parsed.speakerName.toLowerCase())) {
+          rawSpeakers.push({ key: parsed.speakerName, name: parsed.speakerName, hint: parsed.speakerHint });
+        }
+      }
+    });
+  }
+
+  if (task.speakerName && !rawSpeakers.some((s) => s.name === task.speakerName)) {
+    rawSpeakers.push({ key: task.speakerName, name: task.speakerName });
+  }
+  if (task.interviewerName && !rawSpeakers.some((s) => s.name === task.interviewerName)) {
+    rawSpeakers.push({ key: task.interviewerName, name: task.interviewerName });
+  }
+  if (task.professorName && !rawSpeakers.some((s) => s.name === task.professorName)) {
+    rawSpeakers.push({ key: task.professorName, name: task.professorName });
+  }
+
+  const resolvedSpeakers: Array<{ key: string; name: string; gender: 'male' | 'female' }> = [];
+  
+  rawSpeakers.forEach((spk, idx) => {
+    let g = detectSpeakerGender(spk.name, spk.hint);
+    if (g === 'unknown') {
+      if (rawSpeakers.length === 2) {
+        g = idx === 0 ? 'female' : 'male';
+      } else {
+        g = idx % 2 === 0 ? 'female' : 'male';
+      }
     }
-  }
+    resolvedSpeakers.push({ key: spk.key, name: spk.name, gender: g });
+  });
 
-  if (task.interviewerName) {
-    const name = task.interviewerName;
-    const gender = task.interviewerGender || detectSpeakerGender(name);
-    if (!speakers.some((s) => s.name === name)) {
-      speakers.push({ key: name, name, gender });
-    }
-  }
-
-  if (task.professorName) {
-    const name = task.professorName;
-    const gender = task.professorGender || detectSpeakerGender(name);
-    if (!speakers.some((s) => s.name === name)) {
-      speakers.push({ key: name, name, gender });
-    }
-  }
-
-  const seedStr = `${task.id || ''}:${task.title || ''}:${task.topic || ''}`;
-  let hash = 0;
-  for (let i = 0; i < seedStr.length; i++) {
-    hash = (hash << 5) - hash + seedStr.charCodeAt(i);
-    hash |= 0;
-  }
-  hash = Math.abs(hash);
-
-  if (speakers.length === 0) {
+  if (resolvedSpeakers.length === 0) {
     const narratorGender = task.narratorGender || task.gender || 'female';
-    const pool = narratorGender === 'male' ? MALE_VOICES : narratorGender === 'female' ? FEMALE_VOICES : ALL_EDGE_VOICES;
-    const voice = pool[hash % pool.length];
+    const pool = narratorGender === 'male' ? MALE_VOICES : FEMALE_VOICES;
+    const voice = pool[0];
     speakerVoices['Narrator'] = voice;
     speakerVoices['default'] = voice;
+    speakerGenders['Narrator'] = narratorGender === 'male' ? 'male' : 'female';
+    speakerGenders['default'] = speakerGenders['Narrator'];
   } else {
-    speakers.forEach((spk, idx) => {
-      const gender = spk.gender && spk.gender !== 'unknown' ? spk.gender : detectSpeakerGender(spk.name);
-      const pool = gender === 'male' ? MALE_VOICES : gender === 'female' ? FEMALE_VOICES : ALL_EDGE_VOICES;
+    if (resolvedSpeakers.length === 2 && resolvedSpeakers[0].gender === resolvedSpeakers[1].gender) {
+      resolvedSpeakers[1].gender = resolvedSpeakers[0].gender === 'male' ? 'female' : 'male';
+    }
+
+    resolvedSpeakers.forEach((spk, idx) => {
+      const pool = spk.gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
       let available = pool.filter((v) => !usedVoices.has(v));
       if (available.length === 0) available = [...pool];
 
-      const chosenIndex = (hash + idx * 7) % available.length;
-      const voice = available[chosenIndex];
+      const voice = available[idx % available.length];
       speakerVoices[spk.name] = voice;
       speakerVoices[spk.key] = voice;
+      speakerGenders[spk.name] = spk.gender;
+      speakerGenders[spk.key] = spk.gender;
       usedVoices.add(voice);
     });
   }
 
   task.speakerVoices = speakerVoices;
+  task.speakerGenders = speakerGenders;
   return speakerVoices;
 }
 

@@ -321,8 +321,9 @@ async function synthesizeWithZeroKeyFetch(
   gender: string,
   voiceName?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
-  const selectedVoice = voiceName || (gender === 'male' ? 'en-US-GuyNeural' : 'en-US-AvaNeural');
-  const tmpFile = path.join(os.tmpdir(), `edge_tts_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+  const isMaleReq = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
+  const selectedVoice = voiceName || (isMaleReq ? 'en-US-GuyNeural' : 'en-US-AvaNeural');
+  const tmpFile = path.join(os.tmpdir(), `edge_tts_${crypto.randomUUID()}.mp3`);
 
   try {
     const tts = new EdgeTTS({
@@ -333,7 +334,6 @@ async function synthesizeWithZeroKeyFetch(
     await tts.ttsPromise(text, tmpFile);
     if (fs.existsSync(tmpFile)) {
       const buffer = fs.readFileSync(tmpFile);
-      try { fs.unlinkSync(tmpFile); } catch {}
       if (buffer.length > 0) {
         return {
           buffer,
@@ -341,11 +341,20 @@ async function synthesizeWithZeroKeyFetch(
         };
       }
     }
+    throw new Error('Edge TTS produced empty audio buffer');
   } catch (edgeErr) {
+    if (isMaleReq) {
+      throw new Error(`Edge TTS failed for male voice (${selectedVoice}): ${edgeErr instanceof Error ? edgeErr.message : String(edgeErr)}`);
+    }
+    console.warn('Edge TTS synthesis warning, attempting fallback stream:', redactSensitiveInfo(edgeErr));
+  } finally {
     if (fs.existsSync(tmpFile)) {
       try { fs.unlinkSync(tmpFile); } catch {}
     }
-    console.warn('Edge TTS synthesis warning, attempting fallback stream:', redactSensitiveInfo(edgeErr));
+  }
+
+  if (isMaleReq) {
+    throw new Error(`Edge TTS failed for male voice (${selectedVoice})`);
   }
 
   // Fallback stream if EdgeTTS synthesis encounters temporary issues
@@ -571,7 +580,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
             const errText = openAiErr instanceof Error ? openAiErr.message : String(openAiErr);
             return res.status(400).json({ error: `API Failed: ${errText}` });
           }
-          console.warn('OpenAI TTS failed, falling through to zero-key stream:', redactSensitiveInfo(openAiErr));
         }
       }
     } else if (ttsProvider === 'gemini' || provider === 'gemini') {
@@ -599,7 +607,6 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
             const errText = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
             return res.status(400).json({ error: `API Failed: ${errText}` });
           }
-          console.warn('Gemini TTS failed, falling through to zero-key stream:', redactSensitiveInfo(geminiErr));
         }
       }
     }
