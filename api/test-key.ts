@@ -1,15 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleTestKeyEndpoint } from '../src/server/handlers.ts';
+import { handleTestKeyEndpoint, wrapApiHandler } from '../src/server/handlers.ts';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    if (req.method !== 'POST') {
-      res.setHeader('Allow', ['POST']);
-      return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` });
-    }
-    return await handleTestKeyEndpoint(req, res);
-  } catch (err: any) {
-    console.error('Test key route error:', err);
-    return res.status(500).json({ success: false, error: String(err?.message || err) });
+export default wrapApiHandler(async (req: VercelRequest, res: VercelResponse) => {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
+    return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` });
   }
-}
+  return await handleTestKeyEndpoint(req, res);
+});

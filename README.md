@@ -80,7 +80,23 @@ GROQ_API_KEY=""
 OPENROUTER_API_KEY=""
 BLOB_READ_WRITE_TOKEN=""
 FIREBASE_PROJECT_ID="your-firebase-project-id"
+
+# Sentry Error Monitoring (Vercel Project Settings > Environment Variables)
+# Set VITE_SENTRY_DSN for both 'Production' and 'Preview' environments in Vercel:
+VITE_SENTRY_DSN="https://<public_key>@<org>.ingest.sentry.io/<project_id>"
+
+# Optional server-side Sentry error reporting:
+SENTRY_DSN_SERVER="https://<public_key>@<org>.ingest.sentry.io/<project_id>"
 ```
+
+#### Sentry Configuration on Vercel:
+To enable real-time error tracking across your deployment environments:
+1. Go to your project on [Vercel Dashboard](https://vercel.com) > **Settings** > **Environment Variables**.
+2. Add `VITE_SENTRY_DSN`:
+   - Value: Your Sentry React project client DSN (`https://...@ingest.sentry.io/...`).
+   - Environments: Check both **Production** and **Preview**.
+3. (Optional) Add `SENTRY_DSN_SERVER` with your Node/server DSN to capture serverless route failures.
+4. Redeploy or push a new commit to trigger a build with Sentry monitoring enabled.
 
 ### 4. Run Development Server
 ```bash

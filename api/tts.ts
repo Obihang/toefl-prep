@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleTtsEndpoint } from '../src/server/handlers.ts';
+import { handleTtsEndpoint, wrapApiHandler } from '../src/server/handlers.ts';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default wrapApiHandler(async (req: VercelRequest, res: VercelResponse) => {
   return handleTtsEndpoint(req, res);
-}
+});
 
 

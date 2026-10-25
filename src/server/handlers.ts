@@ -14,6 +14,68 @@ import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/vo
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 import os from 'os';
 import WebSocket from 'ws';
+import * as SentryNode from '@sentry/node';
+
+let isSentryNodeInit = false;
+function initServerSentry() {
+  if (!isSentryNodeInit && process.env.SENTRY_DSN_SERVER) {
+    SentryNode.init({
+      dsn: process.env.SENTRY_DSN_SERVER,
+      sendDefaultPii: false,
+    });
+    isSentryNodeInit = true;
+  }
+}
+
+export function wrapApiHandler<TReq = any, TRes = any>(
+  handler: (req: TReq, res: TRes) => Promise<any> | any
+): (req: TReq, res: TRes) => Promise<any> {
+  return async (req: any, res: any) => {
+    const requestId =
+      (req?.headers?.['x-request-id'] as string) ||
+      ('req-' + crypto.randomBytes(4).toString('hex'));
+    const route = req?.url || req?.originalUrl || (req?.headers?.['x-forwarded-uri'] as string) || 'unknown';
+
+    try {
+      return await handler(req, res);
+    } catch (rawError: any) {
+      const status = getStatus(rawError) || 500;
+      const rawMsg = extractErrorMessage(rawError) || rawError?.message || String(rawError);
+      const redactedMsg = redactSensitiveInfo(rawMsg);
+
+      // Log one structured line: route, status, requestId, redacted message (never headers or bodies)
+      console.error(
+        JSON.stringify({
+          route,
+          status,
+          requestId,
+          error: redactedMsg,
+        })
+      );
+
+      if (process.env.SENTRY_DSN_SERVER) {
+        try {
+          initServerSentry();
+          SentryNode.withScope((scope) => {
+            scope.setTag('requestId', requestId);
+            scope.setTag('route', route);
+            SentryNode.captureException(rawError);
+          });
+          await SentryNode.flush(2000);
+        } catch {
+          // ignore Sentry reporting failure
+        }
+      }
+
+      if (!res.headersSent) {
+        return res.status(status).json({
+          error: redactedMsg,
+          requestId,
+        });
+      }
+    }
+  };
+}
 
 export const FEMALE_VOICES = [
   "en-US-AvaNeural",
@@ -156,6 +218,8 @@ export async function handleHealth(req: Req, res: Res) {
     status: 'ok',
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
     blobConfigured: !!process.env.BLOB_READ_WRITE_TOKEN,
+    commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+    version: process.env.npm_package_version || '1.0.0',
   });
 }
 
