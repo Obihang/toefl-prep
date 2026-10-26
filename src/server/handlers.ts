@@ -14,16 +14,27 @@ import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/vo
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 import os from 'os';
 import WebSocket from 'ws';
-import * as SentryNode from '@sentry/node';
+import { scrubSentryEvent } from '../utils/redact.ts';
 
-let isSentryNodeInit = false;
-function initServerSentry() {
-  if (!isSentryNodeInit && process.env.SENTRY_DSN_SERVER) {
-    SentryNode.init({
+let sentryNodeModule: typeof import('@sentry/node') | null = null;
+
+async function initServerSentry() {
+  if (!process.env.SENTRY_DSN_SERVER) return null;
+  if (sentryNodeModule) return sentryNodeModule;
+
+  try {
+    const Sentry = await import('@sentry/node');
+    Sentry.init({
       dsn: process.env.SENTRY_DSN_SERVER,
       sendDefaultPii: false,
+      beforeSend(event) {
+        return scrubSentryEvent(event);
+      },
     });
-    isSentryNodeInit = true;
+    sentryNodeModule = Sentry;
+    return Sentry;
+  } catch {
+    return null;
   }
 }
 
@@ -55,13 +66,21 @@ export function wrapApiHandler<TReq = any, TRes = any>(
 
       if (process.env.SENTRY_DSN_SERVER) {
         try {
-          initServerSentry();
-          SentryNode.withScope((scope) => {
-            scope.setTag('requestId', requestId);
-            scope.setTag('route', route);
-            SentryNode.captureException(rawError);
-          });
-          await SentryNode.flush(2000);
+          const Sentry = await initServerSentry();
+          if (Sentry) {
+            const redactedErr = new Error(redactedMsg);
+            redactedErr.name = rawError?.name ? redactSensitiveInfo(String(rawError.name)) : 'Error';
+            if (rawError?.stack) {
+              redactedErr.stack = redactSensitiveInfo(String(rawError.stack));
+            }
+
+            Sentry.withScope((scope) => {
+              scope.setTag('requestId', requestId);
+              scope.setTag('route', route);
+              Sentry.captureException(redactedErr);
+            });
+            await Sentry.flush(2000);
+          }
         } catch {
           // ignore Sentry reporting failure
         }

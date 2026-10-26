@@ -60,15 +60,29 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
+  // Helper to safely parse API response ensuring plain-text backend errors are handled cleanly without crashing
+  const safeParseResponse = async (res: Response): Promise<any> => {
+    const contentType = res.headers.get('content-type');
+    let data: any;
+    if (contentType && contentType.includes('application/json')) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      throw new Error(`Server returned plain text: ${text.slice(0, 50)}...`);
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    return data;
+  };
+
   // 1. Server Check (GET /api/health)
   const runServerCheck = async () => {
     setServerCheck((prev) => ({ ...prev, status: 'checking' }));
     try {
       const res = await fetch('/api/health');
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      const data = await res.json();
+      const data = await safeParseResponse(res);
       const commit = data.commit ? String(data.commit).slice(0, 7) : 'local';
       const version = data.version || '1.0.0';
       setServerCheck({
@@ -129,16 +143,24 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
             body: JSON.stringify({ provider, apiKey: key }),
           });
 
-          const data = await res.json();
-          if (res.ok && data.success) {
+          const contentType = res.headers.get('content-type');
+          let data: any;
+          if (contentType && contentType.includes('application/json')) {
+            data = await res.json();
+          } else {
+            const text = await res.text();
+            throw new Error(`Server returned plain text: ${text.slice(0, 50)}...`);
+          }
+
+          if (!res.ok || !data.success) {
+            errors.push(`${pName}: ${data?.error || `HTTP ${res.status}`}`);
+          } else {
             const chosenGen = data.generationModel || data.model || 'Auto';
             const chosenEval = data.evaluationModel || chosenGen;
             results.push(`${pName}: Gen [${chosenGen}], Eval [${chosenEval}]`);
-          } else {
-            errors.push(`${pName}: ${data.error || 'Verification failed'}`);
           }
         } catch (fetchErr: any) {
-          errors.push(`${pName}: ${fetchErr?.message || 'Connection timeout'}`);
+          errors.push(`${pName}: ${fetchErr?.message || 'Connection failed'}`);
         }
       }
 
@@ -209,9 +231,17 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
         },
       });
 
-      const data = await res.json();
-      if (!res.ok && !data.diagnostics) {
-        throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
+      const contentType = res.headers.get('content-type');
+      let data: any;
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server returned plain text: ${text.slice(0, 50)}...`);
+      }
+
+      if (!res.ok && !data?.diagnostics) {
+        throw new Error(data?.error || `HTTP ${res.status}: ${res.statusText}`);
       }
 
       const maleCount = data.diagnostics?.englishMale ?? 0;
@@ -369,16 +399,20 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
     });
   };
 
-  // Send Test Error to Sentry (visible only when Sentry is enabled)
-  const isSentryEnabled = Boolean(import.meta.env.VITE_SENTRY_DSN);
-
+  // Send Test Error button handler (unconditionally rendered in footer)
   const handleSendTestError = async () => {
     try {
-      const Sentry = await import('@sentry/react');
-      const eventId = Sentry.captureException(
-        new Error('Manual verification error sent from Live System Status panel')
-      );
-      setTestErrorNotice(`Test error successfully sent to Sentry (Event ID: ${eventId || 'acknowledged'})`);
+      const dsn = import.meta.env.VITE_SENTRY_DSN;
+      if (dsn) {
+        const Sentry = await import('@sentry/react');
+        const eventId = Sentry.captureException(
+          new Error('Manual verification error sent from Live System Status panel')
+        );
+        setTestErrorNotice(`Test error successfully sent to Sentry (Event ID: ${eventId || 'acknowledged'})`);
+      } else {
+        setTestErrorNotice('Test error triggered! (VITE_SENTRY_DSN is not configured in current environment)');
+        console.error('Test error manually triggered from Live System Status panel');
+      }
       setTimeout(() => setTestErrorNotice(null), 5000);
     } catch (err: any) {
       setTestErrorNotice(`Could not send test error: ${err?.message || 'Sentry client error'}`);
@@ -612,16 +646,14 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
           </div>
 
           <div className="flex items-center gap-2">
-            {isSentryEnabled && (
-              <button
-                type="button"
-                onClick={handleSendTestError}
-                className="px-3 py-1.5 bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <Send className="w-3.5 h-3.5 text-amber-700" />
-                <span>Send Test Error</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleSendTestError}
+              className="px-3 py-1.5 bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-900 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Send className="w-3.5 h-3.5 text-amber-700" />
+              <span>Send Test Error</span>
+            </button>
             <button
               type="button"
               onClick={onClose}

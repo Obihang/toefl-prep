@@ -60,4 +60,63 @@ assert(!scrubbed.breadcrumbs[0].data.key.includes('gsk_supersecret12345'), 'Sent
 assert(!scrubbed.exception.values[0].value.includes('nvapi-secretkey999999'), 'Sentry exception not scrubbed');
 assert(!scrubbed.request.url.includes('AIzaSyD3xAmPlEKey1234567890'), 'Sentry request URL not scrubbed');
 
+// 7. Mock SentryNode proof: Error containing both Gemini and Groq keys is reported to Sentry without them
+const geminiKeySample = 'AIzaSyC98765432109876543210';
+const groqKeySample = 'gsk_Z1X2C3V4B5N6M7L8K9J0H1G2';
+const rawErrorWithBothKeys = new Error(
+  `Provider failover from Gemini key ${geminiKeySample} to Groq key ${groqKeySample} failed: 401 Unauthorized`
+);
+rawErrorWithBothKeys.stack = `Error: Provider failover from Gemini key ${geminiKeySample} to Groq key ${groqKeySample}\n    at processRequest (/app/server.ts:42:15)`;
+
+const capturedReports: any[] = [];
+const mockSentryNode = {
+  beforeSend: (event: any) => event,
+  init(config: any) {
+    if (config.beforeSend) this.beforeSend = config.beforeSend;
+  },
+  withScope(cb: (scope: any) => void) {
+    const scope = { setTag: () => {} };
+    cb(scope);
+  },
+  captureException(err: Error) {
+    const redactedMsg = redactSensitiveInfo(err.message);
+    const redactedErr = new Error(redactedMsg);
+    if (err.stack) {
+      redactedErr.stack = redactSensitiveInfo(err.stack);
+    }
+
+    const event = {
+      exception: {
+        values: [
+          {
+            type: redactedErr.name,
+            value: redactedErr.message,
+            stacktrace: { frames: [{ filename: redactedErr.stack }] },
+          },
+        ],
+      },
+    };
+
+    const finalEvent = this.beforeSend(event);
+    capturedReports.push({ reportedError: redactedErr, sentryEvent: finalEvent });
+  },
+};
+
+mockSentryNode.init({
+  beforeSend: (event: any) => scrubSentryEvent(event),
+});
+
+// Trigger error reporting simulation
+mockSentryNode.captureException(rawErrorWithBothKeys);
+
+assert.strictEqual(capturedReports.length, 1, 'Mock SentryNode capture failed');
+const report = capturedReports[0];
+
+assert(!report.reportedError.message.includes(geminiKeySample), 'Gemini key leaked in reported Error message!');
+assert(!report.reportedError.message.includes(groqKeySample), 'Groq key leaked in reported Error message!');
+assert(!report.reportedError.stack.includes(geminiKeySample), 'Gemini key leaked in reported Error stack!');
+assert(!report.reportedError.stack.includes(groqKeySample), 'Groq key leaked in reported Error stack!');
+assert(!report.sentryEvent.exception.values[0].value.includes(geminiKeySample), 'Gemini key leaked in Sentry event!');
+assert(!report.sentryEvent.exception.values[0].value.includes(groqKeySample), 'Groq key leaked in Sentry event!');
+
 console.log('✓ All Key Redaction simulation tests passed successfully!');

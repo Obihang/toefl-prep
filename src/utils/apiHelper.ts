@@ -8,21 +8,25 @@ export async function safeFetchJson(url: string, options?: RequestInit): Promise
     throw netErr;
   }
 
+  const contentType = res.headers.get('content-type');
   const text = await res.text();
   let data: any = null;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    if (!res.ok) {
-      const parseErr: any = new Error(`The server had a problem (status ${res.status}). Try again in a moment.`);
-      parseErr.status = res.status;
-      parseErr.text = text;
-      throw parseErr;
+
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
     }
-    const parseErr2: any = new Error('The server returned an invalid response. Please try again.');
-    parseErr2.status = res.status;
-    parseErr2.text = text;
-    throw parseErr2;
+  }
+
+  if (!data) {
+    const preview = text.trim().slice(0, 50);
+    const msg = preview ? `Server returned plain text: ${preview}...` : `Server had a problem (status ${res.status})`;
+    const parseErr: any = new Error(msg);
+    parseErr.status = res.status;
+    parseErr.text = text;
+    throw parseErr;
   }
 
   if (!res.ok) {
