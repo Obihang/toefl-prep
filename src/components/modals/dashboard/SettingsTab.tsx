@@ -38,12 +38,12 @@ import {
   reSyncAllShards,
   syncFirestoreGlobalCounts,
   getQuestionBankStats,
+  repairQuestionBank,
 } from '../../../utils/questionBankStorage';
 import { isHighQualityTask } from '../../../utils/questionValidator';
 import { getApiHeaders } from '../../../utils/apiKey';
 import { TASK_DEFINITIONS } from '../../../types/taskTypes';
 import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
-import { repairQuestionBank } from '../../../utils/sharedQuestions';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -149,8 +149,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
     syncKeys();
     if (targetProvider === 'gemini') setGeminiKey('');
     if (targetProvider === 'groq') setGroqKey('');
-    if (targetProvider === 'openrouter') setOpenRouterKey('');
-    if (targetProvider === 'nvidia') setNvidiaKey('');
     window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
   };
 
@@ -308,9 +306,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   const handleBulkSeedBank = async () => {
     const hasConfiguredKey = Boolean(
       getStoredApiKey('gemini') ||
-      getStoredApiKey('groq') ||
-      getStoredApiKey('openrouter') ||
-      getStoredApiKey('nvidia')
+      getStoredApiKey('groq')
     );
 
     if (!hasConfiguredKey) {
@@ -521,116 +517,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               {testResults['groq'] && (
                 <p className={`text-[11px] font-medium ${testResults['groq'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
                   {testResults['groq'].message}
-                </p>
-              )}
-            </div>
-
-            {/* OpenRouter */}
-            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-2">
-                  OpenRouter API Key
-                  {Boolean(openRouterKey.trim()) && (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                      Saved ✓
-                    </span>
-                  )}
-                </span>
-                <a
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-teal-700 hover:underline text-[11px]"
-                >
-                  Get key
-                </a>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={openRouterKey}
-                  onChange={(e) => {
-                    setOpenRouterKey(e.target.value);
-                    handleSaveIndividualKey('openrouter', e.target.value);
-                  }}
-                  placeholder="sk-or-v1-... (Multi-model fallback)"
-                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleTestKey('openrouter', openRouterKey)}
-                  disabled={testingProvider === 'openrouter' || !openRouterKey.trim()}
-                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
-                >
-                  {testingProvider === 'openrouter' ? 'Testing...' : 'Test'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleClearKey('openrouter')}
-                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                  title="Clear key"
-                >
-                  Clear
-                </button>
-              </div>
-              {testResults['openrouter'] && (
-                <p className={`text-[11px] font-medium ${testResults['openrouter'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {testResults['openrouter'].message}
-                </p>
-              )}
-            </div>
-
-            {/* NVIDIA NIM */}
-            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-2">
-                  NVIDIA NIM API Key
-                  {Boolean(nvidiaKey.trim()) && (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                      Saved ✓
-                    </span>
-                  )}
-                </span>
-                <a
-                  href="https://build.nvidia.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-teal-700 hover:underline text-[11px]"
-                >
-                  Get key
-                </a>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={nvidiaKey}
-                  onChange={(e) => {
-                    setNvidiaKey(e.target.value);
-                    handleSaveIndividualKey('nvidia', e.target.value);
-                  }}
-                  placeholder="nvapi-... (Llama 3.3 70B Instruct)"
-                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleTestKey('nvidia', nvidiaKey)}
-                  disabled={testingProvider === 'nvidia' || !nvidiaKey.trim()}
-                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
-                >
-                  {testingProvider === 'nvidia' ? 'Testing...' : 'Test'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleClearKey('nvidia')}
-                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                  title="Clear key"
-                >
-                  Clear
-                </button>
-              </div>
-              {testResults['nvidia'] && (
-                <p className={`text-[11px] font-medium ${testResults['nvidia'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {testResults['nvidia'].message}
                 </p>
               )}
             </div>

@@ -20,7 +20,7 @@ import {
   convertScaledToBand6,
 } from '../../utils/scoreTracker';
 import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
-import { getQuestionCountsPerTaskType } from '../../utils/sharedQuestions';
+import { getQuestionCountsPerTaskType } from '../../utils/questionBankStorage';
 
 interface Props {
   isOpen: boolean;
@@ -29,6 +29,7 @@ interface Props {
   openRubrics: () => void;
   defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
   currentTaskType?: string;
+  onNavigateToTask?: (sectionOrTask: string) => void;
 }
 
 export const DashboardModal: React.FC<Props> = ({
@@ -38,6 +39,7 @@ export const DashboardModal: React.FC<Props> = ({
   openRubrics,
   defaultTab = 'dashboard',
   currentTaskType,
+  onNavigateToTask,
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab || 'dashboard');
   const [stats, setStats] = useState<any>(null);
@@ -232,7 +234,26 @@ export const DashboardModal: React.FC<Props> = ({
 
         {/* Content Body - flex-1, min-h-0, overflow-y-auto */}
         <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-slate-50/30">
-          {activeTab === 'dashboard' && <OverviewTab toeflEstimate={toeflEstimate} stats={stats} />}
+          {activeTab === 'dashboard' && (
+            <OverviewTab
+              toeflEstimate={toeflEstimate}
+              stats={stats}
+              history={getPracticeHistory()}
+              completedDays={completedDays}
+              vocab={vocab}
+              onOpenTask={(target) => {
+                onClose();
+                onNavigateToTask?.(target);
+              }}
+              onOpenHistory={openHistory}
+              onSwitchTab={(tab) => setActiveTab(tab)}
+              studyGoals={{
+                targetScore: targetScoreNum,
+                testDate: testDateInput,
+                weeklyGoal: weeklyGoalInput,
+              }}
+            />
+          )}
           {activeTab === 'goals' && (
             <GoalsTab
               targetScoreNum={targetScoreNum}

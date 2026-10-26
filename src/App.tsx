@@ -13,7 +13,7 @@ import {
   fetchRandomSharedQuestion,
   reportSharedQuestion,
   triggerBackgroundPrefetchIfNeeded,
-} from './utils/sharedQuestions';
+} from './utils/questionBankStorage';
 import {
   LEVELS,
   ACADEMIC_TOPICS,
@@ -25,7 +25,7 @@ import {
 } from './constants/filters';
 import { getApiHeaders, getStoredApiKey, hasAnyStoredApiKey, getScholarUsername } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
-import { normalizeTaskData } from './utils/normalization';
+import { normalizeTaskData } from './utils/taskNormalizer';
 
 function getReportedByMe(): string[] {
   try {
@@ -1793,6 +1793,27 @@ export default function App() {
           currentTaskType={currentTaskType}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
+          onNavigateToTask={(target) => {
+            setIsDashboardOpen(false);
+            const lower = (target || '').toLowerCase();
+            if (lower === 'speaking' || lower === 'speaking-interview') {
+              setCurrentTaskType('speaking-interview');
+            } else if (lower === 'listening' || lower === 'listening-dialogue') {
+              setCurrentTaskType('listening-dialogue');
+            } else if (lower === 'listen-repeat') {
+              setCurrentTaskType('listen-repeat');
+            } else if (lower === 'writing' || lower === 'academic-discussion') {
+              setCurrentTaskType('academic-discussion');
+            } else if (lower === 'write-email') {
+              setCurrentTaskType('write-email');
+            } else if (lower === 'build-sentence') {
+              setCurrentTaskType('build-sentence');
+            } else if (lower === 'reading' || lower === 'reading-passage') {
+              setCurrentTaskType('reading-passage');
+            } else if (lower === 'complete-words') {
+              setCurrentTaskType('complete-words');
+            }
+          }}
         />
       </Suspense>
     </div>

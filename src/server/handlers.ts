@@ -2,7 +2,8 @@ import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { head, put } from '@vercel/blob';
 import { getApiConfig } from './apiConfig.ts';
-import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler.ts';
+import { handleGenerateTask, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler.ts';
+import { handleEvaluateResponse } from './evaluationHandler.ts';
 import { callOpenAiTts } from './llmClient.ts';
 import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
 import { STT_MODEL } from '../config/models.ts';
@@ -257,8 +258,10 @@ export async function handleTestKeyEndpoint(req: Req, res: Res) {
 export async function handleGenerateTaskEndpoint(req: Req, res: Res) {
   try {
     const config = getApiConfig(req.headers, req.body);
+    const groqKey = (req.headers['x-groq-key'] as string) || (config.provider === 'groq' ? config.apiKey : '') || process.env.GROQ_API_KEY || '';
+    const mergedConfig = { ...config, groqKey };
     const { taskType, level, topic, promptData } = req.body || {};
-    const result = await handleGenerateTask(taskType, level, topic, config, promptData);
+    const result = await handleGenerateTask(taskType, level, topic, mergedConfig, promptData);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     console.error('Generate task error:', redactSensitiveInfo(error));
@@ -270,8 +273,10 @@ export async function handleGenerateTaskEndpoint(req: Req, res: Res) {
 export async function handleEvaluateResponseEndpoint(req: Req, res: Res) {
   try {
     const config = getApiConfig(req.headers, req.body);
+    const groqKey = (req.headers['x-groq-key'] as string) || (config.provider === 'groq' ? config.apiKey : '') || process.env.GROQ_API_KEY || '';
+    const mergedConfig = { ...config, groqKey };
     const { taskType, promptData, studentResponse } = req.body || {};
-    const result = await handleEvaluateResponse(taskType, promptData, studentResponse, config);
+    const result = await handleEvaluateResponse(taskType, promptData, studentResponse, mergedConfig);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     console.error('Evaluate response error:', redactSensitiveInfo(error));

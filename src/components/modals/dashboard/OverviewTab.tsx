@@ -1,7 +1,14 @@
-import React from 'react';
-import { Target, Trophy, Flame, CheckCircle2, ArrowRight, Play, Sparkles, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Target, Trophy, Flame, CheckCircle2, Circle, ArrowRight, Play, Sparkles, Clock, AlertTriangle, BookOpen } from 'lucide-react';
 import { PracticeRecord, getUserStats } from '../../../utils/scoreTracker';
-import { streak, todaysPlan } from '../../../utils/dashboardStats';
+import { streak } from '../../../utils/dashboardStats';
+import {
+  generateDailyPlan,
+  toggleTaskCompletion,
+  DailyStudyPlan,
+  StudyPlanTask,
+  StudyGoals,
+} from '../../../utils/studyPlanGenerator';
 import { ScoreTrendChart } from './charts/ScoreTrendChart';
 import { SectionAveragesChart } from './charts/SectionAveragesChart';
 import { WeeklyActivityChart } from './charts/WeeklyActivityChart';
@@ -15,6 +22,10 @@ interface OverviewTabProps {
   weakAreas?: Array<{ topic: string; errorCount: number; section: string }>;
   onOpenTask?: (taskType: string) => void;
   onOpenHistory?: () => void;
+  onSwitchTab?: (tab: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes') => void;
+  vocab?: any[];
+  mistakes?: any[];
+  studyGoals?: StudyGoals;
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -25,15 +36,59 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   weakAreas = [],
   onOpenTask,
   onOpenHistory,
+  onSwitchTab,
+  vocab = [],
+  mistakes = [],
+  studyGoals,
 }) => {
   const targetScore = stats?.targetScore || 100;
   const scoreGap = Math.max(0, targetScore - toeflEstimate.overallScore);
   const st = streak(completedDays);
   const weeklyCompleted = stats?.weeklyCompleted || 3;
   const weeklyGoal = parseInt(localStorage.getItem('WEEKLY_GOAL') || '5', 10);
-  const plan = todaysPlan(history, 5, 2);
 
-  const recentAttemptsList = [...history].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()).slice(0, 10);
+  const [dailyPlan, setDailyPlan] = useState<DailyStudyPlan>(() =>
+    generateDailyPlan(history, mistakes, vocab, studyGoals)
+  );
+
+  useEffect(() => {
+    const updatePlan = () => {
+      setDailyPlan(generateDailyPlan(history, mistakes, vocab, studyGoals));
+    };
+    updatePlan();
+    window.addEventListener('toefl_daily_plan_updated', updatePlan);
+    window.addEventListener('toefl_user_changed', updatePlan);
+    return () => {
+      window.removeEventListener('toefl_daily_plan_updated', updatePlan);
+      window.removeEventListener('toefl_user_changed', updatePlan);
+    };
+  }, [history, mistakes, vocab, studyGoals]);
+
+  const handleTaskClick = (item: StudyPlanTask) => {
+    if (item.type === 'practice') {
+      onOpenTask?.(item.taskType || item.targetSection.toLowerCase());
+    } else if (item.type === 'review') {
+      if (item.targetSection === 'Mistakes' || item.taskType === 'mistakes') {
+        onSwitchTab?.('mistakes');
+      } else if (item.targetSection === 'Vocabulary' || item.taskType === 'vocabulary') {
+        onSwitchTab?.('vocabulary');
+      }
+    }
+  };
+
+  const handleToggleCheck = (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation();
+    const updated = toggleTaskCompletion(taskId);
+    if (updated) setDailyPlan(updated);
+  };
+
+  const completedCount = dailyPlan.tasks.filter((t) => t.isCompleted).length;
+  const totalCount = dailyPlan.tasks.length;
+  const weakestInfo = dailyPlan.weakestSection;
+
+  const recentAttemptsList = [...history]
+    .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+    .slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -100,22 +155,76 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               <Sparkles className="w-4 h-4 text-teal-700" />
               Today's Plan
             </h4>
-            <span className="text-[10px] bg-teal-50 text-teal-800 px-2 py-0.5 rounded-full font-semibold">AI Recommended</span>
+            <div className="flex items-center gap-2">
+              {dailyPlan.urgent && (
+                <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" /> Sprint Mode ({dailyPlan.daysUntilTest}d)
+                </span>
+              )}
+              <span className="text-[10px] bg-teal-50 text-teal-800 px-2 py-0.5 rounded-full font-semibold">
+                {completedCount}/{totalCount} Completed
+              </span>
+            </div>
           </div>
 
           <div className="space-y-3">
-            {plan.map((item) => (
+            {dailyPlan.tasks.map((item) => (
               <div
                 key={item.id}
-                onClick={() => onOpenTask?.(item.actionTarget || 'reading')}
-                className="p-3.5 bg-slate-50 hover:bg-teal-50/50 border border-slate-200 hover:border-teal-300 rounded-xl flex items-center justify-between gap-3 transition-colors cursor-pointer group"
+                onClick={() => handleTaskClick(item)}
+                className={`p-3.5 border rounded-xl flex items-center justify-between gap-3 transition-colors cursor-pointer group ${
+                  item.isCompleted
+                    ? 'bg-slate-50/70 border-slate-200 text-slate-400'
+                    : 'bg-white hover:bg-teal-50/40 border-slate-200 hover:border-teal-300 shadow-2xs'
+                }`}
               >
-                <div className="space-y-0.5">
-                  <h5 className="font-bold text-xs text-slate-900 group-hover:text-teal-900">{item.title}</h5>
-                  <p className="text-[11px] text-slate-500 leading-tight">{item.description}</p>
+                <div className="flex items-start gap-3 min-w-0">
+                  <button
+                    onClick={(e) => handleToggleCheck(e, item.id)}
+                    className="mt-0.5 text-slate-400 hover:text-teal-700 transition-colors cursor-pointer shrink-0"
+                    title={item.isCompleted ? 'Mark as incomplete' : 'Mark as complete'}
+                  >
+                    {item.isCompleted ? (
+                      <CheckCircle2 className="w-4 h-4 text-teal-700 fill-teal-50" />
+                    ) : (
+                      <Circle className="w-4 h-4 text-slate-300 group-hover:text-teal-600" />
+                    )}
+                  </button>
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h5
+                        className={`font-bold text-xs truncate ${
+                          item.isCompleted
+                            ? 'line-through text-slate-400'
+                            : 'text-slate-900 group-hover:text-teal-900'
+                        }`}
+                      >
+                        {item.title}
+                      </h5>
+                      <span
+                        className={`text-[9px] font-semibold px-1.5 py-0.2 rounded-md shrink-0 uppercase tracking-wider ${
+                          item.type === 'practice'
+                            ? 'bg-teal-100 text-teal-800'
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`}
+                      >
+                        {item.type}
+                      </span>
+                    </div>
+                    <p className={`text-[11px] leading-tight ${item.isCompleted ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {item.description}
+                    </p>
+                  </div>
                 </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200 text-teal-700 group-hover:bg-teal-700 group-hover:text-white transition-colors shrink-0">
-                  <Play className="w-3.5 h-3.5 fill-current" />
+
+                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-teal-700 group-hover:bg-teal-700 group-hover:text-white group-hover:border-teal-700 transition-colors shrink-0">
+                  {item.type === 'practice' ? (
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                  ) : item.taskType === 'vocabulary' ? (
+                    <BookOpen className="w-3.5 h-3.5" />
+                  ) : (
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  )}
                 </div>
               </div>
             ))}
@@ -125,32 +234,69 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* Weak Areas */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold text-slate-900 text-sm">Identified Weak Areas</h4>
-            <span className="text-xs text-slate-400">{weakAreas.length} topics to review</span>
+            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Target className="w-4 h-4 text-teal-700" />
+              Identified Weak Areas
+            </h4>
+            <span className="text-xs font-semibold text-slate-500">
+              {weakestInfo.hasHistory ? 'Calibrated Diagnosis' : 'Baseline Suggestion'}
+            </span>
           </div>
 
-          {weakAreas.length === 0 ? (
-            <div className="h-32 flex flex-col items-center justify-center text-xs text-slate-400 text-center px-4">
-              <Trophy className="w-8 h-8 text-amber-400 mb-1" />
-              <span>No major weak areas detected yet! Complete more practice tests to receive targeted diagnostics.</span>
+          {/* Primary Weakest Section Card */}
+          <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-teal-900 bg-teal-100 px-2.5 py-0.5 rounded-md">
+                  {weakestInfo.section}
+                </span>
+                <span className="text-xs font-bold text-teal-800">
+                  Avg: {weakestInfo.avgScaled.toFixed(1)} / 30 · Band {weakestInfo.avgBand.toFixed(1)}
+                </span>
+              </div>
+              <span className="text-[10px] text-teal-700 font-semibold bg-white border border-teal-200 px-2 py-0.5 rounded-full">
+                Lowest Section
+              </span>
             </div>
-          ) : (
-            <div className="space-y-2.5 max-h-48 overflow-y-auto">
-              {weakAreas.map((w, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md">{w.section}</span>
-                    <p className="font-bold text-xs text-slate-900 mt-1">{w.topic}</p>
+
+            <p className="text-xs text-slate-700 leading-relaxed font-medium">
+              {weakestInfo.tip}
+            </p>
+
+            <button
+              onClick={() => onOpenTask?.(weakestInfo.section.toLowerCase())}
+              className="w-full py-2 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
+            >
+              <span>Practice {weakestInfo.section} Now</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Additional granular weak areas if detected */}
+          {weakAreas.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Specific Topic Focus Areas ({weakAreas.length})
+              </p>
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                {weakAreas.map((w, idx) => (
+                  <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3 text-xs">
+                    <div>
+                      <span className="text-[9px] font-bold uppercase text-slate-600 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                        {w.section}
+                      </span>
+                      <p className="font-semibold text-slate-800 mt-0.5">{w.topic}</p>
+                    </div>
+                    <button
+                      onClick={() => onOpenTask?.(w.section.toLowerCase())}
+                      className="px-2.5 py-1 bg-white hover:bg-teal-50 border border-slate-200 text-teal-800 font-semibold rounded-md transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                    >
+                      <span>Drill</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => onOpenTask?.(w.section.toLowerCase())}
-                    className="px-3 py-1.5 bg-teal-800 hover:bg-teal-900 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1"
-                  >
-                    <span>Practice this</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -169,3 +169,8 @@ export async function getDefinition(word: string, context: string = '') {
 
   return null;
 }
+
+export async function fetchWordDefinition(word: string) {
+  return getDefinition(word);
+}
+

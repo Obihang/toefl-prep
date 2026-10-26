@@ -21,7 +21,11 @@ export {
 import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender, getBrowserSpeechPitchAndRate } from './voices';
-import { filterWhisperHallucinations } from './speakingMetrics';
+import { filterWhisperHallucinations, calculateSpeakingMetrics, calculateWpm, detectFillerWords, calculatePauses } from './audio/fluencyMetrics';
+import type { SpeakingMetrics, WordTimestamp } from './audio/fluencyMetrics';
+import { calculateAudioLevel, calculateRms, calculateDbfs, trimPcmSilence, trimAudioSilence, applyNoiseGate } from './audio/audioProcessing';
+export * from './audio/audioProcessing';
+export * from './audio/fluencyMetrics';
 import { isWhisperWorkerBusy, transcribeWithLocalWhisper } from './localWhisperStt';
 import {
   recordVoiceEngineFailure,
@@ -1861,10 +1865,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
               }
 
               analyserNode.getByteFrequencyData(dataArray);
-              let sum = 0;
-              for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-              const avg = sum / dataArray.length;
-              const lvl = Math.min(100, Math.round((avg / 120) * 100));
+              const lvl = calculateAudioLevel(dataArray);
               options.onAudioLevel?.(lvl);
 
               if (waitingForVoice && lvl > (options.autoStartThreshold || 0)) {

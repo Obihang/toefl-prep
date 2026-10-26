@@ -129,6 +129,11 @@ export function evaluateLocally(
   const specificStrengths: string[] = [];
   const areasForImprovement: string[] = [];
 
+  const wpm = options?.wpm || (wordCount > 0 ? Math.round((wordCount / 45) * 60) : 125);
+  const pauseCount = options?.pauseCount ?? 0;
+  const longestPause = options?.longestPause ?? 0;
+  const fillerCount = options?.fillerCount ?? 0;
+
   // 1. Task Fulfillment Metric (1.0 - 6.0)
   let taskFulfillmentScore = 3.5;
   let fulfillmentNotes: string[] = [];
@@ -190,11 +195,6 @@ export function evaluateLocally(
       areasForImprovement.push('Include both a formal greeting (e.g. "Dear Professor...") and courteous sign-off.');
     }
   } else if (taskType === 'speaking-interview') {
-    const wpm = options?.wpm || (wordCount > 0 ? Math.round((wordCount / 45) * 60) : 125);
-    const pauseCount = options?.pauseCount ?? 0;
-    const longestPause = options?.longestPause ?? 0;
-    const fillerCount = options?.fillerCount ?? 0;
-
     // Delivery & Fluency Score (1.0 - 6.0)
     let deliveryScore = 5.0;
     if (wpm >= 115 && wpm <= 165) {
@@ -302,6 +302,31 @@ export function evaluateLocally(
     : (subScores.taskFulfillment * 0.4) + (subScores.languageUse * 0.3) + (subScores.topicDevelopment * 0.3);
 
   let overallBand = Math.round(composite * 2) / 2;
+  overallBand = Math.min(6.0, Math.max(1.0, overallBand));
+
+  // Calibrated score caps to prevent score inflation and fake precision:
+  // For Writing: If wordCount < 80, max score = 3.5. If uniqueWords / wordCount < 0.45 (low lexical diversity), max score = 4.5.
+  // For Speaking: If wpm < 100, max score = 4.0. If pauses > 5 or fillers > 4, max score = 4.5.
+  if (!isSpeaking) {
+    if (wordCount < 80) {
+      overallBand = Math.min(overallBand, 3.5);
+      areasForImprovement.push(`Response length (${wordCount} words) is under the 80-word minimum threshold, capping score at Band 3.5.`);
+    }
+    if (wordCount > 0 && (uniqueWords / wordCount) < 0.45) {
+      overallBand = Math.min(overallBand, 4.5);
+      areasForImprovement.push(`Lexical diversity (${Math.round((uniqueWords / wordCount) * 100)}%) is below 45%, capping score at Band 4.5.`);
+    }
+  } else {
+    if (wpm < 100) {
+      overallBand = Math.min(overallBand, 4.0);
+      areasForImprovement.push(`Speaking rate (${wpm} WPM) is below 100 WPM, capping score at Band 4.0.`);
+    }
+    if (pauseCount > 5 || fillerCount > 4) {
+      overallBand = Math.min(overallBand, 4.5);
+      areasForImprovement.push(`Excessive delivery disruptions (${pauseCount} pauses, ${fillerCount} fillers), capping score at Band 4.5.`);
+    }
+  }
+
   overallBand = Math.min(6.0, Math.max(1.0, overallBand));
 
   // Determine performance level and scaled score out of 30

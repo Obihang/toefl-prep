@@ -12,13 +12,13 @@ export interface PurposeModelMapping {
 }
 
 export const PROVIDER_OPTIMAL_MODELS: Record<string, Partial<PurposeModelMapping>> = {
-  openrouter: {
-    speakingWritingFeedback: GENERATION_MODELS.openrouter[0],
-    readingListeningGeneration: GENERATION_MODELS.openrouter[0],
-    vocabularyBank: GENERATION_MODELS.openrouter[0],
-    mistakeNotebook: GENERATION_MODELS.openrouter[0],
+  gemini: {
+    speakingWritingFeedback: EVALUATION_MODELS.gemini[0],
+    readingListeningGeneration: GENERATION_MODELS.gemini[0],
+    vocabularyBank: GENERATION_MODELS.gemini[0],
+    mistakeNotebook: GENERATION_MODELS.gemini[0],
     scoreProjectionStudyPlan: 'Client-side algorithmic analytics',
-    voiceTranscription: 'Whisper STT',
+    voiceTranscription: 'Offline Whisper (whisper-base.en • Local Worker)',
     voiceSynthesis: 'AI Voice',
   },
   groq: {
@@ -28,33 +28,6 @@ export const PROVIDER_OPTIMAL_MODELS: Record<string, Partial<PurposeModelMapping
     mistakeNotebook: GENERATION_MODELS.groq[0],
     scoreProjectionStudyPlan: 'Client-side algorithmic analytics',
     voiceTranscription: 'Whisper Large v3 Turbo',
-    voiceSynthesis: 'AI Voice',
-  },
-  nvidia: {
-    speakingWritingFeedback: GENERATION_MODELS.nvidia[0],
-    readingListeningGeneration: GENERATION_MODELS.nvidia[0],
-    vocabularyBank: GENERATION_MODELS.nvidia[0],
-    mistakeNotebook: GENERATION_MODELS.nvidia[0],
-    scoreProjectionStudyPlan: 'Client-side algorithmic analytics',
-    voiceTranscription: 'Whisper STT',
-    voiceSynthesis: 'AI Voice',
-  },
-  openai: {
-    speakingWritingFeedback: EVALUATION_MODELS.openai[0],
-    readingListeningGeneration: GENERATION_MODELS.openai[0],
-    vocabularyBank: GENERATION_MODELS.openai[0],
-    mistakeNotebook: GENERATION_MODELS.openai[0],
-    scoreProjectionStudyPlan: 'Client-side algorithmic analytics',
-    voiceTranscription: 'whisper-1',
-    voiceSynthesis: 'tts-1',
-  },
-  gemini: {
-    speakingWritingFeedback: EVALUATION_MODELS.gemini[0],
-    readingListeningGeneration: GENERATION_MODELS.gemini[0],
-    vocabularyBank: GENERATION_MODELS.gemini[0],
-    mistakeNotebook: GENERATION_MODELS.gemini[0],
-    scoreProjectionStudyPlan: 'Client-side algorithmic analytics',
-    voiceTranscription: 'Offline Whisper (whisper-base.en • Local Worker)',
     voiceSynthesis: 'AI Voice',
   },
 };

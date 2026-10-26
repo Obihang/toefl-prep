@@ -104,16 +104,7 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
   const runAiCheck = async () => {
     setAiCheck((prev) => ({ ...prev, status: 'checking' }));
     try {
-      const candidateProviders: ApiProvider[] = [
-        'gemini',
-        'groq',
-        'nvidia',
-        'openrouter',
-        'openai',
-        'deepseek',
-        'xai',
-        'anthropic',
-      ];
+      const candidateProviders: ApiProvider[] = ['gemini', 'groq'];
 
       const configuredProviders = candidateProviders.filter((p) => Boolean(getStoredApiKey(p)));
 
