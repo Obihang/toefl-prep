@@ -14,6 +14,87 @@ import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/vo
 import { firebasePublicConfig } from './firebasePublicConfig.ts';
 import os from 'os';
 import WebSocket from 'ws';
+import { scrubSentryEvent } from '../utils/redact.ts';
+
+let sentryNodeModule: typeof import('@sentry/node') | null = null;
+
+async function initServerSentry() {
+  if (!process.env.SENTRY_DSN_SERVER) return null;
+  if (sentryNodeModule) return sentryNodeModule;
+
+  try {
+    const Sentry = await import('@sentry/node');
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN_SERVER,
+      sendDefaultPii: false,
+      beforeSend(event) {
+        return scrubSentryEvent(event);
+      },
+    });
+    sentryNodeModule = Sentry;
+    return Sentry;
+  } catch {
+    return null;
+  }
+}
+
+export function wrapApiHandler<TReq = any, TRes = any>(
+  handler: (req: TReq, res: TRes) => Promise<any> | any
+): (req: TReq, res: TRes) => Promise<any> {
+  return async (req: any, res: any) => {
+    const requestId =
+      (req?.headers?.['x-request-id'] as string) ||
+      ('req-' + crypto.randomBytes(4).toString('hex'));
+    const route = req?.url || req?.originalUrl || (req?.headers?.['x-forwarded-uri'] as string) || 'unknown';
+
+    try {
+      return await handler(req, res);
+    } catch (rawError: any) {
+      const status = getStatus(rawError) || 500;
+      const rawMsg = extractErrorMessage(rawError) || rawError?.message || String(rawError);
+      const redactedMsg = redactSensitiveInfo(rawMsg);
+
+      // Log one structured line: route, status, requestId, redacted message (never headers or bodies)
+      console.error(
+        JSON.stringify({
+          route,
+          status,
+          requestId,
+          error: redactedMsg,
+        })
+      );
+
+      if (process.env.SENTRY_DSN_SERVER) {
+        try {
+          const Sentry = await initServerSentry();
+          if (Sentry) {
+            const redactedErr = new Error(redactedMsg);
+            redactedErr.name = rawError?.name ? redactSensitiveInfo(String(rawError.name)) : 'Error';
+            if (rawError?.stack) {
+              redactedErr.stack = redactSensitiveInfo(String(rawError.stack));
+            }
+
+            Sentry.withScope((scope) => {
+              scope.setTag('requestId', requestId);
+              scope.setTag('route', route);
+              Sentry.captureException(redactedErr);
+            });
+            await Sentry.flush(2000);
+          }
+        } catch {
+          // ignore Sentry reporting failure
+        }
+      }
+
+      if (!res.headersSent) {
+        return res.status(status).json({
+          error: redactedMsg,
+          requestId,
+        });
+      }
+    }
+  };
+}
 
 export const FEMALE_VOICES = [
   "en-US-AvaNeural",
@@ -156,6 +237,8 @@ export async function handleHealth(req: Req, res: Res) {
     status: 'ok',
     hasGeminiKey: !!process.env.GEMINI_API_KEY,
     blobConfigured: !!process.env.BLOB_READ_WRITE_TOKEN,
+    commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+    version: process.env.npm_package_version || '1.0.0',
   });
 }
 

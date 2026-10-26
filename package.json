@@ -14,13 +14,15 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:sim": "npx tsx scripts/no-require-in-esm-check.ts && npx tsx scripts/tts-regression-sim.ts && npx tsx scripts/edge-tts-sim.ts && npx tsx scripts/filter-sim.ts && npx tsx scripts/topic-infer-sim.ts",
+    "test:sim": "npx tsx scripts/no-require-in-esm-check.ts && npx tsx scripts/tts-regression-sim.ts && npx tsx scripts/edge-tts-sim.ts && npx tsx scripts/filter-sim.ts && npx tsx scripts/topic-infer-sim.ts && npx tsx scripts/redact-sim.ts",
     "test:api": "npx tsx scripts/api-import-check.ts",
     "test:dict": "npx tsx scripts/dictionary-sim.ts",
     "test:keyflow": "npx tsx scripts/keyflow-sim.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@sentry/node": "^8.0.0",
+    "@sentry/react": "^8.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vercel/blob": "^2.8.2",
     "@vitejs/plugin-react": "^6.1.1",

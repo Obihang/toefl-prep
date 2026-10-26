@@ -35,6 +35,8 @@ import {
   purgeLowQualityCache,
   saveVerifiedQuestion,
   syncCuratedQuestionBank,
+  reSyncAllShards,
+  syncFirestoreGlobalCounts,
   getQuestionBankStats,
 } from '../../../utils/questionBankStorage';
 import { isHighQualityTask } from '../../../utils/questionValidator';
@@ -225,14 +227,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   };
 
   const handleSyncAndCleanBank = async () => {
-    setDataMessage({ success: true, text: 'Synchronizing question shards & purging low-quality stubs...' });
+    setDataMessage({ success: true, text: 'Re-syncing question shards & pulling global Firestore questions...' });
     const purgeCount = await purgeLowQualityCache();
-    const syncRes = await syncCuratedQuestionBank();
+    const syncRes = await reSyncAllShards();
     const updated = await getQuestionBankStats();
     setBankStats(updated);
     setDataMessage({
       success: true,
-      text: `Sync & Clean complete! Purged ${purgeCount} stubs, synced ${syncRes.totalQuestions} verified questions.`,
+      text: `Re-Sync complete! Pulled ${syncRes.totalQuestions} verified questions globally (purged ${purgeCount} stubs).`,
     });
   };
 
@@ -746,7 +748,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
                   onClick={handleSyncAndCleanBank}
                   className="px-3 py-1.5 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                 >
-                  <span>🔄 Sync &amp; Clean Bank</span>
+                  <span>🔄 Re-Sync All Shards</span>
                 </button>
               </div>
             </div>

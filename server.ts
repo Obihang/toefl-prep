@@ -12,6 +12,7 @@ import {
   handleTtsEndpoint,
   handleDictionaryEndpoint,
   handleTtsCheckEndpoint,
+  wrapApiHandler,
 } from './src/server/handlers.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,16 +49,16 @@ export async function createServer() {
     next();
   });
 
-  // API endpoints sharing handlers with Vercel functions
-  app.post('/api/generate-task', handleGenerateTaskEndpoint);
-  app.post('/api/evaluate-response', handleEvaluateResponseEndpoint);
-  app.post('/api/tts', handleTtsEndpoint);
-  app.get('/api/tts-check', handleTtsCheckEndpoint);
-  app.post('/api/stt', handleSttEndpoint);
-  app.post('/api/transcribe', handleSttEndpoint);
-  app.post('/api/test-key', handleTestKeyEndpoint);
-  app.get('/api/dictionary', handleDictionaryEndpoint);
-  app.get('/api/health', handleHealth);
+  // API endpoints sharing handlers with Vercel functions wrapped with wrapApiHandler
+  app.post('/api/generate-task', wrapApiHandler(handleGenerateTaskEndpoint));
+  app.post('/api/evaluate-response', wrapApiHandler(handleEvaluateResponseEndpoint));
+  app.post('/api/tts', wrapApiHandler(handleTtsEndpoint));
+  app.get('/api/tts-check', wrapApiHandler(handleTtsCheckEndpoint));
+  app.post('/api/stt', wrapApiHandler(handleSttEndpoint));
+  app.post('/api/transcribe', wrapApiHandler(handleSttEndpoint));
+  app.post('/api/test-key', wrapApiHandler(handleTestKeyEndpoint));
+  app.get('/api/dictionary', wrapApiHandler(handleDictionaryEndpoint));
+  app.get('/api/health', wrapApiHandler(handleHealth));
 
   if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.resolve(__dirname, 'dist')));

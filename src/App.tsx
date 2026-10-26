@@ -67,7 +67,9 @@ import {
   X,
   Volume2,
   Database,
+  Activity,
 } from 'lucide-react';
+import { SystemStatusModal } from './components/shared/SystemStatusModal';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
 import { GlobalReportButton } from './components/shared/GlobalReportButton';
 import {
@@ -232,6 +234,7 @@ export default function App() {
   const [isRubricsOpen, setIsRubricsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [dashboardDefaultTab, setDashboardDefaultTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>('dashboard');
 
   // Dark Mode
@@ -1057,6 +1060,14 @@ export default function App() {
               <span>Dashboard</span>
             </button>
             <button
+              onClick={() => setIsStatusModalOpen(true)}
+              aria-label="Live System Status"
+              title="Live System Status (Network, Generation, Transcriber)"
+              className="p-2 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              <Activity className="w-4 h-4 text-teal-700" />
+            </button>
+            <button
               onClick={() => setDarkMode(prev => !prev)}
               aria-label="Toggle Dark Mode"
               className="p-2 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
@@ -1222,7 +1233,7 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                   <span className="font-bold text-slate-900">
-                    Section bank: {filteredMatches.length} match current filter
+                    Section bank: {filteredMatches.length} match current filter ({sectionTotalCount} in section &bull; {totalAcrossAllSections} in global bank)
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-teal-800">
@@ -1771,6 +1782,7 @@ export default function App() {
 
       {/* Modals */}
       <RubricGuideModal isOpen={isRubricsOpen} onClose={() => setIsRubricsOpen(false)} />
+      <SystemStatusModal isOpen={isStatusModalOpen} onClose={() => setIsStatusModalOpen(false)} />
 
       <Suspense fallback={null}>
         <PerformanceHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />

@@ -68,7 +68,7 @@ service cloud.firestore {
 
     // Shared Question Bank
     match /questions/{questionId} {
-      allow read: if isSignedIn();
+      allow read: if true;
 
       allow create: if isSignedIn()
         && isValidTaskType(request.resource.data.taskType)
