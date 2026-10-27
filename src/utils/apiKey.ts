@@ -425,6 +425,28 @@ export function getApiHeaders(): Record<string, string> {
     headers['x-tts-base-url'] = ttsBaseUrl;
   }
 
+  // Pass ALL configured keys in headers for dynamic backend failover
+  if (typeof localStorage !== 'undefined') {
+    const ALL_PROVIDERS = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai'];
+    for (const p of ALL_PROVIDERS) {
+      const k = (
+        localStorage.getItem(`${p}_api_key`) ||
+        localStorage.getItem(`toefl_key_${p}`) ||
+        (p === 'gemini' ? localStorage.getItem('toefl_gemini_api_key') : '') ||
+        ''
+      ).trim();
+      if (k) {
+        headers[`x-api-key-${p}`] = k;
+        if (p === 'gemini' && !headers['x-gemini-api-key']) {
+          headers['x-gemini-api-key'] = k;
+        }
+        if (p === 'groq' && !headers['x-groq-key']) {
+          headers['x-groq-key'] = k;
+        }
+      }
+    }
+  }
+
   return headers;
 }
 

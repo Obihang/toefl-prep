@@ -11,6 +11,7 @@ import { callChatWithHealing } from './chatHealing.ts';
 import { callGroqSpeech } from './groqSpeech.ts';
 import { callAudio8Speech } from './audio8Speech.ts';
 import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers.ts';
+import { collectAvailableProviders, prioritizeForGeneration } from './providerRouter.ts';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
 
@@ -640,20 +641,6 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{
 }
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions, promptData?: any) {
-  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
-  let provider = opts.provider || 'gemini';
-  const customApiKey = (opts.apiKey || '').trim();
-
-  // If provider is gemini or auto, but key clearly belongs to another provider
-  if ((provider === 'gemini' || provider === 'auto') && customApiKey) {
-    if (/^nvapi-/i.test(customApiKey)) provider = 'nvidia';
-    else if (/^gsk_/.test(customApiKey)) provider = 'groq';
-    else if (/^sk-or-/i.test(customApiKey)) provider = 'openrouter';
-    else if (/^sk-/.test(customApiKey)) provider = 'openai';
-  }
-
-  const ai = provider === 'gemini' ? getAiClient(customApiKey) : null;
-  
   const taskMap: Record<string, string> = {
     'complete-words': 'completeWords',
     'reading-passage': 'readingPassage',
@@ -741,202 +728,134 @@ Return valid JSON matching this schema:
     }
   };
 
-  // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
-  if (provider !== 'gemini') {
+  const prompt = getPrompt(taskType, level, topic);
+  const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
+  const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
+
+  // Collect available providers and distribute via round-robin for question generation (high throughput)
+  const candidates = collectAvailableProviders(options);
+  const prioritized = prioritizeForGeneration(candidates);
+
+  let lastError: any = null;
+
+  for (const candidate of prioritized) {
     try {
-      const prompt = getPrompt(taskType, level, topic);
-      const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
-      const { text, modelUsed } = await callChatWithHealing({
-        provider,
-        apiKey: opts.apiKey,
-        baseUrl: opts.baseUrl,
-        model: opts.model,
-        purpose: 'generation',
-        prompt: `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`,
-        systemInstruction,
-        responseJson: true,
-      });
+      if (candidate.provider === 'gemini') {
+        const ai = getAiClient(candidate.apiKey);
+        if (!ai) continue;
 
-      const parsed = cleanAndExtractJson(text);
-      const normalized = normalizeTask(taskType, parsed);
-      const result = schema.parse(normalized);
-      return { ...result, isFallback: false, modelUsed };
-    } catch (error: any) {
-      const errMsg = extractErrorMessage(error, provider);
-      if (!isKeyError(error)) {
-        console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
+        const chains = await resolveModelChains('gemini', candidate.apiKey);
+        const { result, modelUsed } = await generateWithFallback(ai, chains.generation, async (model) => {
+          let response;
+          try {
+            response = await ai.models.generateContent({
+              model,
+              contents: fullPrompt,
+              config: {
+                responseMimeType: 'application/json',
+                temperature: 0.7,
+              },
+            });
+          } catch (firstErr: any) {
+            if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
+              throw firstErr;
+            }
+            console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, redactSensitiveInfo(firstErr?.message || firstErr));
+            response = await ai.models.generateContent({
+              model,
+              contents: fullPrompt,
+              config: {
+                temperature: 0.7,
+              },
+            });
+          }
+
+          const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+          const parsed = cleanAndExtractJson(rawText);
+          const normalized = normalizeTask(taskType, parsed);
+          return schema.parse(normalized);
+        });
+
+        return { ...result, isFallback: false, modelUsed };
       } else {
-        console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
-      }
-      if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
-        const targetWord = promptData?.word || topic || 'word';
-        const cleanW = targetWord.toLowerCase().trim();
-        const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
-        if (glossaryEntry) {
-          return {
-            word: targetWord,
-            phonetic: '',
-            meanings: [{
-              partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
-              definition: glossaryEntry.definition,
-              example: promptData?.context || '',
-            }],
-            examples: promptData?.context ? [promptData.context] : [],
-            synonyms: glossaryEntry.synonyms || [],
-            isFallback: false,
-            modelUsed: 'Academic Glossary',
-          };
-        }
-        const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
-        const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
-        const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
-        return {
-          word: targetWord,
-          phonetic: '',
-          meanings: [{
-            partOfSpeech: pos,
-            definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
-            example: promptData?.context || '',
-          }],
-          examples: promptData?.context ? [promptData.context] : [],
-          synonyms: [],
-          isFallback: true,
-          modelUsed: `Local fallback (${provider})`,
-        };
-      }
-      const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
-      const curatedTasks = CURATED[curatedKey] as any[];
-      const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
-      return {
-        ...item,
-        isFallback: true,
-        fallbackReason: errMsg,
-        modelUsed: `Curated ETS (${provider} fallback)`,
-      };
-    }
-  }
-
-  try {
-    if (!ai) {
-      throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
-    }
-
-    const chains = await resolveModelChains('gemini', customApiKey || process.env.GEMINI_API_KEY || '');
-    const { result, modelUsed } = await generateWithFallback(ai, chains.generation, async (model) => {
-      const prompt = getPrompt(taskType, level, topic);
-      const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
-      const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
-
-      let response;
-      try {
-        response = await ai.models.generateContent({
-          model,
-          contents: fullPrompt,
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.7,
-          },
-        });
-      } catch (firstErr: any) {
-        if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
-          throw firstErr;
-        }
-        console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, redactSensitiveInfo(firstErr?.message || firstErr));
-        response = await ai.models.generateContent({
-          model,
-          contents: fullPrompt,
-          config: {
-            temperature: 0.7,
-          },
-        });
-      }
-
-      const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
-      const parsed = cleanAndExtractJson(rawText);
-      const normalized = normalizeTask(taskType, parsed);
-      return schema.parse(normalized);
-    });
-
-    return { ...result, isFallback: false, modelUsed };
-  } catch (error: any) {
-    // Fallback Waterfall: Gemini -> Groq -> Local Heuristic Fallback
-    const groqKey = ((opts as any)?.groqKey || (opts as any)?.groqApiKey || process.env.GROQ_API_KEY || '').trim();
-    if (groqKey && (provider as string) !== 'groq') {
-      try {
-        const prompt = getPrompt(taskType, level, topic);
-        const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
         const { text, modelUsed } = await callChatWithHealing({
-          provider: 'groq',
-          apiKey: groqKey,
+          provider: candidate.provider,
+          apiKey: candidate.apiKey,
+          baseUrl: candidate.baseUrl,
+          model: candidate.model,
           purpose: 'generation',
-          prompt: `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`,
+          prompt: fullPrompt,
           systemInstruction,
           responseJson: true,
         });
+
         const parsed = cleanAndExtractJson(text);
         const normalized = normalizeTask(taskType, parsed);
-        return { ...schema.parse(normalized), isFallback: false, modelUsed: `Groq fallback (${modelUsed})` };
-      } catch (groqErr) {
-        console.warn('Groq generation fallback failed, continuing to local heuristic fallback:', groqErr);
+        const result = schema.parse(normalized);
+        return { ...result, isFallback: false, modelUsed };
       }
+    } catch (candidateErr: any) {
+      lastError = candidateErr;
+      const status = getStatus(candidateErr);
+      const isQuota = isQuotaExhaustedError(candidateErr) || status === 429;
+      console.warn(`Generation provider [${candidate.provider}] failed (${isQuota ? '429 Quota Exceeded' : candidateErr?.message || candidateErr}), continuing to next provider in chain...`);
+      continue;
     }
+  }
 
-    const isQuota = isQuotaExhaustedError(error) || getStatus(error) === 429;
-    const rateLimit = isQuota ? parseRateLimitFromError(error) : undefined;
-    const errMsg = extractErrorMessage(error, provider);
-    if (!isQuota && !isKeyError(error)) {
-      console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
-    } else {
-      console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
-    }
-    if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
-      const targetWord = promptData?.word || topic || 'word';
-      const cleanW = targetWord.toLowerCase().trim();
-      const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
-      if (glossaryEntry) {
-        return {
-          word: targetWord,
-          phonetic: '',
-          meanings: [{
-            partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
-            definition: glossaryEntry.definition,
-            example: promptData?.context || '',
-          }],
-          examples: promptData?.context ? [promptData.context] : [],
-          synonyms: glossaryEntry.synonyms || [],
-          isFallback: false,
-          modelUsed: 'Academic Glossary',
-        };
-      }
-      const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
-      const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
-      const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
+  // If all API providers fail, drop down to local/curated fallbacks
+  if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
+    const targetWord = promptData?.word || topic || 'word';
+    const cleanW = targetWord.toLowerCase().trim();
+    const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
+    if (glossaryEntry) {
       return {
         word: targetWord,
         phonetic: '',
         meanings: [{
-          partOfSpeech: pos,
-          definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
+          partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
+          definition: glossaryEntry.definition,
           example: promptData?.context || '',
         }],
         examples: promptData?.context ? [promptData.context] : [],
-        synonyms: [],
-        isFallback: true,
-        modelUsed: 'Local fallback',
+        synonyms: glossaryEntry.synonyms || [],
+        isFallback: false,
+        modelUsed: 'Academic Glossary',
       };
     }
-    const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
-    const curatedTasks = CURATED[curatedKey] as any[];
-    const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
+    const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
+    const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
+    const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
     return {
-      ...item,
+      word: targetWord,
+      phonetic: '',
+      meanings: [{
+        partOfSpeech: pos,
+        definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
+        example: promptData?.context || '',
+      }],
+      examples: promptData?.context ? [promptData.context] : [],
+      synonyms: [],
       isFallback: true,
-      isQuotaExhausted: isQuota,
-      rateLimit,
-      fallbackReason: errMsg,
-      modelUsed: 'Curated ETS TOEFL Question Bank',
+      modelUsed: 'Local fallback',
     };
   }
+
+  const isQuota = isQuotaExhaustedError(lastError) || getStatus(lastError) === 429;
+  const rateLimit = isQuota ? parseRateLimitFromError(lastError) : undefined;
+  const errMsg = extractErrorMessage(lastError, 'AI Service');
+  const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
+  const curatedTasks = CURATED[curatedKey] as any[];
+  const item = curatedTasks ? curatedTasks[Math.floor(Math.random() * curatedTasks.length)] : null;
+
+  return {
+    ...item,
+    isFallback: true,
+    isQuotaExhausted: isQuota,
+    rateLimit,
+    fallbackReason: errMsg,
+    modelUsed: 'Curated ETS TOEFL Question Bank',
+  };
 }
 
 export { handleEvaluateResponse } from './evaluationHandler.ts';
