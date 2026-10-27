@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { isKeyError, getStatus, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors.ts';
-import { isModelGone, markModelDead, getLastListError, isModelDead } from './modelRoles.ts';
+import { isKeyError, getStatus, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors';
+import { isModelGone, markModelDead, getLastListError, isModelDead } from './modelRoles';
 
 function isTransientServerBusy(err: any): boolean {
   const status = getStatus(err);

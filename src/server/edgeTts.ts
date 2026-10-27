@@ -3,7 +3,7 @@
 // Kept dependency-free apart from `ws`, and verified against the Python client in scripts/edge-tts-sim.ts.
 import { WebSocket } from 'ws';
 import crypto from 'node:crypto';
-import { generateSecMsGecV2, TRUSTED_CLIENT_TOKEN } from './secMsGec.ts';
+import { generateSecMsGecV2, TRUSTED_CLIENT_TOKEN } from './secMsGec';
 
 export const OUTPUT_FORMAT = {
   AUDIO_24KHZ_48KBITRATE_MONO_MP3: 'audio-24khz-48kbitrate-mono-mp3',

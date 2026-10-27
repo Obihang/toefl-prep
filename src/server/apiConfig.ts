@@ -1,4 +1,4 @@
-import { detectProviderFromKey } from '../utils/keyDetect.ts';
+import { detectProviderFromKey } from '../utils/keyDetect';
 
 export interface ApiConfig {
   provider: string;

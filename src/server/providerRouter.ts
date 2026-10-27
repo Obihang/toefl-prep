@@ -1,4 +1,4 @@
-import { type ApiCallOptions } from './geminiHandler.ts';
+import { type ApiCallOptions } from './geminiHandler';
 
 export interface ProviderCandidate {
   provider: string;

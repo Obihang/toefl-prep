@@ -22,6 +22,7 @@ import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender, getBrowserSpeechPitchAndRate } from './voices';
 import { filterWhisperHallucinations, calculateSpeakingMetrics, calculateWpm, detectFillerWords, calculatePauses } from './audio/fluencyMetrics';
+import { mergeCompoundWords } from './phoneticMatcher';
 import type { SpeakingMetrics, WordTimestamp } from './audio/fluencyMetrics';
 import { calculateAudioLevel, calculateRms, calculateDbfs, trimPcmSilence, trimAudioSilence, applyNoiseGate } from './audio/audioProcessing';
 export * from './audio/audioProcessing';
@@ -2345,7 +2346,6 @@ export function calculateSentenceMatch(
   percentage: number;
   wordStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
 } {
-  const { mergeCompoundWords } = require('./phoneticMatcher');
   const mergedSpoken = mergeCompoundWords ? mergeCompoundWords(spoken, target) : spoken;
   const rawTargetWords = target.split(/\s+/).filter(Boolean);
   if (rawTargetWords.length === 0) {

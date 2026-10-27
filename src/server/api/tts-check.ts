@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { synthesizeEdge, listEdgeVoices, EdgeTtsError, SEC_MS_GEC_VERSION, getClockSkewSeconds } from '../edgeTts.ts';
+import { synthesizeEdge, listEdgeVoices, EdgeTtsError, SEC_MS_GEC_VERSION, getClockSkewSeconds } from '../edgeTts';
 
 /** Diagnostic: shows the exact Edge TTS result (or error) so problems are visible instead of guessed. */
 export async function handleTtsCheckEndpoint(_req: Request, res: Response) {

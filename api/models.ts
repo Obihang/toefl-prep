@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getRoleModels } from '../src/server/modelRoles.ts';
-import { wrapApiHandler } from '../src/server/handlers.ts';
+import { getRoleModels } from '../src/server/modelRoles';
+import { wrapApiHandler } from '../src/server/handlers';
 
 export default wrapApiHandler(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== 'POST' && req.method !== 'GET') {

@@ -358,7 +358,7 @@ function splitTextIntoSentences(text: string, maxLen = 180): string[] {
   return chunks.length > 0 ? chunks : [text.trim()];
 }
 
-import { synthesizeEdge, EdgeTtsError } from './edgeTts.ts';
+import { synthesizeEdge, EdgeTtsError } from './edgeTts';
 
 // ... (other imports)
 

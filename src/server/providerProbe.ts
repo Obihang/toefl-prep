@@ -6,7 +6,7 @@ import {
   isModelGone,
   getLastListError,
   rankModels,
-} from './modelRoles.ts';
+} from './modelRoles';
 
 export { rankModels };
 

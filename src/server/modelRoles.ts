@@ -1,4 +1,4 @@
-import { GENERATION_MODELS, EVALUATION_MODELS } from '../config/models.ts';
+import { GENERATION_MODELS, EVALUATION_MODELS } from '../config/models';
 
 export interface ModelChainsResult {
   generation: string[];
