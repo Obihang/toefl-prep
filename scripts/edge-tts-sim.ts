@@ -3,11 +3,11 @@
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { WebSocketServer } from 'ws';
-import { generateSecMsGecV2 } from '../src/server/secMsGec.ts';
+import { generateSecMsGecV2 } from '../src/server/secMsGec';
 import {
   synthesizeEdge, EdgeTtsError, normalizeEdgeVoice, rateToSsml, chunkText,
   SEC_MS_GEC_VERSION, getClockSkewSeconds, resetClockSkew,
-} from '../src/server/edgeTts.ts';
+} from '../src/server/edgeTts';
 
 let failures = 0;
 const check = (name: string, ok: boolean, extra = '') => {

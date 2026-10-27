@@ -384,7 +384,7 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
       micTestResult ? `Mic Test: ${micTestResult}` : '',
       `Last Checked: ${sttCheck.lastChecked || 'N/A'}`,
       ``,
-      `Sentry Monitored: ${Boolean(import.meta.env.VITE_SENTRY_DSN)}`,
+      `Sentry Monitored: ${Boolean(process.env.VITE_SENTRY_DSN)}`,
     ]
       .filter((line) => line !== '')
       .join('\n');
@@ -399,7 +399,7 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
   // Send Test Error button handler (unconditionally rendered in footer)
   const handleSendTestError = async () => {
     try {
-      const dsn = import.meta.env.VITE_SENTRY_DSN;
+      const dsn = process.env.VITE_SENTRY_DSN;
       if (dsn) {
         const Sentry = await import('@sentry/react');
         const eventId = Sentry.captureException(
