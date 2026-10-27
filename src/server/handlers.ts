@@ -15,6 +15,7 @@ import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/vo
 import { firebasePublicConfig } from './firebasePublicConfig';
 import os from 'os';
 import WebSocket from 'ws';
+import { synthesizeEdge, EdgeTtsError } from './edgeTts';
 
 export function wrapApiHandler<TReq = any, TRes = any>(
   handler: (req: TReq, res: TRes) => Promise<any> | any
@@ -358,10 +359,6 @@ function splitTextIntoSentences(text: string, maxLen = 180): string[] {
   return chunks.length > 0 ? chunks : [text.trim()];
 }
 
-import { synthesizeEdge, EdgeTtsError } from './edgeTts';
-
-// ... (other imports)
-
 async function synthesizeWithZeroKeyFetch(
   text: string,
   speakerName: string,
@@ -369,7 +366,10 @@ async function synthesizeWithZeroKeyFetch(
   voiceName?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
   const isMale = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
-  const selectedVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  const rawVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  const selectedVoice = ALLOWED_EDGE_VOICES.has(rawVoice)
+    ? rawVoice
+    : (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
   try {
     const buffer = await synthesizeEdge(text, selectedVoice);

@@ -129,6 +129,9 @@ export function migrateLegacyKeys(): void {
       else if (/^gsk_/.test(k)) target = 'groq';
       else if (/^nvapi-/i.test(k)) target = 'nvidia';
       else if (/^sk-or-/i.test(k)) target = 'openrouter';
+      else if (/^sk-ant-/i.test(k)) target = 'anthropic';
+      else if (/^xai-/i.test(k)) target = 'xai';
+      else if (/^sk-/i.test(k)) target = 'openai';
 
       if (target && !localStorage.getItem(`toefl_key_${target}`)) {
         localStorage.setItem(`toefl_key_${target}`, k);

@@ -64,6 +64,12 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
       provider = 'openrouter';
     } else if (/^(AIza|AQ\.)/i.test(apiKey)) {
       provider = 'gemini';
+    } else if (/^sk-ant-/i.test(apiKey)) {
+      provider = 'anthropic';
+    } else if (/^xai-/i.test(apiKey)) {
+      provider = 'xai';
+    } else if (/^ds-/i.test(apiKey)) {
+      provider = 'deepseek';
     } else if (/^sk-/i.test(apiKey)) {
       provider = 'openai';
     } else if (provider === 'auto') {

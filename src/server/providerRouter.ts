@@ -33,8 +33,9 @@ export function collectAvailableProviders(options?: ApiCallOptions): ProviderCan
 
   // 3. Primary apiKey in options (infer provider if auto/gemini)
   const customApiKey = (opts.apiKey || '').trim();
+  let primaryProvider = (opts.provider || 'auto').toLowerCase();
   if (customApiKey) {
-    let p = (opts.provider || 'auto').toLowerCase();
+    let p = primaryProvider;
     if (p === 'auto' || p === 'gemini') {
       if (/^(AIza|AQ)/i.test(customApiKey)) p = 'gemini';
       else if (/^gsk_/.test(customApiKey)) p = 'groq';
@@ -46,6 +47,7 @@ export function collectAvailableProviders(options?: ApiCallOptions): ProviderCan
       else if (/^ds-/.test(customApiKey)) p = 'deepseek';
       else p = 'gemini';
     }
+    primaryProvider = p;
     if (!map.has(p)) {
       map.set(p, customApiKey);
     }
@@ -70,13 +72,24 @@ export function collectAvailableProviders(options?: ApiCallOptions): ProviderCan
   if (!map.has('nvidia') && process.env.NVIDIA_API_KEY) {
     map.set('nvidia', process.env.NVIDIA_API_KEY.trim());
   }
+  if (!map.has('deepseek') && process.env.DEEPSEEK_API_KEY) {
+    map.set('deepseek', process.env.DEEPSEEK_API_KEY.trim());
+  }
+  if (!map.has('xai') && process.env.XAI_API_KEY) {
+    map.set('xai', process.env.XAI_API_KEY.trim());
+  }
 
-  return Array.from(map.entries()).map(([provider, apiKey]) => ({
-    provider,
-    apiKey,
-    baseUrl: (opts as any).baseUrl,
-    model: (opts as any).model,
-  }));
+  const isAutoSingle = map.size === 1 && (!opts.provider || opts.provider.toLowerCase() === 'auto');
+
+  return Array.from(map.entries()).map(([provider, apiKey]) => {
+    const isPrimary = provider === primaryProvider || isAutoSingle;
+    return {
+      provider,
+      apiKey,
+      baseUrl: isPrimary ? (opts as any).baseUrl : undefined,
+      model: isPrimary ? (opts as any).model : undefined,
+    };
+  });
 }
 
 /**
