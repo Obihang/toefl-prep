@@ -1,0 +1,1022 @@
+[
+  {
+    "id": "bs-curated-1",
+    "title": "Neuroscience: Synaptic Plasticity and Long-Term Memory",
+    "level": "advanced",
+    "topic": "science-tech",
+    "items": [
+      {
+        "context": "What have recent laboratory trials concluded about how the brain adapts over time?",
+        "words": [
+          "regarding",
+          "the",
+          "supports",
+          "neural",
+          "empirical",
+          "evidence",
+          "hypothesis",
+          "plasticity",
+          "Substantial"
+        ],
+        "scrambledWords": [
+          "regarding",
+          "the",
+          "supports",
+          "neural",
+          "empirical",
+          "evidence",
+          "hypothesis",
+          "plasticity",
+          "Substantial"
+        ],
+        "answer": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
+        "correctSentence": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
+        "explanation": "Subject noun phrase ('Substantial empirical evidence') + transitive verb ('supports') + direct object ('the hypothesis') + modifying prepositional phrase ('regarding neural plasticity')."
+      },
+      {
+        "context": "How do microscopic connections between neurons physically respond to repeated activation?",
+        "words": [
+          "rapid",
+          "stimulation",
+          "Repetitive",
+          "changes",
+          "dendritic",
+          "structural",
+          "electrical",
+          "in",
+          "spines",
+          "induces"
+        ],
+        "scrambledWords": [
+          "rapid",
+          "stimulation",
+          "Repetitive",
+          "changes",
+          "dendritic",
+          "structural",
+          "electrical",
+          "in",
+          "spines",
+          "induces"
+        ],
+        "answer": "Repetitive electrical stimulation induces rapid structural changes in dendritic spines.",
+        "correctSentence": "Repetitive electrical stimulation induces rapid structural changes in dendritic spines.",
+        "explanation": "Subject ('Repetitive electrical stimulation') + verb ('induces') + object ('rapid structural changes') + prepositional locator ('in dendritic spines')."
+      },
+      {
+        "context": "Why is stronger signaling between brain cells important for human learning?",
+        "words": [
+          "synaptic",
+          "efficient",
+          "across",
+          "transmission",
+          "neural",
+          "information",
+          "Enhanced",
+          "facilitates",
+          "storage",
+          "circuits"
+        ],
+        "scrambledWords": [
+          "synaptic",
+          "efficient",
+          "across",
+          "transmission",
+          "neural",
+          "information",
+          "Enhanced",
+          "facilitates",
+          "storage",
+          "circuits"
+        ],
+        "answer": "Enhanced synaptic transmission facilitates efficient information storage across neural circuits.",
+        "correctSentence": "Enhanced synaptic transmission facilitates efficient information storage across neural circuits.",
+        "explanation": "Modified subject ('Enhanced synaptic transmission') + verb ('facilitates') + direct object with prepositional extension ('efficient information storage across neural circuits')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-2",
+    "title": "Macroeconomics: Global Supply Chains and Market Volatility",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "items": [
+      {
+        "context": "How can multinational manufacturers protect their operations against sudden factory shutdowns?",
+        "words": [
+          "mitigate",
+          "the",
+          "disruptions",
+          "chains",
+          "supply",
+          "economic",
+          "of",
+          "risk",
+          "Diversified",
+          "global",
+          "unexpected"
+        ],
+        "scrambledWords": [
+          "mitigate",
+          "the",
+          "disruptions",
+          "chains",
+          "supply",
+          "economic",
+          "of",
+          "risk",
+          "Diversified",
+          "global",
+          "unexpected"
+        ],
+        "answer": "Diversified supply chains mitigate the risk of unexpected global economic disruptions.",
+        "correctSentence": "Diversified supply chains mitigate the risk of unexpected global economic disruptions.",
+        "explanation": "Subject ('Diversified supply chains') + present tense verb ('mitigate') + complex object ('the risk of unexpected global economic disruptions')."
+      },
+      {
+        "context": "What monetary action do national reserve authorities take when consumer prices rise too quickly?",
+        "words": [
+          "interest",
+          "raise",
+          "frequently",
+          "curb",
+          "Central",
+          "rates",
+          "to",
+          "pressures",
+          "excessive",
+          "inflationary",
+          "banks"
+        ],
+        "scrambledWords": [
+          "interest",
+          "raise",
+          "frequently",
+          "curb",
+          "Central",
+          "rates",
+          "to",
+          "pressures",
+          "excessive",
+          "inflationary",
+          "banks"
+        ],
+        "answer": "Central banks frequently raise interest rates to curb excessive inflationary pressures.",
+        "correctSentence": "Central banks frequently raise interest rates to curb excessive inflationary pressures.",
+        "explanation": "Subject ('Central banks') + frequency adverb ('frequently') + transitive verb ('raise') + direct object ('interest rates') + infinitive purpose clause ('to curb excessive inflationary pressures')."
+      },
+      {
+        "context": "Why do exporters closely monitor daily shifts in international currency values?",
+        "words": [
+          "of",
+          "the",
+          "foreign",
+          "competitiveness",
+          "significantly",
+          "rates",
+          "exports",
+          "exchange",
+          "influence",
+          "Volatile",
+          "domestic"
+        ],
+        "scrambledWords": [
+          "of",
+          "the",
+          "foreign",
+          "competitiveness",
+          "significantly",
+          "rates",
+          "exports",
+          "exchange",
+          "influence",
+          "Volatile",
+          "domestic"
+        ],
+        "answer": "Volatile foreign exchange rates significantly influence the competitiveness of domestic exports.",
+        "correctSentence": "Volatile foreign exchange rates significantly influence the competitiveness of domestic exports.",
+        "explanation": "Subject ('Volatile foreign exchange rates') + adverb ('significantly') + verb ('influence') + object noun phrase ('the competitiveness of domestic exports')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-3",
+    "title": "Marine Biology: Morphological Convergence and Hydrodynamics",
+    "level": "intermediate",
+    "topic": "science-tech",
+    "items": [
+      {
+        "context": "Why do sharks and dolphins look so much alike despite belonging to different biological classes?",
+        "words": [
+          "body",
+          "frequently",
+          "Unrelated",
+          "develop",
+          "marine",
+          "similar",
+          "streamlined",
+          "species",
+          "shapes"
+        ],
+        "scrambledWords": [
+          "body",
+          "frequently",
+          "Unrelated",
+          "develop",
+          "marine",
+          "similar",
+          "streamlined",
+          "species",
+          "shapes"
+        ],
+        "answer": "Unrelated marine species frequently develop similar streamlined body shapes.",
+        "correctSentence": "Unrelated marine species frequently develop similar streamlined body shapes.",
+        "explanation": "Subject ('Unrelated marine species') + frequency adverb ('frequently') + verb ('develop') + direct object ('similar streamlined body shapes')."
+      },
+      {
+        "context": "What physical benefit does a tapered torso provide to fast-moving ocean animals?",
+        "words": [
+          "during",
+          "water",
+          "substantially",
+          "swimming",
+          "Hydrodynamic",
+          "turbulent",
+          "rapid",
+          "reduce",
+          "resistance",
+          "profiles"
+        ],
+        "scrambledWords": [
+          "during",
+          "water",
+          "substantially",
+          "swimming",
+          "Hydrodynamic",
+          "turbulent",
+          "rapid",
+          "reduce",
+          "resistance",
+          "profiles"
+        ],
+        "answer": "Hydrodynamic profiles substantially reduce turbulent water resistance during rapid swimming.",
+        "correctSentence": "Hydrodynamic profiles substantially reduce turbulent water resistance during rapid swimming.",
+        "explanation": "Subject ('Hydrodynamic profiles') + adverb ('substantially') + transitive verb ('reduce') + object with prepositional modifier ('turbulent water resistance during rapid swimming')."
+      },
+      {
+        "context": "Why do open-ocean predators evolve traits that minimize energy expenditure?",
+        "words": [
+          "environmental",
+          "in",
+          "favor",
+          "pelagic",
+          "locomotion",
+          "environments",
+          "efficient",
+          "hunting",
+          "pressures",
+          "Selective"
+        ],
+        "scrambledWords": [
+          "environmental",
+          "in",
+          "favor",
+          "pelagic",
+          "locomotion",
+          "environments",
+          "efficient",
+          "hunting",
+          "pressures",
+          "Selective"
+        ],
+        "answer": "Selective environmental pressures favor efficient locomotion in pelagic hunting environments.",
+        "correctSentence": "Selective environmental pressures favor efficient locomotion in pelagic hunting environments.",
+        "explanation": "Compound subject ('Selective environmental pressures') + verb ('favor') + direct object and prepositional phrase ('efficient locomotion in pelagic hunting environments')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-4",
+    "title": "Urban Sociology: Municipal Public Transit Infrastructure",
+    "level": "intermediate",
+    "topic": "social-sciences",
+    "items": [
+      {
+        "context": "How does expanding affordable subway and bus service benefit lower-income city neighborhoods?",
+        "words": [
+          "significantly",
+          "urban",
+          "enhances",
+          "Accessible",
+          "public",
+          "residents",
+          "for",
+          "mobility",
+          "socioeconomic",
+          "transportation"
+        ],
+        "scrambledWords": [
+          "significantly",
+          "urban",
+          "enhances",
+          "Accessible",
+          "public",
+          "residents",
+          "for",
+          "mobility",
+          "socioeconomic",
+          "transportation"
+        ],
+        "answer": "Accessible public transportation significantly enhances socioeconomic mobility for urban residents.",
+        "correctSentence": "Accessible public transportation significantly enhances socioeconomic mobility for urban residents.",
+        "explanation": "Subject ('Accessible public transportation') + adverb + verb ('significantly enhances') + object phrase ('socioeconomic mobility for urban residents')."
+      },
+      {
+        "context": "Why are municipal planners converting standard highway shoulders into transit-only corridors?",
+        "words": [
+          "bus",
+          "hours",
+          "lanes",
+          "Dedicated",
+          "commuting",
+          "effectively",
+          "during",
+          "peak",
+          "alleviate",
+          "traffic",
+          "severe",
+          "congestion"
+        ],
+        "scrambledWords": [
+          "bus",
+          "hours",
+          "lanes",
+          "Dedicated",
+          "commuting",
+          "effectively",
+          "during",
+          "peak",
+          "alleviate",
+          "traffic",
+          "severe",
+          "congestion"
+        ],
+        "answer": "Dedicated bus lanes effectively alleviate severe traffic congestion during peak commuting hours.",
+        "correctSentence": "Dedicated bus lanes effectively alleviate severe traffic congestion during peak commuting hours.",
+        "explanation": "Subject ('Dedicated bus lanes') + adverb ('effectively') + verb ('alleviate') + object with temporal phrase ('severe traffic congestion during peak commuting hours')."
+      },
+      {
+        "context": "How do new light-rail stations influence retail and business activity in underserved districts?",
+        "words": [
+          "previously",
+          "attract",
+          "Reliable",
+          "neighborhoods",
+          "transit",
+          "commercial",
+          "development",
+          "neglected",
+          "networks",
+          "to"
+        ],
+        "scrambledWords": [
+          "previously",
+          "attract",
+          "Reliable",
+          "neighborhoods",
+          "transit",
+          "commercial",
+          "development",
+          "neglected",
+          "networks",
+          "to"
+        ],
+        "answer": "Reliable transit networks attract commercial development to previously neglected neighborhoods.",
+        "correctSentence": "Reliable transit networks attract commercial development to previously neglected neighborhoods.",
+        "explanation": "Subject ('Reliable transit networks') + verb ('attract') + direct object ('commercial development') + directional prepositional phrase ('to previously neglected neighborhoods')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-5",
+    "title": "Art History: Conservation Ethics and Reversibility",
+    "level": "upper-intermediate",
+    "topic": "arts-humanities",
+    "items": [
+      {
+        "context": "What ethical standard guides museum specialists when they treat damaged historical works?",
+        "words": [
+          "artifacts",
+          "prioritize",
+          "Modern",
+          "conservators",
+          "cultural",
+          "when",
+          "restoring",
+          "ancient",
+          "techniques",
+          "reversible"
+        ],
+        "scrambledWords": [
+          "artifacts",
+          "prioritize",
+          "Modern",
+          "conservators",
+          "cultural",
+          "when",
+          "restoring",
+          "ancient",
+          "techniques",
+          "reversible"
+        ],
+        "answer": "Modern conservators prioritize reversible techniques when restoring ancient cultural artifacts.",
+        "correctSentence": "Modern conservators prioritize reversible techniques when restoring ancient cultural artifacts.",
+        "explanation": "Main clause ('Modern conservators prioritize reversible techniques') followed by a subordinate temporal clause ('when restoring ancient cultural artifacts')."
+      },
+      {
+        "context": "Why do restoration laboratories run preliminary trials before cleaning an oil painting?",
+        "words": [
+          "irreversible",
+          "pigment",
+          "tested",
+          "be",
+          "solvents",
+          "degradation",
+          "to",
+          "prevent",
+          "Chemical",
+          "scrupulously",
+          "must"
+        ],
+        "scrambledWords": [
+          "irreversible",
+          "pigment",
+          "tested",
+          "be",
+          "solvents",
+          "degradation",
+          "to",
+          "prevent",
+          "Chemical",
+          "scrupulously",
+          "must"
+        ],
+        "answer": "Chemical solvents must be scrupulously tested to prevent irreversible pigment degradation.",
+        "correctSentence": "Chemical solvents must be scrupulously tested to prevent irreversible pigment degradation.",
+        "explanation": "Passive modal verb phrase ('must be scrupulously tested') + infinitive clause of purpose ('to prevent irreversible pigment degradation')."
+      },
+      {
+        "context": "How can art historians inspect the hidden layers beneath a painting's surface safely?",
+        "words": [
+          "preparatory",
+          "fragile",
+          "analysis",
+          "Spectroscopic",
+          "reveals",
+          "damaging",
+          "without",
+          "sketches",
+          "canvas",
+          "fibers",
+          "underlying"
+        ],
+        "scrambledWords": [
+          "preparatory",
+          "fragile",
+          "analysis",
+          "Spectroscopic",
+          "reveals",
+          "damaging",
+          "without",
+          "sketches",
+          "canvas",
+          "fibers",
+          "underlying"
+        ],
+        "answer": "Spectroscopic analysis reveals underlying preparatory sketches without damaging fragile canvas fibers.",
+        "correctSentence": "Spectroscopic analysis reveals underlying preparatory sketches without damaging fragile canvas fibers.",
+        "explanation": "Subject ('Spectroscopic analysis') + verb ('reveals') + object ('underlying preparatory sketches') + prepositional phrase with gerund ('without damaging fragile canvas fibers')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-6",
+    "title": "Campus Life: Academic Integrity and Research Authorship",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "items": [
+      {
+        "context": "What citation requirement applies to seniors writing their honors research papers?",
+        "words": [
+          "secondary",
+          "scrupulously",
+          "all",
+          "theses",
+          "sources",
+          "scholars",
+          "attribute",
+          "formal",
+          "in",
+          "Undergraduate",
+          "must"
+        ],
+        "scrambledWords": [
+          "secondary",
+          "scrupulously",
+          "all",
+          "theses",
+          "sources",
+          "scholars",
+          "attribute",
+          "formal",
+          "in",
+          "Undergraduate",
+          "must"
+        ],
+        "answer": "Undergraduate scholars must scrupulously attribute all secondary sources in formal theses.",
+        "correctSentence": "Undergraduate scholars must scrupulously attribute all secondary sources in formal theses.",
+        "explanation": "Subject ('Undergraduate scholars') + modal auxiliary with adverb ('must scrupulously attribute') + object ('all secondary sources') + prepositional phrase ('in formal theses')."
+      },
+      {
+        "context": "How can co-authors avoid disputes over credit when working on a joint laboratory study?",
+        "words": [
+          "drafting",
+          "Research",
+          "before",
+          "guidelines",
+          "contribution",
+          "should",
+          "clear",
+          "manuscripts",
+          "establish",
+          "collaborators"
+        ],
+        "scrambledWords": [
+          "drafting",
+          "Research",
+          "before",
+          "guidelines",
+          "contribution",
+          "should",
+          "clear",
+          "manuscripts",
+          "establish",
+          "collaborators"
+        ],
+        "answer": "Research collaborators should establish clear contribution guidelines before drafting manuscripts.",
+        "correctSentence": "Research collaborators should establish clear contribution guidelines before drafting manuscripts.",
+        "explanation": "Subject ('Research collaborators') + modal verb ('should establish') + object ('clear contribution guidelines') + temporal gerund phrase ('before drafting manuscripts')."
+      },
+      {
+        "context": "How does the university review board respond to confirmed cases of data fabrication?",
+        "words": [
+          "serious",
+          "intellectual",
+          "probation",
+          "tribunals",
+          "may",
+          "misconduct",
+          "for",
+          "disciplinary",
+          "impose",
+          "Academic"
+        ],
+        "scrambledWords": [
+          "serious",
+          "intellectual",
+          "probation",
+          "tribunals",
+          "may",
+          "misconduct",
+          "for",
+          "disciplinary",
+          "impose",
+          "Academic"
+        ],
+        "answer": "Academic tribunals may impose disciplinary probation for serious intellectual misconduct.",
+        "correctSentence": "Academic tribunals may impose disciplinary probation for serious intellectual misconduct.",
+        "explanation": "Subject ('Academic tribunals') + modal ('may impose') + object ('disciplinary probation') + causal prepositional modifier ('for serious intellectual misconduct')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-7",
+    "title": "Climatology: Photovoltaic Systems and Grid Integration",
+    "level": "advanced",
+    "topic": "science-tech",
+    "items": [
+      {
+        "context": "Why can't utility companies rely on rooftop solar panels alone without backup systems?",
+        "words": [
+          "grids",
+          "Decentralized",
+          "arrays",
+          "electrical",
+          "to",
+          "storage",
+          "sophisticated",
+          "photovoltaic",
+          "stabilize",
+          "battery",
+          "require"
+        ],
+        "scrambledWords": [
+          "grids",
+          "Decentralized",
+          "arrays",
+          "electrical",
+          "to",
+          "storage",
+          "sophisticated",
+          "photovoltaic",
+          "stabilize",
+          "battery",
+          "require"
+        ],
+        "answer": "Decentralized photovoltaic arrays require sophisticated battery storage to stabilize electrical grids.",
+        "correctSentence": "Decentralized photovoltaic arrays require sophisticated battery storage to stabilize electrical grids.",
+        "explanation": "Subject ('Decentralized photovoltaic arrays') + verb and direct object ('require sophisticated battery storage') + infinitive purpose clause ('to stabilize electrical grids')."
+      },
+      {
+        "context": "How do modern computerized power networks handle sudden spikes in wind and solar generation?",
+        "words": [
+          "surplus",
+          "consumers",
+          "electricity",
+          "Automated",
+          "route",
+          "algorithms",
+          "dynamically",
+          "renewable",
+          "industrial",
+          "distribution",
+          "to"
+        ],
+        "scrambledWords": [
+          "surplus",
+          "consumers",
+          "electricity",
+          "Automated",
+          "route",
+          "algorithms",
+          "dynamically",
+          "renewable",
+          "industrial",
+          "distribution",
+          "to"
+        ],
+        "answer": "Automated distribution algorithms dynamically route surplus renewable electricity to industrial consumers.",
+        "correctSentence": "Automated distribution algorithms dynamically route surplus renewable electricity to industrial consumers.",
+        "explanation": "Subject ('Automated distribution algorithms') + adverb ('dynamically') + verb ('route') + object and destination phrase ('surplus renewable electricity to industrial consumers')."
+      },
+      {
+        "context": "Why have solar and wind installations expanded so rapidly over the past decade?",
+        "words": [
+          "clean",
+          "accelerate",
+          "Declining",
+          "of",
+          "technologies",
+          "the",
+          "manufacturing",
+          "adoption",
+          "costs",
+          "widespread",
+          "energy"
+        ],
+        "scrambledWords": [
+          "clean",
+          "accelerate",
+          "Declining",
+          "of",
+          "technologies",
+          "the",
+          "manufacturing",
+          "adoption",
+          "costs",
+          "widespread",
+          "energy"
+        ],
+        "answer": "Declining manufacturing costs accelerate the widespread adoption of clean energy technologies.",
+        "correctSentence": "Declining manufacturing costs accelerate the widespread adoption of clean energy technologies.",
+        "explanation": "Participial subject ('Declining manufacturing costs') + verb ('accelerate') + direct object with prepositional modifiers ('the widespread adoption of clean energy technologies')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-8",
+    "title": "Sociology: Demographic Aging and Pension Sustainability",
+    "level": "upper-intermediate",
+    "topic": "social-sciences",
+    "items": [
+      {
+        "context": "Why are many governments concerned about rising life expectancy and lower birth rates?",
+        "words": [
+          "statutory",
+          "place",
+          "retirement",
+          "financial",
+          "populations",
+          "schemes",
+          "strains",
+          "pension",
+          "Aging",
+          "on",
+          "unprecedented"
+        ],
+        "scrambledWords": [
+          "statutory",
+          "place",
+          "retirement",
+          "financial",
+          "populations",
+          "schemes",
+          "strains",
+          "pension",
+          "Aging",
+          "on",
+          "unprecedented"
+        ],
+        "answer": "Aging populations place unprecedented financial strains on statutory retirement pension schemes.",
+        "correctSentence": "Aging populations place unprecedented financial strains on statutory retirement pension schemes.",
+        "explanation": "Subject ('Aging populations') + verb ('place') + direct object ('unprecedented financial strains') + prepositional recipient phrase ('on statutory retirement pension schemes')."
+      },
+      {
+        "context": "What fiscal argument do policymakers make for encouraging older citizens to remain in the labor force?",
+        "words": [
+          "tax",
+          "reducing",
+          "revenues",
+          "working",
+          "aggregate",
+          "Extending",
+          "benefit",
+          "lives",
+          "outlays",
+          "income",
+          "bolsters",
+          "while"
+        ],
+        "scrambledWords": [
+          "tax",
+          "reducing",
+          "revenues",
+          "working",
+          "aggregate",
+          "Extending",
+          "benefit",
+          "lives",
+          "outlays",
+          "income",
+          "bolsters",
+          "while"
+        ],
+        "answer": "Extending working lives bolsters income tax revenues while reducing aggregate benefit outlays.",
+        "correctSentence": "Extending working lives bolsters income tax revenues while reducing aggregate benefit outlays.",
+        "explanation": "Gerund subject phrase ('Extending working lives') + verb and object ('bolsters income tax revenues') + contrasting participial clause ('while reducing aggregate benefit outlays')."
+      },
+      {
+        "context": "How can countries with shrinking domestic labor pools address severe worker shortages?",
+        "words": [
+          "effectively",
+          "rejuvenates",
+          "workforce",
+          "skilled",
+          "Targeted",
+          "nations",
+          "active",
+          "the",
+          "immigration",
+          "industrialized",
+          "in"
+        ],
+        "scrambledWords": [
+          "effectively",
+          "rejuvenates",
+          "workforce",
+          "skilled",
+          "Targeted",
+          "nations",
+          "active",
+          "the",
+          "immigration",
+          "industrialized",
+          "in"
+        ],
+        "answer": "Targeted skilled immigration effectively rejuvenates the active workforce in industrialized nations.",
+        "correctSentence": "Targeted skilled immigration effectively rejuvenates the active workforce in industrialized nations.",
+        "explanation": "Subject ('Targeted skilled immigration') + adverb + verb ('effectively rejuvenates') + object ('the active workforce in industrialized nations')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-9",
+    "title": "Economics: Behavioral Biases in Retail Financial Markets",
+    "level": "advanced",
+    "topic": "business-economics",
+    "items": [
+      {
+        "context": "Why do amateur stock traders often refuse to sell shares that are steadily losing value?",
+        "words": [
+          "biases",
+          "retail",
+          "depreciating",
+          "frequently",
+          "to",
+          "assets",
+          "investors",
+          "hold",
+          "lead",
+          "unnecessarily",
+          "Cognitive"
+        ],
+        "scrambledWords": [
+          "biases",
+          "retail",
+          "depreciating",
+          "frequently",
+          "to",
+          "assets",
+          "investors",
+          "hold",
+          "lead",
+          "unnecessarily",
+          "Cognitive"
+        ],
+        "answer": "Cognitive biases frequently lead retail investors to hold depreciating assets unnecessarily.",
+        "correctSentence": "Cognitive biases frequently lead retail investors to hold depreciating assets unnecessarily.",
+        "explanation": "Subject ('Cognitive biases') + frequency adverb + verb and object ('lead retail investors') + infinitive clause ('to hold depreciating assets unnecessarily')."
+      },
+      {
+        "context": "What happens when inexperienced buyers copy popular trading trends without checking company fundamentals?",
+        "words": [
+          "euphoria",
+          "social",
+          "exacerbates",
+          "of",
+          "bubbles",
+          "during",
+          "periods",
+          "speculative",
+          "Uncritical",
+          "asset",
+          "market",
+          "imitation"
+        ],
+        "scrambledWords": [
+          "euphoria",
+          "social",
+          "exacerbates",
+          "of",
+          "bubbles",
+          "during",
+          "periods",
+          "speculative",
+          "Uncritical",
+          "asset",
+          "market",
+          "imitation"
+        ],
+        "answer": "Uncritical social imitation exacerbates speculative asset bubbles during periods of market euphoria.",
+        "correctSentence": "Uncritical social imitation exacerbates speculative asset bubbles during periods of market euphoria.",
+        "explanation": "Compound subject ('Uncritical social imitation') + verb ('exacerbates') + direct object with temporal phrase ('speculative asset bubbles during periods of market euphoria')."
+      },
+      {
+        "context": "How has automatic retirement plan sign-up affected employee financial security?",
+        "words": [
+          "among",
+          "savings",
+          "Default",
+          "programs",
+          "increase",
+          "enrollment",
+          "long-term",
+          "wealth",
+          "substantially",
+          "accumulation",
+          "wage-earners"
+        ],
+        "scrambledWords": [
+          "among",
+          "savings",
+          "Default",
+          "programs",
+          "increase",
+          "enrollment",
+          "long-term",
+          "wealth",
+          "substantially",
+          "accumulation",
+          "wage-earners"
+        ],
+        "answer": "Default savings enrollment programs substantially increase long-term wealth accumulation among wage-earners.",
+        "correctSentence": "Default savings enrollment programs substantially increase long-term wealth accumulation among wage-earners.",
+        "explanation": "Subject ('Default savings enrollment programs') + adverb + verb ('substantially increase') + complex object ('long-term wealth accumulation among wage-earners')."
+      }
+    ]
+  },
+  {
+    "id": "bs-curated-10",
+    "title": "Campus Orientation: Laboratory Protocols and Biosafety Tiers",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "items": [
+      {
+        "context": "What personal attire rule is strictly enforced inside the chemistry building?",
+        "words": [
+          "researchers",
+          "and",
+          "laboratory",
+          "protective",
+          "coats",
+          "wear",
+          "at",
+          "times",
+          "Student",
+          "all",
+          "must",
+          "eyewear"
+        ],
+        "scrambledWords": [
+          "researchers",
+          "and",
+          "laboratory",
+          "protective",
+          "coats",
+          "wear",
+          "at",
+          "times",
+          "Student",
+          "all",
+          "must",
+          "eyewear"
+        ],
+        "answer": "Student researchers must wear protective eyewear and laboratory coats at all times.",
+        "correctSentence": "Student researchers must wear protective eyewear and laboratory coats at all times.",
+        "explanation": "Subject ('Student researchers') + modal verb ('must wear') + compound direct object ('protective eyewear and laboratory coats') + adverbial temporal phrase ('at all times')."
+      },
+      {
+        "context": "How should lab assistants handle beakers that have held reactive acids?",
+        "words": [
+          "glassware",
+          "in",
+          "must",
+          "before",
+          "designated",
+          "receptacles",
+          "neutralized",
+          "Contaminated",
+          "placement",
+          "disposal",
+          "be"
+        ],
+        "scrambledWords": [
+          "glassware",
+          "in",
+          "must",
+          "before",
+          "designated",
+          "receptacles",
+          "neutralized",
+          "Contaminated",
+          "placement",
+          "disposal",
+          "be"
+        ],
+        "answer": "Contaminated glassware must be neutralized before placement in designated disposal receptacles.",
+        "correctSentence": "Contaminated glassware must be neutralized before placement in designated disposal receptacles.",
+        "explanation": "Passive modal verb phrase ('must be neutralized') + temporal prepositional phrase ('before placement in designated disposal receptacles')."
+      },
+      {
+        "context": "Why are flushing fountains installed next to every workbench in the wet lab?",
+        "words": [
+          "eyewash",
+          "damage",
+          "stations",
+          "potential",
+          "emergency",
+          "minimizes",
+          "Immediate",
+          "at",
+          "tissue",
+          "irrigation"
+        ],
+        "scrambledWords": [
+          "eyewash",
+          "damage",
+          "stations",
+          "potential",
+          "emergency",
+          "minimizes",
+          "Immediate",
+          "at",
+          "tissue",
+          "irrigation"
+        ],
+        "answer": "Immediate irrigation at emergency eyewash stations minimizes potential tissue damage.",
+        "correctSentence": "Immediate irrigation at emergency eyewash stations minimizes potential tissue damage.",
+        "explanation": "Subject with prepositional phrase ('Immediate irrigation at emergency eyewash stations') + verb ('minimizes') + object ('potential tissue damage')."
+      }
+    ]
+  }
+]

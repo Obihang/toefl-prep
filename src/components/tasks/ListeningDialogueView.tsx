@@ -25,6 +25,31 @@ interface Props {
 
 type CanonicalSpeakerRole = 'professor' | 'student';
 
+const AUTHORITY_ROLE_REGEX =
+  /\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean|coordinator|director|coach|assistant|receptionist|narrator|lecturer|faculty|teacher)\b/i;
+const STUDENT_ROLE_REGEX =
+  /\b(student|undergraduate|grad student|classmate|peer)\b/i;
+
+function extractVocativeNamesFromLines(lines: string[], targetRole: CanonicalSpeakerRole, rolesByLine: CanonicalSpeakerRole[]): string[] {
+  const vocatives: string[] = [];
+  lines.forEach((rawLine, idx) => {
+    // If the OTHER speaker is speaking on this turn, check if they address our target speaker by name
+    const speakerRole = rolesByLine[idx];
+    if (speakerRole === targetRole) return;
+    const parsed = parseDialogueLine(rawLine);
+    const text = parsed.spokenText || rawLine;
+    // Match patterns like "Hi Emma,", "Thanks, Emma.", "That is a common assumption, Emma.", "Well, Michael,"
+    const matches = [
+      ...Array.from(text.matchAll(/\b(?:hi|hello|hey|thanks|thank you|yes|no|well|actually|right|sure|okay|welcome)\s*,?\s+([A-Z][a-z]{2,15})\b/g)),
+      ...Array.from(text.matchAll(/,\s*([A-Z][a-z]{2,15})[.?!,]/g)),
+    ];
+    for (const m of matches) {
+      if (m[1]) vocatives.push(m[1]);
+    }
+  });
+  return vocatives;
+}
+
 function classifyCanonicalRole(
   rawSpeakerLabel: string,
   lineIndex: number,
@@ -35,34 +60,42 @@ function classifyCanonicalRole(
   const a = (labelA || '').trim().toLowerCase();
   const b = (labelB || '').trim().toLowerCase();
 
-  // Direct match against explicit student keywords
-  if (/\b(student|undergraduate|grad student|classmate|peer|speaker\s*b|^b$)\b/i.test(s)) {
+  // 1. Direct match against explicit student keywords
+  if (STUDENT_ROLE_REGEX.test(s) || /\b(speaker\s*b|^b$)\b/i.test(s)) {
     return 'student';
   }
-  // Direct match against explicit professor/staff/authority keywords
-  if (
-    /\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean|coordinator|director|coach|assistant|receptionist|narrator|lecturer|speaker\s*a|^a$)\b/i.test(
-      s
-    )
-  ) {
+  // 2. Direct match against explicit professor/staff/authority keywords
+  if (AUTHORITY_ROLE_REGEX.test(s) || /\b(speaker\s*a|^a$)\b/i.test(s)) {
     return 'professor';
   }
 
-  // Match against task.speakers.A / B if provided
-  if (s && b && (s === b || s.includes(b) || b.includes(s))) {
-    if (/\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean)\b/i.test(b)) {
-      return 'professor';
-    }
-    return 'student';
-  }
+  // 3. If one of labelA / labelB is an explicit authority (e.g. "Prof. Miller") and the other is a first name (e.g. "Emma"),
+  // ensure the non-authority speaker maps to 'student'!
+  const aIsAuthority = AUTHORITY_ROLE_REGEX.test(a);
+  const bIsAuthority = AUTHORITY_ROLE_REGEX.test(b);
+  const aIsStudent = STUDENT_ROLE_REGEX.test(a);
+  const bIsStudent = STUDENT_ROLE_REGEX.test(b);
+
   if (s && a && (s === a || s.includes(a) || a.includes(s))) {
-    if (/\b(student|undergraduate)\b/i.test(a)) {
-      return 'student';
-    }
-    return 'professor';
+    if (aIsStudent) return 'student';
+    if (aIsAuthority) return 'professor';
+    if (bIsAuthority) return 'student';
+    if (bIsStudent) return 'professor';
+  }
+  if (s && b && (s === b || s.includes(b) || b.includes(s))) {
+    if (bIsAuthority) return 'professor';
+    if (bIsStudent) return 'student';
+    if (aIsAuthority) return 'student';
+    if (aIsStudent) return 'professor';
   }
 
-  // Fallback by alternating turn order
+  // 4. If the speaker label itself is a person's name (like "Emma" or "Liam") without a title,
+  // and the conversation has an authority figure in labelA/labelB, a first-name-only speaker is the student!
+  if (s && !AUTHORITY_ROLE_REGEX.test(s) && (aIsAuthority || bIsAuthority)) {
+    return 'student';
+  }
+
+  // 5. Fallback by alternating turn order
   return lineIndex % 2 === 0 ? 'professor' : 'student';
 }
 
@@ -92,12 +125,30 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
       taskSubType === 'lecture' ||
       (lines.length <= 2 && !/speaker b|^b:|student:/im.test(scriptText));
 
-    const labelA = task.speakers?.A || '';
-    const labelB = task.speakers?.B || '';
+    // Discover the two distinct speaker labels from the script if task.speakers is missing or generic
+    const distinctScriptSpeakers: string[] = [];
+    lines.forEach((line) => {
+      const parsed = parseDialogueLine(line);
+      if (parsed.speakerName) {
+        const fullLabel = parsed.speakerHint
+          ? `${parsed.speakerName} (${parsed.speakerHint})`
+          : parsed.speakerName;
+        if (
+          !distinctScriptSpeakers.some(
+            (existing) => existing.toLowerCase() === fullLabel.toLowerCase()
+          )
+        ) {
+          distinctScriptSpeakers.push(fullLabel);
+        }
+      }
+    });
+
+    const labelA = task.speakers?.A || distinctScriptSpeakers[0] || '';
+    const labelB = task.speakers?.B || distinctScriptSpeakers[1] || '';
 
     if (isSingleSpeakerPassage) {
       const inferred =
-        inferGenderFromSpeaker(`${labelA} ${task.context || ''} ${scriptText.slice(0, 160)}`) ||
+        inferGenderFromSpeaker(`${labelA} ${ distinctScriptSpeakers.join(' ') } ${task.context || ''} ${scriptText.slice(0, 160)}`) ||
         ((task as any).speakerGenderA as 'male' | 'female' | undefined) ||
         ((task as any).speakerGenders?.A as 'male' | 'female' | undefined);
       const singleVoice = pickRandomVoice(inferred || undefined);
@@ -110,40 +161,69 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
       };
     }
 
-    // Collect all speaker labels across turns that map to 'professor' vs 'student' to infer gender accurately
+    // Collect all speaker labels + hints across turns that map to 'professor' vs 'student' to infer gender accurately
     const profLabels: string[] = [];
     const studentLabels: string[] = [];
-    if (classifyCanonicalRole(labelA, 0, labelA, labelB) === 'professor') {
-      profLabels.push(labelA);
-    } else {
-      studentLabels.push(labelA);
+    if (labelA) {
+      if (classifyCanonicalRole(labelA, 0, labelA, labelB) === 'professor') {
+        profLabels.push(labelA);
+      } else {
+        studentLabels.push(labelA);
+      }
     }
-    if (classifyCanonicalRole(labelB, 1, labelA, labelB) === 'student') {
-      studentLabels.push(labelB);
-    } else {
-      profLabels.push(labelB);
+    if (labelB) {
+      if (classifyCanonicalRole(labelB, 1, labelA, labelB) === 'student') {
+        studentLabels.push(labelB);
+      } else {
+        profLabels.push(labelB);
+      }
     }
 
+    const rolesByLine: CanonicalSpeakerRole[] = [];
     lines.forEach((line, idx) => {
       const parsed = parseDialogueLine(line);
-      if (parsed.speakerName) {
-        const role = classifyCanonicalRole(parsed.speakerName, idx, labelA, labelB);
-        if (role === 'professor') profLabels.push(parsed.speakerName);
-        else studentLabels.push(parsed.speakerName);
+      const fullSpk = parsed.speakerHint
+        ? `${parsed.speakerName} (${parsed.speakerHint})`
+        : parsed.speakerName;
+      const role = classifyCanonicalRole(fullSpk || parsed.speakerName, idx, labelA, labelB);
+      rolesByLine.push(role);
+      if (fullSpk) {
+        if (role === 'professor') profLabels.push(fullSpk);
+        else studentLabels.push(fullSpk);
       }
     });
+
+    // Also check vocative names addressed in dialogue lines (e.g., Professor saying "That is a common assumption, Emma.")
+    const studentVocatives = extractVocativeNamesFromLines(lines, 'student', rolesByLine);
+    const profVocatives = extractVocativeNamesFromLines(lines, 'professor', rolesByLine);
 
     const explicitGA = (task as any).speakerGenderA || (task as any).speakerGenders?.A;
     const explicitGB = (task as any).speakerGenderB || (task as any).speakerGenders?.B;
 
-    const inferredProfGender =
-      explicitGA === 'male' || explicitGA === 'female'
-        ? explicitGA
-        : inferGenderFromSpeaker(`${profLabels.join(' ')} ${task.context || ''}`);
     const inferredStudentGender =
       explicitGB === 'male' || explicitGB === 'female'
         ? explicitGB
-        : inferGenderFromSpeaker(studentLabels.join(' '));
+        : inferGenderFromSpeaker([...studentLabels, ...studentVocatives].join(' '));
+
+    const inferredProfGender =
+      explicitGA === 'male' || explicitGA === 'female'
+        ? explicitGA
+        : inferGenderFromSpeaker([...profLabels, ...profVocatives].join(' '));
+
+    // If student gender is known (e.g. "Emma" -> female), lock student voice first and pick opposite gender for professor if professor's gender isn't explicitly known
+    if (inferredStudentGender && !inferredProfGender) {
+      const studentVoice = pickRandomVoice(inferredStudentGender);
+      const targetProfGender: 'male' | 'female' =
+        studentVoice.gender === 'female' ? 'male' : 'female';
+      const profVoice = pickRandomVoice(targetProfGender, studentVoice.voiceId);
+      return {
+        isSingleSpeaker: false,
+        professor: profVoice,
+        student: studentVoice,
+        A: profVoice,
+        B: studentVoice,
+      };
+    }
 
     const profVoice = pickRandomVoice(inferredProfGender || undefined);
     const targetStudentGender: 'male' | 'female' =
@@ -160,12 +240,32 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   }, [task.id, task.title, scriptText, lines.length]);
 
   const dialogueLines = useMemo(() => {
-    const labelA = task.speakers?.A || 'Professor';
-    const labelB = task.speakers?.B || 'Student';
+    const distinctScriptSpeakers: string[] = [];
+    lines.forEach((line) => {
+      const parsed = parseDialogueLine(line);
+      if (parsed.speakerName) {
+        const fullLabel = parsed.speakerHint
+          ? `${parsed.speakerName} (${parsed.speakerHint})`
+          : parsed.speakerName;
+        if (
+          !distinctScriptSpeakers.some(
+            (existing) => existing.toLowerCase() === fullLabel.toLowerCase()
+          )
+        ) {
+          distinctScriptSpeakers.push(fullLabel);
+        }
+      }
+    });
+
+    const labelA = task.speakers?.A || distinctScriptSpeakers[0] || 'Professor';
+    const labelB = task.speakers?.B || distinctScriptSpeakers[1] || 'Student';
 
     return lines.map((line, idx) => {
       const parsed = parseDialogueLine(line);
       const rawSpeaker = parsed.speakerName || '';
+      const fullSpk = parsed.speakerHint
+        ? `${rawSpeaker} (${parsed.speakerHint})`
+        : rawSpeaker;
       const spokenText = parsed.spokenText || stripSpeakerAndFormatting(line);
 
       if (dialogueVoices.isSingleSpeaker) {
@@ -179,7 +279,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         };
       }
 
-      const role = classifyCanonicalRole(rawSpeaker, idx, labelA, labelB);
+      const role = classifyCanonicalRole(fullSpk || rawSpeaker, idx, labelA, labelB);
       const lockedVoice =
         role === 'student' ? dialogueVoices.student : dialogueVoices.professor;
       const defaultDisplayName = role === 'student' ? labelB : labelA;

@@ -481,6 +481,21 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     setAudioLevel(0);
     setTimerMode('idle');
     playChime(440, 500);
+
+    // If auto-sequence mode is enabled, automatically advance to the next question and play its prompt
+    if (autoStart && qIndex + 1 < task.questions.length) {
+      const nextIdx = qIndex + 1;
+      setCurrentQIndex(nextIdx);
+      setTimeout(() => {
+        playQuestionAudio(`question_${nextIdx}`).then(() => {
+          startSimulation();
+        }).catch(() => {});
+      }, 600);
+    } else if (qIndex >= task.questions.length - 1 && !hasCompletedRef.current) {
+      hasCompletedRef.current = true;
+      setStep('done');
+      onComplete?.({ blobs: { ...blobsRef.current }, answers });
+    }
   };
 
   const handlePlayUserRecording = (qIndex: number) => {
@@ -875,6 +890,44 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           </button>
         </div>
       )}
+
+      {/* Unified Top-Level Auto-Sequence & Auto-Start Mic Control Bar */}
+      <div className="bg-teal-50/70 border border-teal-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <label
+            htmlFor="speaking-interview-global-autostart"
+            className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer select-none bg-white border border-teal-200 px-3 py-1.5 rounded-lg shadow-2xs"
+          >
+            <input
+              type="checkbox"
+              id="speaking-interview-global-autostart"
+              checked={autoStart}
+              onChange={(e) => setAutoStart(e.target.checked)}
+              className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+            />
+            <span>Auto-start on sound &amp; Auto-advance sequence (Q1 → Q{task.questions.length})</span>
+          </label>
+          <span className="text-[11px] text-slate-600">
+            One control for all {task.questions.length} interview questions: plays prompt, detects your voice, and advances automatically.
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={async () => {
+            setAutoStart(true);
+            stopSimulation();
+            setCurrentQIndex(0);
+            await playQuestionAudio('question_0');
+            startSimulation();
+          }}
+          disabled={timerMode !== 'idle' || isPlayingAudio}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+        >
+          <Play className="w-3.5 h-3.5 fill-current" />
+          <span>Start Full Auto-Interview (Q1–Q{task.questions.length})</span>
+        </button>
+      </div>
 
       {/* Headphone echo prevention hint */}
       <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 flex items-center gap-2">

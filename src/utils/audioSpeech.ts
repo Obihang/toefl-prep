@@ -89,19 +89,31 @@ export function inferGenderFromSpeaker(speakerLabelOrName: string): 'male' | 'fe
   if (!speakerLabelOrName) return null;
   const lower = speakerLabelOrName.toLowerCase();
 
-  // Explicit gender markers or titles
-  if (/\b(female|woman|girl|ms\.?|mrs\.?|miss|she|her|chairwoman|spokeswoman|actress|waitress|mother|sister)\b/i.test(lower)) {
+  // Check explicit gender markers or titles first (check female before male)
+  if (/\b(female|woman|girl|ms\.?|mrs\.?|miss|she|her|chairwoman|spokeswoman|actress|waitress|mother|sister|daughter|lady|madam)\b/i.test(lower)) {
     return 'female';
   }
-  if (/\b(male|man|boy|mr\.?|he|him|his|chairman|spokesman|actor|waiter|father|brother|sir)\b/i.test(lower)) {
+  if (/\b(male|man|boy|mr\.?|he|him|his|chairman|spokesman|actor|waiter|father|brother|son|gentleman|sir)\b/i.test(lower)) {
     return 'male';
   }
 
-  // Tokenize words and check against name sets
-  const tokens = lower.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
-  for (const token of tokens) {
+  // Strip generic role words so names inside "Emma (Student)" or "Student: Emma" are matched cleanly
+  const cleaned = lower.replace(
+    /\b(student|professor|prof|doctor|dr|advisor|librarian|instructor|dean|staff|speaker|narrator|interviewer|participant|coach|assistant|receptionist|lecturer|undergraduate|classmate|peer)\b/gi,
+    ' '
+  );
+
+  // Tokenize words and check against name sets (stripping optional 'neural' suffix)
+  const tokens = cleaned.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  for (const rawToken of tokens) {
+    const token = rawToken.replace(/neural$/i, '');
     if (COMMON_FEMALE_NAMES.has(token)) return 'female';
     if (COMMON_MALE_NAMES.has(token)) return 'male';
+  }
+
+  const detected = detectSpeakerGender(speakerLabelOrName);
+  if (detected === 'female' || detected === 'male') {
+    return detected;
   }
 
   return null;
@@ -1260,10 +1272,18 @@ export async function playSpeech(
 
     try {
       const spk = options.speaker || voiceName;
-      const g = options.speaker ? detectSpeakerGender(spk, '') : inferGender(voiceName);
-      const gender = g === 'male' ? 'male' : 'female';
-      const pitchRate = getBrowserSpeechPitchAndRate(spk, gender);
-      const voiceObj = pickBrowserVoiceForGender(gender) || englishVoices[0];
+      const inferredFromSpk = options.speaker
+        ? inferGenderFromSpeaker(options.speaker) || detectSpeakerGender(spk, '')
+        : inferGender(voiceName);
+      const resolvedG =
+        gender === 'male' || gender === 'female'
+          ? gender
+          : inferredFromSpk === 'male' || inferredFromSpk === 'female'
+          ? inferredFromSpk
+          : inferGender(voiceName);
+      const targetGender: 'male' | 'female' = resolvedG === 'male' ? 'male' : 'female';
+      const pitchRate = getBrowserSpeechPitchAndRate(spk, targetGender);
+      const voiceObj = pickBrowserVoiceForGender(targetGender) || englishVoices[0];
 
       let finalPitch = pitchRate.pitch;
       let finalRate = pitchRate.rate;
@@ -1274,10 +1294,10 @@ export async function playSpeech(
         const hasMale = maleKeywords.some(kw => nameLower.includes(kw));
         const hasFemale = femaleKeywords.some(kw => nameLower.includes(kw));
 
-        if (gender === 'male' && !hasMale) {
+        if (targetGender === 'male' && !hasMale) {
           finalPitch = 0.96;
           finalRate = 0.98;
-        } else if (gender === 'female' && !hasFemale) {
+        } else if (targetGender === 'female' && !hasFemale) {
           finalPitch = 1.04;
         }
       }

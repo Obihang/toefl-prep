@@ -290,6 +290,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
               if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
               setActiveAudioIdx(null);
               setLoadingAudioIdx(null);
+              if (autoStart) {
+                setTimeout(() => {
+                  handleToggleMic(index);
+                }, 250);
+              }
             }
           },
           onError: (err) => {
@@ -748,6 +753,43 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         </span>
       </div>
 
+      {/* Single Unified Top-Level Auto-Start & Auto-Sequence Control Bar */}
+      <div className="bg-teal-50/70 border border-teal-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <label
+            htmlFor="listen-repeat-global-autostart"
+            className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer select-none bg-white border border-teal-200 px-3 py-1.5 rounded-lg shadow-2xs"
+          >
+            <input
+              type="checkbox"
+              id="listen-repeat-global-autostart"
+              checked={autoStart}
+              onChange={(e) => setAutoStart(e.target.checked)}
+              className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+            />
+            <span>Auto-start mic on sound (All {task.sentences.length} sentences)</span>
+          </label>
+          <span className="text-[11px] text-slate-600">
+            Automatically starts microphone recording after each sentence plays.
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setAutoStart(true);
+            const nextUnchecked = states.findIndex((s) => !s.checked);
+            const startIdx = nextUnchecked >= 0 ? nextUnchecked : 0;
+            handlePlay(startIdx);
+          }}
+          disabled={activeAudioIdx !== null || micStatus !== 'idle'}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+        >
+          <Play className="w-3.5 h-3.5 fill-current" />
+          <span>Start Auto-Sequence</span>
+        </button>
+      </div>
+
       {/* Headphone echo prevention hint */}
       <div className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2 flex items-center gap-2">
         <Headphones className="w-4 h-4 text-teal-700 shrink-0" />
@@ -900,18 +942,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                   </div>
 
                   {/* Action buttons and controls on a separate line below */}
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        id={`autostart-${idx}`}
-                        checked={autoStart}
-                        onChange={(e) => setAutoStart(e.target.checked)}
-                        className="rounded text-teal-600 focus:ring-teal-500"
-                      />
-                      <label htmlFor={`autostart-${idx}`}>Auto-start on sound</label>
-                    </div>
-
+                  <div className="flex items-center justify-end flex-wrap gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         onClick={() => handleToggleMic(idx)}

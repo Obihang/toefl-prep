@@ -561,31 +561,31 @@ export const CURATED_BUILD_SENTENCES: BuildSentenceTask[] = [
     items: [
       {
         context: 'What did the environmental researchers observe in the coastal wetlands?',
-        words: ['did', 'the scientists', 'observe', 'rarely', 'such rapid', 'habitat loss'],
+        words: ['scientists', 'did', 'habitat', 'the', 'Rarely', 'rapid', 'loss', 'observe', 'such'],
         answer: 'Rarely did the scientists observe such rapid habitat loss.',
         explanation: 'Negative inversion: When a sentence begins with a negative adverbial like "Rarely", subject-auxiliary inversion is required ("did the scientists observe").',
       },
       {
         context: 'Why is peer review considered essential in scholarly publishing?',
-        words: ['it ensures', 'that only', 'rigorous methodologies', 'are accepted', 'for publication'],
+        words: ['methodologies', 'that', 'ensures', 'accepted', 'only', 'for', 'rigorous', 'It', 'publication', 'are'],
         answer: 'It ensures that only rigorous methodologies are accepted for publication.',
         explanation: 'Noun clause with passive voice: "It ensures that [noun clause: subject + passive verb + prepositional phrase]".',
       },
       {
         context: 'How does high inflation affect everyday consumer spending habits?',
-        words: ['consumers tend to', 'reduce their', 'discretionary purchases', 'significantly'],
+        words: ['reduce', 'tend', 'discretionary', 'Consumers', 'significantly', 'their', 'to', 'purchases'],
         answer: 'Consumers tend to reduce their discretionary purchases significantly.',
         explanation: 'Subject + verb phrase + object + adverb: "Consumers tend to reduce [object] [adverb]".',
       },
       {
         context: 'What happened after the university modernized its digital library system?',
-        words: ['not only did', 'usage increase', 'but student', 'satisfaction also', 'improved'],
+        words: ['increase', 'did', 'student', 'only', 'usage', 'also', 'Not', 'satisfaction', 'improved', 'but'],
         answer: 'Not only did usage increase but student satisfaction also improved.',
         explanation: 'Correlative conjunction with inversion: "Not only did [subject] [verb], but [subject] also [verb]".',
       },
       {
         context: 'Why was the chemical synthesis experiment conducted under strict temperature controls?',
-        words: ['had the temperature', 'fluctuated', 'the delicate compounds', 'would have broken down'],
+        words: ['fluctuated', 'the', 'compounds', 'Had', 'broken', 'delicate', 'temperature', 'have', 'the', 'down', 'would'],
         answer: 'Had the temperature fluctuated the delicate compounds would have broken down.',
         explanation: 'Inverted third conditional: "Had + subject + past participle" replaces "If the temperature had fluctuated".',
       },

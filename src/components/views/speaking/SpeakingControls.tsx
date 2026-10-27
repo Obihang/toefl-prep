@@ -237,17 +237,6 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
                 </>
               )}
             </button>
-            
-            <div className="flex items-center gap-1.5 text-xs text-slate-600 border border-slate-200 rounded-lg px-2 py-1 bg-white">
-              <input
-                type="checkbox"
-                id="autostart"
-                checked={autoStart}
-                onChange={(e) => onSetAutoStart(e.target.checked)}
-                className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
-              />
-              <label htmlFor="autostart" className="cursor-pointer">Auto-start on sound</label>
-            </div>
           </div>
         </div>
 

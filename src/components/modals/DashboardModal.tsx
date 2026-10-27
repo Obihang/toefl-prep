@@ -75,15 +75,21 @@ export const DashboardModal: React.FC<Props> = ({
   }, [defaultTab]);
 
   useEffect(() => {
-    if (isOpen) {
-      setLoadingQuestionCounts(true);
-      getQuestionCountsPerTaskType()
-        .then((counts) => {
+    let mounted = true;
+    setLoadingQuestionCounts(true);
+    getQuestionCountsPerTaskType()
+      .then((counts) => {
+        if (mounted) {
           setQuestionCounts(counts);
           setLoadingQuestionCounts(false);
-        })
-        .catch(() => setLoadingQuestionCounts(false));
-    }
+        }
+      })
+      .catch(() => {
+        if (mounted) setLoadingQuestionCounts(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, activeTab]);
 
   useEffect(() => {
@@ -121,6 +127,7 @@ export const DashboardModal: React.FC<Props> = ({
 
   const weeklyCompleted = stats?.weeklyCompleted || 3;
   const sectionTargetScore = Math.round(targetScoreNum / 4);
+  const totalBankCount = Object.values(questionCounts).reduce((a, b) => a + b, 0);
 
   const handleSaveGoals = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +203,7 @@ export const DashboardModal: React.FC<Props> = ({
             <Target className="w-4 h-4 text-teal-600" />
             <span>Study Goals</span>
             <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-full">
-              {targetScoreNum}
+              {totalBankCount > 0 ? String(totalBankCount) : '80'}
             </span>
           </button>
 

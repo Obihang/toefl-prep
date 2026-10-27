@@ -42,6 +42,9 @@ const DB_VERSION = 2;
 export function canonicalizeTaskType(taskType: string): string {
   if (!taskType) return 'academic-discussion';
   if (taskType === 'listening-lecture') return 'listening-dialogue';
+  if (taskType === 'writing-build-sentence' || taskType === 'writing_build_sentence') {
+    return 'build-sentence';
+  }
   return taskType;
 }
 
@@ -372,8 +375,12 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
             for (let idx = 0; idx < valid.length; idx++) {
               const rawItem = valid[idx];
               const qId = rawItem.id || `${shard}-curated-${idx + 1}`;
+              const normalizedItem =
+                canonicalType === 'build-sentence'
+                  ? normalizeTaskData(rawItem, canonicalType)?.content || rawItem
+                  : rawItem;
               const enriched = {
-                ...rawItem,
+                ...normalizedItem,
                 id: qId,
                 level: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
                 topic: normalizeTopicLabel(rawItem.topic || rawItem.category, rawItem),
@@ -411,8 +418,12 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
       const rowType = canonicalizeTaskType(row.taskType);
       if (rowType === canonicalType && row.content) {
         const qId = String(row.content.id || row.id || '');
+        const normalizedContent =
+          canonicalType === 'build-sentence'
+            ? normalizeTaskData(row.content, canonicalType)?.content || row.content
+            : row.content;
         const enriched = {
-          ...row.content,
+          ...normalizedContent,
           id: qId || row.id,
           level: normalizeDifficultyLabel(row.level || row.content.level),
           topic: normalizeTopicLabel(row.topic || row.content.topic, row.content),
@@ -537,7 +548,11 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
         if (Array.isArray(json)) {
           const valid = json.filter((item) => isHighQualityTask(item, shard));
           for (let idx = 0; idx < valid.length; idx++) {
-            const item = valid[idx];
+            const rawItem = valid[idx];
+            const item =
+              canonicalType === 'build-sentence'
+                ? normalizeTaskData(rawItem, canonicalType)?.content || rawItem
+                : rawItem;
             const qId = String(item.id || `${shard}-curated-${idx + 1}`);
             const validLevel = normalizeDifficultyLabel(item.level || item.difficulty);
             const validTopic = normalizeTopicLabel(item.topic || item.category, item);
@@ -667,7 +682,11 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
 
     for (const row of existingRows) {
       const rowType = canonicalizeTaskType(row.taskType);
-      const rowContent = row.content || row;
+      const rawRowContent = row.content || row;
+      const rowContent =
+        rowType === 'build-sentence'
+          ? normalizeTaskData(rawRowContent, rowType)?.content || rawRowContent
+          : rawRowContent;
       if (
         rowType &&
         counts[rowType] !== undefined &&
@@ -1479,9 +1498,14 @@ export async function fetchUnseenQuestion(
 
         markQuestionAsSeen(docSnap.id, currentUid).catch(() => {});
 
+        const normalizedDataContent =
+          canonicalType === 'build-sentence'
+            ? normalizeTaskData(data.content, canonicalType)?.content || data.content
+            : data.content;
+
         return {
           question: {
-            ...data.content,
+            ...normalizedDataContent,
             id: docSnap.id,
             questionDocId: docSnap.id,
             taskType: canonicalType,

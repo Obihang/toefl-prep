@@ -191,18 +191,23 @@ export function normalizeTaskContent(task: any, taskType: string): any {
       break;
 
     case 'build-sentence':
-      result.items = Array.isArray(task.items) && task.items.length > 0
-        ? task.items.map((i: any) => {
-            const rawWords = Array.isArray(i?.words) ? i.words.map((w: any) => String(w || '')) : [];
-            const ans = String(i?.answer || '');
-            return {
-              context: String(i?.context || ''),
-              words: shuffleWordsIfMatching(rawWords, ans),
-              answer: ans,
-              explanation: String(i?.explanation || ''),
-            };
-          })
-        : fallback.items;
+    case 'writing-build-sentence':
+    case 'writing_build_sentence':
+      {
+        const rawItems = Array.isArray(task.items)
+          ? task.items
+          : Array.isArray(task.questions)
+          ? task.questions
+          : Array.isArray(task.sentences)
+          ? task.sentences
+          : [];
+        result.items =
+          rawItems.length > 0
+            ? rawItems.map((i: any, idx: number) =>
+                normalizeBuildSentenceItem(i, idx, validTopic, result.title)
+              )
+            : fallback.items;
+      }
       break;
 
     case 'write-email':
@@ -231,7 +236,11 @@ export function normalizeTaskData(task: any, taskType: string): any;
 export function normalizeTaskData(raw: any): { taskType: string; level: string; topic: string; content: any } | null;
 export function normalizeTaskData(taskOrRaw: any, taskTypeParam?: string): any {
   if (taskTypeParam !== undefined) {
-    return normalizeTaskContent(taskOrRaw, taskTypeParam);
+    const cleanType =
+      taskTypeParam === 'writing-build-sentence' || taskTypeParam === 'writing_build_sentence'
+        ? 'build-sentence'
+        : taskTypeParam;
+    return normalizeTaskContent(taskOrRaw, cleanType);
   }
 
   if (!taskOrRaw || typeof taskOrRaw !== 'object') return null;
@@ -242,6 +251,9 @@ export function normalizeTaskData(taskOrRaw: any, taskTypeParam?: string): any {
   if (taskType === 'listening-lecture') {
     taskType = 'listening-dialogue';
   }
+  if (taskType === 'writing-build-sentence' || taskType === 'writing_build_sentence') {
+    taskType = 'build-sentence';
+  }
 
   const rawContent = taskOrRaw.content && typeof taskOrRaw.content === 'object' ? taskOrRaw.content : taskOrRaw;
 
@@ -251,13 +263,18 @@ export function normalizeTaskData(taskOrRaw: any, taskTypeParam?: string): any {
   const rawTopic = taskOrRaw.topic || taskOrRaw.academicTopic || taskOrRaw.subject || rawContent.topic || rawContent.academicTopic;
   const topic = normalizeTopicLabel(rawTopic, rawContent);
 
+  const normalizedInner =
+    taskType === 'build-sentence'
+      ? normalizeTaskContent({ ...rawContent, level, topic }, 'build-sentence')
+      : rawContent;
+
   return {
     taskType,
     level,
     topic,
     content: {
-      ...rawContent,
-      id: rawContent.id || taskOrRaw.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      ...normalizedInner,
+      id: normalizedInner.id || taskOrRaw.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       level,
       topic,
     },
@@ -414,3 +431,166 @@ export function shuffleWordsIfMatching(words: string[], answer: string): string[
 
   return shuffled;
 }
+
+export function isContextLeakingAnswer(context: string, answer: string): boolean {
+  if (!context || !context.trim()) return true;
+  if (!answer || !answer.trim()) return false;
+
+  const tokenize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+
+  const ctxTokens = tokenize(context);
+  const ansTokens = tokenize(answer);
+  if (ansTokens.length === 0) return false;
+
+  const ctxJoined = ctxTokens.join(' ');
+  const ansJoined = ansTokens.join(' ');
+  if (ctxJoined === ansJoined || ctxJoined.includes(ansJoined)) {
+    return true;
+  }
+
+  const ctxSet = new Set(ctxTokens);
+  let matched = 0;
+  for (const w of ansTokens) {
+    if (ctxSet.has(w)) matched++;
+  }
+
+  return matched / ansTokens.length >= 0.75;
+}
+
+export function generateContextualPromptForSentence(
+  answer: string,
+  topic?: string,
+  title?: string,
+  index: number = 0
+): string {
+  const cleanTitle = (title || '')
+    .replace(/^[^:]+:\s*/, '')
+    .trim();
+
+  const topicPrompts: Record<string, string[]> = {
+    'science-tech': [
+      'What did the researchers conclude from the experimental data?',
+      'How does this technological mechanism operate in practice?',
+      'What is the primary scientific implication of this discovery?',
+    ],
+    environment: [
+      'How do these ecological changes affect the surrounding environment?',
+      'What conservation strategy do environmental scientists recommend?',
+      'Why is this climate pattern significant for regional ecosystems?',
+    ],
+    'business-economics': [
+      'How do financial institutions respond to these market conditions?',
+      'What effect does this economic policy have on international trade?',
+      'How does consumer behavior shift during periods of market volatility?',
+    ],
+    'arts-humanities': [
+      'What guiding principle do specialists follow when examining historical works?',
+      'How does this analytical method assist art historians and conservators?',
+      'Why is this cultural movement considered a milestone in art history?',
+    ],
+    'campus-life': [
+      'What university policy must undergraduate students follow in this situation?',
+      'What did the academic advisor recommend regarding departmental procedures?',
+      'Which safety or administrative requirement applies to campus researchers?',
+    ],
+    'social-sciences': [
+      'How do sociologists explain the broader impact of this public policy?',
+      'What demographic trend has placed new pressures on public institutions?',
+      'How does urban infrastructure influence community development?',
+    ],
+  };
+
+  const pool =
+    (topic && topicPrompts[topic]) || topicPrompts['science-tech'];
+  const basePrompt = pool[index % pool.length];
+
+  if (cleanTitle && !isContextLeakingAnswer(cleanTitle, answer)) {
+    return `Regarding ${cleanTitle.toLowerCase()}, ${basePrompt.charAt(0).toLowerCase()}${basePrompt.slice(1)}`;
+  }
+
+  return basePrompt;
+}
+
+export function normalizeBuildSentenceItem(
+  item: any,
+  index: number = 0,
+  topic?: string,
+  title?: string
+): {
+  context: string;
+  words: string[];
+  scrambledWords: string[];
+  answer: string;
+  correctSentence: string;
+  explanation: string;
+} {
+  const rawAns = String(
+    item?.answer ||
+      item?.correctSentence ||
+      item?.targetSentence ||
+      item?.sentence ||
+      'Substantial empirical evidence supports the hypothesis regarding neural plasticity.'
+  ).trim();
+
+  const finalAnswer = /[.?!]$/.test(rawAns) ? rawAns : `${rawAns}.`;
+  const cleanTarget = finalAnswer.replace(/[.?!]+$/, '').trim();
+  const targetWords = cleanTarget
+    .split(/\s+/)
+    .map((w) => w.replace(/[.?!]+$/, '').trim())
+    .filter(Boolean);
+
+  const rawCandidate = Array.isArray(item?.words)
+    ? item.words
+    : Array.isArray(item?.scrambledWords)
+    ? item.scrambledWords
+    : Array.isArray(item?.chunks)
+    ? item.chunks
+    : [];
+
+  const candidateWords: string[] = rawCandidate
+    .map((w: any) => String(w || '').trim().replace(/[.?!]+$/, '').trim())
+    .filter(Boolean);
+
+  const normToken = (w: string) =>
+    w.toLowerCase().replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '');
+
+  const hasMultiWordChip = candidateWords.some((w) => /\s+/.test(w));
+  const targetSorted = [...targetWords].map(normToken).filter(Boolean).sort().join('|');
+  const candidateSorted = [...candidateWords].map(normToken).filter(Boolean).sort().join('|');
+
+  const isExactMultiset =
+    !hasMultiWordChip &&
+    candidateWords.length === targetWords.length &&
+    targetSorted.length > 0 &&
+    targetSorted === candidateSorted;
+
+  const completeWords = isExactMultiset ? candidateWords : [...targetWords];
+  const shuffledWords = shuffleWordsIfMatching(completeWords, finalAnswer);
+
+  const rawContext = String(item?.context || item?.prompt || '').trim();
+  const safeContext = isContextLeakingAnswer(rawContext, finalAnswer)
+    ? generateContextualPromptForSentence(finalAnswer, topic, title, index)
+    : rawContext;
+
+  return {
+    context: safeContext,
+    words: shuffledWords,
+    scrambledWords: shuffledWords,
+    answer: finalAnswer,
+    correctSentence: finalAnswer,
+    explanation: String(
+      item?.explanation ||
+        'Arrange all scrambled words in the correct grammatical sequence to form a coherent academic sentence.'
+    ),
+  };
+}
+
+export function normalizeBuildSentenceTask(task: any): any {
+  return normalizeTaskContent(task, 'build-sentence');
+}
+

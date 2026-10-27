@@ -133,6 +133,14 @@ export function detectSpeakerGender(
   const combined = `${hintStr} ${nameStr}`.trim();
   if (!combined) return 'unknown';
 
+  // 0. Check direct match against known Neural Voice IDs
+  for (const fv of FEMALE_VOICES) {
+    if (combined.includes(fv.toLowerCase())) return 'female';
+  }
+  for (const mv of MALE_VOICES) {
+    if (combined.includes(mv.toLowerCase())) return 'male';
+  }
+
   // 1. Strict Explicit Keywords First (using word boundaries to prevent substring matches like 'female' containing 'male')
   const femaleKeywords = ['female', 'woman', 'ms.', 'ms', 'mrs.', 'mrs', 'miss', 'madam', 'girl', 'her', 'she'];
   const maleKeywords = ['male', 'man', 'mr.', 'mr', 'sir', 'boy', 'his', 'he'];
@@ -151,13 +159,14 @@ export function detectSpeakerGender(
     }
   }
 
-  // 2. Smart Title Parsing & First-Name/Surname Dictionary Lookup
+  // 2. Smart Title Parsing & First-Name/Surname Dictionary Lookup (also strip Neural suffix from voice IDs)
   const fullClean = `${nameStr} ${hintStr}`
-    .replace(/\b(prof\.|professor|dr\.|doctor|student|speaker|coach|advisor|dean|instructor|faculty|librarian)\b/gi, '')
+    .replace(/\b(prof\.|professor|dr\.|doctor|student|speaker|coach|advisor|dean|instructor|faculty|librarian|undergraduate|classmate|peer)\b/gi, '')
     .trim();
 
   const words = fullClean.split(/[^a-z0-9]+/).filter(Boolean);
-  for (const word of words) {
+  for (const rawWord of words) {
+    const word = rawWord.replace(/neural$/i, '');
     if (FEMALE_NAMES_SET.has(word) && !MALE_NAMES_SET.has(word)) {
       return 'female';
     }
