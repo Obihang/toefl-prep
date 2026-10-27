@@ -136,6 +136,7 @@ async function verifyFirebaseToken(req: Req): Promise<string | null> {
 
 // Allowed Edge voices allowlist including natural multi-speaker & professor voices
 const ALLOWED_EDGE_VOICES = new Set([
+  ...ALL_EDGE_VOICES,
   'en-US-AriaNeural',
   'en-US-JennyNeural',
   'en-US-MichelleNeural',
@@ -146,11 +147,13 @@ const ALLOWED_EDGE_VOICES = new Set([
   'en-US-EricNeural',
   'en-US-RogerNeural',
   'en-US-SteffanNeural',
-  'en-US-RyanNeural',
-  'en-US-SoniaNeural',
   'en-US-AndrewNeural',
   'en-US-BrianNeural',
   'en-US-AvaNeural',
+  'en-GB-SoniaNeural',
+  'en-GB-LibbyNeural',
+  'en-GB-RyanNeural',
+  'en-GB-ThomasNeural',
 ]);
 
 export function stripSpeakerAndFormatting(text: string): string {

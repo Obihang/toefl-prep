@@ -5,6 +5,7 @@ import { isKeyError, getStatus, isQuotaExhaustedError } from './geminiErrors';
 import { callChatWithHealing } from './chatHealing';
 import { getAiClient, getModelThinkingConfig, cleanAndExtractJson, type ApiCallOptions } from './geminiHandler';
 import { collectAvailableProviders, prioritizeForEvaluation } from './providerRouter';
+import { evaluateResponseLocally } from '../utils/localEvaluator';
 
 export async function handleEvaluateResponse(
   taskType: string,
@@ -178,27 +179,6 @@ Return valid JSON format matching this schema:
   }
 
   // Graceful Local Heuristic Fallback
-  return {
-    bandScore6: 4.5,
-    bandScore: 4.5,
-    rawRubricScore: 4.0,
-    scaledScore: 22,
-    performanceLevel: 'High-Intermediate',
-    feedbackSummary: `Your response effectively addresses the prompt for ${taskType}. It demonstrates clear organization and appropriate academic vocabulary, though minor grammatical slips and phrasing variations are present. To reach an Advanced (Band 6.0) level, focus on integrating more sophisticated syntactic structures and precise academic transitions.`,
-    summary: `Your response effectively addresses the prompt for ${taskType}.`,
-    topFixes: [
-      '1. Vary sentence structures by combining simple clauses with participial phrases and subordinate conjunctions.',
-      '2. Ensure precise lexical choice by replacing general verbs with domain-specific academic terminology.'
-    ],
-    modelBand6Rewrite: `An Advanced (Band 6.0) candidate would address this prompt by establishing a clear thesis statement in the opening sentence, followed by meticulously supported arguments using precise academic phrasing, complex transition markers (e.g., 'Consequently,' 'Notwithstanding,' 'Conversely'), and a polished concluding synthesis.`,
-    exemplarResponse: `An Advanced (Band 6.0) candidate would address this prompt by establishing a clear thesis statement in the opening sentence, followed by meticulously supported arguments using precise academic phrasing.`,
-    errors: [
-      { original: 'shows', corrected: 'demonstrates', explanation: 'Use more precise academic verbs like "demonstrates" or "illustrates".' }
-    ],
-    corrections: [
-      { original: 'shows', corrected: 'demonstrates', explanation: "Use more precise academic verbs like 'demonstrates' or 'illustrates'." }
-    ],
-    tips: ['Incorporate advanced transitional phrases', 'Expand academic vocabulary range'],
-    modelUsed: 'TOEFL Local Expert Scoring Engine (Fallback)',
-  };
+  return evaluateResponseLocally(promptData, studentResponse, taskType);
 }
+

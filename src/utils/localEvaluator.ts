@@ -495,6 +495,15 @@ export function evaluateLocally(
   };
 }
 
+export function evaluateResponseLocally(
+  promptData: any,
+  studentResponse: any,
+  taskType: string = 'academic-discussion',
+  options?: EvaluationOptions
+): EvaluationResult {
+  return evaluateLocally(taskType, promptData, studentResponse, options);
+}
+
 export function analyzeTextDiagnostics(text: string) {
   const lowerText = text.toLowerCase();
 
