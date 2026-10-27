@@ -1,43 +1,20 @@
 import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { head, put } from '@vercel/blob';
-import { getApiConfig } from './apiConfig.ts';
-import { handleGenerateTask, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler.ts';
-import { handleEvaluateResponse } from './evaluationHandler.ts';
-import { callOpenAiTts } from './llmClient.ts';
-import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
-import { STT_MODEL } from '../config/models.ts';
-import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
+import { getApiConfig } from './apiConfig';
+import { handleGenerateTask, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler';
+import { handleEvaluateResponse } from './evaluationHandler';
+import { callOpenAiTts } from './llmClient';
+import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors';
+import { STT_MODEL } from '../config/models';
+import { filterWhisperHallucinations } from '../utils/speakingMetrics';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
-import { firebasePublicConfig } from './firebasePublicConfig.ts';
+import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices';
+import { firebasePublicConfig } from './firebasePublicConfig';
 import os from 'os';
 import WebSocket from 'ws';
-import { scrubSentryEvent } from '../utils/redact.ts';
-
-let sentryNodeModule: typeof import('@sentry/node') | null = null;
-
-async function initServerSentry() {
-  if (!process.env.SENTRY_DSN_SERVER) return null;
-  if (sentryNodeModule) return sentryNodeModule;
-
-  try {
-    const Sentry = await import('@sentry/node');
-    Sentry.init({
-      dsn: process.env.SENTRY_DSN_SERVER,
-      sendDefaultPii: false,
-      beforeSend(event) {
-        return scrubSentryEvent(event);
-      },
-    });
-    sentryNodeModule = Sentry;
-    return Sentry;
-  } catch {
-    return null;
-  }
-}
 
 export function wrapApiHandler<TReq = any, TRes = any>(
   handler: (req: TReq, res: TRes) => Promise<any> | any
@@ -64,28 +41,6 @@ export function wrapApiHandler<TReq = any, TRes = any>(
           error: redactedMsg,
         })
       );
-
-      if (process.env.SENTRY_DSN_SERVER) {
-        try {
-          const Sentry = await initServerSentry();
-          if (Sentry) {
-            const redactedErr = new Error(redactedMsg);
-            redactedErr.name = rawError?.name ? redactSensitiveInfo(String(rawError.name)) : 'Error';
-            if (rawError?.stack) {
-              redactedErr.stack = redactSensitiveInfo(String(rawError.stack));
-            }
-
-            Sentry.withScope((scope) => {
-              scope.setTag('requestId', requestId);
-              scope.setTag('route', route);
-              Sentry.captureException(redactedErr);
-            });
-            await Sentry.flush(2000);
-          }
-        } catch {
-          // ignore Sentry reporting failure
-        }
-      }
 
       if (!res.headersSent) {
         return res.status(status).json({
@@ -613,7 +568,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     });
   }
 }
-export { handleTtsCheckEndpoint } from './api/tts-check.ts';
+export { handleTtsCheckEndpoint } from './api/tts-check';
 
 export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const { word } = req.query;

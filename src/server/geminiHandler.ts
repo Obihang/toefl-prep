@@ -1,17 +1,17 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { resolveModelChains } from './modelRoles.ts';
-import * as CURATED from '../data/curatedQuestions.ts';
-import { ACADEMIC_GLOSSARY } from '../utils/academicGlossary.ts';
-import { generateWithFallback } from './geminiUtils.ts';
-import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors.ts';
-import { inferGender } from '../utils/voices.ts';
-import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callOpenRouterTts, callWhisperTranscription } from './llmClient.ts';
-import { callChatWithHealing } from './chatHealing.ts';
-import { callGroqSpeech } from './groqSpeech.ts';
-import { callAudio8Speech } from './audio8Speech.ts';
-import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers.ts';
-import { collectAvailableProviders, prioritizeForGeneration } from './providerRouter.ts';
+import { resolveModelChains } from './modelRoles';
+import * as CURATED from '../data/curatedQuestions';
+import { ACADEMIC_GLOSSARY } from '../utils/academicGlossary';
+import { generateWithFallback } from './geminiUtils';
+import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors';
+import { inferGender } from '../utils/voices';
+import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callOpenRouterTts, callWhisperTranscription } from './llmClient';
+import { callChatWithHealing } from './chatHealing';
+import { callGroqSpeech } from './groqSpeech';
+import { callAudio8Speech } from './audio8Speech';
+import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers';
+import { collectAvailableProviders, prioritizeForGeneration } from './providerRouter';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
 
@@ -858,7 +858,7 @@ Return valid JSON matching this schema:
   };
 }
 
-export { handleEvaluateResponse } from './evaluationHandler.ts';
+export { handleEvaluateResponse } from './evaluationHandler';
 
 function addWavHeader(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
   return wrapWavHeaderIfNeeded(pcmBuffer, sampleRate, numChannels, bitsPerSample);

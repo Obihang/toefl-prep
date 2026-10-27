@@ -1,5 +1,5 @@
-import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
-import { resolveModelChains, isModelGone, markModelDead } from './modelRoles.ts';
+import { filterWhisperHallucinations } from '../utils/speakingMetrics';
+import { resolveModelChains, isModelGone, markModelDead } from './modelRoles';
 
 export type ModelPurpose = 'generation' | 'evaluation' | 'transcription' | 'tts';
 

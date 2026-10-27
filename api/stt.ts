@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleSttEndpoint, wrapApiHandler } from '../src/server/handlers.ts';
+import { handleSttEndpoint, wrapApiHandler } from '../src/server/handlers';
 
 export const config = {
   api: {

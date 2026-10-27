@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { handleGenerateTaskEndpoint, wrapApiHandler } from '../src/server/handlers.ts';
+import { handleGenerateTaskEndpoint, wrapApiHandler } from '../src/server/handlers';
 
 export default wrapApiHandler(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== 'POST') {

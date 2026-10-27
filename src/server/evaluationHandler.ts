@@ -1,10 +1,10 @@
 import { GoogleGenAI } from '@google/genai';
-import { resolveModelChains } from './modelRoles.ts';
-import { generateWithFallback } from './geminiUtils.ts';
-import { isKeyError, getStatus, isQuotaExhaustedError } from './geminiErrors.ts';
-import { callChatWithHealing } from './chatHealing.ts';
-import { getAiClient, getModelThinkingConfig, cleanAndExtractJson, type ApiCallOptions } from './geminiHandler.ts';
-import { collectAvailableProviders, prioritizeForEvaluation } from './providerRouter.ts';
+import { resolveModelChains } from './modelRoles';
+import { generateWithFallback } from './geminiUtils';
+import { isKeyError, getStatus, isQuotaExhaustedError } from './geminiErrors';
+import { callChatWithHealing } from './chatHealing';
+import { getAiClient, getModelThinkingConfig, cleanAndExtractJson, type ApiCallOptions } from './geminiHandler';
+import { collectAvailableProviders, prioritizeForEvaluation } from './providerRouter';
 
 export async function handleEvaluateResponse(
   taskType: string,
