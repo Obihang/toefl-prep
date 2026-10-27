@@ -105,7 +105,11 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   const availableKeys: Record<string, string> = {};
   const KNOWN_ROUTED = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai'];
   for (const p of KNOWN_ROUTED) {
-    const k = getHeader(headers, `x-api-key-${p}`) || (b.availableKeys && b.availableKeys[p]);
+    const k =
+      getHeader(headers, `x-api-key-${p}`) ||
+      (b.availableKeys && b.availableKeys[p]) ||
+      (b.providerKeys && b.providerKeys[p]) ||
+      (b.options?.providerKeys && b.options.providerKeys[p]);
     if (k && typeof k === 'string' && k.trim()) {
       availableKeys[p] = k.trim();
     }

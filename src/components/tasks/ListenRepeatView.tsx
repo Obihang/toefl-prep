@@ -15,6 +15,7 @@ import { updateDoc, doc } from 'firebase/firestore';
 interface Props {
   task: ListenRepeatTask;
   onNextTask?: () => void;
+  onComplete?: (result: any) => void;
 }
 
 import { SpeakingMetrics } from '../../utils/speakingMetrics';
@@ -31,7 +32,7 @@ interface SentenceState {
   fillerWordsList?: string[];
 }
 
-export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
+export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
   const [states, setStates] = useState<SentenceState[]>(() =>
     task.sentences.map(() => ({
       userInput: '',
@@ -39,6 +40,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       checked: false,
     }))
   );
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [, setStep] = useState<'practice' | 'done'>('practice');
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
@@ -70,6 +73,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const blobsRef = useRef<Record<number, Blob>>({});
+  const hasCompletedRef = useRef<boolean>(false);
 
   const stopAllAudio = useCallback(() => {
     playbackSessionIdRef.current++;
@@ -96,6 +102,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, []);
 
   useEffect(() => {
+    hasCompletedRef.current = false;
+    blobsRef.current = {};
+    setCurrentIndex(0);
+    setStep('practice');
     return () => {
       stopAllAudio();
     };

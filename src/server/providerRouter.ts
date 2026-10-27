@@ -15,7 +15,7 @@ export function collectAvailableProviders(options?: ApiCallOptions): ProviderCan
   const map: Map<string, string> = new Map();
 
   // 1. Available keys dictionary from headers / config
-  const availableKeys = (opts as any).availableKeys || {};
+  const availableKeys = { ...((opts as any).providerKeys || {}), ...((opts as any).availableKeys || {}) };
   for (const [p, k] of Object.entries(availableKeys)) {
     if (typeof k === 'string' && k.trim()) {
       map.set(p.toLowerCase(), k.trim());

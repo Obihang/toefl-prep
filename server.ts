@@ -1,10 +1,10 @@
 import express from 'express';
-import { fileURLToPath } from 'url';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import rateLimit from 'express-rate-limit';
 import {
   handleHealth,
+  handleModelsEndpoint,
   handleTestKeyEndpoint,
   handleGenerateTaskEndpoint,
   handleEvaluateResponseEndpoint,
@@ -13,9 +13,9 @@ import {
   handleDictionaryEndpoint,
   handleTtsCheckEndpoint,
   wrapApiHandler,
-} from './src/server/handlers.ts';
+} from './src/server/handlers';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = process.cwd();
 
 export async function createServer() {
   const app = express();
@@ -58,12 +58,13 @@ export async function createServer() {
   app.post('/api/transcribe', wrapApiHandler(handleSttEndpoint));
   app.post('/api/test-key', wrapApiHandler(handleTestKeyEndpoint));
   app.get('/api/dictionary', wrapApiHandler(handleDictionaryEndpoint));
+  app.all('/api/models', wrapApiHandler(handleModelsEndpoint));
   app.get('/api/health', wrapApiHandler(handleHealth));
 
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.use(express.static(path.resolve(rootDir, 'dist')));
     app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.resolve(rootDir, 'dist', 'index.html'));
     });
   } else {
     const vite = await createViteServer({

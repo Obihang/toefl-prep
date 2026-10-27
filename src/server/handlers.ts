@@ -5,6 +5,7 @@ import { getApiConfig } from './apiConfig';
 import { handleGenerateTask, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler';
 import { handleEvaluateResponse } from './evaluationHandler';
 import { callOpenAiTts } from './llmClient';
+import { getRoleModels } from './modelRoles';
 import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors';
 import { STT_MODEL } from '../config/models';
 import { filterWhisperHallucinations } from '../utils/speakingMetrics';
@@ -199,6 +200,27 @@ export async function handleHealth(req: Req, res: Res) {
     blobConfigured: !!process.env.BLOB_READ_WRITE_TOKEN,
     commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
     version: process.env.npm_package_version || '1.0.0',
+  });
+}
+
+export async function handleModelsEndpoint(req: Req, res: Res) {
+  const apiKey = (
+    req.headers['x-gemini-key'] ||
+    req.headers['x-gemini-api-key'] ||
+    req.headers['x-api-key'] ||
+    req.headers['authorization'] ||
+    ''
+  )
+    .toString()
+    .replace('Bearer ', '')
+    .trim();
+  const provider = (req.headers['x-api-provider'] || 'gemini').toString();
+  const roleData = await getRoleModels(provider, apiKey);
+  return res.status(200).json({
+    success: true,
+    models: roleData.all,
+    generationModel: roleData.generationModel,
+    evaluationModel: roleData.evaluationModel,
   });
 }
 

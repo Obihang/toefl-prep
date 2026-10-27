@@ -281,6 +281,8 @@ export function getProviderKeys(): Record<string, string> {
   return result;
 }
 
+export const getAllProviderKeys = getProviderKeys;
+
 export function hasAnyStoredApiKey(): boolean {
   if (typeof localStorage === 'undefined') return false;
   const keys = getProviderKeys();
@@ -536,12 +538,19 @@ export async function safeGenerateTaskWithFailover(payload: {
   topic: string;
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   const keys = getAvailableGenerationKeys();
+  const allProviderKeys = getProviderKeys();
+  const fullBody = JSON.stringify({
+    ...payload,
+    availableKeys: allProviderKeys,
+    providerKeys: allProviderKeys,
+  });
+
   if (keys.length === 0) {
     try {
       const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers: getApiHeaders(),
-        body: JSON.stringify(payload),
+        body: fullBody,
       });
       return json;
     } catch (err: any) {
@@ -552,6 +561,7 @@ export async function safeGenerateTaskWithFailover(payload: {
   for (let i = 0; i < keys.length; i++) {
     const kp = keys[i];
     const headers: Record<string, string> = {
+      ...getApiHeaders(),
       'Content-Type': 'application/json',
       'x-api-provider': kp.provider,
       'x-api-key': kp.key,
@@ -563,7 +573,7 @@ export async function safeGenerateTaskWithFailover(payload: {
       const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload),
+        body: fullBody,
       });
       if (json.success && json.data && !json.data.isFallback) {
         return json;
@@ -577,7 +587,7 @@ export async function safeGenerateTaskWithFailover(payload: {
     const json = await safeFetchJson('/api/generate-task', {
       method: 'POST',
       headers: getApiHeaders(),
-      body: JSON.stringify(payload),
+      body: fullBody,
     });
     return json;
   } catch (err: any) {
