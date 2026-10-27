@@ -222,7 +222,7 @@ export default function App() {
   const isAudioSection = activeSection === 'Listening' || activeSection === 'Speaking';
 
   const handlePreCacheAudio = async () => {
-    if (isPreCachingAudio) return;
+    if (!isAudioSection || isPreCachingAudio) return;
     setIsPreCachingAudio(true);
     setPreCacheStatus('Starting cache...');
     await preCacheSectionAudio(activeSection, (progress) => {
@@ -812,16 +812,14 @@ export default function App() {
         setGenerationSuccess(true);
         setTimeout(() => setGenerationSuccess(false), 3000);
 
-        if (user) {
-          saveSharedQuestion({
-            taskType: currentTaskType,
-            level: concreteLevel,
-            topic: concreteTopic,
-            data: readyTask,
-            createdByName: displayName || 'Anonymous Scholar',
-            createdByUid: user.uid,
-          }).catch(() => {});
-        }
+        saveSharedQuestion({
+          taskType: currentTaskType,
+          level: concreteLevel,
+          topic: concreteTopic,
+          data: readyTask,
+          createdByName: displayName || 'Anonymous Scholar',
+          createdByUid: user?.uid || 'anonymous',
+        }).catch(() => {});
 
         // Immediately replenish the next question in the background if empty
         if (enablePrefetching && hasAnyProviderKey()) {
@@ -882,27 +880,26 @@ export default function App() {
         id: `ai-${Date.now()}`,
       }, currentTaskType);
 
-      if (user) {
-        try {
-          const docId = await saveSharedQuestion({
-            taskType: currentTaskType,
-            level: concreteLevel,
-            topic: concreteTopic,
-            data: newTask,
-            createdByName: displayName || 'Anonymous Scholar',
-            createdByUid: user.uid,
-          });
+      try {
+        const docId = await saveVerifiedQuestion({
+          taskType: currentTaskType,
+          level: concreteLevel,
+          topic: concreteTopic,
+          content: newTask,
+          source: 'ai',
+          generatedBy: displayName || getScholarUsername(),
+        });
+        if (docId) {
           newTask.questionDocId = docId;
           newTask.createdByName = displayName || 'Anonymous Scholar';
-          newTask.createdByUid = user.uid;
+          newTask.createdByUid = user?.uid || 'anonymous';
           newTask.isSharedBank = true;
           setSharedBankNotice('Added to the shared question bank');
           setTimeout(() => setSharedBankNotice(null), 4000);
-        } catch (e: any) {
-          console.warn('Failed to save to shared question bank (rules, index or sign-in):', e?.message || e);
-          setSharedBankNotice('Notice: Question generated successfully, but could not be saved to shared bank.');
-          setTimeout(() => setSharedBankNotice(null), 5000);
+          getQuestionBankStats().then(setBankStats).catch(() => {});
         }
+      } catch (e: any) {
+        console.warn('Failed to save to shared question bank:', e?.message || e);
       }
 
       setCustomTasks((prev) => ({

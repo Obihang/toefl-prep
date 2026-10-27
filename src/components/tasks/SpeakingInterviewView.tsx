@@ -5,7 +5,7 @@ import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curated
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Zap, HardDrive } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
+import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
@@ -118,10 +118,27 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   // Silent background pre-synthesis of interviewer questions using the SAME single interviewer voice
   useEffect(() => {
-    if (!task?.questions) return;
-    task.questions.forEach((q) => {
-      prefetchSpeechAudio(q.question, interviewerVoice, interviewerGender).catch(() => {});
-    });
+    if (!task?.questions || task.questions.length === 0) return;
+    let cancelled = false;
+
+    const firstQ = task.questions[0]?.question;
+    if (firstQ) {
+      const firstChunks = chunkTextForTTS(firstQ);
+      if (firstChunks.length > 0) {
+        fetchCloudTtsAudio(firstChunks[0], interviewerGender, interviewerVoice).catch(() => {});
+      }
+    }
+
+    (async () => {
+      for (const q of task.questions) {
+        if (cancelled) break;
+        await prefetchSpeechAudio(q.question, interviewerVoice, interviewerGender).catch(() => {});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [task.id, task.title, interviewerVoice, interviewerGender]);
 
   // Stop audio/timers/voice session on unmount
@@ -185,24 +202,37 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(currentQ.question);
     const effGender = interviewerGender;
     const voice = interviewerVoice;
-    const browserVoice = pickBrowserVoiceForGender(effGender);
+
+    // Pre-warm next question's first chunk in parallel if available
+    const nextQ = task.questions[currentQIndex + 1]?.question;
+    if (nextQ) {
+      const nextChunks = chunkTextForTTS(nextQ);
+      if (nextChunks.length > 0) {
+        fetchCloudTtsAudio(nextChunks[0], effGender, voice).catch(() => {});
+      }
+    }
+
     try {
-      await speakScriptLine(cleanQ, {
-        rate: 0.95,
-        voice,
-        voiceName: voice,
-        gender: effGender,
-        browserVoice,
-        onEnd: () => {
-          if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-          setIsPlayingAudio(false);
+      await speakWithCloudTTS(
+        cleanQ,
+        effGender,
+        {
+          rate: 0.95,
+          voice,
+          voiceName: voice,
+          gender: effGender,
+          onEnd: () => {
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+            setIsPlayingAudio(false);
+          },
+          onError: (err) => {
+            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+            setIsPlayingAudio(false);
+            setAudioError(err?.message || String(err));
+          },
         },
-        onError: (err) => {
-          if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-          setIsPlayingAudio(false);
-          setAudioError(err?.message || String(err));
-        },
-      });
+        voice
+      );
     } catch (err: any) {
       if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
       setIsPlayingAudio(false);

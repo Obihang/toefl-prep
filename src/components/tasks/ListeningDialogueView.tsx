@@ -1,18 +1,69 @@
-import { pickDialogueVoices, inferGender, parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, assignTaskSpeakerVoices } from '../../utils/voices';
+import { parseDialogueLine } from '../../utils/voices';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
-import { playDialogue, stopSpeaking, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
+import {
+  playDialogue,
+  stopSpeaking,
+  prefetchSpeechAudio,
+  stripSpeakerAndFormatting,
+  pickRandomVoice,
+  inferGenderFromSpeaker,
+  speakWithCloudTTS,
+  chunkTextForTTS,
+  fetchCloudTtsAudio,
+} from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
-import { auth, db } from '../../firebase';
+import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { getAuthHeaders, getApiHeaders } from '../../utils/apiKey';
-import { updateDoc, doc } from 'firebase/firestore';
 
 interface Props {
   task: ListeningTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
+}
+
+type CanonicalSpeakerRole = 'professor' | 'student';
+
+function classifyCanonicalRole(
+  rawSpeakerLabel: string,
+  lineIndex: number,
+  labelA: string,
+  labelB: string
+): CanonicalSpeakerRole {
+  const s = (rawSpeakerLabel || '').trim().toLowerCase();
+  const a = (labelA || '').trim().toLowerCase();
+  const b = (labelB || '').trim().toLowerCase();
+
+  // Direct match against explicit student keywords
+  if (/\b(student|undergraduate|grad student|classmate|peer|speaker\s*b|^b$)\b/i.test(s)) {
+    return 'student';
+  }
+  // Direct match against explicit professor/staff/authority keywords
+  if (
+    /\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean|coordinator|director|coach|assistant|receptionist|narrator|lecturer|speaker\s*a|^a$)\b/i.test(
+      s
+    )
+  ) {
+    return 'professor';
+  }
+
+  // Match against task.speakers.A / B if provided
+  if (s && b && (s === b || s.includes(b) || b.includes(s))) {
+    if (/\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean)\b/i.test(b)) {
+      return 'professor';
+    }
+    return 'student';
+  }
+  if (s && a && (s === a || s.includes(a) || a.includes(s))) {
+    if (/\b(student|undergraduate)\b/i.test(a)) {
+      return 'student';
+    }
+    return 'professor';
+  }
+
+  // Fallback by alternating turn order
+  return lineIndex % 2 === 0 ? 'professor' : 'student';
 }
 
 export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
@@ -28,18 +79,18 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const isPausedRef = useRef<boolean>(false);
 
   const scriptText = task?.script || '';
-  const lines = scriptText.split(/\n+/).filter(Boolean);
+  const lines = useMemo(() => scriptText.split(/\n+/).filter(Boolean), [scriptText]);
 
-  // Assign consistent voices per task:
-  // - Conversations: one fixed voice for Speaker A, one fixed voice for Speaker B
-  // - Announcements / Academic Talks (Lectures): one consistent voice for the entire passage
+  // Assign strictly locked voices per canonical speaker role ('professor' vs 'student') once when the task loads:
+  // - Conversations: ONE locked voiceId+gender for 'professor' and ONE distinct locked voiceId+gender for 'student'
+  // - Announcements / Academic Talks (Lectures): ONE consistent voiceId+gender for the entire passage
   const dialogueVoices = useMemo(() => {
     const taskSubType = String((task as any).type || '').toLowerCase();
     const isSingleSpeakerPassage =
       taskSubType === 'announcement' ||
       taskSubType === 'academic_talk' ||
       taskSubType === 'lecture' ||
-      (lines.length <= 2 && !/speaker b|^b:/im.test(scriptText));
+      (lines.length <= 2 && !/speaker b|^b:|student:/im.test(scriptText));
 
     const labelA = task.speakers?.A || '';
     const labelB = task.speakers?.B || '';
@@ -52,84 +103,105 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
       const singleVoice = pickRandomVoice(inferred || undefined);
       return {
         isSingleSpeaker: true,
+        professor: singleVoice,
+        student: singleVoice,
         A: singleVoice,
         B: singleVoice,
       };
     }
 
+    // Collect all speaker labels across turns that map to 'professor' vs 'student' to infer gender accurately
+    const profLabels: string[] = [];
+    const studentLabels: string[] = [];
+    if (classifyCanonicalRole(labelA, 0, labelA, labelB) === 'professor') {
+      profLabels.push(labelA);
+    } else {
+      studentLabels.push(labelA);
+    }
+    if (classifyCanonicalRole(labelB, 1, labelA, labelB) === 'student') {
+      studentLabels.push(labelB);
+    } else {
+      profLabels.push(labelB);
+    }
+
+    lines.forEach((line, idx) => {
+      const parsed = parseDialogueLine(line);
+      if (parsed.speakerName) {
+        const role = classifyCanonicalRole(parsed.speakerName, idx, labelA, labelB);
+        if (role === 'professor') profLabels.push(parsed.speakerName);
+        else studentLabels.push(parsed.speakerName);
+      }
+    });
+
     const explicitGA = (task as any).speakerGenderA || (task as any).speakerGenders?.A;
     const explicitGB = (task as any).speakerGenderB || (task as any).speakerGenders?.B;
-    const inferredA =
+
+    const inferredProfGender =
       explicitGA === 'male' || explicitGA === 'female'
         ? explicitGA
-        : inferGenderFromSpeaker(labelA);
-    const inferredB =
+        : inferGenderFromSpeaker(`${profLabels.join(' ')} ${task.context || ''}`);
+    const inferredStudentGender =
       explicitGB === 'male' || explicitGB === 'female'
         ? explicitGB
-        : inferGenderFromSpeaker(labelB);
+        : inferGenderFromSpeaker(studentLabels.join(' '));
 
-    const voiceA = pickRandomVoice(inferredA || undefined);
-    const targetGenderB: 'male' | 'female' =
-      inferredB || (voiceA.gender === 'male' ? 'female' : 'male');
-    const voiceB = pickRandomVoice(targetGenderB, voiceA.voiceId);
+    const profVoice = pickRandomVoice(inferredProfGender || undefined);
+    const targetStudentGender: 'male' | 'female' =
+      inferredStudentGender || (profVoice.gender === 'male' ? 'female' : 'male');
+    const studentVoice = pickRandomVoice(targetStudentGender, profVoice.voiceId);
 
     return {
       isSingleSpeaker: false,
-      A: voiceA,
-      B: voiceB,
+      professor: profVoice,
+      student: studentVoice,
+      A: profVoice,
+      B: studentVoice,
     };
-  }, [task.id, task.title, scriptText]);
+  }, [task.id, task.title, scriptText, lines.length]);
 
-  const getVoiceForLine = useCallback(
-    (line: string, lineIndex: number): { gender: 'male' | 'female'; voiceId: string; speakerName: string } => {
+  const dialogueLines = useMemo(() => {
+    const labelA = task.speakers?.A || 'Professor';
+    const labelB = task.speakers?.B || 'Student';
+
+    return lines.map((line, idx) => {
       const parsed = parseDialogueLine(line);
       const rawSpeaker = parsed.speakerName || '';
+      const spokenText = parsed.spokenText || stripSpeakerAndFormatting(line);
 
       if (dialogueVoices.isSingleSpeaker) {
         return {
-          gender: dialogueVoices.A.gender,
-          voiceId: dialogueVoices.A.voiceId,
-          speakerName: rawSpeaker || task.speakers?.A || 'Narrator',
+          rawLine: line,
+          spokenText,
+          role: 'professor' as CanonicalSpeakerRole,
+          gender: dialogueVoices.professor.gender,
+          voiceId: dialogueVoices.professor.voiceId,
+          speakerName: rawSpeaker || labelA || 'Narrator',
         };
       }
 
-      const lowerSpk = rawSpeaker.toLowerCase();
-      const lowerA = (task.speakers?.A || '').toLowerCase();
-      const lowerB = (task.speakers?.B || '').toLowerCase();
-
-      let isSpeakerB = false;
-      if (lowerSpk) {
-        if (lowerB && (lowerSpk.includes(lowerB) || lowerB.includes(lowerSpk))) {
-          isSpeakerB = true;
-        } else if (lowerA && (lowerSpk.includes(lowerA) || lowerA.includes(lowerSpk))) {
-          isSpeakerB = false;
-        } else if (/speaker b|^b$/i.test(lowerSpk)) {
-          isSpeakerB = true;
-        } else if (/speaker a|^a$/i.test(lowerSpk)) {
-          isSpeakerB = false;
-        } else {
-          isSpeakerB = lineIndex % 2 === 1;
-        }
-      } else {
-        isSpeakerB = lineIndex % 2 === 1;
-      }
-
-      const chosen = isSpeakerB ? dialogueVoices.B : dialogueVoices.A;
-      const fallbackLabel = isSpeakerB ? task.speakers?.B || 'Speaker B' : task.speakers?.A || 'Speaker A';
+      const role = classifyCanonicalRole(rawSpeaker, idx, labelA, labelB);
+      const lockedVoice =
+        role === 'student' ? dialogueVoices.student : dialogueVoices.professor;
+      const defaultDisplayName = role === 'student' ? labelB : labelA;
 
       return {
-        gender: chosen.gender,
-        voiceId: chosen.voiceId,
-        speakerName: rawSpeaker || fallbackLabel,
+        rawLine: line,
+        spokenText,
+        role,
+        gender: lockedVoice.gender,
+        voiceId: lockedVoice.voiceId,
+        speakerName: rawSpeaker || defaultDisplayName,
       };
-    },
-    [dialogueVoices, task.speakers]
-  );
+    });
+  }, [lines, dialogueVoices, task.speakers]);
 
-  const voices = {
-    A: dialogueVoices.A.voiceId,
-    B: dialogueVoices.B.voiceId,
-  };
+  const voices = useMemo(
+    () => ({
+      A: dialogueVoices.professor.voiceId,
+      B: dialogueVoices.student.voiceId,
+    }),
+    [dialogueVoices]
+  );
 
   const stopAllAudio = useCallback(() => {
     playbackSessionIdRef.current++;
@@ -146,16 +218,32 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   }, []);
 
   useEffect(() => {
-    // Silent background pre-synthesis of dialogue lines
-    lines.forEach((line, i) => {
-      const cleanLine = stripSpeakerAndFormatting(line);
-      const lineVoice = getVoiceForLine(line, i);
-      prefetchSpeechAudio(cleanLine, lineVoice.voiceId, lineVoice.gender).catch(() => {});
-    });
+    if (dialogueLines.length === 0) return;
+    let cancelled = false;
+
+    // 1. Immediately pre-warm the very first chunk of Turn 0 so Play starts with 0ms delay
+    const firstTurn = dialogueLines[0];
+    if (firstTurn?.spokenText) {
+      const firstChunks = chunkTextForTTS(firstTurn.spokenText);
+      if (firstChunks.length > 0) {
+        fetchCloudTtsAudio(firstChunks[0], firstTurn.gender, firstTurn.voiceId).catch(() => {});
+      }
+    }
+
+    // 2. Pre-warm all dialogue lines in order using their strictly locked voiceId and gender
+    (async () => {
+      for (const turn of dialogueLines) {
+        if (cancelled) break;
+        if (!turn.spokenText) continue;
+        await prefetchSpeechAudio(turn.spokenText, turn.voiceId, turn.gender).catch(() => {});
+      }
+    })();
+
     return () => {
+      cancelled = true;
       stopAllAudio();
     };
-  }, [task.id, task.title, getVoiceForLine, stopAllAudio]);
+  }, [dialogueLines, stopAllAudio]);
 
   const startPlayback = async () => {
     stopAllAudio();
@@ -223,92 +311,42 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           });
         });
       } else {
-        // 3. No saved audio -> call /api/tts with getAuthHeaders(), save once, then play
-        let generatedClips: Array<{ speaker: string; url: string }> = [];
+        // 3. Play each turn through cached speakWithCloudTTS using the strictly locked voiceId per role
         try {
-          const authHdrs = await getAuthHeaders();
-          const headers = { ...getApiHeaders(), ...authHdrs };
-
-          for (let i = 0; i < lines.length; i++) {
+          for (let i = 0; i < dialogueLines.length; i++) {
             if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
             setActiveLine(i);
-            const line = lines[i];
-            const parsed = parseDialogueLine(line);
-            if (!parsed.spokenText) continue;
+            const turn = dialogueLines[i];
+            if (!turn.spokenText) continue;
 
-            const lineVoice = getVoiceForLine(line, i);
-            const speakerName = lineVoice.speakerName;
-            const speakerGender = lineVoice.gender;
-            const voice = lineVoice.voiceId;
-            const isMaleSpeaker = speakerGender === 'male';
-
-            const ttsRes = await fetch('/api/tts', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                text: parsed.spokenText,
-                voice,
-                voiceName: voice,
-                gender: speakerGender,
-                speaker: speakerName,
-                speakerHint: parsed.speakerHint,
-                isMale: isMaleSpeaker,
-              }),
-            });
-            const ttsJson = await ttsRes.json();
-            const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
-
-            if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
-
-            if (ttsRes.ok && ttsJson.success && audioSrc) {
-              if (ttsJson.audioUrl && ttsJson.audioUrl.startsWith('https://') && ttsJson.audioUrl.includes('blob.vercel-storage.com')) {
-                generatedClips.push({ speaker: speakerName, url: ttsJson.audioUrl });
+            // Pre-warm the next turn's first chunk in parallel while this turn plays
+            if (i + 1 < dialogueLines.length && dialogueLines[i + 1].spokenText) {
+              const nextTurn = dialogueLines[i + 1];
+              const nextChunks = chunkTextForTTS(nextTurn.spokenText);
+              if (nextChunks.length > 0) {
+                fetchCloudTtsAudio(nextChunks[0], nextTurn.gender, nextTurn.voiceId).catch(
+                  () => {}
+                );
               }
-              await new Promise<void>((resolve) => {
-                if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) {
-                  resolve();
-                  return;
-                }
-                const audio = new Audio(audioSrc);
-                activeAudioRef.current = audio;
-                audio.playbackRate = 1.0;
-                audio.onended = () => {
-                  if (activeAudioRef.current === audio) activeAudioRef.current = null;
-                  resolve();
-                };
-                audio.onerror = () => {
-                  if (activeAudioRef.current === audio) activeAudioRef.current = null;
-                  resolve();
-                };
-                audio.play().catch(() => {
-                  if (activeAudioRef.current === audio) activeAudioRef.current = null;
-                  resolve();
-                });
-              });
-            } else {
-              // Fallback to unified playDialogue for this line
-              await playDialogue([parsed.spokenText], voices, () => {});
             }
+
+            await speakWithCloudTTS(
+              turn.spokenText,
+              turn.gender,
+              {
+                voice: turn.voiceId,
+                voiceName: turn.voiceId,
+                gender: turn.gender,
+                speaker: turn.speakerName,
+                skipStop: true,
+              },
+              turn.voiceId
+            );
 
             if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
-          }
-
-          // Save to Firestore if we have generatedClips and questionDocId
-          const docId = (task as any).questionDocId || (task as any).id;
-          if (docId && docId.startsWith('q_') && generatedClips.length > 0) {
-            const firstUrl = generatedClips[0].url;
-            const cappedClips = generatedClips.slice(0, 10);
-            try {
-              await updateDoc(doc(db, 'questions', docId), { audioUrl: firstUrl });
-              await updateDoc(doc(db, 'questions', docId), { audioClips: cappedClips });
-              (task as any).audioUrl = firstUrl;
-              (task as any).audioClips = cappedClips;
-            } catch (saveErr) {
-              console.warn('Failed to save generated audio to question doc:', saveErr);
-            }
           }
         } catch (ttsErr) {
-          console.warn('TTS API generation failed, falling back to Web Speech:', ttsErr);
+          console.warn('TTS playback failed, falling back to playDialogue:', ttsErr);
           await playDialogue(
             lines,
             voices,

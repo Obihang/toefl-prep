@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AcademicDiscussionTask } from '../../data/curatedQuestions';
 import { evaluateLocally } from '../../utils/localEvaluator';
-import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Volume2, VolumeX, Loader2, Zap } from 'lucide-react';
+import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Zap } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
@@ -9,8 +9,6 @@ import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
-import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
-import { pickSingleVoice, inferGender } from '../../utils/voices';
 
 interface Props {
   task: AcademicDiscussionTask;
@@ -25,14 +23,6 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
-  const [isPlayingProfAudio, setIsPlayingProfAudio] = useState(false);
-  const [isLoadingProfAudio, setIsLoadingProfAudio] = useState(false);
-
-  useEffect(() => {
-    return () => {
-      stopSpeaking();
-    };
-  }, []);
 
   useEffect(() => {
     let interval: any = null;
@@ -218,44 +208,6 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
                   <span className="text-[11px] text-slate-400">Course Instructor · Discussion Board Topic</span>
                 </div>
               </div>
-
-              <button
-                disabled={isLoadingProfAudio}
-                onClick={() => {
-                  if (isPlayingProfAudio || isLoadingProfAudio || isAudioPlaying()) {
-                    stopSpeaking();
-                    setIsPlayingProfAudio(false);
-                    setIsLoadingProfAudio(false);
-                  } else {
-                    setIsLoadingProfAudio(true);
-                    playSpeech(stripSpeakerAndFormatting(task.professorPrompt), {
-                      voiceName: pickSingleVoice(`${task.id || task.title}|${task.professorName}`, inferGender(task.professorName)),
-                      onStart: () => {
-                        setIsLoadingProfAudio(false);
-                        setIsPlayingProfAudio(true);
-                      },
-                      onEnd: () => {
-                        setIsPlayingProfAudio(false);
-                        setIsLoadingProfAudio(false);
-                      },
-                      onError: () => {
-                        setIsPlayingProfAudio(false);
-                        setIsLoadingProfAudio(false);
-                      },
-                    });
-                  }
-                }}
-                className="px-2.5 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-teal-300 rounded border border-slate-700 flex items-center gap-1.5 transition cursor-pointer shrink-0"
-              >
-                {isLoadingProfAudio ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-400" />
-                ) : isPlayingProfAudio ? (
-                  <VolumeX className="w-3.5 h-3.5" />
-                ) : (
-                  <Volume2 className="w-3.5 h-3.5 text-teal-400" />
-                )}
-                <span>{isLoadingProfAudio ? 'Loading...' : isPlayingProfAudio ? 'Stop' : 'Listen'}</span>
-              </button>
             </div>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-normal whitespace-pre-line">
               {task.professorPrompt}

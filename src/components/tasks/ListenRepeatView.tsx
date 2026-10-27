@@ -5,7 +5,7 @@ import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play, HardDrive, Settings } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
+import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { db } from '../../firebase';
@@ -130,10 +130,29 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
   // Silent background pre-synthesis so clicking "Hear sentence" is INSTANT (0 ms delay)
   useEffect(() => {
     if (!task?.sentences || task.sentences.length === 0) return;
-    task.sentences.forEach((sentence, idx) => {
-      const vInfo = sentenceVoices[idx] || pickRandomVoice();
-      prefetchSpeechAudio(sentence, vInfo.voiceId, vInfo.gender).catch(() => {});
-    });
+    let cancelled = false;
+
+    const firstSentence = task.sentences[0];
+    const firstVoice = sentenceVoices[0] || pickRandomVoice();
+    if (firstSentence) {
+      const firstChunks = chunkTextForTTS(firstSentence);
+      if (firstChunks.length > 0) {
+        fetchCloudTtsAudio(firstChunks[0], firstVoice.gender, firstVoice.voiceId).catch(() => {});
+      }
+    }
+
+    (async () => {
+      for (let idx = 0; idx < task.sentences.length; idx++) {
+        if (cancelled) break;
+        const sentence = task.sentences[idx];
+        const vInfo = sentenceVoices[idx] || firstVoice;
+        await prefetchSpeechAudio(sentence, vInfo.voiceId, vInfo.gender).catch(() => {});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [task.id, task.title, sentenceVoices]);
 
   useEffect(() => {
@@ -237,109 +256,53 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
       return;
     }
 
-    // Try /api/tts with getAuthHeaders() and getApiHeaders()
-    try {
-      const authHdrs = await getAuthHeaders();
-      const headers = { ...getApiHeaders(), ...authHdrs };
-      const ttsRes = await fetch('/api/tts', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text: cleanSentence, voice, voiceName: voice, gender: effGender, speaker: effSpeaker }),
-      });
-      const ttsJson = await ttsRes.json();
-      const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
-
-      if (playbackSessionIdRef.current !== currentSession) return;
-
-      if (ttsRes.ok && ttsJson.success && audioSrc) {
-        const newUrl = ttsJson.audioUrl;
-        setLoadingAudioIdx(null);
-        setActiveAudioIdx(index);
-
-        const docId = (task as any).questionDocId || (task as any).id;
-        if (docId && docId.startsWith('q_') && newUrl && newUrl.startsWith('https://') && newUrl.includes('blob.vercel-storage.com')) {
-          try {
-            if (!audioUrl) {
-              await updateDoc(doc(db, 'questions', docId), { audioUrl: newUrl });
-              (task as any).audioUrl = newUrl;
-            }
-            const currentClips = Array.isArray(task.audioClips) ? [...task.audioClips] : [];
-            currentClips[index] = { speaker: speakerName, url: newUrl };
-            const cappedClips = currentClips.slice(0, 10);
-            await updateDoc(doc(db, 'questions', docId), { audioClips: cappedClips });
-            (task as any).audioClips = cappedClips;
-          } catch (e) {
-            console.warn('Failed to save sentence audio:', e);
-          }
-        }
-
-        await new Promise<void>((resolve, reject) => {
-          if (playbackSessionIdRef.current !== currentSession) {
-            resolve();
-            return;
-          }
-          const audio = new Audio(audioSrc);
-          audio.loop = false;
-          activeAudioRef.current = audio;
-          audio.playbackRate = 1.0;
-          audio.onended = () => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            resolve();
-          };
-          audio.onerror = () => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            reject(new Error('Generated audio playback error'));
-          };
-          audio.play().catch((err) => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            reject(err);
-          });
-        });
-        return;
+    // Pre-warm next sentence's first chunk in parallel if available
+    if (index + 1 < task.sentences.length) {
+      const nextSentence = task.sentences[index + 1];
+      const nextVoice = sentenceVoices[index + 1] || assignedVoice;
+      const nextChunks = chunkTextForTTS(nextSentence);
+      if (nextChunks.length > 0) {
+        fetchCloudTtsAudio(nextChunks[0], nextVoice.gender, nextVoice.voiceId).catch(() => {});
       }
-    } catch (e) {
-      console.warn('TTS fetch failed for ListenRepeat sentence, falling back to Web Speech:', e);
     }
 
     if (playbackSessionIdRef.current !== currentSession) return;
 
     const voiceName = voice;
-    const browserVoice = pickBrowserVoiceForGender(effGender);
     try {
-      await speakScriptLine(cleanSentence, {
-        rate: 0.9,
-        voice: voiceName,
-        voiceName,
-        gender: effGender,
-        browserVoice,
-        onStart: () => {
-          if (playbackSessionIdRef.current === currentSession) {
-            setLoadingAudioIdx(null);
-            setActiveAudioIdx(index);
-          }
+      await speakWithCloudTTS(
+        cleanSentence,
+        effGender,
+        {
+          rate: 0.9,
+          voice: voiceName,
+          voiceName,
+          gender: effGender,
+          speaker: effSpeaker,
+          onStart: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              setLoadingAudioIdx(null);
+              setActiveAudioIdx(index);
+            }
+          },
+          onEnd: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+              setActiveAudioIdx(null);
+              setLoadingAudioIdx(null);
+            }
+          },
+          onError: (err) => {
+            if (playbackSessionIdRef.current === currentSession) {
+              if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+              setActiveAudioIdx(null);
+              setLoadingAudioIdx(null);
+              setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+            }
+          },
         },
-        onEnd: () => {
-          if (playbackSessionIdRef.current === currentSession) {
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            setLoadingAudioIdx(null);
-          }
-        },
-        onError: (err) => {
-          if (playbackSessionIdRef.current === currentSession) {
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            setLoadingAudioIdx(null);
-            setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
-          }
-        },
-      });
+        voiceName
+      );
     } catch (err: any) {
       if (playbackSessionIdRef.current === currentSession) {
         if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;

@@ -211,48 +211,240 @@ export function stripSpeakerAndFormatting(text: string): string {
 }
 
 const audioBufferMemoryCache = new Map<string, AudioBuffer>();
+const inFlightTtsPromises = new Map<
+  string,
+  Promise<{
+    audioBuffer: AudioBuffer;
+    engine: string;
+    audioUrl?: string;
+    base64?: string;
+    mimeType?: string;
+  } | null>
+>();
 
-// Pre-fetch speech audio silently in the background
-export async function prefetchSpeechAudio(text: string, voiceName?: string, gender?: string): Promise<void> {
+/**
+ * Splits text into sentence/clause chunks for fast TTS startup:
+ * - First chunk is shorter (~110 chars max) so playback starts twice as fast.
+ * - Subsequent chunks are up to ~220 chars and pre-fetched while chunk 0 plays.
+ */
+export function chunkTextForTTS(
+  text: string,
+  firstChunkMaxLen: number = 110,
+  subsequentMaxLen: number = 220
+): string[] {
+  const cleaned = stripSpeakerAndFormatting(text);
+  if (!cleaned) return [];
+  if (cleaned.length <= firstChunkMaxLen) return [cleaned];
+
+  // Split by sentence boundaries first
+  const rawSentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = '';
+
+  const flushSubChunks = (segment: string, maxLen: number) => {
+    let rem = segment.trim();
+    while (rem.length > maxLen) {
+      // Try splitting at clause boundary (, ; : —) before maxLen
+      let splitIdx = -1;
+      const slice = rem.slice(0, maxLen);
+      const clauseMatch = slice.match(/^.*[,;:—-]\s+/);
+      if (clauseMatch && clauseMatch[0].length >= 35) {
+        splitIdx = clauseMatch[0].length;
+      } else {
+        const lastSpace = slice.lastIndexOf(' ');
+        splitIdx = lastSpace > 30 ? lastSpace : maxLen;
+      }
+      chunks.push(rem.slice(0, splitIdx).trim());
+      rem = rem.slice(splitIdx).trim();
+    }
+    if (rem) chunks.push(rem);
+  };
+
+  for (const sentence of rawSentences) {
+    const targetMax = chunks.length === 0 ? firstChunkMaxLen : subsequentMaxLen;
+    if (!current) {
+      if (sentence.length > targetMax) {
+        flushSubChunks(sentence, targetMax);
+      } else {
+        current = sentence;
+      }
+    } else if (current.length + 1 + sentence.length <= targetMax) {
+      current = `${current} ${sentence}`;
+    } else {
+      chunks.push(current);
+      const nextTargetMax = subsequentMaxLen;
+      if (sentence.length > nextTargetMax) {
+        flushSubChunks(sentence, nextTargetMax);
+        current = '';
+      } else {
+        current = sentence;
+      }
+    }
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks.length > 0 ? chunks : [cleaned];
+}
+
+function getCanonicalTtsCacheKey(voiceId: string, cleanChunk: string): string {
+  return `cache_v4_${voiceId || 'default'}_${cleanChunk}`;
+}
+
+/**
+ * Fetches or retrieves from memory/IndexedDB cache a single TTS chunk with a strictly locked voiceId.
+ */
+export async function fetchCloudTtsAudio(
+  chunk: string,
+  gender?: 'male' | 'female',
+  specificVoiceId?: string
+): Promise<{
+  audioBuffer: AudioBuffer;
+  engine: string;
+  audioUrl?: string;
+  base64?: string;
+  mimeType?: string;
+} | null> {
+  if (typeof window === 'undefined') return null;
+  const cleanChunk = stripSpeakerAndFormatting(chunk);
+  if (!cleanChunk) return null;
+
+  const lockedVoice =
+    specificVoiceId ||
+    (gender === 'male' ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  const provider = getStoredProvider();
+  const primaryKey = getCanonicalTtsCacheKey(lockedVoice, cleanChunk);
+  const legacyKey = `cache_${provider}_${lockedVoice}_${cleanChunk}`;
+
+  const memHit =
+    audioBufferMemoryCache.get(primaryKey) || audioBufferMemoryCache.get(legacyKey);
+  if (memHit) {
+    return { audioBuffer: memHit, engine: 'Cached Neural TTS' };
+  }
+
+  const inflight = inFlightTtsPromises.get(primaryKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const taskPromise = (async () => {
+    try {
+      const db = await dbPromise;
+      if (db) {
+        const cached =
+          (await db.get(STORE_NAME, primaryKey)) ||
+          (await db.get(STORE_NAME, legacyKey));
+        if (cached && cached.base64) {
+          const { audioBuffer } = await decodeSpeech(
+            cached.base64,
+            cached.mimeType || 'audio/mpeg'
+          );
+          audioBufferMemoryCache.set(primaryKey, audioBuffer);
+          return {
+            audioBuffer,
+            engine: `Cached (${cached.engine || 'Neural TTS'})`,
+            audioUrl: cached.audioUrl,
+            base64: cached.base64,
+            mimeType: cached.mimeType,
+          };
+        }
+      }
+    } catch {}
+
+    try {
+      const authHdrs = await getAuthHeaders();
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { ...getApiHeaders(), ...authHdrs },
+        body: JSON.stringify({
+          text: cleanChunk,
+          voice: lockedVoice,
+          voiceName: lockedVoice,
+          gender,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.audioBase64) {
+        incrementTtsQuota();
+        const engineName = json.modelUsed || 'Neural TTS';
+        const { audioBuffer } = await decodeSpeech(
+          json.audioBase64,
+          json.mimeType || 'audio/mpeg'
+        );
+        audioBufferMemoryCache.set(primaryKey, audioBuffer);
+        try {
+          const db = await dbPromise;
+          if (db) {
+            await db.put(
+              STORE_NAME,
+              {
+                base64: json.audioBase64,
+                mimeType: json.mimeType,
+                engine: engineName,
+                audioUrl: json.audioUrl,
+              },
+              primaryKey
+            );
+          }
+        } catch {}
+        return {
+          audioBuffer,
+          engine: engineName,
+          audioUrl: json.audioUrl,
+          base64: json.audioBase64,
+          mimeType: json.mimeType,
+        };
+      }
+    } catch {}
+
+    return null;
+  })();
+
+  inFlightTtsPromises.set(primaryKey, taskPromise);
+  try {
+    return await taskPromise;
+  } finally {
+    inFlightTtsPromises.delete(primaryKey);
+  }
+}
+
+// Pre-fetch speech audio silently in the background (pre-warming the fast first chunk first!)
+export async function prefetchSpeechAudio(
+  text: string,
+  voiceName?: string,
+  gender?: string
+): Promise<void> {
   if (typeof window === 'undefined') return;
   const cleanText = stripSpeakerAndFormatting(text);
   if (!cleanText) return;
 
-  const provider = getStoredProvider();
-  const cacheKey = `cache_${provider}_${voiceName || 'default'}_${cleanText}`;
+  const inferredFromVoice = voiceName ? inferGender(voiceName) : undefined;
+  const resolvedGender: 'male' | 'female' | undefined =
+    gender === 'male' || gender === 'female'
+      ? gender
+      : inferredFromVoice === 'male' || inferredFromVoice === 'female'
+      ? inferredFromVoice
+      : undefined;
+  const lockedVoice =
+    voiceName ||
+    (resolvedGender === 'male' ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-  if (audioBufferMemoryCache.has(cacheKey)) return;
+  const chunks = chunkTextForTTS(cleanText);
+  if (chunks.length === 0) return;
 
-  try {
-    const db = await dbPromise;
-    if (db) {
-      const cached = await db.get(STORE_NAME, cacheKey);
-      if (cached && cached.base64) {
-        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
-        audioBufferMemoryCache.set(cacheKey, audioBuffer);
-        return;
-      }
-    }
-  } catch {}
+  // 1. Pre-warm the short first chunk immediately so clicking Play has 0ms latency
+  await fetchCloudTtsAudio(chunks[0], resolvedGender, lockedVoice);
 
-  try {
-    const authHdrs = await getAuthHeaders();
-    const res = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { ...getApiHeaders(), ...authHdrs },
-      body: JSON.stringify({ text: cleanText, voice: voiceName, voiceName, gender }),
-    });
-    const json = await res.json();
-    if (res.ok && json.success && json.audioBase64) {
-      incrementTtsQuota();
-      const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/mpeg');
-      audioBufferMemoryCache.set(cacheKey, audioBuffer);
-      try {
-        const db = await dbPromise;
-        await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: json.modelUsed || 'Neural TTS' }, cacheKey);
-      } catch {}
-    }
-  } catch {}
+  // 2. Pre-warm remaining chunks in sequence with the exact same lockedVoice
+  for (let i = 1; i < chunks.length; i++) {
+    await fetchCloudTtsAudio(chunks[i], resolvedGender, lockedVoice);
+  }
 }
 
 // Pre-cache available browser voices synchronously
@@ -965,100 +1157,79 @@ export async function playSpeech(
   const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
   const breakerBlocked = isTtsCircuitBreakerBlocked();
 
-  // Helper 1: Try Cloud Voice (uses zero-key free neural server TTS as default)
+  // Helper 1: Try Cloud Voice (uses chunked pre-warmed cache + strictly locked voiceName across all chunks)
   const tryCloud = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
-    // Check IndexedDB cache first
-    const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
-    try {
-      const db = await dbPromise;
-      const cached = await db.get(STORE_NAME, cacheKey);
-      if (cached && cached.base64) {
-        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/mpeg');
-        if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-          options.onStatus?.(`Voice: Cached (${cached.engine || 'Neural TTS'})`);
-          options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Neural TTS'})`);
-          options.onStart?.();
-          await playDecodedSpeech(audioBuffer, options.onEnd);
-          return { ok: true };
-        }
-      }
-    } catch {}
+    const lockedVoice =
+      voice ||
+      voiceName ||
+      (gender === 'male' ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-    // Neural server fetch with 20 second timeout
-    options.onStatus?.('Generating neural voice...');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    // 1. Check if the entire unchunked text is already in memory or IndexedDB cache
+    const fullPrimaryKey = getCanonicalTtsCacheKey(lockedVoice, cleanText);
+    const fullLegacyKey = `cache_${provider}_${lockedVoice}_${cleanText}`;
+    const fullMemHit =
+      audioBufferMemoryCache.get(fullPrimaryKey) ||
+      audioBufferMemoryCache.get(fullLegacyKey);
 
-    try {
-      const authHdrs = await getAuthHeaders();
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { ...getApiHeaders(), ...authHdrs },
-        body: JSON.stringify({
-          text: cleanText,
-          voice,
-          voiceName,
-          gender,
-          speaker: options.speaker,
-          rate: options.rate,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-
-      const json = await res.json();
-      if (res.status === 429) {
-        const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
-        const blockDuration = Math.min(retryAfter + 5000, 60000);
-        localStorage.setItem(TTS_BLOCKED_UNTIL_KEY, (Date.now() + blockDuration).toString());
-        const reason = 'Voice server busy. Please wait a moment.';
-        console.warn(reason);
-        return { ok: false, reason };
-      }
-
-      if (!res.ok || !json.success || (!json.audioBase64 && !json.audioUrl)) {
-        const reason = json.error || 'Server voice synthesis failed.';
-        console.warn(`Voice server error: ${reason}`);
-        return { ok: false, reason };
-      }
-
-      incrementTtsQuota();
-      const engineName = json.modelUsed || 'Neural TTS';
-
-      // If audioBase64 returned, decode and cache immediately
-      let audioBuffer: AudioBuffer | null = null;
-      if (json.audioBase64) {
-        const decoded = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/mpeg');
-        audioBuffer = decoded.audioBuffer;
-        try {
-          const db = await dbPromise;
-          await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
-        } catch {}
-      }
-
-      // If user is still on this sentence, play it!
+    if (fullMemHit) {
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-        options.onStatus?.(`Voice: ${engineName}`);
-        options.onEngineDetected?.(`Voice: ${engineName}`);
-        try {
-          if (audioBuffer) {
-            await playDecodedSpeech(audioBuffer, options.onEnd);
-          } else if (json.audioUrl) {
-            await playAudioDataUri(json.audioUrl, false);
-            options.onEnd?.();
-          }
-          return { ok: true };
-        } catch (playErr: any) {
-          const reason = `Voice playback failed: ${playErr?.message || playErr}`;
-          console.warn(reason);
-          return { ok: false, reason };
-        }
+        options.onStatus?.('Voice: Cached (Neural TTS)');
+        options.onEngineDetected?.('Voice: Cached (Neural TTS)');
+        options.onStart?.();
+        await playDecodedSpeech(fullMemHit, options.onEnd);
+        return { ok: true };
       }
       return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+    }
+
+    // 2. Chunk text so chunk 0 (~110 chars) starts immediately and subsequent chunks pre-fetch in parallel
+    const chunks = chunkTextForTTS(cleanText, 110, 220);
+    if (chunks.length === 0) return { ok: false, reason: 'Empty text' };
+
+    options.onStatus?.('Generating neural voice...');
+
+    try {
+      let nextChunkPromise = fetchCloudTtsAudio(chunks[0], gender, lockedVoice);
+
+      for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
+          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+        }
+
+        const currentResult = await nextChunkPromise;
+
+        // Kick off next chunk immediately in parallel using the EXACT SAME lockedVoice & gender
+        if (cIdx + 1 < chunks.length) {
+          nextChunkPromise = fetchCloudTtsAudio(chunks[cIdx + 1], gender, lockedVoice);
+        }
+
+        if (!currentResult || !currentResult.audioBuffer) {
+          return { ok: false, reason: 'Server voice synthesis failed.' };
+        }
+
+        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
+          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+        }
+
+        if (cIdx === 0) {
+          options.onStatus?.(`Voice: ${currentResult.engine}`);
+          options.onEngineDetected?.(`Voice: ${currentResult.engine}`);
+          options.onStart?.();
+        }
+
+        const isLastChunk = cIdx === chunks.length - 1;
+        await playDecodedSpeech(
+          currentResult.audioBuffer,
+          isLastChunk ? options.onEnd : undefined
+        );
+      }
+
+      return { ok: true };
     } catch (err: any) {
-      clearTimeout(timer);
       const isTimeout = err?.name === 'AbortError' || String(err).includes('abort');
-      const reason = isTimeout ? 'Voice request timed out after 20 seconds.' : (err?.message || 'Voice service unavailable.');
+      const reason = isTimeout
+        ? 'Voice request timed out after 20 seconds.'
+        : err?.message || 'Voice service unavailable.';
       console.warn(`Voice synthesis failed: ${reason}`);
       return { ok: false, reason };
     }
@@ -1436,10 +1607,24 @@ export async function playDialogue(
     if (!parsed.spokenText) continue;
 
     const speakerName = parsed.speakerName || (i % 2 === 0 ? 'Speaker A' : 'Speaker B');
-    const voiceToUse = manager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
+    const lowerSpk = speakerName.toLowerCase();
+    const isSpeakerB =
+      lowerSpk.includes('student') ||
+      /speaker b|^b$/i.test(lowerSpk) ||
+      (!/professor|prof|advisor|librarian|instructor|doctor|dr\.|staff|dean|coordinator|director|coach|assistant|speaker a|^a$/i.test(
+        lowerSpk
+      ) &&
+        i % 2 === 1);
+
+    const mappedVoice = isSpeakerB ? voiceMapping?.B : voiceMapping?.A;
+    const voiceToUse =
+      mappedVoice || manager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
+    const genderToUse = inferGender(voiceToUse);
 
     await playSpeech(parsed.spokenText, {
+      voice: voiceToUse,
       voiceName: voiceToUse,
+      gender: genderToUse,
       speaker: speakerName,
       sessionId: currentSession,
       skipStop: true,
@@ -1448,7 +1633,7 @@ export async function playDialogue(
     });
 
     if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 150));
   }
 
   if (currentDialogueSessionId === currentSession) {
@@ -1456,6 +1641,8 @@ export async function playDialogue(
     options.onEnd?.();
   }
 }
+
+export const speakDialogue = playDialogue;
 
 export async function clearAudioCache(): Promise<void> {
   try {

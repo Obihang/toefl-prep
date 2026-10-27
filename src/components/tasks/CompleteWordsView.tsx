@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CompleteWordsTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, Info, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, Info, Keyboard } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
 
 interface Props {
   task: CompleteWordsTask;
@@ -24,14 +23,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
   const [checked, setChecked] = useState(false);
   const [score, setScore] = useState<{ correct: number; total: number } | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  useEffect(() => {
-    return () => {
-      stopSpeaking();
-    };
-  }, []);
 
   // Parse text formatted with [[missing_letters]]
   useEffect(() => {
@@ -193,27 +185,6 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (isPlayingAudio || isAudioPlaying()) {
-                stopSpeaking();
-                setIsPlayingAudio(false);
-              } else {
-                setIsPlayingAudio(true);
-                const readableText = task.text.replace(/\[\[(.+?)\]\]/g, '$1');
-                playSpeech(readableText, {
-                  voiceName: 'Kore',
-                  onEnd: () => setIsPlayingAudio(false),
-                  onError: () => setIsPlayingAudio(false),
-                });
-              }
-            }}
-            className="px-3 py-1.5 text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
-          >
-            {isPlayingAudio ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
-            <span>{isPlayingAudio ? 'Stop' : 'Listen'}</span>
-          </button>
-
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
             <span><strong className="font-semibold text-slate-800">Enter</strong>: Next dash</span>

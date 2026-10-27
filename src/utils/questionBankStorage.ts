@@ -4,7 +4,7 @@ import {
   normalizeDifficultyLabel,
   normalizeTopicLabel,
 } from './taskNormalizer';
-import { db, auth } from '../firebase';
+import { db, auth, ensureAuthenticated } from '../firebase';
 import {
   collection,
   doc,
@@ -284,9 +284,10 @@ export async function saveVerifiedQuestion(params: {
     console.warn('Failed to save to local IndexedDB question bank:', err);
   }
 
-  // Save to Firestore if authenticated
+  // Save to Firestore (with or without anonymous auth)
   try {
-    if (auth?.currentUser) {
+    await ensureAuthenticated();
+    if (db) {
       const docRef = doc(db, 'questions', questionId);
       await setDoc(
         docRef,
@@ -297,13 +298,16 @@ export async function saveVerifiedQuestion(params: {
           topic: validTopic,
           content: enrichedContent,
           contentHash,
-          audioUrl,
-          audioClips,
+          audioUrl: isValidBlobUrl(audioUrl) ? audioUrl : null,
+          audioClips: Array.isArray(audioClips)
+            ? audioClips.filter((c) => isValidBlobUrl(c?.url)).slice(0, 10)
+            : null,
           source,
           generatedBy: enrichedContent.generatedBy,
           createdAt: serverTimestamp(),
-          createdBy: auth.currentUser.uid,
+          createdBy: auth?.currentUser?.uid || 'anonymous',
           useCount: 0,
+          reportCount: 0,
         },
         { merge: true }
       );
@@ -721,12 +725,161 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     curatedMemoryCache[tId] = tempCache[tId] || [];
   }
 
+  // Trigger background sync of any missing local/curated questions to Firestore
+  syncLocalQuestionsToFirestore().catch((err) => {
+    console.warn('Background Firestore question sync skipped:', err);
+  });
+
   return {
     totalQuestions,
     totalCurated,
     counts,
     countsPerTaskType: counts,
   };
+}
+
+let isSyncingToFirestore = false;
+
+/**
+ * Syncs all deduplicated questions from in-memory cache and IndexedDB to the Firestore 'questions' collection
+ * if they are not already present in Firestore.
+ */
+export async function syncLocalQuestionsToFirestore(): Promise<{
+  synced: number;
+  existing: number;
+}> {
+  if (isSyncingToFirestore || !db) {
+    return { synced: 0, existing: 0 };
+  }
+  isSyncingToFirestore = true;
+
+  let synced = 0;
+  let existing = 0;
+
+  try {
+    await ensureAuthenticated();
+
+    const existingIds = new Set<string>();
+    const existingSigs = new Set<string>();
+    const existingHashes = new Set<string>();
+
+    const snap = await getDocs(collection(db, 'questions'));
+    snap.forEach((docSnap) => {
+      existing++;
+      existingIds.add(docSnap.id);
+      const d = docSnap.data();
+      if (d?.contentHash) existingHashes.add(String(d.contentHash));
+      const tType = canonicalizeTaskType(d?.taskType || d?.type || 'academic-discussion');
+      const sig = getQuestionContentSignature(tType, d?.content || d);
+      existingSigs.add(sig);
+    });
+
+    // Gather all candidate questions from memory and IndexedDB
+    const candidates: Array<{
+      id: string;
+      taskType: string;
+      level: Level;
+      topic: AcademicTopic;
+      content: any;
+      source: string;
+    }> = [];
+
+    for (const tId of CANONICAL_TASK_IDS) {
+      const list = curatedMemoryCache[tId] || [];
+      for (const item of list) {
+        if (!isHighQualityTask(item, tId)) continue;
+        const qId = String(item.id || '');
+        const validLevel = normalizeDifficultyLabel(item.level || item.difficulty);
+        const validTopic = normalizeTopicLabel(item.topic || item.category, item);
+        candidates.push({
+          id: qId,
+          taskType: tId,
+          level: validLevel,
+          topic: validTopic,
+          content: item,
+          source: item.source || 'curated',
+        });
+      }
+    }
+
+    const toWrite: Array<{ docId: string; record: SharedQuestionRecord }> = [];
+
+    for (const cand of candidates) {
+      const sig = getQuestionContentSignature(cand.taskType, cand.content);
+      const contentHash = await computeContentHash(cand.taskType, cand.content);
+      const docId =
+        cand.id && cand.id.startsWith('q_')
+          ? cand.id
+          : `q_${contentHash.slice(0, 24)}`;
+
+      if (
+        existingIds.has(docId) ||
+        (cand.id && existingIds.has(cand.id)) ||
+        existingHashes.has(contentHash) ||
+        existingSigs.has(sig)
+      ) {
+        continue;
+      }
+
+      existingIds.add(docId);
+      existingHashes.add(contentHash);
+      existingSigs.add(sig);
+
+      const enrichedContent = {
+        ...cand.content,
+        id: cand.content.id || docId,
+        level: cand.level,
+        topic: cand.topic,
+        source: cand.source,
+        generatedBy: cand.content.generatedBy || getScholarUsername(),
+        createdAt: cand.content.createdAt || Date.now(),
+      };
+
+      const rawAudioUrl = cand.content.audioUrl || null;
+      const rawAudioClips = cand.content.audioClips || null;
+      const cleanAudioUrl = isValidBlobUrl(rawAudioUrl) ? rawAudioUrl : null;
+      const cleanAudioClips = Array.isArray(rawAudioClips)
+        ? rawAudioClips.filter((c: any) => isValidBlobUrl(c?.url)).slice(0, 10)
+        : null;
+
+      toWrite.push({
+        docId,
+        record: {
+          id: docId,
+          taskType: cand.taskType,
+          level: cand.level,
+          topic: cand.topic,
+          content: enrichedContent,
+          contentHash,
+          audioUrl: cleanAudioUrl,
+          audioClips: cleanAudioClips && cleanAudioClips.length > 0 ? cleanAudioClips : null,
+          source: cand.source,
+          generatedBy: enrichedContent.generatedBy,
+          createdAt: serverTimestamp(),
+          createdBy: auth?.currentUser?.uid || 'anonymous',
+          useCount: 0,
+          reportCount: 0,
+        },
+      });
+    }
+
+    const BATCH_LIMIT = 100;
+    for (let i = 0; i < toWrite.length; i += BATCH_LIMIT) {
+      const slice = toWrite.slice(i, i + BATCH_LIMIT);
+      const batch = writeBatch(db);
+      for (const item of slice) {
+        batch.set(doc(db, 'questions', item.docId), item.record, { merge: true });
+      }
+      await batch.commit();
+      synced += slice.length;
+    }
+  } catch (err) {
+    console.warn('Error in syncLocalQuestionsToFirestore:', err);
+  } finally {
+    isSyncingToFirestore = false;
+  }
+
+  return { synced, existing };
 }
 
 /**
@@ -1083,6 +1236,8 @@ export async function saveQuestionToBank(params: {
   };
 
   try {
+    await ensureAuthenticated();
+
     // 1. Check for existing duplicate by contentHash
     const q = query(
       collection(db, 'questions'),
@@ -1121,6 +1276,8 @@ export async function saveQuestionToBank(params: {
     return null;
   }
 }
+
+export const saveQuestionToSharedBank = saveQuestionToBank;
 
 /**
  * Get the list of seen question IDs for the current user from userProgress/{uid}
@@ -1723,7 +1880,7 @@ export async function seedDefaultQuestionsToFirestore(): Promise<{
   failed: number;
 }> {
   const report = { created: 0, skipped: 0, failed: 0 };
-  if (!auth?.currentUser) return report;
+  await ensureAuthenticated();
 
   try {
     const {
