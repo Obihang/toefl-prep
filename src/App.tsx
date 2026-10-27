@@ -23,7 +23,7 @@ import {
   isValidAcademicTopic,
   AcademicTopic,
 } from './constants/filters';
-import { getApiHeaders, getStoredApiKey, hasAnyStoredApiKey, getScholarUsername } from './utils/apiKey';
+import { getApiHeaders, getStoredApiKey, hasAnyStoredApiKey, hasAnyProviderKey, getScholarUsername } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
 import { normalizeTaskData } from './utils/taskNormalizer';
 
@@ -76,6 +76,9 @@ import {
   syncCuratedQuestionBank,
   getQuestionBankStats,
   getLoadedCuratedTasks,
+  getFilteredBankTasks,
+  matchesLevelFilter,
+  matchesTopicFilter,
   loadCuratedShard,
   saveVerifiedQuestion,
 } from './utils/questionBankStorage';
@@ -570,9 +573,8 @@ export default function App() {
 
   // Background question pre-fetch worker for any task type
   const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
-    const key = getStoredApiKey().trim();
     const currentCount = prefetchedQueue[type]?.length || 0;
-    if (!key) { logEarlyExit('no key'); return; }
+    if (!hasAnyProviderKey()) { logEarlyExit('no key'); return; }
     if (document.visibilityState !== 'visible') { logEarlyExit('tab hidden'); return; }
     if (inFlightLock.current || isPrefetchingRef.current[type]) { logEarlyExit('lock held'); return; }
     if (isGenerating) { logEarlyExit('cooldown'); return; }
@@ -638,8 +640,9 @@ export default function App() {
           savePrefetchQueueToStorage(nextQueue);
           return nextQueue;
         });
+        getQuestionBankStats().then(setBankStats).catch(() => {});
       } else {
-        failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
+        failedRecentlyRef.current[type] = Date.now() + 30 * 1000;
       }
     } catch (err: any) {
       console.debug('Background prefetch notice:', err);
@@ -657,11 +660,11 @@ export default function App() {
           quotaExhaustedUntilRef.current = pause.resumeAt;
         }
       } else if (status === 401 || reason.includes('invalid api key') || reason.includes('key')) {
-        quotaExhaustedUntilRef.current = Date.now() + 30 * 60 * 1000;
+        quotaExhaustedUntilRef.current = Date.now() + 30 * 1000;
       } else if (status === 503) {
-        quotaExhaustedUntilRef.current = Date.now() + 60000;
+        quotaExhaustedUntilRef.current = Date.now() + 30 * 1000;
       } else {
-        failedRecentlyRef.current[type] = Date.now() + 5 * 60 * 1000;
+        failedRecentlyRef.current[type] = Date.now() + 30 * 1000;
       }
     } finally {
       isPrefetchingRef.current[type] = false;
@@ -678,7 +681,7 @@ export default function App() {
       const next: PrefetchQueue = {};
       for (const [k, items] of Object.entries(prev)) {
         if (!Array.isArray(items)) continue;
-        const matching = items.filter((item) => item.level === level && item.topic === topic);
+        const matching = items.filter((item) => matchesLevelFilter(item, level) && matchesTopicFilter(item, topic));
         if (matching.length !== items.length) {
           changed = true;
         }
@@ -692,7 +695,18 @@ export default function App() {
       }
       return prev;
     });
-  }, [level, topic]);
+    // Ensure active customTask respects newly selected filter
+    setCustomTasks((prev) => {
+      const current = prev[currentTaskType];
+      if (!current) return prev;
+      if (matchesLevelFilter(current, level) && matchesTopicFilter(current, topic)) {
+        return prev;
+      }
+      const copy = { ...prev };
+      delete copy[currentTaskType];
+      return copy;
+    });
+  }, [level, topic, currentTaskType]);
 
   // New sequential prefetch loop
   const inFlightLock = React.useRef(false);
@@ -714,7 +728,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!enablePrefetching || !getStoredApiKey().trim()) return;
+    if (!enablePrefetching || !hasAnyProviderKey()) return;
     
     let isCancelled = false;
     let idleTimeout: any = null;
@@ -810,7 +824,7 @@ export default function App() {
         }
 
         // Immediately replenish the next question in the background if empty
-        if (enablePrefetching && getStoredApiKey().trim()) {
+        if (enablePrefetching && hasAnyProviderKey()) {
           setTimeout(() => {
             prefetchTaskInBackground(currentTaskType, concreteLevel, concreteTopic);
           }, 300);
@@ -900,7 +914,7 @@ export default function App() {
       setTimeout(() => setGenerationSuccess(false), 3000);
 
       // Immediately pre-fetch the next question into queue if quota is healthy
-      if (enablePrefetching && getStoredApiKey().trim()) {
+      if (enablePrefetching && hasAnyProviderKey()) {
         setTimeout(() => {
           prefetchTaskInBackground(currentTaskType, level, topic);
         }, 300);
@@ -1225,15 +1239,18 @@ export default function App() {
           {(() => {
             const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
             const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
-            const filteredMatches = getLoadedCuratedTasks(currentTaskType, level, topic);
-            const totalAcrossAllSections = bankStats?.totalQuestions || 80;
+            const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic);
+            const totalAcrossAllSections =
+              bankStats?.totalQuestions ||
+              Object.values(bankStats?.countsPerTaskType || {}).reduce((a, b) => a + b, 0) ||
+              90;
 
             return (
               <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-teal-50/70 border border-teal-200/80 text-xs text-slate-700 flex-wrap gap-2 shadow-2xs">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
                   <span className="font-bold text-slate-900">
-                    Section bank: {filteredMatches.length} match current filter ({sectionTotalCount} in section &bull; {totalAcrossAllSections} in global bank)
+                    Section bank: {exactFilterMatches.length} match current filter ({sectionTotalCount} in section &bull; {totalAcrossAllSections} in global bank)
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-teal-800">
@@ -1377,12 +1394,12 @@ export default function App() {
                     : 'Generate New with AI'}
                 </span>
               </button>
-              {Boolean(getStoredApiKey().trim()) && enablePrefetching && !prefetchProgress.done && (
+              {hasAnyProviderKey() && enablePrefetching && !prefetchProgress.done && (
                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
                   Preparing questions ({prefetchProgress.filled}/8 ready)
                 </span>
               )}
-              {Boolean(getStoredApiKey().trim()) && enablePrefetching && prefetchProgress.done && (
+              {hasAnyProviderKey() && enablePrefetching && prefetchProgress.done && (
                 <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">
                   Questions ready
                 </span>

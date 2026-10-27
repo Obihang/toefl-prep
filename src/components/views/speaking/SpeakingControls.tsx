@@ -117,7 +117,7 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
         <div className="flex items-center gap-4 text-xs text-slate-600">
           <div className="flex items-center gap-1">
             <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Prep: <strong className="font-mono text-slate-800">{currentQ.prepTimeSeconds}s</strong></span>
+            <span>Prep: <strong className="font-mono text-slate-800">2s</strong></span>
           </div>
           <span aria-hidden="true" className="text-slate-300">·</span>
           <div>
@@ -142,7 +142,7 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
                   : 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
               }`}
             >
-              {timerMode === 'prep' ? `PREPARATION: ${timeLeft}s` : `RECORDING: ${timeLeft}s`}
+              {timerMode === 'prep' ? `Get ready to speak... (${timeLeft}s)` : `RECORDING: ${timeLeft}s`}
             </div>
 
             <button

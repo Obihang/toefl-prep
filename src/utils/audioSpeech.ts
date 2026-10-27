@@ -40,6 +40,109 @@ export interface SpeechVoiceOption {
   default: boolean;
 }
 
+export const MALE_NEURAL_VOICES = [
+  'en-US-ChristopherNeural',
+  'en-US-GuyNeural',
+  'en-US-EricNeural',
+  'en-US-RogerNeural',
+  'en-US-SteffanNeural',
+  'en-GB-RyanNeural',
+  'en-GB-ThomasNeural',
+];
+
+export const FEMALE_NEURAL_VOICES = [
+  'en-US-AriaNeural',
+  'en-US-JennyNeural',
+  'en-US-MichelleNeural',
+  'en-GB-SoniaNeural',
+  'en-GB-LibbyNeural',
+];
+
+const COMMON_FEMALE_NAMES = new Set([
+  'sarah', 'emily', 'jessica', 'rachel', 'hannah', 'olivia', 'sophia', 'emma', 'claire', 'chloe',
+  'megan', 'lauren', 'amanda', 'samantha', 'ashley', 'nicole', 'elizabeth', 'stephanie', 'rebecca',
+  'katherine', 'anna', 'maria', 'lisa', 'laura', 'michelle', 'kimberly', 'amy', 'angela', 'melissa',
+  'brenda', 'elena', 'maya', 'priya', 'lin', 'zoe', 'nina', 'alice', 'diana', 'victoria', 'natalie',
+  'grace', 'lily', 'haley', 'julia', 'jenny', 'aria', 'sonia', 'libby', 'ava', 'susan', 'karen',
+  'nancy', 'betty', 'helen', 'sandra', 'donna', 'carol', 'ruth', 'sharon', 'cynthia', 'kathleen',
+  'deborah', 'shirley', 'catherine', 'christine', 'janet', 'debra', 'carolyn', 'heather', 'diane',
+  'julie', 'joyce', 'kelly', 'christina', 'joan', 'evelyn', 'judith', 'andrea', 'cheryl', 'marilyn',
+]);
+
+const COMMON_MALE_NAMES = new Set([
+  'michael', 'david', 'john', 'james', 'robert', 'william', 'richard', 'thomas', 'charles', 'daniel',
+  'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua', 'kenneth', 'kevin',
+  'brian', 'george', 'timothy', 'ronald', 'edward', 'jason', 'jeffrey', 'ryan', 'jacob', 'gary',
+  'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon', 'benjamin',
+  'samuel', 'gregory', 'alexander', 'patrick', 'frank', 'raymond', 'jack', 'dennis', 'jerry',
+  'tyler', 'aaron', 'jose', 'adam', 'nathan', 'henry', 'douglas', 'zachary', 'peter', 'kyle',
+  'ethan', 'walter', 'noah', 'jeremy', 'christian', 'keith', 'roger', 'terry', 'gerald', 'harold',
+  'sean', 'austin', 'carl', 'arthur', 'lawrence', 'dylan', 'jesse', 'jordan', 'bryan', 'billy',
+  'joe', 'bruce', 'gabriel', 'logan', 'albert', 'willie', 'alan', 'juan', 'wayne', 'elijah',
+  'randy', 'roy', 'vincent', 'ralph', 'eugene', 'russell', 'bobby', 'mason', 'philip', 'louis',
+  'marcus', 'leo', 'carlos', 'omar', 'chen', 'raj', 'liam', 'lucas', 'alex', 'sam', 'ben', 'tom',
+  'dan', 'matt', 'chris', 'nick', 'mike', 'dave', 'steve', 'jim', 'bob', 'bill', 'ted', 'christopher',
+  'guy', 'steffan',
+]);
+
+export function inferGenderFromSpeaker(speakerLabelOrName: string): 'male' | 'female' | null {
+  if (!speakerLabelOrName) return null;
+  const lower = speakerLabelOrName.toLowerCase();
+
+  // Explicit gender markers or titles
+  if (/\b(female|woman|girl|ms\.?|mrs\.?|miss|she|her|chairwoman|spokeswoman|actress|waitress|mother|sister)\b/i.test(lower)) {
+    return 'female';
+  }
+  if (/\b(male|man|boy|mr\.?|he|him|his|chairman|spokesman|actor|waiter|father|brother|sir)\b/i.test(lower)) {
+    return 'male';
+  }
+
+  // Tokenize words and check against name sets
+  const tokens = lower.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  for (const token of tokens) {
+    if (COMMON_FEMALE_NAMES.has(token)) return 'female';
+    if (COMMON_MALE_NAMES.has(token)) return 'male';
+  }
+
+  return null;
+}
+
+export function pickRandomVoice(
+  gender?: 'male' | 'female',
+  excludeVoice?: string
+): { gender: 'male' | 'female'; voiceId: string } {
+  const resolvedGender: 'male' | 'female' =
+    gender === 'male' || gender === 'female'
+      ? gender
+      : Math.random() < 0.5
+      ? 'male'
+      : 'female';
+
+  const basePool = resolvedGender === 'male' ? MALE_NEURAL_VOICES : FEMALE_NEURAL_VOICES;
+  const filteredPool =
+    excludeVoice && basePool.length > 1
+      ? basePool.filter((v) => v !== excludeVoice)
+      : basePool;
+
+  const voiceId = filteredPool[Math.floor(Math.random() * filteredPool.length)] || basePool[0];
+  return { gender: resolvedGender, voiceId };
+}
+
+export async function speakWithCloudTTS(
+  text: string,
+  gender?: 'male' | 'female',
+  options?: PlaySpeechOptions,
+  specificVoiceId?: string
+): Promise<void> {
+  const voice = specificVoiceId || options?.voice || options?.voiceName;
+  return playSpeech(text, {
+    ...options,
+    gender: gender || options?.gender,
+    voice,
+    voiceName: voice,
+  });
+}
+
 let cachedVoices: SpeechSynthesisVoice[] = [];
 const activeUtterances = new Set<SpeechSynthesisUtterance>();
 let activeHtmlAudio: HTMLAudioElement | null = null;

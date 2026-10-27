@@ -263,10 +263,12 @@ export function setStoredRoles(provider: string, roles: StoredRoles): void {
   localStorage.setItem(`toefl_roles_${provider}`, JSON.stringify(roles));
 }
 
+import { PROVIDER_ORDER } from '../config/models';
+
 export function getProviderKeys(): Record<string, string> {
   const result: Record<string, string> = {};
   if (typeof localStorage === 'undefined') return result;
-  const providers: ApiProvider[] = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai', 'custom'];
+  const providers: ApiProvider[] = [...PROVIDER_ORDER, 'custom'];
   for (const p of providers) {
     const k = (
       localStorage.getItem(`toefl_key_${p}`) ||
@@ -283,11 +285,20 @@ export function getProviderKeys(): Record<string, string> {
 
 export const getAllProviderKeys = getProviderKeys;
 
-export function hasAnyStoredApiKey(): boolean {
+export function hasAnyProviderKey(): boolean {
   if (typeof localStorage === 'undefined') return false;
   const keys = getProviderKeys();
-  if (Object.keys(keys).length > 0) return true;
+  for (const p of PROVIDER_ORDER) {
+    if (keys[p] && keys[p].trim()) return true;
+  }
+  if (Object.values(keys).some((v) => v && v.trim())) return true;
   if ((localStorage.getItem('toefl_custom_api_key') || '').trim()) return true;
+  return false;
+}
+
+export function hasAnyStoredApiKey(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  if (hasAnyProviderKey()) return true;
   if ((localStorage.getItem('toefl_voice_api_key') || '').trim()) return true;
   return false;
 }
@@ -385,8 +396,20 @@ export function setStoredTtsBaseUrl(provider: string, url: string): void {
 }
 
 export function getApiHeaders(): Record<string, string> {
-  const provider = getStoredProvider();
-  const key = getStoredApiKey();
+  const allKeys = getProviderKeys();
+  let provider = getStoredProvider();
+  let key = getStoredApiKey(provider) || allKeys[provider] || '';
+
+  if (!key) {
+    for (const candidate of PROVIDER_ORDER) {
+      if (allKeys[candidate]) {
+        provider = candidate;
+        key = allKeys[candidate];
+        break;
+      }
+    }
+  }
+
   const voiceKey = getStoredVoiceKey();
   const baseUrl = getStoredBaseUrl();
   const model = getStoredModel();

@@ -1,4 +1,6 @@
 import { TaskTypeId, TASK_DEFINITIONS } from '../types/taskTypes';
+import { hasAnyProviderKey } from './apiKey';
+import { callBackendGenerate } from '../services/geminiService';
 
 export type PrefetchedItem = {
   id: string;
@@ -16,6 +18,82 @@ const STORAGE_KEY = 'toefl_prefetched_queue_v3';
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
 export const PREFETCH_GAP_MS = 12000;
+export const PREFETCH_COOLDOWN_MS = 30000;
+
+export let consecutiveFailures = 0;
+export let circuitBreakerOpen = false;
+let lastFailureTime = 0;
+
+export function resetPrefetchCircuitBreaker(): void {
+  consecutiveFailures = 0;
+  circuitBreakerOpen = false;
+  lastFailureTime = 0;
+}
+
+export function recordPrefetchSuccess(): void {
+  consecutiveFailures = 0;
+  circuitBreakerOpen = false;
+}
+
+export function recordPrefetchFailure(): void {
+  consecutiveFailures += 1;
+  lastFailureTime = Date.now();
+  if (consecutiveFailures >= 3) {
+    circuitBreakerOpen = true;
+  }
+}
+
+export function isPrefetchCircuitBreakerOpen(now: number = Date.now()): boolean {
+  if (!circuitBreakerOpen) return false;
+  if (now - lastFailureTime >= PREFETCH_COOLDOWN_MS) {
+    consecutiveFailures = 0;
+    circuitBreakerOpen = false;
+    return false;
+  }
+  return true;
+}
+
+export async function prefetchQuestions(
+  taskType: TaskTypeId,
+  level: string,
+  topic: string
+): Promise<PrefetchedItem | null> {
+  if (!hasAnyProviderKey()) {
+    return null;
+  }
+
+  // Reset circuit breaker when triggered with a valid provider key or after 30s cooldown
+  if (hasAnyProviderKey() || Date.now() - lastFailureTime >= PREFETCH_COOLDOWN_MS) {
+    consecutiveFailures = 0;
+    circuitBreakerOpen = false;
+  }
+
+  try {
+    const json = await callBackendGenerate(taskType, level, topic);
+    if (json && json.success && json.data && !json.data.isFallback) {
+      recordPrefetchSuccess();
+      const item: PrefetchedItem = {
+        ...json.data,
+        level,
+        topic,
+        id: json.data.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        isPrefetched: true,
+        createdAt: Date.now(),
+        source: 'ai',
+      };
+      const queue = loadPrefetchQueueFromStorage();
+      const currentItems = queue[taskType] || [];
+      queue[taskType] = [...currentItems, item].slice(-2);
+      savePrefetchQueueToStorage(queue);
+      return item;
+    }
+    recordPrefetchFailure();
+    return null;
+  } catch {
+    recordPrefetchFailure();
+    return null;
+  }
+}
 
 export interface RateLimitPauseState {
   kind: 'per-minute' | 'per-day' | 'unknown';

@@ -1,5 +1,113 @@
 import { inferTopic } from './inferTopic';
-import { isValidAcademicTopic, isValidLevel } from '../constants/filters';
+import { AcademicTopic, Level, isValidAcademicTopic, isValidLevel } from '../constants/filters';
+
+/**
+ * Normalizes any raw level / difficulty string (e.g., "Upper-Intermediate (B2-C1 · 80-100)",
+ * "Intermediate (B1-B2 · 60-79)", "Advanced (C1 · 100-120)", "B2-C1", "upper_intermediate")
+ * into a canonical Level ('beginner' | 'intermediate' | 'upper-intermediate' | 'advanced').
+ */
+export function normalizeDifficultyLabel(rawLevel: any): Level {
+  if (!rawLevel || typeof rawLevel !== 'string') return 'intermediate';
+  const clean = rawLevel.trim().toLowerCase();
+  if (isValidLevel(clean)) return clean;
+
+  if (
+    clean.includes('upper-intermediate') ||
+    clean.includes('upper_intermediate') ||
+    clean.includes('upper intermediate') ||
+    clean.includes('b2-c1') ||
+    clean.includes('80-100') ||
+    clean === 'b2'
+  ) {
+    return 'upper-intermediate';
+  }
+  if (
+    clean.includes('advanced') ||
+    clean.includes('100-120') ||
+    clean.includes('c1-c2') ||
+    clean === 'c1' ||
+    clean === 'c2'
+  ) {
+    return 'advanced';
+  }
+  if (
+    clean.includes('beginner') ||
+    clean.includes('elementary') ||
+    clean.includes('a1') ||
+    clean.includes('a2')
+  ) {
+    return 'beginner';
+  }
+  if (
+    clean.includes('intermediate') ||
+    clean.includes('b1-b2') ||
+    clean.includes('60-79') ||
+    clean.includes('60-80') ||
+    clean === 'b1'
+  ) {
+    return 'intermediate';
+  }
+
+  return 'intermediate';
+}
+
+/**
+ * Normalizes any raw topic or sub-topic string (e.g., "Science & Technology",
+ * "Environment & Nature", "Ecology & Environment", "Social Sciences & History",
+ * "Campus Life & Academics", "Health & Medicine", or specific sub-topics)
+ * into a canonical AcademicTopic.
+ */
+export function normalizeTopicLabel(rawTopic: any, taskContent?: any): AcademicTopic {
+  if (typeof rawTopic === 'string' && rawTopic.trim()) {
+    const clean = rawTopic.trim().toLowerCase();
+    if (isValidAcademicTopic(clean)) return clean;
+
+    if (
+      /science|tech|health|medicin|medical|biolog|physic|chemist|astronom|computer|engineer|neuro|genet|nutriti|robot|quantum|algorithm|ai\b/.test(
+        clean
+      )
+    ) {
+      return 'science-tech';
+    }
+    if (
+      /environ|nature|ecolog|climat|sustainab|conservat|renewab|pollut|wildlife|forest|ocean|marine|agricult|solar|wind|transport|urban/.test(
+        clean
+      )
+    ) {
+      return 'environment';
+    }
+    if (
+      /business|econom|financ|market|manag|trade|commerc|entrepreneur|corporate|invest|workplace|supply chain|consumer/.test(
+        clean
+      )
+    ) {
+      return 'business-economics';
+    }
+    if (
+      /art|humanit|literat|philosoph|music|theater|theatre|paint|sculpt|architect|film|cinema|poet|novel|drama|renaissance/.test(
+        clean
+      )
+    ) {
+      return 'arts-humanities';
+    }
+    if (
+      /campus|universit|dorm|librar|registrar|professor|advisor|student|scholar|tuition|semester|syllabus|course|academic|lecture hall|cafeteria/.test(
+        clean
+      )
+    ) {
+      return 'campus-life';
+    }
+    if (
+      /social|psycholog|sociolog|histor|anthropolog|archaeolog|educat|pedagog|linguist|mental|politic|cultur|demograph|ethic|civilization/.test(
+        clean
+      )
+    ) {
+      return 'social-sciences';
+    }
+  }
+
+  return inferTopic(taskContent || { topic: rawTopic });
+}
 
 /**
  * Normalizes task data for a specific taskType, populating fallback stubs if missing or invalid.
@@ -11,11 +119,11 @@ export function normalizeTaskContent(task: any, taskType: string): any {
 
   const fallback = getFallbackTask(taskType);
 
-  const rawLevel = task.level || task.content?.level || fallback.level || 'intermediate';
-  const validLevel = isValidLevel(rawLevel) ? rawLevel : 'intermediate';
+  const rawLevel = task.level || task.difficulty || task.content?.level || task.content?.difficulty || fallback.level || 'intermediate';
+  const validLevel = normalizeDifficultyLabel(rawLevel);
 
-  const rawTopic = task.topic || task.content?.topic;
-  const validTopic = isValidAcademicTopic(rawTopic) ? rawTopic : inferTopic(task);
+  const rawTopic = task.topic || task.academicTopic || task.content?.topic || task.content?.academicTopic;
+  const validTopic = normalizeTopicLabel(rawTopic, task);
 
   const result: any = {
     ...task,
@@ -75,7 +183,7 @@ export function normalizeTaskContent(task: any, taskType: string): any {
       result.questions = Array.isArray(task.questions) && task.questions.length > 0
         ? task.questions.map((q: any) => ({
             question: String(q?.question || q?.q || ''),
-            prepTimeSeconds: Number(q?.prepTimeSeconds || 20),
+            prepTimeSeconds: 2,
             responseTimeSeconds: Number(q?.responseTimeSeconds || 45),
             suggestedPoints: Array.isArray(q?.suggestedPoints) ? q.suggestedPoints.map((p: any) => String(p || '')) : [],
           }))
@@ -128,17 +236,20 @@ export function normalizeTaskData(taskOrRaw: any, taskTypeParam?: string): any {
 
   if (!taskOrRaw || typeof taskOrRaw !== 'object') return null;
 
-  const taskType = String(
+  let taskType = String(
     taskOrRaw.taskType || taskOrRaw.type || taskOrRaw.section || taskOrRaw.taskId || taskOrRaw.category || 'academic-discussion'
   ).toLowerCase().trim();
-
-  const rawLevel = taskOrRaw.level || taskOrRaw.proficiencyLevel || taskOrRaw.difficulty || 'intermediate';
-  const level = isValidLevel(rawLevel) ? rawLevel : 'intermediate';
-
-  const rawTopic = taskOrRaw.topic || taskOrRaw.academicTopic || taskOrRaw.subject;
-  const topic = isValidAcademicTopic(rawTopic) ? rawTopic : inferTopic(taskOrRaw);
+  if (taskType === 'listening-lecture') {
+    taskType = 'listening-dialogue';
+  }
 
   const rawContent = taskOrRaw.content && typeof taskOrRaw.content === 'object' ? taskOrRaw.content : taskOrRaw;
+
+  const rawLevel = taskOrRaw.level || taskOrRaw.proficiencyLevel || taskOrRaw.difficulty || rawContent.level || rawContent.difficulty || 'intermediate';
+  const level = normalizeDifficultyLabel(rawLevel);
+
+  const rawTopic = taskOrRaw.topic || taskOrRaw.academicTopic || taskOrRaw.subject || rawContent.topic || rawContent.academicTopic;
+  const topic = normalizeTopicLabel(rawTopic, rawContent);
 
   return {
     taskType,
@@ -147,8 +258,8 @@ export function normalizeTaskData(taskOrRaw: any, taskTypeParam?: string): any {
     content: {
       ...rawContent,
       id: rawContent.id || taskOrRaw.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      level: rawContent.level || level,
-      topic: rawContent.topic || topic,
+      level,
+      topic,
     },
   };
 }
@@ -224,7 +335,7 @@ export function getFallbackTask(taskType: string): any {
         questions: [
           {
             question: 'Describe an academic subject that challenged your perspective and explain why.',
-            prepTimeSeconds: 20,
+            prepTimeSeconds: 2,
             responseTimeSeconds: 45,
             suggestedPoints: ['Name the subject', 'Explain the specific challenge', 'Describe your resolution or growth'],
           },

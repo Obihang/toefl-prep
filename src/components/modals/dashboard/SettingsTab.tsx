@@ -20,6 +20,7 @@ import {
   getStoredApiKey,
   setStoredApiKey,
   disconnectAllApiKeys,
+  hasAnyProviderKey,
   ApiProvider,
   PROVIDERS,
   getScholarUsername,
@@ -357,10 +358,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   }, [currentTaskType]);
 
   const handleBulkSeedBank = async () => {
-    const hasConfiguredKey = Boolean(
-      getStoredApiKey('gemini') ||
-      getStoredApiKey('groq')
-    );
+    const hasConfiguredKey = hasAnyProviderKey();
 
     if (!hasConfiguredKey) {
       setDataMessage({
@@ -748,7 +746,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-teal-700 shrink-0" />
                 <span className="text-xs font-bold text-slate-900">
-                  Section bank: {bankStats?.totalQuestions || 0} match current filter
+                  Global bank: {bankStats?.totalQuestions || 0} verified questions ({bankStats?.countsPerTaskType?.[currentTaskType || 'academic-discussion'] || 0} in active section)
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -771,7 +769,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               </div>
             </div>
             <p className="text-[11px] text-slate-600">
-              All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.
+              All 8 TOEFL task types are deduplicated, synced, and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.
             </p>
           </div>
 

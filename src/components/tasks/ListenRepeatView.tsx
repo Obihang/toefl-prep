@@ -1,11 +1,11 @@
 import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender, assignTaskSpeakerVoices } from '../../utils/voices';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play, HardDrive, Settings } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { db } from '../../firebase';
@@ -111,18 +111,30 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
     };
   }, [task.id, stopAllAudio]);
 
-  const speakerName = (task as any).speakerName || 'Sarah (student)';
-  const speakerGender = (task as any).speakerGender || inferGender(speakerName);
-  const speakerVoice = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
+  const speakerName = (task as any).speakerName || 'Narrator';
+
+  // Pick a random male or female neural voice per sentence when the task loads
+  const sentenceVoices = useMemo(() => {
+    const list: Array<{ gender: 'male' | 'female'; voiceId: string }> = [];
+    let lastVoiceId: string | undefined;
+    for (const rawSentence of task.sentences || []) {
+      const parsed = parseDialogueLine(rawSentence);
+      const inferred = inferGenderFromSpeaker(parsed.speakerName || parsed.speakerHint || '');
+      const picked = pickRandomVoice(inferred || undefined, lastVoiceId);
+      lastVoiceId = picked.voiceId;
+      list.push(picked);
+    }
+    return list;
+  }, [task.id, task.title, task.sentences]);
 
   // Silent background pre-synthesis so clicking "Hear sentence" is INSTANT (0 ms delay)
   useEffect(() => {
     if (!task?.sentences || task.sentences.length === 0) return;
     task.sentences.forEach((sentence, idx) => {
-      const sentenceVoice = pickSingleVoice(`${task.id || task.title}|${speakerName}|s_${idx}`, speakerGender);
-      prefetchSpeechAudio(sentence, sentenceVoice).catch(() => {});
+      const vInfo = sentenceVoices[idx] || pickRandomVoice();
+      prefetchSpeechAudio(sentence, vInfo.voiceId, vInfo.gender).catch(() => {});
     });
-  }, [task.id, task.title, speakerName, speakerGender]);
+  }, [task.id, task.title, sentenceVoices]);
 
   useEffect(() => {
     return () => {
@@ -173,7 +185,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
     const parsed = parseDialogueLine(rawSentence);
     const cleanSentence = parsed.spokenText || stripSpeakerAndFormatting(rawSentence);
     const effSpeaker = parsed.speakerName || speakerName;
-    const effGender = detectSpeakerGender(effSpeaker, parsed.speakerHint || speakerGender);
+    const assignedVoice = sentenceVoices[index] || pickRandomVoice();
+    const effGender = assignedVoice.gender;
+    const voice = assignedVoice.voiceId;
     const audioClips = (task as any).audioClips;
     const audioUrl = (task as any).audioUrl;
 
@@ -227,8 +241,6 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
     try {
       const authHdrs = await getAuthHeaders();
       const headers = { ...getApiHeaders(), ...authHdrs };
-      const speakerVoices = assignTaskSpeakerVoices(task);
-      const voice = speakerVoices[effSpeaker] || speakerVoices['default'] || pickSingleVoice(`${task.id || task.title}|${effSpeaker}`, effGender);
       const ttsRes = await fetch('/api/tts', {
         method: 'POST',
         headers,
@@ -297,12 +309,14 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
 
     if (playbackSessionIdRef.current !== currentSession) return;
 
-    const voiceName = pickSingleVoice(`${task.id || task.title}|${speakerName}|s_${index}`, speakerGender);
-    const browserVoice = pickBrowserVoiceForGender(speakerGender);
+    const voiceName = voice;
+    const browserVoice = pickBrowserVoiceForGender(effGender);
     try {
       await speakScriptLine(cleanSentence, {
         rate: 0.9,
+        voice: voiceName,
         voiceName,
+        gender: effGender,
         browserVoice,
         onStart: () => {
           if (playbackSessionIdRef.current === currentSession) {

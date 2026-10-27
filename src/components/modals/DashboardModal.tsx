@@ -75,12 +75,14 @@ export const DashboardModal: React.FC<Props> = ({
   }, [defaultTab]);
 
   useEffect(() => {
-    if (isOpen && (activeTab === 'goals' || activeTab === 'settings')) {
+    if (isOpen) {
       setLoadingQuestionCounts(true);
-      getQuestionCountsPerTaskType().then((counts) => {
-        setQuestionCounts(counts);
-        setLoadingQuestionCounts(false);
-      }).catch(() => setLoadingQuestionCounts(false));
+      getQuestionCountsPerTaskType()
+        .then((counts) => {
+          setQuestionCounts(counts);
+          setLoadingQuestionCounts(false);
+        })
+        .catch(() => setLoadingQuestionCounts(false));
     }
   }, [isOpen, activeTab]);
 

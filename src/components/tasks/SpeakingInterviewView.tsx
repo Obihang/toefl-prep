@@ -1,11 +1,11 @@
 import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender, assignTaskSpeakerVoices } from '../../utils/voices';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Zap, HardDrive } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
+import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
@@ -103,18 +103,26 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const currentQ: InterviewQuestionItem = task.questions[currentQIndex];
 
-  const interviewerName = (task as any).interviewerName || 'Professor Lee';
-  const interviewerGender = (task as any).interviewerGender || inferGender(interviewerName);
-  const interviewerVoice = pickSingleVoice(`${task.title}|${interviewerName}`, interviewerGender);
+  const interviewerName = (task as any).interviewerName || 'Interviewer';
+  const interviewerVoiceInfo = useMemo(() => {
+    const explicitGender = (task as any).interviewerGender;
+    const inferred =
+      explicitGender === 'male' || explicitGender === 'female'
+        ? explicitGender
+        : inferGenderFromSpeaker(`${interviewerName} ${task.context || ''}`);
+    return pickRandomVoice(inferred || undefined);
+  }, [task.id, task.title, interviewerName]);
 
-  // Silent background pre-synthesis of interviewer questions
+  const interviewerGender = interviewerVoiceInfo.gender;
+  const interviewerVoice = interviewerVoiceInfo.voiceId;
+
+  // Silent background pre-synthesis of interviewer questions using the SAME single interviewer voice
   useEffect(() => {
     if (!task?.questions) return;
-    task.questions.forEach((q, idx) => {
-      const qVoice = pickSingleVoice(`${task.id || task.title}|${interviewerName}|q_${idx}`, interviewerGender);
-      prefetchSpeechAudio(q.question, qVoice).catch(() => {});
+    task.questions.forEach((q) => {
+      prefetchSpeechAudio(q.question, interviewerVoice, interviewerGender).catch(() => {});
     });
-  }, [task.id, task.title, interviewerName, interviewerGender]);
+  }, [task.id, task.title, interviewerVoice, interviewerGender]);
 
   // Stop audio/timers/voice session on unmount
   useEffect(() => {
@@ -175,10 +183,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     setAudioError(null);
     const parsed = parseDialogueLine(currentQ.question);
     const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(currentQ.question);
-    const effInterviewer = parsed.speakerName || interviewerName;
-    const effGender = detectSpeakerGender(effInterviewer, parsed.speakerHint || interviewerGender);
-    const speakerVoices = assignTaskSpeakerVoices(task);
-    const voice = speakerVoices[effInterviewer] || pickSingleVoice(`${task.id || task.title}|${effInterviewer}`, effGender);
+    const effGender = interviewerGender;
+    const voice = interviewerVoice;
     const browserVoice = pickBrowserVoiceForGender(effGender);
     try {
       await speakScriptLine(cleanQ, {
@@ -328,13 +334,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     setAudioLevel(0);
     setMicNotice(null);
 
-    // 1. Preparation Phase
+    // 1. 2-Second Transition ("Get ready to speak...") before 45-second recording begins
     setStep('prep');
     setTimerMode('prep');
-    setTimeLeft(currentQ.prepTimeSeconds);
+    setTimeLeft(2);
     playChime(660, 250);
 
-    let currentSeconds = currentQ.prepTimeSeconds;
+    let currentSeconds = 2;
 
     timerIntervalRef.current = setInterval(() => {
       currentSeconds--;

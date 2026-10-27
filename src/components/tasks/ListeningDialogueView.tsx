@@ -1,8 +1,8 @@
 import { pickDialogueVoices, inferGender, parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, assignTaskSpeakerVoices } from '../../utils/voices';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
 import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
-import { playDialogue, stopSpeaking, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
+import { playDialogue, stopSpeaking, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth, db } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
@@ -30,10 +30,106 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const scriptText = task?.script || '';
   const lines = scriptText.split(/\n+/).filter(Boolean);
 
-  const seedStr = `${task.title}-${task.script || ''}`;
-  const gA = (task as any).speakerGenderA || (task as any).speakerGenders?.A || inferGender(task.speakers?.A || 'A');
-  const gB = (task as any).speakerGenderB || (task as any).speakerGenders?.B || inferGender(task.speakers?.B || 'B');
-  const voices = pickDialogueVoices(seedStr, gA, gB);
+  // Assign consistent voices per task:
+  // - Conversations: one fixed voice for Speaker A, one fixed voice for Speaker B
+  // - Announcements / Academic Talks (Lectures): one consistent voice for the entire passage
+  const dialogueVoices = useMemo(() => {
+    const taskSubType = String((task as any).type || '').toLowerCase();
+    const isSingleSpeakerPassage =
+      taskSubType === 'announcement' ||
+      taskSubType === 'academic_talk' ||
+      taskSubType === 'lecture' ||
+      (lines.length <= 2 && !/speaker b|^b:/im.test(scriptText));
+
+    const labelA = task.speakers?.A || '';
+    const labelB = task.speakers?.B || '';
+
+    if (isSingleSpeakerPassage) {
+      const inferred =
+        inferGenderFromSpeaker(`${labelA} ${task.context || ''} ${scriptText.slice(0, 160)}`) ||
+        ((task as any).speakerGenderA as 'male' | 'female' | undefined) ||
+        ((task as any).speakerGenders?.A as 'male' | 'female' | undefined);
+      const singleVoice = pickRandomVoice(inferred || undefined);
+      return {
+        isSingleSpeaker: true,
+        A: singleVoice,
+        B: singleVoice,
+      };
+    }
+
+    const explicitGA = (task as any).speakerGenderA || (task as any).speakerGenders?.A;
+    const explicitGB = (task as any).speakerGenderB || (task as any).speakerGenders?.B;
+    const inferredA =
+      explicitGA === 'male' || explicitGA === 'female'
+        ? explicitGA
+        : inferGenderFromSpeaker(labelA);
+    const inferredB =
+      explicitGB === 'male' || explicitGB === 'female'
+        ? explicitGB
+        : inferGenderFromSpeaker(labelB);
+
+    const voiceA = pickRandomVoice(inferredA || undefined);
+    const targetGenderB: 'male' | 'female' =
+      inferredB || (voiceA.gender === 'male' ? 'female' : 'male');
+    const voiceB = pickRandomVoice(targetGenderB, voiceA.voiceId);
+
+    return {
+      isSingleSpeaker: false,
+      A: voiceA,
+      B: voiceB,
+    };
+  }, [task.id, task.title, scriptText]);
+
+  const getVoiceForLine = useCallback(
+    (line: string, lineIndex: number): { gender: 'male' | 'female'; voiceId: string; speakerName: string } => {
+      const parsed = parseDialogueLine(line);
+      const rawSpeaker = parsed.speakerName || '';
+
+      if (dialogueVoices.isSingleSpeaker) {
+        return {
+          gender: dialogueVoices.A.gender,
+          voiceId: dialogueVoices.A.voiceId,
+          speakerName: rawSpeaker || task.speakers?.A || 'Narrator',
+        };
+      }
+
+      const lowerSpk = rawSpeaker.toLowerCase();
+      const lowerA = (task.speakers?.A || '').toLowerCase();
+      const lowerB = (task.speakers?.B || '').toLowerCase();
+
+      let isSpeakerB = false;
+      if (lowerSpk) {
+        if (lowerB && (lowerSpk.includes(lowerB) || lowerB.includes(lowerSpk))) {
+          isSpeakerB = true;
+        } else if (lowerA && (lowerSpk.includes(lowerA) || lowerA.includes(lowerSpk))) {
+          isSpeakerB = false;
+        } else if (/speaker b|^b$/i.test(lowerSpk)) {
+          isSpeakerB = true;
+        } else if (/speaker a|^a$/i.test(lowerSpk)) {
+          isSpeakerB = false;
+        } else {
+          isSpeakerB = lineIndex % 2 === 1;
+        }
+      } else {
+        isSpeakerB = lineIndex % 2 === 1;
+      }
+
+      const chosen = isSpeakerB ? dialogueVoices.B : dialogueVoices.A;
+      const fallbackLabel = isSpeakerB ? task.speakers?.B || 'Speaker B' : task.speakers?.A || 'Speaker A';
+
+      return {
+        gender: chosen.gender,
+        voiceId: chosen.voiceId,
+        speakerName: rawSpeaker || fallbackLabel,
+      };
+    },
+    [dialogueVoices, task.speakers]
+  );
+
+  const voices = {
+    A: dialogueVoices.A.voiceId,
+    B: dialogueVoices.B.voiceId,
+  };
 
   const stopAllAudio = useCallback(() => {
     playbackSessionIdRef.current++;
@@ -52,14 +148,14 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   useEffect(() => {
     // Silent background pre-synthesis of dialogue lines
     lines.forEach((line, i) => {
-      const isA = i % 2 === 0;
       const cleanLine = stripSpeakerAndFormatting(line);
-      prefetchSpeechAudio(cleanLine, isA ? voices.A : voices.B).catch(() => {});
+      const lineVoice = getVoiceForLine(line, i);
+      prefetchSpeechAudio(cleanLine, lineVoice.voiceId, lineVoice.gender).catch(() => {});
     });
     return () => {
       stopAllAudio();
     };
-  }, [task.id, task.title, stopAllAudio]);
+  }, [task.id, task.title, getVoiceForLine, stopAllAudio]);
 
   const startPlayback = async () => {
     stopAllAudio();
@@ -133,9 +229,6 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           const authHdrs = await getAuthHeaders();
           const headers = { ...getApiHeaders(), ...authHdrs };
 
-          const speakerVoices = assignTaskSpeakerVoices(task);
-          const voiceManager = new DialogueVoiceManager();
-
           for (let i = 0; i < lines.length; i++) {
             if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
             setActiveLine(i);
@@ -143,12 +236,11 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             const parsed = parseDialogueLine(line);
             if (!parsed.spokenText) continue;
 
-            const speakerName = parsed.speakerName || (i % 2 === 0 ? (task.speakers?.A || 'Speaker A') : (task.speakers?.B || 'Speaker B'));
-            const isMaleSpeaker = /male/i.test(parsed.speakerHint) ||
-              detectSpeakerGender(speakerName, parsed.speakerHint) === 'male' ||
-              (task.speakerGenders && ((i % 2 === 0 && task.speakerGenders.A === 'male') || (i % 2 === 1 && task.speakerGenders.B === 'male')));
-            const speakerGender = isMaleSpeaker ? 'male' : 'female';
-            const voice = speakerVoices[speakerName] || speakerVoices[i % 2 === 0 ? 'A' : 'B'] || voiceManager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
+            const lineVoice = getVoiceForLine(line, i);
+            const speakerName = lineVoice.speakerName;
+            const speakerGender = lineVoice.gender;
+            const voice = lineVoice.voiceId;
+            const isMaleSpeaker = speakerGender === 'male';
 
             const ttsRes = await fetch('/api/tts', {
               method: 'POST',
@@ -195,7 +287,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               });
             } else {
               // Fallback to unified playDialogue for this line
-              await playDialogue([parsed.spokenText], undefined, () => {});
+              await playDialogue([parsed.spokenText], voices, () => {});
             }
 
             if (playbackSessionIdRef.current !== currentSession || isPausedRef.current) break;
