@@ -384,16 +384,69 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     });
   };
 
+  const stopCurrentRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+  };
+
+  const stopSpeechRecognition = async (indexToSave: number = currentIndex) => {
+    if (voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
+      try {
+        const result = await activeSession.stop();
+        if (result.audioBlob) {
+          blobsRef.current[indexToSave] = result.audioBlob;
+          setAudioBlobs((prev) => ({ ...prev, [indexToSave]: result.audioBlob! }));
+        }
+      } catch {}
+      setActiveMicIdx(null);
+      setMicStatus('idle');
+      setAudioLevel(0);
+    }
+  };
+
+  const advanceSentence = async () => {
+    const lastIdx = Math.max(0, task.sentences.length - 1);
+    const isActivelyRecording =
+      mediaRecorderRef.current?.state === 'recording' || Boolean(voiceSessionRef.current);
+
+    if (currentIndex >= lastIdx) {
+      stopCurrentRecording();
+      await stopSpeechRecognition(currentIndex);
+      setStep('done');
+      if (!isActivelyRecording && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onComplete?.({ blobs: { ...blobsRef.current }, states });
+      } else if (isActivelyRecording && !mediaRecorderRef.current && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onComplete?.({ blobs: { ...blobsRef.current }, states });
+      }
+      return;
+    }
+
+    stopCurrentRecording();
+    await stopSpeechRecognition(currentIndex);
+    setCurrentIndex((prev) => prev + 1);
+  };
+
   const handleToggleMic = async (index: number) => {
     setMicError(null);
     markUserAiRequest();
+    setCurrentIndex(index);
 
     // If currently recording this item, stop and finalize transcript
     if (activeMicIdx === index && voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
       setMicStatus('transcribing');
       try {
-        const result = await voiceSessionRef.current.stop();
+        const result = await activeSession.stop();
         if (result.audioBlob) {
+          blobsRef.current[index] = result.audioBlob;
           setAudioBlobs((prev) => ({ ...prev, [index]: result.audioBlob! }));
         }
         if (result.error) {
@@ -421,17 +474,22 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         setActiveMicIdx(null);
         setMicStatus('idle');
         setAudioLevel(0);
-        voiceSessionRef.current = null;
       }
       return;
     }
 
-    // If currently recording another item, stop it first
-    if (voiceSessionRef.current) {
-      try {
-        await voiceSessionRef.current.stop();
-      } catch {}
+    // If currently recording another item, stop it first and preserve its blob
+    if (voiceSessionRef.current && activeMicIdx !== null) {
+      const prevIdx = activeMicIdx;
+      const prevSession = voiceSessionRef.current;
       voiceSessionRef.current = null;
+      try {
+        const prevResult = await prevSession.stop();
+        if (prevResult.audioBlob) {
+          blobsRef.current[prevIdx] = prevResult.audioBlob;
+          setAudioBlobs((prev) => ({ ...prev, [prevIdx]: prevResult.audioBlob! }));
+        }
+      } catch {}
       setAudioLevel(0);
     }
 
@@ -499,12 +557,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   };
 
 
-  const handleCheck = (index: number) => {
-    // If mic is running, stop it first
+  const handleCheck = async (index: number) => {
+    // If mic is running, stop it first and await its audioBlob before finalizing
     if (activeMicIdx === index && voiceSessionRef.current) {
-      voiceSessionRef.current.stop();
-      setActiveMicIdx(null);
-      setMicStatus('idle');
+      await stopSpeechRecognition(index);
     }
 
     const target = task.sentences[index];
@@ -550,23 +606,26 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       return next;
     });
 
-    // Check if all checked to save record
+    // Check if all checked to save record and invoke onComplete once
     const allChecked = states.every((s, i) => (i === index ? true : s.checked));
-    if (allChecked) {
+    if (allChecked && !hasCompletedRef.current) {
+      hasCompletedRef.current = true;
       const avgPercent = Math.round(
         states.reduce((acc, s, i) => acc + (i === index ? percentage : s.scorePercent || 0), 0) /
           task.sentences.length
       );
+      const scaled = convertToScaledScore(avgPercent, 100);
       savePracticeRecord({
         taskType: 'listen-repeat',
         taskTitle: task.title,
         section: 'Speaking',
         score: avgPercent,
         maxScore: 100,
-        scaledScore30: convertToScaledScore(avgPercent, 100),
+        scaledScore30: scaled,
         timeSpentSeconds: 120,
-        feedbackSummary: `Listen & Repeat: Average accuracy of ${avgPercent}% across 5 sentences`,
+        feedbackSummary: `Listen & Repeat: Average accuracy of ${avgPercent}% across ${task.sentences.length} sentences`,
       });
+      onComplete?.({ blobs: { ...blobsRef.current }, scaledScore: scaled, avgPercent });
     }
   };
 

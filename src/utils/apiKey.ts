@@ -263,13 +263,28 @@ export function setStoredRoles(provider: string, roles: StoredRoles): void {
   localStorage.setItem(`toefl_roles_${provider}`, JSON.stringify(roles));
 }
 
+export function getProviderKeys(): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (typeof localStorage === 'undefined') return result;
+  const providers: ApiProvider[] = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai', 'custom'];
+  for (const p of providers) {
+    const k = (
+      localStorage.getItem(`toefl_key_${p}`) ||
+      localStorage.getItem(`${p}_api_key`) ||
+      (p === 'gemini' ? localStorage.getItem('toefl_gemini_api_key') : '') ||
+      ''
+    ).trim();
+    if (k) {
+      result[p] = k;
+    }
+  }
+  return result;
+}
+
 export function hasAnyStoredApiKey(): boolean {
   if (typeof localStorage === 'undefined') return false;
-  const providers: ApiProvider[] = ['gemini', 'openrouter', 'groq', 'nvidia', 'openai', 'deepseek', 'xai', 'anthropic', 'custom'];
-  for (const p of providers) {
-    if ((localStorage.getItem(`toefl_key_${p}`) || '').trim()) return true;
-  }
-  if ((localStorage.getItem('toefl_gemini_api_key') || '').trim()) return true;
+  const keys = getProviderKeys();
+  if (Object.keys(keys).length > 0) return true;
   if ((localStorage.getItem('toefl_custom_api_key') || '').trim()) return true;
   if ((localStorage.getItem('toefl_voice_api_key') || '').trim()) return true;
   return false;

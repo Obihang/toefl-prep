@@ -18,13 +18,14 @@ import { SpeakingEvaluationCard } from '../views/speaking/SpeakingEvaluationCard
 interface Props {
   task: SpeakingInterviewTask;
   onNextTask?: () => void;
-  onComplete?: (result: number) => void;
+  onComplete?: (result: any) => void;
   onOpenApiKeySettings?: () => void;
 }
 
 
 export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onComplete, onOpenApiKeySettings }) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [step, setStep] = useState<'idle' | 'prep' | 'speaking' | 'done'>('idle');
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [timerMode, setTimerMode] = useState<'idle' | 'prep' | 'speaking'>('idle');
   const [timeLeft, setTimeLeft] = useState(0);
@@ -50,6 +51,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const [isAnyModelCached, setIsAnyModelCached] = useState<boolean>(true);
   const [showMicTest, setShowMicTest] = useState(false);
 
+  const blobsRef = useRef<Record<number, Blob>>({});
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const hasCompletedRef = useRef<boolean>(false);
+
   useEffect(() => {
     const checkCached = async () => {
       const active = getWhisperModelChoice();
@@ -67,6 +72,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const voiceSessionRef = useRef<VoiceSession | null>(null);
   const timerIntervalRef = useRef<any>(null);
   const pendingTranscriptionsRef = useRef<Record<number, Promise<void>>>({});
+
+  // Reset completion guard & blobs on mount or task change
+  useEffect(() => {
+    hasCompletedRef.current = false;
+    blobsRef.current = {};
+    setStep('idle');
+  }, [task.id]);
 
   const stopAllAudio = () => {
     if (recordingAudioRef.current) {
@@ -268,8 +280,45 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     }
   };
 
+  const stopCurrentRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+  };
+
+  const stopSpeechRecognition = () => {
+    if (voiceSessionRef.current) {
+      stopSimulation();
+    }
+  };
+
+  const advanceStep = () => {
+    const isActivelyRecording =
+      mediaRecorderRef.current?.state === 'recording' || Boolean(voiceSessionRef.current);
+
+    if (currentQIndex >= 3) {
+      stopCurrentRecording();
+      stopSpeechRecognition();
+      setStep('done');
+      if (!isActivelyRecording && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onComplete?.({ blobs: { ...blobsRef.current }, answers });
+      }
+      return;
+    }
+
+    stopCurrentRecording();
+    stopSpeechRecognition();
+    setCurrentQIndex((prev) => prev + 1);
+  };
+
   // Start Official TOEFL Test Simulation for current question
   const startSimulation = () => {
+    if (currentQIndex === 0) {
+      hasCompletedRef.current = false;
+    }
     clearInterval(timerIntervalRef.current);
     if (voiceSessionRef.current) {
       voiceSessionRef.current.abort();
@@ -280,6 +329,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     setMicNotice(null);
 
     // 1. Preparation Phase
+    setStep('prep');
     setTimerMode('prep');
     setTimeLeft(currentQ.prepTimeSeconds);
     playChime(660, 250);
@@ -298,15 +348,17 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   };
 
   const startSpeakingPhase = async () => {
+    setStep('speaking');
     setTimerMode('speaking');
     setTimeLeft(currentQ.responseTimeSeconds);
     playChime(880, 400);
 
+    const qIndex = currentQIndex;
     const session = createVoiceSession({
       onTranscriptUpdate: (transcript) => {
         setAnswers((prev) => ({
           ...prev,
-          [currentQIndex]: transcript,
+          [qIndex]: transcript,
         }));
       },
       onAudioLevel: (lvl) => setAudioLevel(lvl),
@@ -355,33 +407,36 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const stopSimulation = async () => {
     clearInterval(timerIntervalRef.current);
+    const qIndex = currentQIndex;
     if (voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
       setIsTranscribing(true);
       try {
-        const result = await voiceSessionRef.current.stop();
+        const result = await activeSession.stop();
         if (result.transcript) {
           setAnswers((prev) => ({
             ...prev,
-            [currentQIndex]: result.transcript,
+            [qIndex]: result.transcript,
           }));
-          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: null }));
+          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
         }
         if (result.error) {
-          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: result.error! }));
+          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: result.error! }));
         }
         if (result.audioBlob) {
+          blobsRef.current[qIndex] = result.audioBlob;
           setAudioBlobs((prev) => ({
             ...prev,
-            [currentQIndex]: result.audioBlob!,
+            [qIndex]: result.audioBlob!,
           }));
           if (!result.error && !result.transcript) {
-            startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
+            startBackgroundTranscriptionIfNeeded(qIndex, result.audioBlob, result.transcript);
           }
         }
       } catch (err: any) {
         console.warn('Voice session stop error:', err);
       } finally {
-        voiceSessionRef.current = null;
         setIsTranscribing(false);
         setAudioLevel(0);
       }
@@ -400,7 +455,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       return;
     }
 
-    const blob = audioBlobs[qIndex];
+    const blob = audioBlobs[qIndex] || blobsRef.current[qIndex];
     if (!blob) return;
 
     const url = URL.createObjectURL(blob);
@@ -446,34 +501,37 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const handleManualMicToggle = async () => {
     setMicNotice(null);
+    const qIndex = currentQIndex;
 
     if (isRecording && voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
       setIsTranscribing(true);
       try {
-        const result = await voiceSessionRef.current.stop();
+        const result = await activeSession.stop();
         if (result.transcript) {
           setAnswers((prev) => ({
             ...prev,
-            [currentQIndex]: result.transcript,
+            [qIndex]: result.transcript,
           }));
-          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: null }));
+          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
         }
         if (result.error) {
-          setTranscriptionErrors((prev) => ({ ...prev, [currentQIndex]: result.error! }));
+          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: result.error! }));
         }
         if (result.audioBlob) {
+          blobsRef.current[qIndex] = result.audioBlob;
           setAudioBlobs((prev) => ({
             ...prev,
-            [currentQIndex]: result.audioBlob!,
+            [qIndex]: result.audioBlob!,
           }));
           if (!result.error && !result.transcript) {
-            startBackgroundTranscriptionIfNeeded(currentQIndex, result.audioBlob, result.transcript);
+            startBackgroundTranscriptionIfNeeded(qIndex, result.audioBlob, result.transcript);
           }
         }
       } catch (err: any) {
         setMicNotice(err.message || 'Failed to process voice recording');
       } finally {
-        voiceSessionRef.current = null;
         setIsRecording(false);
         setIsTranscribing(false);
         setAudioLevel(0);
@@ -531,6 +589,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const handleEvaluateAI = async () => {
     markUserAiRequest();
+    if (voiceSessionRef.current) {
+      await stopSimulation();
+    }
     // Wait for any running background transcriptions to finish first
     const pending = Object.values(pendingTranscriptionsRef.current);
     if (pending.length > 0) {
@@ -669,7 +730,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         feedbackSummary: `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/4.0 (${evalData.performanceLevel})`,
       });
 
-      onComplete?.(scaled);
+      if (!hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onComplete?.(scaled);
+      }
     }
     setIsEvaluating(false);
   };

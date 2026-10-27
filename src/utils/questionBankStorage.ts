@@ -188,6 +188,7 @@ export async function saveVerifiedQuestion(params: {
     if (auth?.currentUser) {
       const docRef = doc(db, 'questions', questionId);
       await setDoc(docRef, {
+        id: questionId,
         taskType,
         level: validLevel,
         topic: validTopic,
@@ -754,6 +755,7 @@ export async function saveQuestionToBank(params: {
     const docRef = doc(db, 'questions', docId);
 
     const record: SharedQuestionRecord = {
+      id: docId,
       taskType,
       level: validatedLevel,
       topic: validatedTopic,
