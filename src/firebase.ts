@@ -16,7 +16,9 @@ export const db = initializeFirestore(
       tabManager: persistentMultipleTabManager(),
     }),
   },
-  firebaseConfig.firestoreDatabaseId
+  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+    ? firebaseConfig.firestoreDatabaseId
+    : undefined
 );
 
 export const auth = getAuth();
