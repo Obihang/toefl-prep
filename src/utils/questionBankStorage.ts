@@ -42,11 +42,12 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const TOEFL_2026_PURGE_V5 = 'toefl_bank_purged_2026_v5';
-export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V5;
-export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V5;
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V5;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v16';
+export const TOEFL_2026_PURGE_V6 = 'toefl_bank_purged_2026_v6';
+export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V6;
+export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V6;
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V6;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V6;
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v17';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);
@@ -400,7 +401,9 @@ export const SHARD_FILES = [
   'speaking-interview',
 ];
 
-const CANONICAL_TASK_IDS = TASK_DEFINITIONS.map((t) => t.id);
+export const STATIC_SHARDS = SHARD_FILES;
+export const ALL_TASK_TYPES = TASK_DEFINITIONS.map((t) => t.id);
+const CANONICAL_TASK_IDS = ALL_TASK_TYPES;
 
 // In-memory cache for fast synchronous access
 const curatedMemoryCache: Record<string, any[]> = {};

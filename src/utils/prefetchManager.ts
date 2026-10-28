@@ -160,27 +160,19 @@ export function getPrefetchProgress(
   queue: PrefetchQueue,
   level: string,
   topic: string
-): { done: boolean; filled: number; total: 8 } {
+): { done: boolean; filled: number; total: number } {
   let totalFilled = 0;
   for (const task of TASK_DEFINITIONS) {
     const items = queue[task.id] || [];
     const matching = items.filter((item) => item.level === level && item.topic === topic);
     totalFilled += Math.min(matching.length, 1);
   }
-  const done = totalFilled >= 8;
-  return { done, filled: totalFilled, total: 8 };
+  const total = TASK_DEFINITIONS.length;
+  const done = totalFilled >= total;
+  return { done, filled: totalFilled, total };
 }
 
-export const BACKGROUND_PREFETCH_TASKS: TaskTypeId[] = [
-  'complete-words',
-  'reading-passage',
-  'listening-dialogue',
-  'listen-repeat',
-  'speaking-interview',
-  'build-sentence',
-  'write-email',
-  'academic-discussion',
-];
+export const BACKGROUND_PREFETCH_TASKS: TaskTypeId[] = TASK_DEFINITIONS.map((t) => t.id);
 
 export function getNextTaskToPrefetch(
   currentTaskType: TaskTypeId,
