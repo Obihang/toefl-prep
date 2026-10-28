@@ -17,6 +17,8 @@ import {
   normalizeBuildSentenceTask,
   verifyAndNormalizeMcqQuestions,
   normalizeDailyLifeTask,
+  normalizeReadingAcademicTask,
+  classifyReadingQuestionTypeBadge,
   normalizeListeningChooseResponseTask,
   normalizeListeningAnnouncementTask,
   normalizeListeningAcademicTalkTask,
@@ -360,17 +362,17 @@ function normalizeReadingPassage(data: any) {
     };
   });
 
-  const questions = verifyAndNormalizeMcqQuestions(
-    preValidated,
-    'Accurately supported by passage evidence.'
-  ).map((q) => ({
-    q: q.q,
-    options: q.options,
-    answer: q.answer,
-    why: q.why,
-  }));
+  const normalized = normalizeReadingAcademicTask({
+    title,
+    passage,
+    questions: preValidated,
+  });
 
-  return { title, passage, questions };
+  return {
+    title: normalized.title,
+    passage: normalized.passage,
+    questions: normalized.questions,
+  };
 }
 
 function normalizeListeningDialogue(data: any) {
@@ -879,16 +881,23 @@ Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campu
       case 'reading-passage':
       case 'reading_academic':
       case 'reading-academic': {
-        const skillDirective = promptData?.questionSkillFocus && promptData.questionSkillFocus !== 'all'
-          ? `NOTE: Focus questions specifically on the skill: ${promptData.questionSkillFocus} (e.g. all 5 questions testing ${promptData.questionSkillFocus}).`
-          : '';
-        return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL "Reading in an Academic Environment" passage with 5 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
+        const hasSpecificFocus = promptData?.questionSkillFocus && promptData.questionSkillFocus !== 'all';
+        const skillDirective = hasSpecificFocus
+          ? `NOTE: Focus questions specifically on the skill: ${promptData.questionSkillFocus} (all 5 questions testing ${promptData.questionSkillFocus}).`
+          : `CRITICAL QUESTION TYPE REQUIREMENT (readingQuestionFocus === 'all'):
+Every 5-question passage MUST include EXACTLY 1 of each of the 5 official TOEFL iBT Reading question types (NO duplicate Factual Comprehension questions!), presented in a RANDOMIZED order across the 5 questions:
+  1. Factual Detail ("According to paragraph X...") -> questionType: "Factual Detail"
+  2. Negative Factual (EXCEPT / NOT) ("According to the passage, all of the following are true EXCEPT:" or "Which of the following is NOT mentioned in paragraph X?") -> questionType: "Negative Factual (EXCEPT/NOT)"
+  3. Vocabulary in Context ("The word 'X' in paragraph Y is closest in meaning to:") -> questionType: "Vocabulary in Context"
+  4. Inference ("What can be inferred from paragraph X about...?" or "Which of the following does the passage imply about...?") -> questionType: "Inference"
+  5. Rhetorical Purpose / Relationship ("Why does the author mention 'X' in paragraph Y?" or "How do the ideas in paragraph 2 relate to the ideas in paragraph 1?") -> questionType: "Rhetorical Purpose"`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL "Read an Academic Passage" item with 5 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
 ${skillDirective}
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write a 180-210 word university-level academic passage (2-3 focused, cohesive paragraphs). Avoid repetitive phrasing or redundant concluding summaries.
-2. Provide EXACTLY 5 multiple-choice questions representing TOEFL iBT question types (Factual, Vocabulary, Inference, Rhetorical Purpose, Negative Factual).
-3. Every question MUST have 4 distinct, unique options (\`options.length === 4\`), \`answer\` (0..3, varied across questions), \`questionType\` ('factual', 'negative_factual', 'inference', 'vocabulary', 'rhetorical_purpose'), and a detailed \`why\` explanation that explicitly verifies why the option at index \`answer\` is right.
-Return JSON format: {"title": "Passage Title", "passage": "180-210 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct...", "questionType": "inference"}]}`;
+1. Write a 180-210 word university-level academic passage (3 focused, cohesive paragraphs). Avoid repetitive phrasing or redundant concluding summaries.
+2. Provide EXACTLY 5 multiple-choice questions in a randomized sequence of question types (1 Factual Detail, 1 Negative Factual EXCEPT/NOT, 1 Vocabulary in Context, 1 Inference, 1 Rhetorical Purpose / Relationship).
+3. Every question MUST have 4 distinct, unique options (\`options.length === 4\`), \`answer\` (0..3, varied across questions), \`questionType\` ("Factual Detail", "Negative Factual (EXCEPT/NOT)", "Vocabulary in Context", "Inference", or "Rhetorical Purpose"), and a detailed \`why\` explanation that explicitly verifies why the option at index \`answer\` is right.
+Return JSON format: {"title": "Passage Title", "passage": "180-210 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct...", "questionType": "Inference"}]}`;
       }
       case 'listening-choose-response':
       case 'listening_choose_response':

@@ -12,9 +12,20 @@ interface Props {
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
   skillFocus?: ReadingQuestionSkill;
+  leftColumnClassName?: string;
+  rightColumnClassName?: string;
+  footerBarClassName?: string;
 }
 
-export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComplete, skillFocus = 'all' }) => {
+export const ReadingPassageView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+  skillFocus = 'all',
+  leftColumnClassName = 'lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+  rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
+  footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
+}) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
@@ -118,7 +129,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
       {/* Two-Column Official Layout on Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Passage */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-xs lg:sticky lg:top-4 max-h-[75vh] overflow-y-auto">
+        <div className={`lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-xs ${leftColumnClassName}`}>
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Reading Passage</span>
             <span className="text-xs text-slate-400">
@@ -135,7 +146,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
         </div>
 
         {/* Right Column: Comprehension Questions */}
-        <div className="lg:col-span-5 space-y-5">
+        <div className={`lg:col-span-5 space-y-5 ${rightColumnClassName}`}>
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Comprehension Questions</span>
             <span className="text-xs text-slate-500 font-mono">
@@ -146,24 +157,27 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
-            const qType = (q as any).questionType || inferReadingQuestionType(q.q);
-            const isTargetSkill = skillFocus !== 'all' && qType === skillFocus;
+            const inferredSkill = (q as any).skillKey || inferReadingQuestionType(q.q);
+            const rawBadgeType = String((q as any).questionType || inferredSkill);
+            const isTargetSkill = skillFocus !== 'all' && inferredSkill === skillFocus;
 
             const getSkillBadge = (type: string) => {
-              switch (type) {
-                case 'negative_factual':
-                  return { label: 'Negative Factual (EXCEPT)', color: 'bg-rose-50 text-rose-700 border-rose-200' };
-                case 'inference':
-                  return { label: 'Inference', color: 'bg-purple-50 text-purple-700 border-purple-200' };
-                case 'vocabulary':
-                  return { label: 'Vocabulary in Context', color: 'bg-amber-50 text-amber-700 border-amber-200' };
-                case 'rhetorical_purpose':
-                  return { label: 'Rhetorical Purpose', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-                default:
-                  return { label: 'Factual Comprehension', color: 'bg-teal-50 text-teal-700 border-teal-200' };
+              const lower = type.toLowerCase();
+              if (lower.includes('negative') || lower.includes('except')) {
+                return { label: 'Negative Factual (EXCEPT/NOT)', color: 'bg-rose-50 text-rose-700 border-rose-200' };
               }
+              if (lower.includes('infer')) {
+                return { label: 'Inference', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+              }
+              if (lower.includes('vocab') || lower.includes('meaning')) {
+                return { label: 'Vocabulary in Context', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+              }
+              if (lower.includes('rhetorical') || lower.includes('purpose') || lower.includes('relate')) {
+                return { label: 'Rhetorical Purpose', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+              }
+              return { label: 'Factual Detail', color: 'bg-teal-50 text-teal-700 border-teal-200' };
             };
-            const skillBadge = getSkillBadge(qType);
+            const skillBadge = getSkillBadge(rawBadgeType);
 
             return (
               <div
@@ -257,7 +271,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
           })}
 
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div className={footerBarClassName}>
             {!submitted ? (
               <button
                 onClick={handleSubmit}
@@ -268,7 +282,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
                 Submit Answers
               </button>
             ) : (
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   onClick={handleReset}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
@@ -301,12 +315,12 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
             )}
 
             {submitted && (
-              <div className="flex items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg">
-                <span>
+              <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg whitespace-nowrap shrink-0">
+                <span className="whitespace-nowrap">
                   Score: <strong className="font-mono text-slate-900">{score}</strong>/{total}
                 </span>
                 <span aria-hidden="true" className="text-slate-300">·</span>
-                <span>
+                <span className="whitespace-nowrap">
                   Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total), 'Reading').toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
                 </span>
               </div>

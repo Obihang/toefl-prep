@@ -46,6 +46,9 @@ interface Props {
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
   skillFocus?: ReadingQuestionSkill;
+  leftColumnClassName?: string;
+  rightColumnClassName?: string;
+  footerBarClassName?: string;
 }
 
 export const DailyLifeView: React.FC<Props> = ({
@@ -53,6 +56,9 @@ export const DailyLifeView: React.FC<Props> = ({
   onNextTask,
   onComplete,
   skillFocus = 'all',
+  leftColumnClassName = 'lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+  rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
+  footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
 }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -301,12 +307,12 @@ export const DailyLifeView: React.FC<Props> = ({
       {/* Grid: Document on Left, Questions on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Authentic Real-world Document */}
-        <div className="lg:col-span-6 space-y-4 lg:sticky lg:top-4 max-h-[80vh] overflow-y-auto">
+        <div className={`lg:col-span-6 space-y-4 ${leftColumnClassName}`}>
           {renderDocumentContent()}
         </div>
 
         {/* Right Column: Questions */}
-        <div className="lg:col-span-6 space-y-5">
+        <div className={`lg:col-span-6 space-y-5 ${rightColumnClassName}`}>
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Comprehension Questions</span>
             <span className="text-xs text-slate-500 font-mono">
@@ -402,7 +408,7 @@ export const DailyLifeView: React.FC<Props> = ({
           })}
 
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div className={footerBarClassName}>
             {!submitted ? (
               <button
                 onClick={handleSubmit}
@@ -413,7 +419,7 @@ export const DailyLifeView: React.FC<Props> = ({
                 Submit Answers
               </button>
             ) : (
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   onClick={handleReset}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
@@ -434,12 +440,12 @@ export const DailyLifeView: React.FC<Props> = ({
             )}
 
             {submitted && (
-              <div className="flex items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg">
-                <span>
+              <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg whitespace-nowrap shrink-0">
+                <span className="whitespace-nowrap">
                   Score: <strong className="font-mono text-slate-900">{score}</strong>/{total}
                 </span>
                 <span aria-hidden="true" className="text-slate-300">·</span>
-                <span>
+                <span className="whitespace-nowrap">
                   Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total), 'Reading').toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
                 </span>
               </div>

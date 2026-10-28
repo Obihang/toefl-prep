@@ -1616,6 +1616,9 @@ export default function App() {
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as any}
                   skillFocus={readingSkillFocus}
+                  leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+                  rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
+                  footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   onNextTask={() => handleNextQuestion('daily-life')}
                 />
               )}
@@ -1625,6 +1628,9 @@ export default function App() {
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ReadingPassageTask}
                   skillFocus={readingSkillFocus}
+                  leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+                  rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
+                  footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}

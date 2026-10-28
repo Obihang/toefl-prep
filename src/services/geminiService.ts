@@ -108,6 +108,14 @@ function resolveActiveProviderAndKey(): {
   return { provider, apiKey, providerKeys };
 }
 
+export const OFFICIAL_5_READING_QUESTION_TYPES = [
+  'Factual Detail ("According to paragraph X...")',
+  'Negative Factual (EXCEPT / NOT) ("According to the passage, all of the following are true EXCEPT:" or "Which of the following is NOT mentioned in paragraph X?")',
+  'Vocabulary in Context ("The word \'X\' in paragraph Y is closest in meaning to:")',
+  'Inference ("What can be inferred from paragraph X about...?" or "Which of the following does the passage imply about...?")',
+  'Rhetorical Purpose / Relationship ("Why does the author mention \'X\' in paragraph Y?" or "How do the ideas in paragraph 2 relate to the ideas in paragraph 1?")',
+] as const;
+
 export async function callBackendGenerate(
   taskType: string,
   level: string = 'intermediate',
@@ -116,6 +124,17 @@ export async function callBackendGenerate(
   extraOptions?: Record<string, any>
 ): Promise<any> {
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
+  const isReadingAcademic =
+    taskType === 'reading-academic' || taskType === 'reading_academic' || taskType === 'reading-passage';
+  const readingQuestionFocus = promptData?.questionSkillFocus || promptData?.readingQuestionFocus || 'all';
+  const enrichedPromptData = isReadingAcademic
+    ? {
+        ...(promptData || {}),
+        questionSkillFocus: readingQuestionFocus,
+        readingQuestionFocus,
+        requiredQuestionTypes: readingQuestionFocus === 'all' ? OFFICIAL_5_READING_QUESTION_TYPES : undefined,
+      }
+    : promptData;
 
   const options = {
     provider,
@@ -133,7 +152,7 @@ export async function callBackendGenerate(
       taskType,
       level,
       topic,
-      promptData,
+      promptData: enrichedPromptData,
       customApiKey: apiKey,
       provider,
       apiKey,

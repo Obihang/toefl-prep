@@ -1206,7 +1206,12 @@ export type NormalizedQuestionType =
   | 'vocabulary'
   | 'idiomatic_meaning'
   | 'rhetorical_purpose'
-  | 'main_purpose';
+  | 'main_purpose'
+  | 'Factual Detail'
+  | 'Negative Factual (EXCEPT/NOT)'
+  | 'Vocabulary in Context'
+  | 'Inference'
+  | 'Rhetorical Purpose';
 
 export function inferReadingQuestionType(
   questionText: string
@@ -1221,17 +1226,50 @@ export function inferReadingQuestionType(
   if (/\b(closest in meaning|the word|the phrase|in paragraph \d+, the word)\b/i.test(lower)) {
     return 'vocabulary';
   }
-  if (/\b(infer|inferred|implies|imply|suggests that|can be concluded)\b/i.test(lower)) {
+  if (/\b(infer|inferred|implies|imply|implied|suggests|can be concluded)\b/i.test(lower)) {
     return 'inference';
   }
   if (
-    /\b(why does the author|in order to|purpose of|serves to|reason for mentioning|author discusses .* to)\b/i.test(
+    /\b(why does the author|why did the author|in order to|purpose|serves to|reason for mentioning|author discusses|author mention|author compare|author use|relate|relationship)\b/i.test(
       lower
     )
   ) {
     return 'rhetorical_purpose';
   }
   return 'factual';
+}
+
+export function classifyReadingQuestionTypeBadge(
+  questionText: string
+): 'Negative Factual (EXCEPT/NOT)' | 'Vocabulary in Context' | 'Inference' | 'Rhetorical Purpose' | 'Factual Detail' {
+  const skill = inferReadingQuestionType(questionText);
+  switch (skill) {
+    case 'negative_factual':
+      return 'Negative Factual (EXCEPT/NOT)';
+    case 'vocabulary':
+      return 'Vocabulary in Context';
+    case 'inference':
+      return 'Inference';
+    case 'rhetorical_purpose':
+      return 'Rhetorical Purpose';
+    default:
+      return 'Factual Detail';
+  }
+}
+
+function deterministicShuffleQuestions<T extends { q: string }>(items: T[], seedStr: string): T[] {
+  if (items.length <= 1) return [...items];
+  // Canonical sort first so calling normalizeReadingAcademicTask multiple times is 100% idempotent
+  const arr = [...items].sort((a, b) => a.q.localeCompare(b.q));
+  let seed = hashString(seedStr || 'toefl-reading-2026') || 123456789;
+  for (let i = arr.length - 1; i > 0; i--) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const j = seed % (i + 1);
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
 }
 
 export function inferDailyLifeQuestionType(
@@ -1417,10 +1455,20 @@ export function normalizeReadingAcademicTask(task: any): any {
   const title = String(task?.title || 'Academic Reading Comprehension').trim();
   const passage = String(task?.passage || task?.text || '').trim();
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(
+  const verifiedQs = verifyAndNormalizeMcqQuestions(
     rawQs,
     'Supported directly by evidence in the reading passage.'
-  );
+  ).map((q) => {
+    const badgeLabel = classifyReadingQuestionTypeBadge(q.q);
+    const skillKey = inferReadingQuestionType(q.q);
+    return {
+      ...q,
+      questionType: badgeLabel,
+      skillKey,
+    };
+  });
+
+  const questions = deterministicShuffleQuestions(verifiedQs, `${title}::${passage.slice(0, 120)}`);
 
   return {
     ...task,
