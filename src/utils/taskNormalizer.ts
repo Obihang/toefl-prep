@@ -1072,7 +1072,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
 
     case 'listening-dialogue':
     case 'listening-conversation': {
-      return normalizeListeningDialogueTask(task);
+      return normalizeListeningDialogueTask(task, canonicalType);
     }
 
     case 'listening-announcement': {
@@ -1373,12 +1373,20 @@ export function normalizeReadingAcademicTask(task: any): any {
   };
 }
 
-export function normalizeListeningDialogueTask(task: any): any {
-  const title = String(task?.title || 'Campus Conversation & Lecture').trim();
+export function normalizeListeningDialogueTask(task: any, normalizedType?: string): any {
+  const canonicalType = canonicalizeTaskType(normalizedType || task?.taskType || task?.type);
+  if (canonicalType === 'listening-announcement' || task?.type === 'announcement') {
+    return normalizeListeningAnnouncementTask(task);
+  }
+  if (canonicalType === 'listening-academic-talk' || task?.type === 'academic_talk' || task?.type === 'lecture') {
+    return normalizeListeningAcademicTalkTask(task);
+  }
+
+  const title = String(task?.title || 'Campus Conversation').trim();
   const context = String(
-    task?.context || task?.situation || 'Listen to an academic discussion or university conversation.'
+    task?.context || task?.situation || 'Listen to a conversation between a student and a university representative.'
   ).trim();
-  const script = String(task?.script || task?.dialogue || task?.lecture || task?.text || '').trim();
+  const script = String(task?.script || task?.dialogue || task?.text || '').trim();
 
   let speakers = task?.speakers;
   if (!speakers || typeof speakers !== 'object' || Array.isArray(speakers)) {
@@ -1391,10 +1399,12 @@ export function normalizeListeningDialogueTask(task: any): any {
   };
 
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.');
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.').slice(0, 2);
 
   return {
     ...task,
+    type: 'conversation',
+    taskType: 'listening-dialogue',
     title,
     context,
     speakers,
