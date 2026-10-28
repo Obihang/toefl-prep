@@ -1,0 +1,434 @@
+[
+  {
+    "id": "dl-1",
+    "title": "Campus Library Late-Night Study Hours Notice",
+    "formatType": "notice",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "context": "Posted at the main entrance of Green Memorial Library",
+    "contentText": "NOTICE: Extended Final Exam Study Hours\nFrom Monday, May 5 through Thursday, May 15, the Central Reading Room and 2nd Floor Silent Study Commons will remain open 24 hours daily. Student ID card access is required after 10:00 PM at the West entrance only. Campus Escort Services will operate continuous shuttles between the library and all residence halls every 20 minutes from 11:00 PM to 5:00 AM. Free coffee and quiet study snacks will be served nightly in Room 104 starting at midnight.",
+    "questions": [
+      {
+        "q": "What requirement must students meet to enter the library after 10:00 PM?",
+        "options": [
+          "Present a valid student identification card at the West entrance",
+          "Reserve a designated study carrel 24 hours in advance",
+          "Register with the campus night security desk by phone",
+          "Pay a late-night facility fee at the circulation desk"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The notice clearly specifies that 'Student ID card access is required after 10:00 PM at the West entrance only.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "What service is provided to assist students returning to dormitories late at night?",
+        "options": [
+          "Designated parking permits for private vehicles",
+          "Subsidized city bus passes available at Room 104",
+          "Continuous campus shuttle vans running every 20 minutes",
+          "Accompanied bicycle rentals from the information desk"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The text states that Campus Escort Services operate continuous shuttles between the library and residence halls every 20 minutes.",
+        "questionType": "factual"
+      },
+      {
+        "q": "The word 'commons' in the first paragraph is closest in meaning to:",
+        "options": [
+          "ordinary items",
+          "shared public area",
+          "private faculty offices",
+          "underground storage vaults"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "In this context, 'Silent Study Commons' refers to a shared, communal study space for students.",
+        "questionType": "vocabulary"
+      }
+    ]
+  },
+  {
+    "id": "dl-2",
+    "title": "Apartment Maintenance and HVAC Inspection Notice",
+    "formatType": "email",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "social-sciences",
+    "context": "Email from Oakridge Student Living Management to all building residents",
+    "contentText": "Subject: Mandatory Semi-Annual HVAC Filter Replacement & Smoke Detector Audit\nDear Residents,\nOur certified facilities maintenance technicians will enter all apartment suites on Wednesday, October 18, between 9:00 AM and 4:00 PM to replace air intake filters and test emergency smoke alarms. You do not need to be present during the inspection; however, please ensure all household pets are secured in a bedroom or travel crate. Technicians will leave a completion card on your kitchen counter once the check is finalized. If your deadbolt lock has been privately modified, please contact the leasing office immediately.",
+    "questions": [
+      {
+        "q": "What are residents instructed to do regarding their pets during the maintenance visit?",
+        "options": [
+          "Remove them from the apartment premises entirely for the entire day",
+          "Secure them inside a bedroom or an enclosed travel crate",
+          "Leave them in the main living room with food and water",
+          "Register them with the building manager before 9:00 AM"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The email explicitly requests: 'please ensure all household pets are secured in a bedroom or travel crate.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "How will residents know that technicians have finished working in their apartment?",
+        "options": [
+          "They will receive an automated text confirmation on their phone",
+          "A replacement key will be left in their mailbox",
+          "The building manager will phone them directly",
+          "A completion card will be placed on the kitchen counter"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "The email notes that 'Technicians will leave a completion card on your kitchen counter once the check is finalized.'",
+        "questionType": "factual"
+      }
+    ]
+  },
+  {
+    "id": "dl-3",
+    "title": "Biology Lab Group Project Coordination Text Chain",
+    "formatType": "text-chain",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "science-tech",
+    "context": "Text message chain among three biology lab partners",
+    "contentText": "Marcus (1:15 PM): Hey guys, Dr. Alvarez just posted the rubric for our water ecology report. We need 4 peer-reviewed citations minimum.\nElena (1:17 PM): I already pulled two journal articles on microplastic filtration in local watersheds from JSTOR.\nSam (1:19 PM): Perfect. I can synthesize the lab sample data into comparison charts tonight. Can we meet at the campus cafe tomorrow at 3 PM to merge our drafts?\nMarcus (1:22 PM): I have organic chemistry lab until 3:30 PM. Could we do 4:00 PM at the science library seminar room instead?\nElena (1:23 PM): 4:00 PM works for me! I will reserve Room 3B right now.\nSam (1:24 PM): Sounds good, see you both at 4.",
+    "questions": [
+      {
+        "q": "Why is Marcus unable to meet at the campus cafe at 3:00 PM?",
+        "options": [
+          "He must complete another laboratory class until 3:30 PM",
+          "He has to work a shift at the campus library",
+          "He has an advising appointment with Dr. Alvarez",
+          "He needs to finish analyzing the microplastic data"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Marcus explicitly states: 'I have organic chemistry lab until 3:30 PM.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "What task has Elena volunteered to do immediately?",
+        "options": [
+          "Gather four additional peer-reviewed citations",
+          "Draft the executive summary of the lab report",
+          "Book seminar Room 3B in the science library",
+          "Create the comparative data charts"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Elena responds: '4:00 PM works for me! I will reserve Room 3B right now.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "What is the primary purpose of this text message exchange?",
+        "options": [
+          "To request an extension on a laboratory assignment deadline",
+          "To debate scientific findings regarding local watershed contamination",
+          "To distribute research duties and schedule a joint meeting time",
+          "To complain about the professor's strict grading expectations"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The students are sharing what tasks they have done and settling on a time and venue to compile their report.",
+        "questionType": "rhetorical_purpose"
+      }
+    ]
+  },
+  {
+    "id": "dl-4",
+    "title": "University Career Fair Company Presentation Schedule",
+    "formatType": "schedule",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "business-economics",
+    "context": "Printed guide for the Annual STEM & Business Career Expo at the Student Union",
+    "contentText": "FALL CAREER EXPO — AUDITORIUM SESSIONS\n• 10:00 AM – 10:45 AM: Apex Robotics (Session A) — Automated Logistics Internships [Open to all engineering majors]\n• 11:00 AM – 11:45 AM: GreenGrid Utilities (Session B) — Renewable Grid Solutions & Entry-level Analyst Roles [Resume drop encouraged]\n• 12:00 PM – 1:00 PM: Networking Lunch Break (Complimentary buffet in West Lounge for pre-registered attendees)\n• 1:15 PM – 2:00 PM: Vanguard FinTech (Session C) — Quantitative Trading & Software Engineering [Bring portfolio code samples]\n• 2:15 PM – 3:00 PM: BioHealth Labs (Session D) — Clinical Research Associate Trainee Positions [Prerequisite: 16+ credits in biology or chemistry]",
+    "questions": [
+      {
+        "q": "Which organization specifically recommends that attendees bring samples of their programming code?",
+        "options": [
+          "Apex Robotics",
+          "Vanguard FinTech",
+          "GreenGrid Utilities",
+          "BioHealth Labs"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The schedule states for Vanguard FinTech at 1:15 PM: '[Bring portfolio code samples]'.",
+        "questionType": "factual"
+      },
+      {
+        "q": "What is required to attend the BioHealth Labs presentation session?",
+        "options": [
+          "Prior enrollment in an advanced graduate degree program",
+          "At least 16 completed academic credits in biology or chemistry",
+          "A verified letter of recommendation from an academic advisor",
+          "A pre-submitted clinical internship portfolio"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "BioHealth Labs lists the prerequisite: '[Prerequisite: 16+ credits in biology or chemistry]'.",
+        "questionType": "factual"
+      }
+    ]
+  },
+  {
+    "id": "dl-5",
+    "title": "Campus Dining Hall Daily Specials & Allergen Advisory",
+    "formatType": "menu",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "campus-life",
+    "context": "Dining Services digital display board at North Quad Cafeteria",
+    "contentText": "TODAY'S SPECIALS — NORTH QUAD DINING COMMONS\n• Station 1 (Global Hearth): Roasted Moroccan Chickpea Tagine with saffron couscous [Vegan, Nut-Free, Halal]\n• Station 2 (Chef's Grill): Grass-Fed Herb Burgers served with sweet potato wedges. Gluten-free buns available upon request [Contains dairy; egg-free]\n• Station 3 (Pacific Wok): Ginger Sesame Tofu Stir-Fry over brown rice [Contains soy & sesame; Vegetarian]\n• Station 4 (Fresh Market Deli): Smoked Turkey Panini on sourdough with cranberry goat cheese [Contains gluten and dairy]\nALLERGEN NOTE: All deep-fried items are prepared in equipment shared with peanut and shellfish oils. Cross-contact may occur. Ask Chef Ramon for dedicated allergy prep.",
+    "questions": [
+      {
+        "q": "Which dining option is explicitly labeled as suitable for individuals seeking a vegan and nut-free meal?",
+        "options": [
+          "Smoked Turkey Panini at Station 4",
+          "Grass-Fed Herb Burger at Station 2",
+          "Ginger Sesame Tofu Stir-Fry at Station 3",
+          "Moroccan Chickpea Tagine at Station 1"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Station 1 specifies: 'Roasted Moroccan Chickpea Tagine with saffron couscous [Vegan, Nut-Free, Halal]'.",
+        "questionType": "factual"
+      },
+      {
+        "q": "According to the allergen advisory, what should students with severe shellfish or peanut allergies avoid?",
+        "options": [
+          "All baked goods and breads prepared on sourdough",
+          "Food items cooked in shared deep-frying equipment",
+          "Any cold sandwiches prepared at the Fresh Market Deli",
+          "Brown rice dishes prepared at the Pacific Wok station"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The allergen note states: 'All deep-fried items are prepared in equipment shared with peanut and shellfish oils.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "What can be inferred about students who require special dietary accommodations?",
+        "options": [
+          "They cannot eat at North Quad Commons under any circumstances",
+          "They must bring meals prepared outside the university campus",
+          "They can speak with Chef Ramon to arrange dedicated meal preparation",
+          "They have to submit medical clearance forms two days prior"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The text advises diners to 'Ask Chef Ramon for dedicated allergy prep', implying custom assistance is available upon request.",
+        "questionType": "inference"
+      }
+    ]
+  },
+  {
+    "id": "dl-6",
+    "title": "Campus Bookstore Course Material Invoice & Return Policy",
+    "formatType": "invoice",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "business-economics",
+    "context": "Customer receipt from Pioneer University Bookstore",
+    "contentText": "PIONEER BOOKSTORE — TRANSACTION #89421\nDate: Jan 14 | Register: 04 | Cashier: David K.\n----------------------------------------\n1. Organic Chem 4th Ed. (Used Rental) .... $48.50\n2. Lab Safety Goggles (New) ............. $12.00\n3. Graphing Calculator TI-84 (New) ..... $115.00\nSubtotal: $175.50 | Tax (7.5%): $13.16 | Total Paid: $188.66\n----------------------------------------\nRETURN POLICY: Course textbooks and digital access codes may be returned for a full refund within the first 10 days of classes with original receipt and undamaged shrinkwrap. Calculators and electronics are subject to a 15% restocking fee if packaging is unsealed. Rental textbooks must be returned by 5:00 PM on Friday of finals week to avoid auto-replacement billing.",
+    "questions": [
+      {
+        "q": "Under what condition will a customer incur a 15% fee when returning an item?",
+        "options": [
+          "Returning a textbook after the first 10 days of the semester",
+          "Returning electronic equipment with opened packaging",
+          "Requesting cash rather than store credit for safety goggles",
+          "Exchanging a rental book for an updated hardcover edition"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The policy states: 'Calculators and electronics are subject to a 15% restocking fee if packaging is unsealed.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "What will occur if the customer fails to return the rental chemistry textbook by the deadline?",
+        "options": [
+          "The customer's academic transcript will be withheld immediately",
+          "The item will be billed as an automatic replacement purchase",
+          "The customer will lose borrowing privileges at the main library",
+          "A daily late charge of twelve dollars will accumulate"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The invoice warns: 'Rental textbooks must be returned by 5:00 PM on Friday of finals week to avoid auto-replacement billing.'",
+        "questionType": "factual"
+      }
+    ]
+  },
+  {
+    "id": "dl-7",
+    "title": "Student Union Art Gallery Opening Announcement",
+    "formatType": "social-post",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "arts-humanities",
+    "context": "Social media announcement posted by the Campus Arts Council",
+    "contentText": "✨ Opening This Friday at 6:00 PM: 'Resilient Horizons' in the Lower Galleria! ✨\nCome experience multimedia sculptures and photographic installations created entirely by graduating visual arts seniors. Opening night features live acoustic chamber music by our student string quartet, light artisan refreshments, and a moderated Q&A with the artists starting at 7:15 PM. Admission is completely free for students, faculty, and community members. The exhibition runs daily from 9:00 AM to 8:00 PM through November 20th. Don't forget to vote for your favorite piece at the front desk for the Annual People's Choice Grant!",
+    "questions": [
+      {
+        "q": "What event is scheduled to take place at 7:15 PM on opening night?",
+        "options": [
+          "An acoustic chamber music concert by the quartet",
+          "A ribbon-cutting ceremony by university administrators",
+          "A guided gallery tour conducted by art professors",
+          "A moderated question-and-answer session with featured artists"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "The post states: 'light artisan refreshments, and a moderated Q&A with the artists starting at 7:15 PM.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "How can visitors support individual artists during the exhibition?",
+        "options": [
+          "By casting a vote at the reception desk for the People's Choice Grant",
+          "By bidding on student artwork in a silent auction",
+          "By purchasing exhibition catalogs at the campus bookstore",
+          "By writing published critiques for the university newspaper"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The announcement urges visitors to 'vote for your favorite piece at the front desk for the Annual People's Choice Grant!'",
+        "questionType": "factual"
+      }
+    ]
+  },
+  {
+    "id": "dl-8",
+    "title": "Campus Recreation Center Pool Closure and Maintenance Notice",
+    "formatType": "notice",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "context": "Physical bulletin board flyer in the Aquatics Center lobby",
+    "contentText": "ATTENTION AQUATICS PATRONS: Temporary Lap Pool Closure\nThe 50-meter competition pool will close for scheduled tile resurfacing and chemical filtration overhaul from August 1 to August 12. During this closure period, all morning master swim practices and open recreational lap swimming will be relocated to the adjacent indoor therapy pool. Please observe modified lane allocations: Lanes 1–3 are designated for slow/medium swimmers, and Lanes 4–6 are reserved for fast lap training. Locker rooms will remain fully accessible throughout the project.",
+    "questions": [
+      {
+        "q": "Where should swimmers go for lap swimming while the competition pool is closed?",
+        "options": [
+          "To the municipal swimming complex across town",
+          "To the outdoor diving well behind the gymnasium",
+          "To the nearby indoor therapy pool facility",
+          "To the university lakefront boathouse dock"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The notice states: 'open recreational lap swimming will be relocated to the adjacent indoor therapy pool.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "Which facility service will NOT be interrupted by the resurfacing project?",
+        "options": [
+          "Access to the locker room facilities",
+          "The 50-meter competition pool lanes",
+          "Standard competitive diving board sessions",
+          "Normal afternoon water polo matches"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The notice concludes: 'Locker rooms will remain fully accessible throughout the project.'",
+        "questionType": "negative_factual"
+      }
+    ]
+  },
+  {
+    "id": "dl-9",
+    "title": "Email Regarding Campus Parking Permit Renewals",
+    "formatType": "email",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "campus-life",
+    "context": "Official message sent from Transportation & Parking Services to commuter students",
+    "contentText": "Subject: Spring Semester Commuter Parking Permits Now Available Online\nDear Student,\nOnline renewal for Spring Commuter (Zone C) parking permits opens Monday, December 1st at 8:00 AM via your MyCampus portal. Due to upcoming construction on the South Garage, Zone C permit quotas have been reduced by 15% this term. Permits will be awarded on a strict first-come, first-served basis. If your vehicle license plate or residential address has changed since fall term, you must update your vehicle profile prior to submitting your permit request. Physical hangtags are no longer issued; your license plate serves as your digital permit.",
+    "questions": [
+      {
+        "q": "Why has the number of available Zone C parking permits been decreased?",
+        "options": [
+          "The university is increasing regional public transit subsidies",
+          "Permit prices have increased significantly for the spring term",
+          "Construction work is scheduled to take place on the South Garage",
+          "Commuter student enrollment has fallen over the past semester"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The email notes: 'Due to upcoming construction on the South Garage, Zone C permit quotas have been reduced by 15% this term.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "How does the parking enforcement office verify authorized commuter vehicles?",
+        "options": [
+          "By scanning plastic hangtags hung from the rearview mirror",
+          "By scanning the vehicle's registered license plate electronically",
+          "By checking paper receipt permits displayed on the windshield",
+          "By requiring students to check in with a gate attendant"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The text explains: 'Physical hangtags are no longer issued; your license plate serves as your digital permit.'",
+        "questionType": "factual"
+      },
+      {
+        "q": "The word 'quotas' in the passage is closest in meaning to:",
+        "options": [
+          "enforcement fines",
+          "predetermined limits",
+          "maintenance expenses",
+          "geographic boundaries"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "In this context, 'permit quotas' refers to the set limits or allowances of permits made available.",
+        "questionType": "vocabulary"
+      }
+    ]
+  },
+  {
+    "id": "dl-10",
+    "title": "University IT Service Desk Maintenance and Outage Alert",
+    "formatType": "notice",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "context": "Broadcast email and portal notification from University Information Technology",
+    "contentText": "SYSTEM ADVISORY: Enterprise Cloud Storage and Learning Management System Maintenance\nPlease be advised that University IT will perform critical database upgrades this Saturday, March 12, from 1:00 AM to 6:00 AM EST. During this five-hour maintenance window, the Canvas course management platform, campus cloud file drives, and student portal registration modules will be inaccessible. However, campus Wi-Fi networks and official university email (@university.edu) will continue to operate without interruption. Faculty have been instructed not to schedule any assignment deadlines or online quizzes during this downtime.",
+    "questions": [
+      {
+        "q": "According to the advisory, which service will remain fully functional during the maintenance window?",
+        "options": [
+          "The Canvas course management system",
+          "The student portal registration portal",
+          "Official student and faculty email accounts",
+          "Campus cloud file storage drives"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The notice explicitly confirms: 'campus Wi-Fi networks and official university email (@university.edu) will continue to operate without interruption.'",
+        "questionType": "negative_factual"
+      },
+      {
+        "q": "What step has the university taken to prevent academic disruption during the maintenance?",
+        "options": [
+          "Extended all semester deadlines automatically by one week",
+          "Directed faculty not to schedule quizzes or deadlines during the downtime",
+          "Arranged temporary alternative servers for file storage",
+          "Provided off-campus internet stipends for affected students"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The text states: 'Faculty have been instructed not to schedule any assignment deadlines or online quizzes during this downtime.'",
+        "questionType": "factual"
+      }
+    ]
+  }
+]

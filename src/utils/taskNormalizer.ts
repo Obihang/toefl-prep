@@ -12,41 +12,74 @@ import { inferGender } from './voices';
 const CANONICAL_TASK_IDS = new Set<string>(TASK_DEFINITIONS.map((t) => t.id));
 
 const TASK_TYPE_ALIASES: Record<string, TaskTypeId> = {
+  // Reading (3)
   'complete-words': 'complete-words',
   complete_words: 'complete-words',
   completewords: 'complete-words',
   'c-test': 'complete-words',
-  'reading-passage': 'reading-passage',
-  reading_passage: 'reading-passage',
-  reading_academic: 'reading-passage',
-  'reading-academic': 'reading-passage',
-  reading: 'reading-passage',
+
+  'daily-life': 'daily-life',
+  daily_life: 'daily-life',
+  'reading-daily-life': 'daily-life',
+  reading_daily_life: 'daily-life',
+  dailylife: 'daily-life',
+
+  'reading-academic': 'reading-academic',
+  reading_academic: 'reading-academic',
+  'reading-passage': 'reading-academic',
+  reading_passage: 'reading-academic',
+  reading: 'reading-academic',
+
+  // Listening (4)
+  'listening-choose-response': 'listening-choose-response',
+  listening_choose_response: 'listening-choose-response',
+  'choose-response': 'listening-choose-response',
+  choose_response: 'listening-choose-response',
+
   'listening-dialogue': 'listening-dialogue',
   listening_dialogue: 'listening-dialogue',
-  'listening-lecture': 'listening-dialogue',
-  listening_lecture: 'listening-dialogue',
+  'listening-conversation': 'listening-dialogue',
+  listening_conversation: 'listening-dialogue',
   listening: 'listening-dialogue',
-  'listen-repeat': 'listen-repeat',
-  listen_repeat: 'listen-repeat',
-  'speaking-listen-repeat': 'listen-repeat',
-  speaking_listen_repeat: 'listen-repeat',
-  'speaking-interview': 'speaking-interview',
-  speaking_interview: 'speaking-interview',
-  interview: 'speaking-interview',
+
+  'listening-announcement': 'listening-announcement',
+  listening_announcement: 'listening-announcement',
+  announcement: 'listening-announcement',
+
+  'listening-academic-talk': 'listening-academic-talk',
+  listening_academic_talk: 'listening-academic-talk',
+  'listening-lecture': 'listening-academic-talk',
+  listening_lecture: 'listening-academic-talk',
+  'academic-talk': 'listening-academic-talk',
+  academic_talk: 'listening-academic-talk',
+
+  // Writing (3)
   'build-sentence': 'build-sentence',
   build_sentence: 'build-sentence',
   'writing-build-sentence': 'build-sentence',
   writing_build_sentence: 'build-sentence',
+
   'write-email': 'write-email',
   write_email: 'write-email',
   'writing-email': 'write-email',
   writing_email: 'write-email',
   email: 'write-email',
+
   'academic-discussion': 'academic-discussion',
   academic_discussion: 'academic-discussion',
   'writing-discussion': 'academic-discussion',
   writing_discussion: 'academic-discussion',
   discussion: 'academic-discussion',
+
+  // Speaking (2)
+  'listen-repeat': 'listen-repeat',
+  listen_repeat: 'listen-repeat',
+  'speaking-listen-repeat': 'listen-repeat',
+  speaking_listen_repeat: 'listen-repeat',
+
+  'speaking-interview': 'speaking-interview',
+  speaking_interview: 'speaking-interview',
+  interview: 'speaking-interview',
 };
 
 const DIFFICULTY_ALIASES: Record<string, Level> = {
@@ -972,12 +1005,31 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
       };
     }
 
+    case 'daily-life': {
+      return normalizeDailyLifeTask(task);
+    }
+
+    case 'reading-academic':
     case 'reading-passage': {
       return normalizeReadingAcademicTask(task);
     }
 
-    case 'listening-dialogue': {
+    case 'listening-choose-response': {
+      return normalizeListeningChooseResponseTask(task);
+    }
+
+    case 'listening-dialogue':
+    case 'listening-conversation': {
       return normalizeListeningDialogueTask(task);
+    }
+
+    case 'listening-announcement': {
+      return normalizeListeningAnnouncementTask(task);
+    }
+
+    case 'listening-academic-talk':
+    case 'listening-lecture': {
+      return normalizeListeningAcademicTalkTask(task);
     }
 
     case 'write-email': {
@@ -1094,9 +1146,35 @@ function updateExplanationOptionLetter(why: string, oldIdx: number, newIdx: numb
   return why.replace(new RegExp(`\\b(Option|Choice)\\s+${oldLetter}\\b`, 'gi'), `$1 ${newLetter}`);
 }
 
+export function inferReadingQuestionType(
+  questionText: string
+): 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose' {
+  const lower = (questionText || '').toLowerCase();
+  if (
+    /\b(not|except|least likely|false)\b/i.test(questionText) &&
+    !/\b(cannot|whether or not)\b/i.test(questionText)
+  ) {
+    return 'negative_factual';
+  }
+  if (/\b(closest in meaning|the word|the phrase|in paragraph \d+, the word)\b/i.test(lower)) {
+    return 'vocabulary';
+  }
+  if (/\b(infer|inferred|implies|imply|suggests that|can be concluded)\b/i.test(lower)) {
+    return 'inference';
+  }
+  if (
+    /\b(why does the author|in order to|purpose of|serves to|reason for mentioning|author discusses .* to)\b/i.test(
+      lower
+    )
+  ) {
+    return 'rhetorical_purpose';
+  }
+  return 'factual';
+}
+
 /**
  * Ensures all 4 MCQ options are unique strings, performs Answer-Key Self-Verification,
- * and eliminates option position bias by deterministically balancing answers across A, B, C, D (0..3).
+ * tags questionType, and eliminates option position bias by deterministically balancing answers across A, B, C, D (0..3).
  */
 export function verifyAndNormalizeMcqQuestions(
   rawQs: any[],
@@ -1109,6 +1187,7 @@ export function verifyAndNormalizeMcqQuestions(
   correctAnswer: number;
   why: string;
   explanation: string;
+  questionType: 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose';
 }> {
   if (!Array.isArray(rawQs)) return [];
 
@@ -1120,6 +1199,7 @@ export function verifyAndNormalizeMcqQuestions(
     correctAnswer: number;
     why: string;
     explanation: string;
+    questionType: 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose';
   }> = [];
 
   for (let qIdx = 0; qIdx < rawQs.length; qIdx++) {
@@ -1198,6 +1278,16 @@ export function verifyAndNormalizeMcqQuestions(
     // Apply deterministic option balancing across A (0), B (1), C (2), D (3)
     const balanced = balanceMcqOptions(qText, uniqueOptions.slice(0, 4), answer, qIdx);
     const updatedWhy = updateExplanationOptionLetter(whyText, answer, balanced.correctAnswer);
+    const rawQType = String(q.questionType || q.type || '').trim().toLowerCase();
+    const validQType = [
+      'factual',
+      'negative_factual',
+      'inference',
+      'vocabulary',
+      'rhetorical_purpose',
+    ].includes(rawQType)
+      ? (rawQType as 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose')
+      : inferReadingQuestionType(qText);
 
     result.push({
       q: qText,
@@ -1207,6 +1297,7 @@ export function verifyAndNormalizeMcqQuestions(
       correctAnswer: balanced.correctAnswer,
       why: updatedWhy,
       explanation: updatedWhy,
+      questionType: validQType,
     });
   }
 
@@ -1262,23 +1353,112 @@ export function normalizeListeningDialogueTask(task: any): any {
 }
 
 export function normalizeDailyLifeTask(task: any): any {
-  const title = String(task?.title || 'Daily Life Conversation').trim();
+  const title = String(task?.title || 'Real-World Daily Life Reading').trim();
+  const rawFormat = String(task?.formatType || task?.format || 'notice').toLowerCase();
+  const formatType = ['notice', 'email', 'text-chain', 'menu', 'schedule', 'invoice', 'social-post'].includes(rawFormat)
+    ? rawFormat
+    : 'notice';
+  const contentText = String(
+    task?.contentText ||
+    task?.text ||
+    task?.notice ||
+    task?.content ||
+    task?.passage ||
+    task?.body ||
+    ''
+  ).trim();
+  const context = String(task?.context || task?.situation || '').trim();
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly supported by the conversation.');
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly supported by the document or message.');
+
   return {
     ...task,
     title,
+    formatType,
+    format: formatType,
+    contentText,
+    text: contentText,
+    context,
+    meta: task?.meta || task?.metadata || {},
     questions,
   };
 }
 
 export function normalizeListeningChooseResponseTask(task: any): any {
-  const title = String(task?.title || 'Choose the Best Response').trim();
-  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Most appropriate and natural response.');
+  const title = String(task?.title || 'Listen & Choose a Response').trim();
+  const audioPrompt = String(
+    task?.audioPrompt ||
+    task?.promptAudioScript ||
+    task?.script ||
+    task?.spokenPrompt ||
+    task?.prompt ||
+    ''
+  ).trim();
+  const speakerName = String(task?.speakerName || 'Campus Speaker').trim();
+  const speakerGender = String(task?.speakerGender || inferGender(speakerName));
+  const rawOptions = Array.isArray(task?.options)
+    ? task.options.map((o: any) => String(o || '').trim()).filter(Boolean)
+    : [];
+  const rawAnswer = typeof task?.answer === 'number' ? task.answer : Number(task?.correctAnswer ?? 0);
+  const balanced = balanceMcqOptions(audioPrompt, rawOptions.slice(0, 4), isNaN(rawAnswer) ? 0 : rawAnswer, 0);
+  const why = String(
+    task?.why || task?.explanation || 'Most appropriate and natural response in this spoken campus exchange.'
+  ).trim();
+  const category = String(task?.category || 'Campus Life').trim();
+
   return {
     ...task,
     title,
+    audioPrompt,
+    promptAudioScript: audioPrompt,
+    script: audioPrompt,
+    speakerName,
+    speakerGender,
+    options: balanced.options,
+    answer: balanced.correctAnswer,
+    correctAnswer: balanced.correctAnswer,
+    why,
+    explanation: why,
+    category,
+  };
+}
+
+export function normalizeListeningAnnouncementTask(task: any): any {
+  const title = String(task?.title || 'Campus Announcement').trim();
+  const context = String(task?.context || 'University Campus Announcement').trim();
+  const speakerName = String(task?.speakerName || 'Dean of Students').trim();
+  const speakerGender = String(task?.speakerGender || inferGender(speakerName));
+  const script = String(task?.script || task?.announcement || task?.text || '').trim();
+  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the announcement.');
+
+  return {
+    ...task,
+    title,
+    context,
+    speakerName,
+    speakerGender,
+    script,
+    questions,
+  };
+}
+
+export function normalizeListeningAcademicTalkTask(task: any): any {
+  const title = String(task?.title || 'Academic Talk & Lecture').trim();
+  const topic = String(task?.topic || 'Science & Technology').trim();
+  const speakerName = String(task?.speakerName || 'Dr. Williams').trim();
+  const speakerGender = String(task?.speakerGender || inferGender(speakerName));
+  const script = String(task?.script || task?.lecture || task?.text || '').trim();
+  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Supported directly by the academic talk.');
+
+  return {
+    ...task,
+    title,
+    topic,
+    speakerName,
+    speakerGender,
+    script,
     questions,
   };
 }
@@ -1331,11 +1511,10 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
       });
     }
 
-    case 'reading-passage': {
-      const passage = String(data.passage || '');
-      const wordCount = passage.trim().split(/\s+/).filter(Boolean).length;
+    case 'daily-life': {
+      const text = String(data.contentText || data.text || data.notice || data.passage || '');
       const questions = Array.isArray(data.questions) ? data.questions : [];
-      if (wordCount < 120 || questions.length < 3) return false;
+      if (text.trim().length < 20 || questions.length < 2) return false;
       return questions.every(
         (q: any) =>
           q.q &&
@@ -1348,11 +1527,78 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
       );
     }
 
-    case 'listening-dialogue': {
+    case 'reading-academic':
+    case 'reading-passage': {
+      const passage = String(data.passage || data.text || '');
+      const wordCount = passage.trim().split(/\s+/).filter(Boolean).length;
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (wordCount < 100 || questions.length < 3) return false;
+      return questions.every(
+        (q: any) =>
+          q.q &&
+          Array.isArray(q.options) &&
+          q.options.length === 4 &&
+          new Set(q.options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
+          typeof q.answer === 'number' &&
+          q.answer >= 0 &&
+          q.answer <= 3
+      );
+    }
+
+    case 'listening-choose-response': {
+      const prompt = String(data.audioPrompt || data.promptAudioScript || data.script || '');
+      const options = Array.isArray(data.options) ? data.options : [];
+      return (
+        prompt.trim().length >= 10 &&
+        options.length === 4 &&
+        new Set(options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
+        typeof data.answer === 'number' &&
+        data.answer >= 0 &&
+        data.answer <= 3
+      );
+    }
+
+    case 'listening-dialogue':
+    case 'listening-conversation': {
       const script = String(data.script || '');
       const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
       const questions = Array.isArray(data.questions) ? data.questions : [];
-      if (wordCount < 90 || questions.length < 3) return false;
+      if (wordCount < 60 || questions.length < 2) return false;
+      return questions.every(
+        (q: any) =>
+          q.q &&
+          Array.isArray(q.options) &&
+          q.options.length === 4 &&
+          new Set(q.options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
+          typeof q.answer === 'number' &&
+          q.answer >= 0 &&
+          q.answer <= 3
+      );
+    }
+
+    case 'listening-announcement': {
+      const script = String(data.script || data.announcement || '');
+      const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (wordCount < 30 || questions.length < 2) return false;
+      return questions.every(
+        (q: any) =>
+          q.q &&
+          Array.isArray(q.options) &&
+          q.options.length === 4 &&
+          new Set(q.options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
+          typeof q.answer === 'number' &&
+          q.answer >= 0 &&
+          q.answer <= 3
+      );
+    }
+
+    case 'listening-academic-talk':
+    case 'listening-lecture': {
+      const script = String(data.script || data.lecture || '');
+      const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (wordCount < 80 || questions.length < 3) return false;
       return questions.every(
         (q: any) =>
           q.q &&

@@ -42,10 +42,11 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const TOEFL_2026_PURGE_V4 = 'toefl_bank_purged_2026_v4';
-export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V4;
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V4;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v15';
+export const TOEFL_2026_PURGE_V5 = 'toefl_bank_purged_2026_v5';
+export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V5;
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V5;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V5;
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v16';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);
@@ -386,13 +387,17 @@ export async function saveVerifiedQuestion(params: {
 
 export const SHARD_FILES = [
   'complete-words',
-  'reading-passage',
+  'daily-life',
+  'reading-academic',
+  'listening-choose-response',
   'listening-dialogue',
-  'listen-repeat',
-  'speaking-interview',
+  'listening-announcement',
+  'listening-academic-talk',
   'build-sentence',
   'write-email',
   'academic-discussion',
+  'listen-repeat',
+  'speaking-interview',
 ];
 
 const CANONICAL_TASK_IDS = TASK_DEFINITIONS.map((t) => t.id);
@@ -408,6 +413,17 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
   await ensurePurged2026V2();
   const canonicalType = canonicalizeTaskType(taskType);
   const shardsToLoad = [canonicalType];
+  if (canonicalType === 'reading-academic') {
+    shardsToLoad.push('reading-passage');
+  } else if (canonicalType === 'build-sentence') {
+    shardsToLoad.push('writing-build-sentence');
+  } else if (canonicalType === 'write-email') {
+    shardsToLoad.push('writing-email');
+  } else if (canonicalType === 'listen-repeat') {
+    shardsToLoad.push('speaking-listen-repeat');
+  } else if (canonicalType === 'listening-academic-talk') {
+    shardsToLoad.push('listening-lecture');
+  }
 
   if (!curatedMemoryCache[canonicalType]) {
     curatedMemoryCache[canonicalType] = [];

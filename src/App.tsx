@@ -68,6 +68,7 @@ import {
   Volume2,
   Database,
   Activity,
+  Target,
 } from 'lucide-react';
 import { SystemStatusModal } from './components/shared/SystemStatusModal';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
@@ -106,7 +107,11 @@ import {
 import { CompleteWordsView } from './components/tasks/CompleteWordsView';
 import { SelectionHandler } from './components/shared/SelectionHandler';
 import { ReadingPassageView } from './components/tasks/ReadingPassageView';
+import { DailyLifeView } from './components/tasks/DailyLifeView';
+import { ListeningChooseResponseView } from './components/tasks/ListeningChooseResponseView';
 import { ListeningDialogueView } from './components/tasks/ListeningDialogueView';
+import { ListeningAnnouncementView } from './components/tasks/ListeningAnnouncementView';
+import { ListeningAcademicTalkView } from './components/tasks/ListeningAcademicTalkView';
 import { ListenRepeatView } from './components/tasks/ListenRepeatView';
 import { SpeakingInterviewView } from './components/tasks/SpeakingInterviewView';
 import { BuildSentenceView } from './components/tasks/BuildSentenceView';
@@ -115,6 +120,7 @@ import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionVie
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
 import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
 import { VoiceDiagnosticToast } from './components/shared/VoiceDiagnosticToast';
+import { ReadingQuestionSkill, READING_SKILL_OPTIONS } from './types';
 
 import { TaskTypeId, TaskDefinition, TASK_DEFINITIONS } from './types/taskTypes';
 import {
@@ -140,6 +146,7 @@ export default function App() {
   const [currentTaskType, setCurrentTaskType] = useState<TaskTypeId>('academic-discussion');
   const [level, setLevel] = useState<string>('upper-intermediate');
   const [topic, setTopic] = useState('science-tech');
+  const [readingSkillFocus, setReadingSkillFocus] = useState<ReadingQuestionSkill>('all');
 
   const levelRef = React.useRef(level);
   levelRef.current = level;
@@ -162,7 +169,7 @@ export default function App() {
     };
   }, [currentTaskType, isMockTest]);
 
-  // Curated question bank sync state across all 9 task types
+  // Curated question bank sync state across all 12 task types
   const [bankStats, setBankStats] = useState<{
     totalQuestions: number;
     totalCurated: number;
@@ -193,8 +200,13 @@ export default function App() {
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});
   const [curatedIndices, setCuratedIndices] = useState<Record<string, number>>({
     'complete-words': 0,
+    'daily-life': 0,
+    'reading-academic': 0,
     'reading-passage': 0,
+    'listening-choose-response': 0,
     'listening-dialogue': 0,
+    'listening-announcement': 0,
+    'listening-academic-talk': 0,
     'listen-repeat': 0,
     'speaking-interview': 0,
     'build-sentence': 0,
@@ -846,6 +858,7 @@ export default function App() {
           taskType: currentTaskType,
           level: concreteLevel,
           topic: concreteTopic,
+          promptData: readingSkillFocus !== 'all' ? { questionSkillFocus: readingSkillFocus } : undefined,
         }),
       });
 
@@ -1274,6 +1287,27 @@ export default function App() {
                 </select>
               </div>
 
+              {(currentTaskType === 'reading-academic' || currentTaskType === 'daily-life' || currentTaskType === 'reading-passage') && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="select-skill-focus" className="text-xs text-teal-800 font-semibold flex items-center gap-1">
+                    <Target className="w-3.5 h-3.5 text-teal-700" />
+                    <span>Skill Focus:</span>
+                  </label>
+                  <select
+                    id="select-skill-focus"
+                    value={readingSkillFocus}
+                    onChange={(e) => setReadingSkillFocus(e.target.value as ReadingQuestionSkill)}
+                    className="text-xs bg-teal-50 border border-teal-200 text-teal-900 rounded-lg px-2.5 py-1.5 font-semibold outline-hidden focus:border-teal-700 cursor-pointer"
+                  >
+                    {READING_SKILL_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {(() => {
                 const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
                 const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
@@ -1628,39 +1662,53 @@ export default function App() {
                 />
               )}
 
-              {currentTaskType === 'reading-passage' && (
+              {currentTaskType === 'daily-life' && (
+                <DailyLifeView
+                  key={activeTask.id || (activeTask as any).title}
+                  task={activeTask as any}
+                  skillFocus={readingSkillFocus}
+                  onNextTask={() => handleNextQuestion('daily-life')}
+                />
+              )}
+
+              {(currentTaskType === 'reading-academic' || currentTaskType === 'reading-passage') && (
                 <ReadingPassageView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ReadingPassageTask}
-                  onNextTask={() => handleNextQuestion('reading-passage')}
+                  skillFocus={readingSkillFocus}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
 
-              {currentTaskType === 'listening-dialogue' && (
+              {currentTaskType === 'listening-choose-response' && (
+                <ListeningChooseResponseView
+                  key={activeTask.id || (activeTask as any).title}
+                  task={activeTask as any}
+                  onNextTask={() => handleNextQuestion('listening-choose-response')}
+                />
+              )}
+
+              {(currentTaskType === 'listening-dialogue' || currentTaskType === 'listening-conversation') && (
                 <ListeningDialogueView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListeningTask}
-                  onNextTask={() => handleNextQuestion('listening-dialogue')}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
 
-              {currentTaskType === 'listen-repeat' && (
-                <ListenRepeatView
+              {currentTaskType === 'listening-announcement' && (
+                <ListeningAnnouncementView
                   key={activeTask.id || (activeTask as any).title}
-                  task={activeTask as ListenRepeatTask}
-                  onNextTask={() => handleNextQuestion('listen-repeat')}
+                  task={activeTask as any}
+                  onNextTask={() => handleNextQuestion('listening-announcement')}
                 />
               )}
 
-              {currentTaskType === 'speaking-interview' && (
-                <SpeakingInterviewView
+              {(currentTaskType === 'listening-academic-talk' || currentTaskType === 'listening-lecture') && (
+                <ListeningAcademicTalkView
                   key={activeTask.id || (activeTask as any).title}
-                  task={activeTask as SpeakingInterviewTask}
-                  onNextTask={() => handleNextQuestion('speaking-interview')}
-                  onOpenApiKeySettings={() => {
-                    setDashboardDefaultTab('settings');
-                    setIsDashboardOpen(true);
-                  }}
+                  task={activeTask as any}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
 
@@ -1668,7 +1716,7 @@ export default function App() {
                 <BuildSentenceView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as BuildSentenceTask}
-                  onNextTask={() => handleNextQuestion('build-sentence')}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
 
@@ -1676,7 +1724,7 @@ export default function App() {
                 <WriteEmailView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as WriteEmailTask}
-                  onNextTask={() => handleNextQuestion('write-email')}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
                     setIsDashboardOpen(true);
@@ -1688,7 +1736,27 @@ export default function App() {
                 <AcademicDiscussionView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as AcademicDiscussionTask}
-                  onNextTask={() => handleNextQuestion('academic-discussion')}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
+                  onOpenApiKeySettings={() => {
+                    setDashboardDefaultTab('settings');
+                    setIsDashboardOpen(true);
+                  }}
+                />
+              )}
+
+              {currentTaskType === 'listen-repeat' && (
+                <ListenRepeatView
+                  key={activeTask.id || (activeTask as any).title}
+                  task={activeTask as ListenRepeatTask}
+                  onNextTask={() => handleNextQuestion(currentTaskType)}
+                />
+              )}
+
+              {currentTaskType === 'speaking-interview' && (
+                <SpeakingInterviewView
+                  key={activeTask.id || (activeTask as any).title}
+                  task={activeTask as SpeakingInterviewTask}
+                  onNextTask={() => handleNextQuestion('speaking-interview')}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
                     setIsDashboardOpen(true);

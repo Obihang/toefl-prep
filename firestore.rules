@@ -25,16 +25,35 @@ service cloud.firestore {
     function isValidTaskType(t) {
       return t in [
         'complete-words',
+        'complete_words',
+        'daily-life',
+        'daily_life',
+        'reading-academic',
+        'reading_academic',
         'reading-passage',
-        'listening-dialogue',
-        'listening-lecture',
-        'listen-repeat',
-        'speaking-interview',
-        'build-sentence',
-        'write-email',
-        'academic-discussion',
         'reading',
-        'listening'
+        'listening-choose-response',
+        'listening_choose_response',
+        'listening-dialogue',
+        'listening_dialogue',
+        'listening-conversation',
+        'listening_conversation',
+        'listening-announcement',
+        'listening_announcement',
+        'listening-academic-talk',
+        'listening_academic_talk',
+        'listening-lecture',
+        'listening',
+        'build-sentence',
+        'writing_build_sentence',
+        'write-email',
+        'writing_email',
+        'academic-discussion',
+        'writing_discussion',
+        'listen-repeat',
+        'speaking_listen_repeat',
+        'speaking-interview',
+        'speaking_interview'
       ];
     }
 

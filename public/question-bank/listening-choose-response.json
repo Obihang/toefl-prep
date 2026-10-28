@@ -1,0 +1,202 @@
+[
+  {
+    "id": "lcr-1",
+    "title": "Library Interlibrary Loan Inquiry",
+    "audioPrompt": "Excuse me, I need a sociology monograph for my research paper that isn't on our open shelves. Is there any way to request it from another campus library?",
+    "speakerName": "Sarah",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "category": "Library Services",
+    "options": [
+      "The sociology department faculty offices are located on the third floor of Hall Hall.",
+      "Yes, you can submit an interlibrary loan request through your library portal, and it usually arrives in three business days.",
+      "You will need to re-enroll in the introductory sociology survey course next semester.",
+      "Books on the reserve shelf can only be checked out for two hours at a time."
+    ],
+    "answer": 1,
+    "correctAnswer": 1,
+    "why": "The student asked how to request a book from another campus library; confirming that an interlibrary loan request can be placed online is the direct and natural response."
+  },
+  {
+    "id": "lcr-2",
+    "title": "Chemistry Laboratory Prerequisite Question",
+    "audioPrompt": "Dr. Henderson, I was hoping to enroll in Advanced Analytical Chemistry this fall, but I haven't completed the second semester of Calculus yet. Would an instructor override permit be possible?",
+    "speakerName": "Marcus",
+    "speakerGender": "male",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "category": "Academic Advising",
+    "options": [
+      "The calculus prerequisite is mandatory because our thermodynamic models require multivariable integration, so you will need to finish that first.",
+      "We will be holding weekly tutoring sessions for organic chemistry in Room 204.",
+      "All students must purchase a laboratory coat and safety goggles before Monday's experiment.",
+      "Calculus textbooks are available for discounted purchase at the campus bookstore."
+    ],
+    "answer": 0,
+    "correctAnswer": 0,
+    "why": "The professor explains why the prerequisite cannot be waived due to the mathematical requirements of the course."
+  },
+  {
+    "id": "lcr-3",
+    "title": "Campus Shuttle Route Delay",
+    "audioPrompt": "Do you know if the North Campus express shuttle is still running, or did they alter the schedule because of the road construction on University Boulevard?",
+    "speakerName": "Chloe",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "category": "Campus Transportation",
+    "options": [
+      "The campus bookstore sells semester bus passes for commuter students.",
+      "You need to register your parking permit online before the start of the term.",
+      "Bicycles are not permitted inside academic buildings or dormitories.",
+      "It is still running every fifteen minutes, but it detours along College Avenue so the ride takes about ten minutes longer."
+    ],
+    "answer": 3,
+    "correctAnswer": 3,
+    "why": "Directly answers both whether the shuttle is operating and explains how the construction detour affects the schedule."
+  },
+  {
+    "id": "lcr-4",
+    "title": "Study Group Meeting Room Reservation",
+    "audioPrompt": "Hi there, our study group wants to reserve one of the multimedia conference rooms on the second floor for this evening. How do we book it?",
+    "speakerName": "David",
+    "speakerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "category": "Student Facilities",
+    "options": [
+      "You can reserve them directly on the student center website using your university login, or at the front desk right here.",
+      "The student government election results will be posted on the bulletin board tomorrow.",
+      "Only graduating seniors are allowed to check out laptop chargers overnight.",
+      "The coffee cart on the first floor closes promptly at five in the afternoon."
+    ],
+    "answer": 0,
+    "correctAnswer": 0,
+    "why": "Provides the exact reservation instructions both online and in-person at the service desk."
+  },
+  {
+    "id": "lcr-5",
+    "title": "Professor Office Hours Conflict",
+    "audioPrompt": "Professor Miller, I really want to discuss my draft for the term paper, but your regular office hours overlap directly with my mandatory physics lab on Tuesdays.",
+    "speakerName": "Rachel",
+    "speakerGender": "female",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "campus-life",
+    "category": "Faculty Communication",
+    "options": [
+      "Physics lab reports must be submitted in PDF format through the learning portal.",
+      "The term paper must cite at least five academic monographs published within the last decade.",
+      "No problem at all; send me an email with your free times on Thursday afternoon and we can set up an appointment.",
+      "You should drop your physics lecture if the laboratory schedule is inconvenient for you."
+    ],
+    "answer": 2,
+    "correctAnswer": 2,
+    "why": "A professor would accommodate an academic time conflict by offering an alternative meeting time via email."
+  },
+  {
+    "id": "lcr-6",
+    "title": "Campus Dining Meal Plan Balance",
+    "audioPrompt": "Excuse me, I tried to swipe my student card for lunch just now, but the register gave an error saying my dining points balance was insufficient. Could you check my account?",
+    "speakerName": "Ethan",
+    "speakerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "category": "Dining Services",
+    "options": [
+      "The dinner menu features grilled chicken, roasted vegetables, and a salad bar.",
+      "Sure, let me scan your card here; looks like your balance rolled over to zero at mid-term, but you can reload funds at the kiosk over there.",
+      "Cooking appliances with open heating elements are strictly prohibited in dorm rooms.",
+      "The dining commons is open until ten o'clock on Friday and Saturday evenings."
+    ],
+    "answer": 1,
+    "correctAnswer": 1,
+    "why": "The staff member scans the student ID card, diagnoses the zero balance, and directs the student to the reload kiosk."
+  },
+  {
+    "id": "lcr-7",
+    "title": "Career Fair Resume Review Session",
+    "audioPrompt": "Hi, I heard the Career Center is offering walk-in resume critiques today ahead of tomorrow's engineering job expo. Is there still time to get feedback?",
+    "speakerName": "Maya",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "business-economics",
+    "category": "Career Services",
+    "options": [
+      "Engineering career fairs are usually held in the auxiliary gymnasium each October.",
+      "Yes, peer advisors are reviewing resumes on a first-come, first-served basis until four o'clock today, so sign in on the clipboard.",
+      "You must wear formal business attire when visiting the university financial aid office.",
+      "Our alumni database contains over twenty thousand active graduate contact profiles."
+    ],
+    "answer": 1,
+    "correctAnswer": 1,
+    "why": "Directly confirms that walk-in reviews are still active until 4:00 PM and tells the student to sign in."
+  },
+  {
+    "id": "lcr-8",
+    "title": "Biology Lab Equipment Calibration Issue",
+    "audioPrompt": "Hey Jason, our spectrophotometer is displaying negative absorbance readings for the blank cuvette. Did you calibrate the zero baseline with distilled water first?",
+    "speakerName": "Lucas",
+    "speakerGender": "male",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "category": "Laboratory Work",
+    "options": [
+      "We should make sure to wipe down all lab benches with disinfectant before leaving.",
+      "The final exam will cover photosynthesis, cellular respiration, and enzyme kinetics.",
+      "Oh, I accidentally used the standard buffer solution instead of distilled water! Let me recalibrate it right away.",
+      "Microscopes must be returned to their numbered cabinet shelves after every class."
+    ],
+    "answer": 2,
+    "correctAnswer": 2,
+    "why": "The lab partner acknowledges the calibration mistake and immediately offers to correct it with the proper blank."
+  },
+  {
+    "id": "lcr-9",
+    "title": "Writing Center Appointment Booking",
+    "audioPrompt": "Good morning! Can I book an appointment with a writing consultant for tomorrow to review my senior capstone literature review?",
+    "speakerName": "Olivia",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "arts-humanities",
+    "category": "Academic Support",
+    "options": [
+      "Senior capstone presentations will be judged by a committee of three faculty members.",
+      "The academic calendar indicates that commencement ceremonies will take place in May.",
+      "Tomorrow is completely booked, but we have two slots open on Wednesday at ten and two o'clock if either works for you.",
+      "Literature review sections generally need to cite scholarly journal articles in APA format."
+    ],
+    "answer": 2,
+    "correctAnswer": 2,
+    "why": "Directly responds to the scheduling request by offering the nearest available appointment slots."
+  },
+  {
+    "id": "lcr-10",
+    "title": "Campus Health Center Flu Vaccination Clinic",
+    "audioPrompt": "Hello, do I need to make an appointment online to get a seasonal flu vaccination at the student health center, or are walk-ins welcome today?",
+    "speakerName": "Tyler",
+    "speakerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "category": "Health & Wellness",
+    "options": [
+      "The pharmacy is located on the ground floor next to the physical therapy department.",
+      "Health insurance waiver forms must be submitted to the bursar prior to registration.",
+      "Walk-ins are welcome all day today until five PM; just have your student ID and health insurance card ready.",
+      "Medical excuses for missed classes can only be issued by a licensed campus physician."
+    ],
+    "answer": 2,
+    "correctAnswer": 2,
+    "why": "Directly confirms that walk-in vaccinations are accepted until 5:00 PM and lists the documents required."
+  }
+]

@@ -16,6 +16,10 @@ import {
   normalizeCompleteWordsTask,
   normalizeBuildSentenceTask,
   verifyAndNormalizeMcqQuestions,
+  normalizeDailyLifeTask,
+  normalizeListeningChooseResponseTask,
+  normalizeListeningAnnouncementTask,
+  normalizeListeningAcademicTalkTask,
 } from '../utils/taskNormalizer';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
@@ -156,6 +160,55 @@ const Schemas = {
     })),
     examples: z.array(z.string()).optional().default([]),
     synonyms: z.array(z.string()).optional().default([]),
+  }),
+  dailyLife: z.object({
+    title: z.string(),
+    formatType: z.string().default('notice'),
+    context: z.string(),
+    contentText: z.string(),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+      questionType: z.string().optional(),
+    })),
+  }),
+  listeningChooseResponse: z.object({
+    title: z.string(),
+    audioPrompt: z.string(),
+    speakerName: z.string().default('Campus Speaker'),
+    speakerGender: z.string().default('male'),
+    options: z.array(z.string()),
+    answer: z.number(),
+    why: z.string(),
+    category: z.string().optional().default('Campus Life'),
+  }),
+  listeningAnnouncement: z.object({
+    title: z.string(),
+    context: z.string(),
+    speakerName: z.string().default('University Administrator'),
+    speakerGender: z.string().default('female'),
+    script: z.string(),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+    })),
+  }),
+  listeningAcademicTalk: z.object({
+    title: z.string(),
+    topic: z.string(),
+    speakerName: z.string().default('Professor'),
+    speakerGender: z.string().default('male'),
+    script: z.string(),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+    })),
   }),
 };
 
@@ -588,10 +641,27 @@ export function normalizeTask(taskType: string, data: any): any {
       return normalizeCompleteWords(data);
     case 'reading-passage':
     case 'reading_academic':
+    case 'reading-academic':
       return normalizeReadingPassage(data);
+    case 'daily-life':
+    case 'daily_life':
+      return normalizeDailyLifeTask(data);
     case 'listening-dialogue':
     case 'listening_dialogue':
+    case 'listening-conversation':
+    case 'listening_conversation':
       return normalizeListeningDialogue(data);
+    case 'listening-choose-response':
+    case 'listening_choose_response':
+      return normalizeListeningChooseResponseTask(data);
+    case 'listening-announcement':
+    case 'listening_announcement':
+      return normalizeListeningAnnouncementTask(data);
+    case 'listening-academic-talk':
+    case 'listening_academic_talk':
+    case 'listening-lecture':
+    case 'listening_lecture':
+      return normalizeListeningAcademicTalkTask(data);
     case 'listen-repeat':
     case 'speaking_listen_repeat':
       return normalizeListenRepeat(data);
@@ -724,40 +794,74 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
   const taskMap: Record<string, string> = {
     'complete-words': 'completeWords',
     complete_words: 'completeWords',
-    'reading-passage': 'readingPassage',
+    'daily-life': 'dailyLife',
+    daily_life: 'dailyLife',
+    'reading-academic': 'readingPassage',
     reading_academic: 'readingPassage',
+    'reading-passage': 'readingPassage',
+    'listening-choose-response': 'listeningChooseResponse',
+    listening_choose_response: 'listeningChooseResponse',
     'listening-dialogue': 'listeningDialogue',
     listening_dialogue: 'listeningDialogue',
+    'listening-conversation': 'listeningDialogue',
+    listening_conversation: 'listeningDialogue',
+    'listening-announcement': 'listeningAnnouncement',
+    listening_announcement: 'listeningAnnouncement',
+    'listening-academic-talk': 'listeningAcademicTalk',
+    listening_academic_talk: 'listeningAcademicTalk',
+    'listening-lecture': 'listeningAcademicTalk',
+    listening_lecture: 'listeningAcademicTalk',
     'listen-repeat': 'listenRepeat',
     speaking_listen_repeat: 'listenRepeat',
+    'speaking-listen-repeat': 'listenRepeat',
     'speaking-interview': 'speakingInterview',
     speaking_interview: 'speakingInterview',
     'build-sentence': 'buildSentence',
     writing_build_sentence: 'buildSentence',
+    'writing-build-sentence': 'buildSentence',
     'write-email': 'writeEmail',
     writing_email: 'writeEmail',
+    'writing-email': 'writeEmail',
     'academic-discussion': 'academicDiscussion',
     writing_discussion: 'academicDiscussion',
+    'writing-discussion': 'academicDiscussion',
     'vocabulary_explanation': 'vocabularyExplanation',
     'vocabulary-explanation': 'vocabularyExplanation',
   };
   const curatedMap: Record<string, string> = {
     'complete-words': 'CURATED_COMPLETE_WORDS',
     complete_words: 'CURATED_COMPLETE_WORDS',
-    'reading-passage': 'CURATED_READING_PASSAGES',
+    'daily-life': 'CURATED_READING_PASSAGES',
+    daily_life: 'CURATED_READING_PASSAGES',
+    'reading-academic': 'CURATED_READING_PASSAGES',
     reading_academic: 'CURATED_READING_PASSAGES',
+    'reading-passage': 'CURATED_READING_PASSAGES',
+    'listening-choose-response': 'CURATED_LISTENING',
+    listening_choose_response: 'CURATED_LISTENING',
     'listening-dialogue': 'CURATED_LISTENING',
     listening_dialogue: 'CURATED_LISTENING',
+    'listening-conversation': 'CURATED_LISTENING',
+    listening_conversation: 'CURATED_LISTENING',
+    'listening-announcement': 'CURATED_LISTENING',
+    listening_announcement: 'CURATED_LISTENING',
+    'listening-academic-talk': 'CURATED_LISTENING',
+    listening_academic_talk: 'CURATED_LISTENING',
+    'listening-lecture': 'CURATED_LISTENING',
+    listening_lecture: 'CURATED_LISTENING',
     'listen-repeat': 'CURATED_LISTEN_REPEAT',
     speaking_listen_repeat: 'CURATED_LISTEN_REPEAT',
+    'speaking-listen-repeat': 'CURATED_LISTEN_REPEAT',
     'speaking-interview': 'CURATED_SPEAKING_INTERVIEWS',
     speaking_interview: 'CURATED_SPEAKING_INTERVIEWS',
     'build-sentence': 'CURATED_BUILD_SENTENCES',
     writing_build_sentence: 'CURATED_BUILD_SENTENCES',
+    'writing-build-sentence': 'CURATED_BUILD_SENTENCES',
     'write-email': 'CURATED_WRITE_EMAILS',
     writing_email: 'CURATED_WRITE_EMAILS',
+    'writing-email': 'CURATED_WRITE_EMAILS',
     'academic-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
     writing_discussion: 'CURATED_ACADEMIC_DISCUSSIONS',
+    'writing-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
   };
 
   const schemaKey = taskMap[taskType];
@@ -786,21 +890,57 @@ STRICT 2026 TOEFL iBT SPECIFICATIONS:
 4. Format each blanked word strictly as \`prefix[[suffix]]\` where \`prefix\` is the first floor(L/2) letters (at least 3 visible starting letters) and \`suffix\` is the remaining ceil(L/2) letters (at least 3 hidden ending letters): e.g. "nanopar[[ticles]]", "penetr[[ate]]", "cell[[ular]]", "therap[[eutic]]", "integ[[ration]]".
 5. NEVER split compound words with a space (NEVER write "[nano] particles") and NEVER put brackets around the first half (NEVER write "[[penetr]]ate") or around the entire word (NEVER write "[[integration]]").
 Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 85-110 word paragraph with Sentence 1 intact and 10 words (6-12 letters each) formatted as prefix[[suffix]]", "totalBlanks": 10}`;
+      case 'daily-life':
+      case 'daily_life':
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Reading "Read in Daily Life" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", or "invoice".
+2. Write a realistic text of 50-140 words (contentText) with relevant campus or everyday context.
+3. Include 2 or 3 multiple choice questions based directly on the text. Each question must have 4 distinct options, verified answer index (0..3), why explanation, and questionType ('factual', 'negative_factual', 'inference', 'vocabulary', 'rhetorical_purpose').
+Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campus context description", "contentText": "Full text...", "questions": [{"q": "Question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "why": "Explanation...", "questionType": "factual"}]}`;
       case 'reading-passage':
       case 'reading_academic':
+      case 'reading-academic': {
+        const skillDirective = promptData?.questionSkillFocus && promptData.questionSkillFocus !== 'all'
+          ? `NOTE: Focus questions specifically on the skill: ${promptData.questionSkillFocus} (e.g. all 5 questions testing ${promptData.questionSkillFocus}).`
+          : '';
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL "Reading in an Academic Environment" passage with 5 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
+${skillDirective}
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Write a 200-250 word university-level academic passage (2-3 cohesive paragraphs).
-2. Provide EXACTLY 5 multiple-choice questions representing the 5 core TOEFL iBT question types:
-   - (Q1) Factual Information
-   - (Q2) Vocabulary in Context
-   - (Q3) Inference
-   - (Q4) Rhetorical Purpose / Organization
-   - (Q5) Negative Factual Information ("EXCEPT" / "NOT") or Summary
-3. Every question MUST have 4 distinct, unique options (\`options.length === 4\`), \`answer\` (0..3, varied across questions), and a detailed \`why\` explanation that explicitly verifies why the option at index \`answer\` is right.
-Return JSON format: {"title": "Passage Title", "passage": "200-250 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct..."}]}`;
+2. Provide EXACTLY 5 multiple-choice questions representing TOEFL iBT question types (Factual, Vocabulary, Inference, Rhetorical Purpose, Negative Factual).
+3. Every question MUST have 4 distinct, unique options (\`options.length === 4\`), \`answer\` (0..3, varied across questions), \`questionType\` ('factual', 'negative_factual', 'inference', 'vocabulary', 'rhetorical_purpose'), and a detailed \`why\` explanation that explicitly verifies why the option at index \`answer\` is right.
+Return JSON format: {"title": "Passage Title", "passage": "200-250 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct...", "questionType": "inference"}]}`;
+      }
+      case 'listening-choose-response':
+      case 'listening_choose_response':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen & Choose a Response" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write 1 spoken campus question or statement (audioPrompt, 15-30 words) spoken by a campus speaker (speakerName, speakerGender: 'male'|'female').
+2. Provide EXACTLY 4 plausible spoken conversational replies (options). Exactly ONE option is the natural, appropriate response (answer: 0..3), while 3 are plausible distractors.
+3. Provide a clear why explanation.
+Return JSON format: {"title": "Campus Interaction Title", "audioPrompt": "Excuse me, ...?", "speakerName": "Sarah", "speakerGender": "female", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Direct and natural response to the speaker's inquiry.", "category": "Campus Life"}`;
+      case 'listening-announcement':
+      case 'listening_announcement':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Announcement" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write a 45-80 word spoken campus announcement (script) by 1 university official or professor (speakerName, speakerGender: 'male'|'female').
+2. Follow with EXACTLY 2 comprehension questions. Each question must have 4 distinct options, answer index (0..3), and why explanation.
+Return JSON format: {"title": "Announcement Title", "context": "University announcement context", "speakerName": "Dean Williams", "speakerGender": "male", "script": "Attention all students...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "options": ["A", "B", "C", "D"], "answer": 2, "why": "Explanation 2..."}]}`;
+      case 'listening-academic-talk':
+      case 'listening_academic_talk':
+      case 'listening-lecture':
+      case 'listening_lecture':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Academic Talk" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write a 140-200 word academic talk or mini-lecture (script) by a university educator (speakerName, speakerGender: 'male'|'female').
+2. Follow with EXACTLY 4 comprehension questions covering main idea, detail, cause/effect, and speaker purpose.
+3. Each question must have 4 distinct options, answer index (0..3), and why explanation.
+Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName": "Dr. Angela Evans", "speakerGender": "female", "script": "Good morning class...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "..."}, {"q": "Question 2?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "..."}, {"q": "Question 3?", "options": ["A", "B", "C", "D"], "answer": 2, "why": "..."}, {"q": "Question 4?", "options": ["A", "B", "C", "D"], "answer": 3, "why": "..."}]}`;
       case 'listening-dialogue':
       case 'listening_dialogue':
+      case 'listening-conversation':
+      case 'listening_conversation':
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. For Conversations: write 8-10 natural turns between a Student and a Professor/University Staff member with explicit gendered names (e.g., "Emma (Female)" & "Prof. Miller (Male)", or "Liam (Male)" & "Dr. Davis (Female)"). For Academic Talks/Lectures: write a 180-220 word university lecture by a professor with a brief student question.

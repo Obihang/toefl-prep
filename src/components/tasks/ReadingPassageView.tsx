@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ReadingPassageTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle, Target } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { inferReadingQuestionType } from '../../utils/taskNormalizer';
+import { ReadingQuestionSkill } from '../../types';
 
 interface Props {
   task: ReadingPassageTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
+  skillFocus?: ReadingQuestionSkill;
 }
 
-export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComplete, skillFocus = 'all' }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
@@ -143,6 +146,24 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
+            const qType = (q as any).questionType || inferReadingQuestionType(q.q);
+            const isTargetSkill = skillFocus !== 'all' && qType === skillFocus;
+
+            const getSkillBadge = (type: string) => {
+              switch (type) {
+                case 'negative_factual':
+                  return { label: 'Negative Factual (EXCEPT)', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+                case 'inference':
+                  return { label: 'Inference', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+                case 'vocabulary':
+                  return { label: 'Vocabulary in Context', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+                case 'rhetorical_purpose':
+                  return { label: 'Rhetorical Purpose', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+                default:
+                  return { label: 'Factual Comprehension', color: 'bg-teal-50 text-teal-700 border-teal-200' };
+              }
+            };
+            const skillBadge = getSkillBadge(qType);
 
             return (
               <div
@@ -153,15 +174,29 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
                     ? isCorrect
                       ? 'border-emerald-200 bg-emerald-50/20'
                       : 'border-rose-200 bg-rose-50/20'
+                    : isTargetSkill
+                    ? 'border-teal-400 ring-2 ring-teal-100'
                     : 'border-slate-200'
                 }`}
               >
-                <div className="flex items-start gap-2.5 mb-3.5">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold shrink-0">
-                    {qIdx + 1}
-                  </span>
-                  <p className="text-sm font-semibold text-slate-900 leading-snug">{q.q}</p>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
+                      {qIdx + 1}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${skillBadge.color}`}>
+                      {skillBadge.label}
+                    </span>
+                  </div>
+                  {isTargetSkill && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                      <Target className="w-3 h-3" />
+                      Target Skill
+                    </span>
+                  )}
                 </div>
+
+                <p className="text-sm font-semibold text-slate-900 leading-snug mb-3.5">{q.q}</p>
 
                 <div className="space-y-2">
                   {q.options.map((opt, optIdx) => {

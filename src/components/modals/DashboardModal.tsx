@@ -58,13 +58,18 @@ export const DashboardModal: React.FC<Props> = ({
 
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({
     'complete-words': 0,
+    'daily-life': 0,
+    'reading-academic': 0,
     'reading-passage': 0,
+    'listening-choose-response': 0,
     'listening-dialogue': 0,
-    'listen-repeat': 0,
-    'speaking-interview': 0,
+    'listening-announcement': 0,
+    'listening-academic-talk': 0,
     'build-sentence': 0,
     'write-email': 0,
     'academic-discussion': 0,
+    'listen-repeat': 0,
+    'speaking-interview': 0,
   });
   const [loadingQuestionCounts, setLoadingQuestionCounts] = useState(false);
 
