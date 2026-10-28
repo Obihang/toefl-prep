@@ -9,9 +9,12 @@ import {
   getApiHeaders,
   getStoredApiKey,
   getStoredProvider,
+  hasAnyProviderKey,
   ApiProvider,
 } from '../utils/apiKey';
 import { safeFetchJson } from '../utils/apiHelper';
+import { evaluateResponseLocally } from '../utils/localEvaluator';
+import { normalizeTaskData } from '../utils/taskNormalizer';
 
 export async function fetchDynamicModels(provider: ModelProvider, apiKey: string): Promise<string[]> {
   if (provider !== 'gemini') return GENERATION_MODELS[provider] || [];
@@ -107,8 +110,8 @@ function resolveActiveProviderAndKey(): {
 
 export async function callBackendGenerate(
   taskType: string,
-  level: string,
-  topic: string,
+  level: string = 'intermediate',
+  topic: string = 'science-tech',
   promptData?: any,
   extraOptions?: Record<string, any>
 ): Promise<any> {
@@ -117,6 +120,7 @@ export async function callBackendGenerate(
   const options = {
     provider,
     apiKey,
+    customApiKey: apiKey,
     providerKeys,
     availableKeys: providerKeys,
     ...(extraOptions || {}),
@@ -130,6 +134,7 @@ export async function callBackendGenerate(
       level,
       topic,
       promptData,
+      customApiKey: apiKey,
       provider,
       apiKey,
       providerKeys,
@@ -137,6 +142,18 @@ export async function callBackendGenerate(
       options,
     }),
   });
+}
+
+export async function generateTaskContent(
+  taskType: string,
+  level: string = 'intermediate',
+  topic: string = 'science-tech',
+  promptData?: any,
+  extraOptions?: Record<string, any>
+): Promise<any> {
+  const res = await callBackendGenerate(taskType, level, topic, promptData, extraOptions);
+  const rawData = res?.data || res;
+  return normalizeTaskData(rawData, taskType);
 }
 
 export async function evaluateResponse(
@@ -147,26 +164,42 @@ export async function evaluateResponse(
 ): Promise<any> {
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
 
+  if (!hasAnyProviderKey() && !apiKey) {
+    return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+  }
+
   const options = {
     provider,
     apiKey,
+    customApiKey: apiKey,
     providerKeys,
     availableKeys: providerKeys,
     ...(extraOptions || {}),
   };
 
-  return safeFetchJson('/api/evaluate-response', {
-    method: 'POST',
-    headers: getApiHeaders(),
-    body: JSON.stringify({
-      taskType,
-      promptData,
-      studentResponse,
-      provider,
-      apiKey,
-      providerKeys,
-      availableKeys: providerKeys,
-      options,
-    }),
-  });
+  try {
+    const res = await safeFetchJson('/api/evaluate-response', {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify({
+        taskType,
+        promptData,
+        studentResponse,
+        customApiKey: apiKey,
+        provider,
+        apiKey,
+        providerKeys,
+        availableKeys: providerKeys,
+        options,
+      }),
+    });
+
+    if (res && res.success === false) {
+      return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+    }
+    return res?.data || res;
+  } catch (err) {
+    console.warn('[geminiService] /api/evaluate-response failed, falling back to evaluateResponseLocally:', err);
+    return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+  }
 }

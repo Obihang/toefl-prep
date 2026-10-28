@@ -710,9 +710,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           context: task.context,
           questions: task.questions.map((q) => q.question),
         },
-        combinedResponse,
+        submissionData,
         {
           task,
+          submissionData,
           wpm: avgWpm,
           pauseCount: totalPauses,
           longestPause: maxPause,
@@ -745,8 +746,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
               context: task.context,
               questions: task.questions.map((q) => q.question),
             },
-            combinedResponse,
-            { task, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
+            submissionData,
+            { task, submissionData, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
           );
         }
       } catch (err: any) {
@@ -758,8 +759,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             context: task.context,
             questions: task.questions.map((q) => q.question),
           },
-          combinedResponse,
-          { task, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
+          submissionData,
+          { task, submissionData, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
         );
       }
     }

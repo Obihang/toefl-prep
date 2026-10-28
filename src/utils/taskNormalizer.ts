@@ -309,15 +309,17 @@ export function normalizeTopicLabel(rawTopic?: any, fallbackContent?: any): Acad
 /**
  * Deterministically normalizes any "Complete the Words" (C-Test) task according to
  * strict 2026 TOEFL iBT specifications:
- * 1. Reconstructs full unblanked words from any bracket placement ([penetr]ate, [[penetr]]ate,
+ * 1. Merges separated compound words like "[nano] particles" -> "nanoparticles".
+ * 2. Reconstructs full unblanked words from any bracket placement ([penetr]ate, [[penetr]]ate,
  *    integr[ation], [integration], etc.).
- * 2. Keeps Sentence 1 (the first sentence) 100% intact with zero blanks.
- * 3. Blanks ONLY the second half of each target word:
+ * 3. Keeps Sentence 1 (the first sentence) 100% intact with zero blanks.
+ * 4. Enforces that every blanked word is a single complete English word of at least 6 letters
+ *    (fullWord.length >= 6) so prefix is ALWAYS >= 3 letters and answer is ALWAYS >= 3 letters:
  *    prefixLen = Math.floor(fullWord.length / 2)
- *    prefix = fullWord.slice(0, prefixLen) (always >= 2 letters)
- *    answer = fullWord.slice(prefixLen) (always >= 2 letters)
+ *    prefix = fullWord.slice(0, prefixLen) (always >= 3 letters)
+ *    answer = fullWord.slice(prefixLen) (always >= 3 letters)
  *    Formatted as `${prefix}[[${answer}]]` with ZERO trailing suffix letters.
- * 4. Enforces exactly 10 blanks per passage.
+ * 5. Enforces 10 blanks per passage and derives `blanks` strictly from the validated tokens.
  */
 export function normalizeCompleteWordsTask(raw: any): {
   title: string;
@@ -335,8 +337,18 @@ export function normalizeCompleteWordsTask(raw: any): {
     rawText = fallbackText;
   }
 
-  // Normalize accidental space immediately before a closing suffix bracket or after a prefix bracket
-  // only when the bracketed segment is clearly a word fragment, or parse token by token.
+  // Merge separated compound words where a bracketed prefix is separated by a space from its stem,
+  // e.g., "[nano] particles" or "[[nano]] particles" -> "[nano]particles"
+  rawText = rawText.replace(
+    /(\[+[a-zA-Z]{2,8}\]+)\s+(particles|particle|chemical|chemicals|chemistry|logical|biology|biological|diversity|systems|system|organisms|organism|synthesis|synthetic|scientists|scientist|science|economic|economics|disciplinary|graduates|graduate|structure|structures|conductors|conductor|dynamics|thermal|magnetic|climate|climatologists|sphere|spheres|technology|technologies|medicine|medical|mechanics|mechanical|analysis|analytics|network|networks|plasticity|vascular|cellular|molecular)\b/gi,
+    '$1$2'
+  );
+  // Also merge reverse separated compounds like "nano [particles]" or "nano [[particles]]" -> "nano[[particles]]"
+  rawText = rawText.replace(
+    /\b(nano|bio|neuro|eco|micro|macro|photo|chemo|inter|paleo|electro|socio|thermo|hydro|multi|semi|super|under|over|trans|infra|auto|cardio|geo|astro|cyber|radio)\s+(\[+[a-zA-Z]{3,}\]+)/gi,
+    '$1$2'
+  );
+
   const rawTokens = rawText.split(/(\s+)/);
 
   interface ParsedToken {
@@ -422,6 +434,7 @@ export function normalizeCompleteWordsTask(raw: any): {
   }
 
   // Step 1: Mark existing valid bracketed words in Sentence 2+ (sentenceIndex >= 1)
+  // Any bracketed word < 6 letters (e.g. "side", "nano", "into") is automatically unblanked!
   const selectedIndices: number[] = [];
   for (let i = 0; i < parsedTokens.length; i++) {
     const pt = parsedTokens[i];
@@ -434,7 +447,7 @@ export function normalizeCompleteWordsTask(raw: any): {
     if (
       pt.hadBracket &&
       pt.isPureAlphaWord &&
-      pt.fullWord.length >= 4 &&
+      pt.fullWord.length >= 6 &&
       !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
     ) {
       if (selectedIndices.length < 10) {
@@ -444,24 +457,24 @@ export function normalizeCompleteWordsTask(raw: any): {
     }
   }
 
-  // Step 2: If fewer than 10 blanks exist in Sentence 2+, auto-select additional content words
+  // Step 2: If fewer than 10 blanks exist in Sentence 2+, auto-select additional 6+ letter academic words
   if (selectedIndices.length < 10) {
     const needed = 10 - selectedIndices.length;
-    // Prefer pure alphabetic content words >= 5 letters not adjacent to already-blanked words
     const candidateIndices: number[] = [];
     for (let i = 0; i < parsedTokens.length; i++) {
       const pt = parsedTokens[i];
       if (pt.isWhitespace || pt.sentenceIndex === 0 || pt.shouldBlank) continue;
       if (
         pt.isPureAlphaWord &&
-        pt.fullWord.length >= 5 &&
+        pt.fullWord.length >= 6 &&
+        pt.fullWord.length <= 15 &&
         !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
       ) {
         candidateIndices.push(i);
       }
     }
 
-    // Fallback to >= 4 letters if still not enough candidates
+    // If still fewer than needed (e.g. any >15 letter academic words), include >= 6 letters without upper cap
     if (candidateIndices.length < needed) {
       for (let i = 0; i < parsedTokens.length; i++) {
         const pt = parsedTokens[i];
@@ -469,7 +482,7 @@ export function normalizeCompleteWordsTask(raw: any): {
         if (
           !candidateIndices.includes(i) &&
           pt.isPureAlphaWord &&
-          pt.fullWord.length >= 4 &&
+          pt.fullWord.length >= 6 &&
           !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
         ) {
           candidateIndices.push(i);
@@ -490,7 +503,6 @@ export function normalizeCompleteWordsTask(raw: any): {
           Math.floor(((k + 0.5) * candidateIndices.length) / needed)
         );
         let chosenTokenIdx = candidateIndices[pickPos];
-        // If already chosen, find nearest unchosen candidate
         if (parsedTokens[chosenTokenIdx].shouldBlank) {
           const alt = candidateIndices.find((idx) => !parsedTokens[idx].shouldBlank);
           if (alt !== undefined) chosenTokenIdx = alt;
@@ -503,13 +515,13 @@ export function normalizeCompleteWordsTask(raw: any): {
     }
   }
 
-  // Step 3: Build final normalized text and blanks array
+  // Step 3: Build final normalized text and blanks array strictly from validated prefix[[answer]] tokens
   const blanks: NormalizedBlankItem[] = [];
   let blankCounter = 0;
 
   const rebuiltTokens = parsedTokens.map((pt) => {
     if (pt.isWhitespace) return pt.rawToken;
-    if (!pt.shouldBlank || blankCounter >= 10) {
+    if (!pt.shouldBlank || blankCounter >= 10 || pt.fullWord.length < 6) {
       return `${pt.leadingPunct}${pt.fullWord}${pt.trailingPunct}`;
     }
 
@@ -992,78 +1004,11 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
     }
 
     case 'reading-passage': {
-      const title = String(task.title || 'Academic Reading Comprehension').trim();
-      const passage = String(task.passage || task.text || '').trim();
-      const rawQs = Array.isArray(task.questions) ? task.questions : [];
-      const questions = rawQs
-        .map((q: any) => {
-          if (!q || typeof q !== 'object') return null;
-          const qText = String(q.q || q.question || '').trim();
-          const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
-          if (!qText || options.length < 4) return null;
-          let answer = typeof q.answer === 'number' ? q.answer : Number(q.correctAnswer ?? 0);
-          if (isNaN(answer) || answer < 0 || answer > 3) answer = 0;
-          return {
-            q: qText,
-            options: options.slice(0, 4),
-            answer,
-            why: String(q.why || q.explanation || 'Supported directly by evidence in the reading passage.').trim(),
-          };
-        })
-        .filter(Boolean);
-
-      return {
-        ...task,
-        title,
-        passage,
-        questions,
-      };
+      return normalizeReadingAcademicTask(task);
     }
 
     case 'listening-dialogue': {
-      const title = String(task.title || 'Campus Conversation & Lecture').trim();
-      const context = String(
-        task.context || task.situation || 'Listen to an academic discussion or university conversation.'
-      ).trim();
-      const script = String(task.script || task.dialogue || task.lecture || task.text || '').trim();
-
-      let speakers = task.speakers;
-      if (!speakers || typeof speakers !== 'object' || Array.isArray(speakers)) {
-        speakers = { A: 'Emma (Student)', B: 'Professor Miller' };
-      }
-
-      const speakerGenders = task.speakerGenders || {
-        A: inferGender(String(speakers.A || '')),
-        B: inferGender(String(speakers.B || '')),
-      };
-
-      const rawQs = Array.isArray(task.questions) ? task.questions : [];
-      const questions = rawQs
-        .map((q: any) => {
-          if (!q || typeof q !== 'object') return null;
-          const qText = String(q.q || q.question || '').trim();
-          const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
-          if (!qText || options.length < 4) return null;
-          let answer = typeof q.answer === 'number' ? q.answer : Number(q.correctAnswer ?? 0);
-          if (isNaN(answer) || answer < 0 || answer > 3) answer = 0;
-          return {
-            q: qText,
-            options: options.slice(0, 4),
-            answer,
-            why: String(q.why || q.explanation || 'Directly stated in the audio passage.').trim(),
-          };
-        })
-        .filter(Boolean);
-
-      return {
-        ...task,
-        title,
-        context,
-        speakers,
-        speakerGenders,
-        script,
-        questions,
-      };
+      return normalizeListeningDialogueTask(task);
     }
 
     case 'write-email': {
@@ -1117,6 +1062,178 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
   }
 }
 
+const FALLBACK_ACADEMIC_DISTRACTORS = [
+  'It remains entirely unaffected by external environmental or institutional variables.',
+  'It relies exclusively on outdated nineteenth-century observational methodologies.',
+  'It contradicts the primary empirical conclusion established by the researchers.',
+  'It eliminates the need for any further experimental or longitudinal verification.',
+];
+
+/**
+ * Ensures all 4 MCQ options are unique strings and performs Answer-Key Self-Verification:
+ * If `why`/`explanation` explicitly quotes or mentions one of the 4 option texts verbatim
+ * as the correct answer while `answer`/`correctAnswer` points to a different option index,
+ * auto-corrects `answer` and `correctAnswer` to match the verified option index.
+ */
+export function verifyAndNormalizeMcqQuestions(
+  rawQs: any[],
+  defaultWhy: string
+): Array<{
+  q: string;
+  question: string;
+  options: string[];
+  answer: number;
+  correctAnswer: number;
+  why: string;
+  explanation: string;
+}> {
+  if (!Array.isArray(rawQs)) return [];
+
+  const result: Array<{
+    q: string;
+    question: string;
+    options: string[];
+    answer: number;
+    correctAnswer: number;
+    why: string;
+    explanation: string;
+  }> = [];
+
+  for (let qIdx = 0; qIdx < rawQs.length; qIdx++) {
+    const q = rawQs[qIdx];
+    if (!q || typeof q !== 'object') continue;
+    const qText = String(q.q || q.question || '').trim();
+    const rawOptions = Array.isArray(q.options) ? q.options.map((o: any) => String(o || '').trim()).filter(Boolean) : [];
+    if (!qText || rawOptions.length === 0) continue;
+
+    // Ensure 4 distinct options (replace duplicates with plausible distractors)
+    const uniqueOptions: string[] = [];
+    const seenLower = new Set<string>();
+    for (const opt of rawOptions) {
+      const cleanedOpt = opt.replace(/^[A-Da-d][.)]\s*/, '').trim() || opt;
+      const key = cleanedOpt.toLowerCase();
+      if (!seenLower.has(key)) {
+        seenLower.add(key);
+        uniqueOptions.push(cleanedOpt);
+      }
+      if (uniqueOptions.length === 4) break;
+    }
+
+    let distIdx = 0;
+    while (uniqueOptions.length < 4) {
+      const candidate = FALLBACK_ACADEMIC_DISTRACTORS[(qIdx + distIdx) % FALLBACK_ACADEMIC_DISTRACTORS.length];
+      distIdx++;
+      const key = candidate.toLowerCase();
+      if (!seenLower.has(key)) {
+        seenLower.add(key);
+        uniqueOptions.push(candidate);
+      } else {
+        uniqueOptions.push(`${candidate.replace(/\.$/, '')} (Alternative ${uniqueOptions.length + 1}).`);
+      }
+    }
+
+    let answer = typeof q.answer === 'number' ? q.answer : Number(q.correctAnswer ?? 0);
+    if (isNaN(answer) || answer < 0 || answer > 3) answer = 0;
+
+    const whyText = String(q.why || q.explanation || defaultWhy).trim() || defaultWhy;
+    const whyLower = whyText.toLowerCase();
+
+    // Answer-Key Self-Verification:
+    // Check if why/explanation explicitly states or quotes one of the 4 option texts verbatim
+    const verbatimMatches: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const optClean = uniqueOptions[i]
+        .toLowerCase()
+        .replace(/[.!?;:,]+$/g, '')
+        .trim();
+      if (optClean.length >= 6 && whyLower.includes(optClean)) {
+        // Ensure it's not mentioned only as "is incorrect" or "is wrong"
+        const pos = whyLower.indexOf(optClean);
+        const afterSnippet = whyLower.slice(pos + optClean.length, pos + optClean.length + 35);
+        const isNegated = /\b(is incorrect|is wrong|is false|is not correct|contradicts)\b/.test(afterSnippet);
+        if (!isNegated) {
+          verbatimMatches.push(i);
+        }
+      }
+    }
+
+    if (verbatimMatches.length === 1 && verbatimMatches[0] !== answer) {
+      answer = verbatimMatches[0];
+    } else if (verbatimMatches.length === 0) {
+      // Also check if explanation explicitly says "Option B is correct" / "correct answer is C"
+      const letterMatch = whyText.match(
+        /\b(?:option|choice|correct answer is)\s*\(?([A-D])\)?\s*(?:is correct|because|accurately|correctly)/i
+      );
+      if (letterMatch) {
+        const letterIdx = letterMatch[1].toUpperCase().charCodeAt(0) - 65;
+        if (letterIdx >= 0 && letterIdx <= 3) {
+          answer = letterIdx;
+        }
+      }
+    }
+
+    result.push({
+      q: qText,
+      question: qText,
+      options: uniqueOptions.slice(0, 4),
+      answer,
+      correctAnswer: answer,
+      why: whyText,
+      explanation: whyText,
+    });
+  }
+
+  return result;
+}
+
+export function normalizeReadingAcademicTask(task: any): any {
+  const title = String(task?.title || 'Academic Reading Comprehension').trim();
+  const passage = String(task?.passage || task?.text || '').trim();
+  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const questions = verifyAndNormalizeMcqQuestions(
+    rawQs,
+    'Supported directly by evidence in the reading passage.'
+  );
+
+  return {
+    ...task,
+    title,
+    passage,
+    questions,
+  };
+}
+
+export function normalizeListeningDialogueTask(task: any): any {
+  const title = String(task?.title || 'Campus Conversation & Lecture').trim();
+  const context = String(
+    task?.context || task?.situation || 'Listen to an academic discussion or university conversation.'
+  ).trim();
+  const script = String(task?.script || task?.dialogue || task?.lecture || task?.text || '').trim();
+
+  let speakers = task?.speakers;
+  if (!speakers || typeof speakers !== 'object' || Array.isArray(speakers)) {
+    speakers = { A: 'Emma (Student)', B: 'Professor Miller' };
+  }
+
+  const speakerGenders = task?.speakerGenders || {
+    A: inferGender(String(speakers.A || '')),
+    B: inferGender(String(speakers.B || '')),
+  };
+
+  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.');
+
+  return {
+    ...task,
+    title,
+    context,
+    speakers,
+    speakerGenders,
+    script,
+    questions,
+  };
+}
+
 /**
  * Validates that a normalized task strictly meets 2026 TOEFL iBT structural and quality rules.
  */
@@ -1138,15 +1255,15 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
       if (!text || text.length < 50) return false;
       // Reject any backwards blank where ]] is followed immediately by letters (e.g. [[penetr]]ate)
       if (/\]\][a-zA-Z]/.test(text)) return false;
-      // Reject any full-word blank where [[ is NOT preceded immediately by at least 2 letters
+      // Reject any blank where [[ is NOT preceded immediately by at least 3 letters or solution is < 3 letters (minimum 6-letter word)
       const parts = text.split(/\[\[(.+?)\]\]/);
       if (parts.length < 17) return false; // At least 8 blanks (10 standard)
       for (let i = 1; i < parts.length; i += 2) {
         const solution = parts[i];
         const prevText = parts[i - 1] || '';
         const prefixMatch = prevText.match(/([a-zA-Z]+)$/);
-        if (!prefixMatch || prefixMatch[1].length < 2) return false;
-        if (!/^[a-zA-Z]{2,}$/.test(solution)) return false;
+        if (!prefixMatch || prefixMatch[1].length < 3) return false;
+        if (!/^[a-zA-Z]{3,}$/.test(solution)) return false;
       }
       return true;
     }
@@ -1175,6 +1292,7 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
           q.q &&
           Array.isArray(q.options) &&
           q.options.length === 4 &&
+          new Set(q.options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
           typeof q.answer === 'number' &&
           q.answer >= 0 &&
           q.answer <= 3
@@ -1191,6 +1309,7 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
           q.q &&
           Array.isArray(q.options) &&
           q.options.length === 4 &&
+          new Set(q.options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
           typeof q.answer === 'number' &&
           q.answer >= 0 &&
           q.answer <= 3

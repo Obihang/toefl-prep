@@ -65,7 +65,7 @@
     "level": "beginner",
     "difficulty": "beginner",
     "topic": "campus-life",
-    "text": "Students who transfer between universities must submit official academic records for evaluation. Department cha[[irs]] carefully rev[[iew]] previous cou[[rse]] syllabi to dete[[rmine]] whether completed cl[[asses]] satisfy core curr[[iculum]] requirements. Once the regi[[strar]] approves the tran[[sfer]] credits, students can enr[[oll]] in advanced sem[[inars]] immediately.",
+    "text": "Students who transfer between universities must submit official academic records for evaluation. Department cha[[irs]] carefully rev[[iew]] previous cou[[rse]] syllabi to dete[[rmine]] whether completed cla[[sses]] satisfy core curr[[iculum]] requirements. Once the regi[[strar]] approves the tran[[sfer]] credits, students can enr[[oll]] in advanced sem[[inars]] immediately.",
     "totalBlanks": 10,
     "explanation": "Complete the university administrative vocabulary: chairs, review, course, determine, classes, curriculum, registrar, transfer, enroll, seminars."
   },
@@ -85,9 +85,9 @@
     "level": "upper-intermediate",
     "difficulty": "upper-intermediate",
     "topic": "business-economics",
-    "text": "Microeconomic consumer choice theory examines how households allocate limited financial budgets. Rational indiv[[iduals]] consistently pur[[chase]] combinations of go[[ods]] and services that maxi[[mize]] their personal util[[ity]]. When the mar[[ket]] price of a spec[[ific]] commodity ri[[ses]] sharply, cons[[umers]] naturally subs[[titute]] affordable alternatives.",
+    "text": "Microeconomic consumer choice theory examines how households allocate limited financial budgets. Rational indiv[[iduals]] consistently pur[[chase]] combin[[ations]] of goods and services that maxi[[mize]] their personal util[[ity]]. When the mar[[ket]] price of a spec[[ific]] commo[[dity]] increases sharply, cons[[umers]] naturally subs[[titute]] affordable alternatives.",
     "totalBlanks": 10,
-    "explanation": "Complete the microeconomic vocabulary: individuals, purchase, goods, maximize, utility, market, specific, rises, consumers, substitute."
+    "explanation": "Complete the microeconomic vocabulary: individuals, purchase, combinations, maximize, utility, market, specific, commodity, consumers, substitute."
   },
   {
     "id": "cw-curated-10",
@@ -95,7 +95,7 @@
     "level": "intermediate",
     "difficulty": "intermediate",
     "topic": "arts-humanities",
-    "text": "Aristotelian rhetorical theory identifies three foundational modes of persuasive human communication. An effe[[ctive]] public spe[[aker]] establishes pers[[onal]] credibility thr[[ough]] ethical char[[acter]] while appealing to audi[[ence]] emotion. Furthermore, persuasive orat[[ors]] construct log[[ical]] arguments sup[[ported]] by verifiable emp[[irical]] evidence.",
+    "text": "Aristotelian rhetorical theory identifies three foundational modes of persuasive human communication. An effe[[ctive]] public spe[[aker]] establishes pers[[onal]] credibility thr[[ough]] ethical char[[acter]] while appealing to audi[[ence]] emotion. Furthermore, persuasive orat[[ors]] construct log[[ical]] arguments supp[[orted]] by verifiable empi[[rical]] evidence.",
     "totalBlanks": 10,
     "explanation": "Complete the rhetorical communication terms: effective, speaker, personal, through, character, audience, orators, logical, supported, empirical."
   }

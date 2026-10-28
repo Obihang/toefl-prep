@@ -64,8 +64,9 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
         'academic-discussion',
         {
           title: task.title,
-          s1: task.s1?.name,
-          s2: task.s2?.name,
+          professorPrompt: task.professorPrompt,
+          s1: task.s1,
+          s2: task.s2,
           question: task.question,
         },
         response,
@@ -80,6 +81,7 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             taskType: 'academic-discussion',
             promptData: {
               title: task.title,
+              professorPrompt: task.professorPrompt,
               professor: `${task.professorName}: ${task.professorPrompt}`,
               s1: `${task.s1?.name}: ${task.s1?.text}`,
               s2: `${task.s2?.name}: ${task.s2?.text}`,
@@ -99,8 +101,9 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             'academic-discussion',
             {
               title: task.title,
-              s1: task.s1?.name,
-              s2: task.s2?.name,
+              professorPrompt: task.professorPrompt,
+              s1: task.s1,
+              s2: task.s2,
               question: task.question,
             },
             response,
@@ -113,8 +116,9 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
           'academic-discussion',
           {
             title: task.title,
-            s1: task.s1?.name,
-            s2: task.s2?.name,
+            professorPrompt: task.professorPrompt,
+            s1: task.s1,
+            s2: task.s2,
             question: task.question,
           },
           response,
