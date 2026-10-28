@@ -497,20 +497,24 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     startPlayback();
   };
 
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
+
   const handleSelectOption = (qIdx: number, optIdx: number) => {
     if (submitted) return;
+    setActiveQuestionIdx(qIdx);
     setSelectedAnswers((prev) => ({ ...prev, [qIdx]: optIdx }));
   };
 
-  const calculateScore = () => {
+  const calculateScore = useCallback(() => {
     let correct = 0;
     task.questions.forEach((q, i) => {
       if (selectedAnswers[i] === q.answer) correct++;
     });
     return correct;
-  };
+  }, [task.questions, selectedAnswers]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+    if (submitted || Object.keys(selectedAnswers).length === 0) return;
     setSubmitted(true);
     setShowTranscript(true); // Automatically reveal the script after the student checks their answers
     const correctCount = calculateScore();
@@ -542,16 +546,55 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
       feedbackSummary: `Listening comprehension: scored ${correctCount}/${total} (${Math.round((correctCount / total) * 100)}%)`,
     });
     onComplete?.(scaledScore);
-  };
+  }, [submitted, selectedAnswers, calculateScore, task.questions, task.title, onComplete]);
 
   const handleReset = () => {
     setSelectedAnswers({});
     setSubmitted(false);
+    setActiveQuestionIdx(0);
   };
 
   const score = submitted ? calculateScore() : 0;
   const total = task.questions.length;
   const allAnswered = task.questions.every((_, i) => selectedAnswers[i] !== undefined);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'radio'))
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!submitted && Object.keys(selectedAnswers).length > 0) {
+          handleSubmit();
+        }
+        return;
+      }
+
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        if (submitted) return;
+        if (allAnswered && activeQuestionIdx >= total - 1) {
+          e.preventDefault();
+          handleSubmit();
+        } else if (selectedAnswers[activeQuestionIdx] !== undefined) {
+          e.preventDefault();
+          const nextIdx = Math.min(total - 1, activeQuestionIdx + 1);
+          setActiveQuestionIdx(nextIdx);
+          document.getElementById(`lis-question-${nextIdx}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [submitted, selectedAnswers, allAnswered, activeQuestionIdx, total, handleSubmit]);
 
   const missedIndices = React.useMemo(() => {
     if (!submitted) return [];
@@ -578,10 +621,17 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>Plays: <strong className="font-mono text-slate-800">{playCount}</strong></span>
-          <span aria-hidden="true">·</span>
-          <span>(TOEFL allows 1 play)</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>Plays: <strong className="font-mono text-slate-800">{playCount}</strong></span>
+            <span aria-hidden="true">·</span>
+            <span>(TOEFL allows 1 play)</span>
+          </div>
         </div>
       </div>
 

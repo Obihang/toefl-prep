@@ -53,7 +53,7 @@ export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V11;
 export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V11;
 export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V11;
 export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V11;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v21';
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v22';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);

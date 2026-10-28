@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Play,
   Pause,
@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Headphones,
   Loader2,
+  Keyboard,
 } from 'lucide-react';
 import {
   speakWithCloudTTS,
@@ -28,6 +29,7 @@ import {
 } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { normalizeListeningChooseResponseTask } from '../../utils/taskNormalizer';
 
 export interface ListeningChooseResponseItem {
   audioPrompt?: string;
@@ -77,59 +79,68 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
   onNextTask,
   onComplete,
 }) => {
+  const normalizedTask = useMemo(() => normalizeListeningChooseResponseTask(task), [task]);
+
   const items: ListeningChooseResponseItem[] = useMemo(() => {
-    if (Array.isArray(task.items) && task.items.length > 0) {
-      return task.items;
+    if (Array.isArray(normalizedTask.items) && normalizedTask.items.length > 0) {
+      return normalizedTask.items;
     }
     return [
       {
         audioPrompt:
-          task.audioPrompt ||
-          task.promptAudioScript ||
-          task.script ||
-          task.spokenPrompt ||
-          task.prompt ||
+          normalizedTask.audioPrompt ||
+          normalizedTask.promptAudioScript ||
+          normalizedTask.script ||
+          normalizedTask.spokenPrompt ||
+          normalizedTask.prompt ||
           '',
-        speakerName: task.speakerName || 'Campus Speaker',
-        speakerGender: task.speakerGender === 'female' ? 'female' : 'male',
-        options: Array.isArray(task.options) ? task.options : [],
+        speakerName: normalizedTask.speakerName || 'Campus Speaker',
+        speakerGender: normalizedTask.speakerGender === 'female' ? 'female' : 'male',
+        options: Array.isArray(normalizedTask.options) ? normalizedTask.options : [],
         answer:
-          typeof task.answer === 'number'
-            ? task.answer
-            : Number(task.correctAnswer ?? 0),
+          typeof normalizedTask.answer === 'number'
+            ? normalizedTask.answer
+            : Number(normalizedTask.correctAnswer ?? 0),
         why:
-          task.why ||
-          task.explanation ||
+          normalizedTask.why ||
+          normalizedTask.explanation ||
           'Most natural and contextually appropriate response in this campus situation.',
       },
     ];
-  }, [task]);
+  }, [normalizedTask]);
 
   const totalItems = items.length;
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [chooseResponseActiveIdx, setChooseResponseActiveIdx] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [chooseResponseSubmitted, setChooseResponseSubmitted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [playCounts, setPlayCounts] = useState<Record<number, number>>({});
 
+  const currentIndex = chooseResponseActiveIdx;
+  const setCurrentIndex = setChooseResponseActiveIdx;
+  const submitted = chooseResponseSubmitted;
+  const setSubmitted = setChooseResponseSubmitted;
+
   const playbackSessionRef = useRef(0);
+  const hasStartedSetRef = useRef(false);
 
   // Reset state when task changes
   useEffect(() => {
     playbackSessionRef.current++;
+    hasStartedSetRef.current = false;
     stopSpeaking();
-    setCurrentIndex(0);
+    setChooseResponseActiveIdx(0);
     setSelectedAnswers({});
-    setSubmitted(false);
+    setChooseResponseSubmitted(false);
     setIsPlaying(false);
     setIsLoadingAudio(false);
     setShowTranscript(false);
     setPlayCounts({});
   }, [task.id, task.title]);
 
-  const currentItem = items[currentIndex] || items[0];
+  const currentItem = items[chooseResponseActiveIdx] || items[0];
   const promptText =
     currentItem?.audioPrompt ||
     currentItem?.promptAudioScript ||
@@ -153,7 +164,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     currentItem?.explanation ||
     'Most natural and contextually appropriate response in this campus situation.';
 
-  // Pre-warm TTS audio for all items in the set so every item plays with 0ms latency
+  // Pre-warm TTS audio for all items on mount
   useEffect(() => {
     items.forEach((it) => {
       const text = stripSpeakerAndFormatting(
@@ -170,15 +181,115 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     };
   }, [items]);
 
-  // Stop audio when switching between items
-  const switchToItem = (idx: number) => {
-    if (idx < 0 || idx >= totalItems) return;
-    playbackSessionRef.current++;
-    stopSpeaking();
-    setIsPlaying(false);
-    setIsLoadingAudio(false);
-    setCurrentIndex(idx);
-  };
+  // Pre-fetch/warm the TTS audio for the next item (chooseResponseActiveIdx + 1) as soon as current item loads
+  useEffect(() => {
+    const nextItem = items[chooseResponseActiveIdx + 1];
+    if (!nextItem) return;
+    const nextText = stripSpeakerAndFormatting(
+      nextItem.audioPrompt ||
+        nextItem.promptAudioScript ||
+        nextItem.script ||
+        nextItem.spokenPrompt ||
+        nextItem.prompt ||
+        ''
+    );
+    const nextGender: 'male' | 'female' = nextItem.speakerGender === 'female' ? 'female' : 'male';
+    const nextVoice = nextGender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+    if (nextText) {
+      prefetchSpeechAudio(nextText, nextVoice, nextGender).catch(() => {});
+    }
+  }, [chooseResponseActiveIdx, items]);
+
+  const playPromptForIndex = useCallback(
+    async (targetIdx: number) => {
+      const item = items[targetIdx];
+      if (!item) return;
+      const rawText =
+        item.audioPrompt ||
+        item.promptAudioScript ||
+        item.script ||
+        item.spokenPrompt ||
+        item.prompt ||
+        '';
+      const itemCleanPrompt = stripSpeakerAndFormatting(rawText);
+      if (!itemCleanPrompt) return;
+
+      const itemGender: 'male' | 'female' =
+        item.speakerGender === 'female' ? 'female' : 'male';
+      const itemVoiceName =
+        itemGender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+
+      hasStartedSetRef.current = true;
+      const currentSession = ++playbackSessionRef.current;
+      stopSpeaking();
+      setIsLoadingAudio(true);
+
+      try {
+        const chunks = chunkTextForTTS(itemCleanPrompt);
+        if (chunks.length > 0) {
+          await fetchCloudTtsAudio(chunks[0], itemGender, itemVoiceName);
+        }
+
+        if (playbackSessionRef.current !== currentSession) return;
+
+        await speakWithCloudTTS(itemCleanPrompt, itemGender, {
+          rate: 0.96,
+          voice: itemVoiceName,
+          voiceName: itemVoiceName,
+          gender: itemGender,
+          onStart: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setIsLoadingAudio(false);
+              setIsPlaying(true);
+              setPlayCounts((prev) => ({
+                ...prev,
+                [targetIdx]: (prev[targetIdx] || 0) + 1,
+              }));
+            }
+          },
+          onEnd: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setIsPlaying(false);
+              setIsLoadingAudio(false);
+            }
+          },
+          onError: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setIsPlaying(false);
+              setIsLoadingAudio(false);
+            }
+          },
+        });
+      } catch {
+        if (playbackSessionRef.current === currentSession) {
+          setIsPlaying(false);
+          setIsLoadingAudio(false);
+        }
+      }
+    },
+    [items]
+  );
+
+  // Auto-play spoken prompt when advancing to the next item (chooseResponseActiveIdx changing to 1, 2, 3, 4 when !chooseResponseSubmitted)
+  useEffect(() => {
+    if (!chooseResponseSubmitted && (chooseResponseActiveIdx > 0 || hasStartedSetRef.current)) {
+      playPromptForIndex(chooseResponseActiveIdx);
+    }
+  }, [chooseResponseActiveIdx, chooseResponseSubmitted, playPromptForIndex]);
+
+  // Switch between items
+  const switchToItem = useCallback(
+    (idx: number) => {
+      if (idx < 0 || idx >= totalItems) return;
+      hasStartedSetRef.current = true;
+      playbackSessionRef.current++;
+      stopSpeaking();
+      setIsPlaying(false);
+      setIsLoadingAudio(false);
+      setChooseResponseActiveIdx(idx);
+    },
+    [totalItems]
+  );
 
   const handlePlayAudio = async () => {
     if (isPlaying) {
@@ -188,72 +299,30 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
       setIsLoadingAudio(false);
       return;
     }
-
-    const currentSession = ++playbackSessionRef.current;
-    setIsLoadingAudio(true);
-
-    try {
-      const chunks = chunkTextForTTS(cleanPrompt);
-      if (chunks.length > 0) {
-        await fetchCloudTtsAudio(chunks[0], gender, voiceName);
-      }
-
-      if (playbackSessionRef.current !== currentSession) return;
-
-      await speakWithCloudTTS(cleanPrompt, gender, {
-        rate: 0.96,
-        voice: voiceName,
-        voiceName,
-        gender,
-        onStart: () => {
-          if (playbackSessionRef.current === currentSession) {
-            setIsLoadingAudio(false);
-            setIsPlaying(true);
-            setPlayCounts((prev) => ({
-              ...prev,
-              [currentIndex]: (prev[currentIndex] || 0) + 1,
-            }));
-          }
-        },
-        onEnd: () => {
-          if (playbackSessionRef.current === currentSession) {
-            setIsPlaying(false);
-            setIsLoadingAudio(false);
-          }
-        },
-        onError: () => {
-          if (playbackSessionRef.current === currentSession) {
-            setIsPlaying(false);
-            setIsLoadingAudio(false);
-          }
-        },
-      });
-    } catch {
-      if (playbackSessionRef.current === currentSession) {
-        setIsPlaying(false);
-        setIsLoadingAudio(false);
-      }
-    }
+    await playPromptForIndex(chooseResponseActiveIdx);
   };
 
   const handleSelectOption = (optIdx: number) => {
-    if (submitted) return;
+    if (chooseResponseSubmitted) return;
+    hasStartedSetRef.current = true;
     setSelectedAnswers((prev) => ({
       ...prev,
-      [currentIndex]: optIdx,
+      [chooseResponseActiveIdx]: optIdx,
     }));
   };
 
   const answeredCount = Object.keys(selectedAnswers).length;
   const selectedIdx =
-    selectedAnswers[currentIndex] !== undefined ? selectedAnswers[currentIndex] : null;
+    selectedAnswers[chooseResponseActiveIdx] !== undefined
+      ? selectedAnswers[chooseResponseActiveIdx]
+      : null;
 
-  const handleSubmit = () => {
-    if (answeredCount === 0 || submitted) return;
+  const handleSubmit = useCallback(() => {
+    if (answeredCount === 0 || chooseResponseSubmitted) return;
     playbackSessionRef.current++;
     stopSpeaking();
     setIsPlaying(false);
-    setSubmitted(true);
+    setChooseResponseSubmitted(true);
     setShowTranscript(true);
 
     let correctTotal = 0;
@@ -288,16 +357,62 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     });
 
     onComplete?.(scaledScore);
-  };
+  }, [answeredCount, chooseResponseSubmitted, items, selectedAnswers, task.title, totalItems, onComplete]);
+
+  // Keyboard shortcuts: Enter (Next Item) and Ctrl + Enter (Submit All Answers)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'radio'))
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!chooseResponseSubmitted && answeredCount > 0) {
+          handleSubmit();
+        }
+        return;
+      }
+
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        if (chooseResponseSubmitted) return;
+        if (chooseResponseActiveIdx === totalItems - 1 && answeredCount === totalItems) {
+          e.preventDefault();
+          handleSubmit();
+        } else if (selectedIdx !== null && chooseResponseActiveIdx < totalItems - 1) {
+          e.preventDefault();
+          switchToItem(chooseResponseActiveIdx + 1);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    chooseResponseSubmitted,
+    chooseResponseActiveIdx,
+    totalItems,
+    answeredCount,
+    selectedIdx,
+    handleSubmit,
+    switchToItem,
+  ]);
 
   const handleReset = () => {
     playbackSessionRef.current++;
+    hasStartedSetRef.current = false;
     stopSpeaking();
     setSelectedAnswers({});
-    setSubmitted(false);
+    setChooseResponseSubmitted(false);
     setShowTranscript(false);
     setIsPlaying(false);
-    setCurrentIndex(0);
+    setChooseResponseActiveIdx(0);
   };
 
   const totalScore = items.reduce((acc, it, idx) => {
@@ -347,43 +462,56 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Item Stepper Pills (1 .. 5) */}
-        {totalItems > 1 && (
-          <div className="flex items-center gap-1.5 self-start sm:self-center">
-            {items.map((it, idx) => {
-              const isCurrent = idx === currentIndex;
-              const isAnswered = selectedAnswers[idx] !== undefined;
-              const rightAns =
-                typeof it.answer === 'number' ? it.answer : Number(it.correctAnswer ?? 0);
-              const isItemRight = submitted && selectedAnswers[idx] === rightAns;
-
-              let pillStyle = 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200';
-              if (submitted) {
-                pillStyle = isItemRight
-                  ? 'bg-emerald-100 text-emerald-900 border-emerald-400 font-bold'
-                  : 'bg-rose-100 text-rose-900 border-rose-400 font-bold';
-              } else if (isCurrent) {
-                pillStyle = 'bg-teal-700 text-white border-teal-700 font-bold shadow-xs';
-              } else if (isAnswered) {
-                pillStyle = 'bg-teal-50 text-teal-900 border-teal-300 font-semibold';
-              }
-
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => switchToItem(idx)}
-                  className={`w-8 h-8 rounded-lg text-xs border transition-all flex items-center justify-center cursor-pointer ${pillStyle} ${
-                    isCurrent && submitted ? 'ring-2 ring-slate-900 ring-offset-1' : ''
-                  }`}
-                  title={`Item ${idx + 1} of ${totalItems}`}
-                >
-                  {idx + 1}
-                </button>
-              );
-            })}
+        <div className="flex flex-col sm:items-end gap-2 self-start sm:self-center">
+          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+            <Keyboard className="w-3.5 h-3.5 text-slate-400" />
+            <span>
+              ⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item
+            </span>
+            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span>
+              <strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit
+            </span>
           </div>
-        )}
+
+          {/* Item Stepper Pills (1 .. 5) */}
+          {totalItems > 1 && (
+            <div className="flex items-center gap-1.5">
+              {items.map((it, idx) => {
+                const isCurrent = idx === currentIndex;
+                const isAnswered = selectedAnswers[idx] !== undefined;
+                const rightAns =
+                  typeof it.answer === 'number' ? it.answer : Number(it.correctAnswer ?? 0);
+                const isItemRight = submitted && selectedAnswers[idx] === rightAns;
+
+                let pillStyle = 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200';
+                if (submitted) {
+                  pillStyle = isItemRight
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-400 font-bold'
+                    : 'bg-rose-100 text-rose-900 border-rose-400 font-bold';
+                } else if (isCurrent) {
+                  pillStyle = 'bg-teal-700 text-white border-teal-700 font-bold shadow-xs';
+                } else if (isAnswered) {
+                  pillStyle = 'bg-teal-50 text-teal-900 border-teal-300 font-semibold';
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => switchToItem(idx)}
+                    className={`w-8 h-8 rounded-lg text-xs border transition-all flex items-center justify-center cursor-pointer ${pillStyle} ${
+                      isCurrent && submitted ? 'ring-2 ring-slate-900 ring-offset-1' : ''
+                    }`}
+                    title={`Item ${idx + 1} of ${totalItems}`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Spoken Prompt Audio Card */}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ReadingPassageTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle, Target } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle, Target, Keyboard } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
@@ -29,21 +29,24 @@ export const ReadingPassageView: React.FC<Props> = ({
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
 
   const handleSelect = (qIdx: number, optIdx: number) => {
     if (submitted) return;
+    setActiveQuestionIdx(qIdx);
     setSelectedAnswers((prev) => ({ ...prev, [qIdx]: optIdx }));
   };
 
-  const calculateScore = () => {
+  const calculateScore = useCallback(() => {
     let correct = 0;
     task.questions.forEach((q, i) => {
       if (selectedAnswers[i] === q.answer) correct++;
     });
     return correct;
-  };
+  }, [task.questions, selectedAnswers]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+    if (submitted || Object.keys(selectedAnswers).length === 0) return;
     setSubmitted(true);
     const correctCount = calculateScore();
     const total = task.questions.length;
@@ -75,16 +78,55 @@ export const ReadingPassageView: React.FC<Props> = ({
     });
 
     onComplete?.(scaledScore);
-  };
+  }, [submitted, selectedAnswers, calculateScore, task.questions, task.title, onComplete]);
 
   const handleReset = () => {
     setSelectedAnswers({});
     setSubmitted(false);
+    setActiveQuestionIdx(0);
   };
 
   const score = submitted ? calculateScore() : 0;
   const total = task.questions.length;
   const allAnswered = task.questions.every((_, i) => selectedAnswers[i] !== undefined);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'radio'))
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!submitted && Object.keys(selectedAnswers).length > 0) {
+          handleSubmit();
+        }
+        return;
+      }
+
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        if (submitted) return;
+        if (allAnswered && activeQuestionIdx >= total - 1) {
+          e.preventDefault();
+          handleSubmit();
+        } else if (selectedAnswers[activeQuestionIdx] !== undefined) {
+          e.preventDefault();
+          const nextIdx = Math.min(total - 1, activeQuestionIdx + 1);
+          setActiveQuestionIdx(nextIdx);
+          document.getElementById(`question-${nextIdx}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [submitted, selectedAnswers, allAnswered, activeQuestionIdx, total, handleSubmit]);
 
   const missedIndices = React.useMemo(() => {
     if (!submitted) return [];
@@ -111,7 +153,13 @@ export const ReadingPassageView: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+            <Keyboard className="w-3.5 h-3.5 text-slate-400" />
+            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
+          </div>
           <button
             onClick={() => setIsHighlightMode(!isHighlightMode)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${

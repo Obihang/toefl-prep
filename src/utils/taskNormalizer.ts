@@ -1190,12 +1190,37 @@ export function balanceMcqOptions(
   };
 }
 
-function updateExplanationOptionLetter(why: string, oldIdx: number, newIdx: number): string {
+export function updateExplanationOptionLetter(why: string, oldIdx: number, newIdx: number): string {
+  if (!why) return why;
   const letters = ['A', 'B', 'C', 'D'];
   const oldLetter = letters[oldIdx];
   const newLetter = letters[newIdx];
-  if (!oldLetter || !newLetter || oldLetter === newLetter) return why;
-  return why.replace(new RegExp(`\\b(Option|Choice)\\s+${oldLetter}\\b`, 'gi'), `$1 ${newLetter}`);
+  if (!newLetter) return why;
+
+  let updated = why;
+  if (oldLetter && oldLetter !== newLetter) {
+    updated = updated.replace(
+      new RegExp(`\\b(Option|Choice)\\s+\\(?${oldLetter}\\)?\\b`, 'gi'),
+      (_, prefix) => `${prefix} ${newLetter}`
+    );
+  }
+
+  // Also handle previously cached/balanced items where a single positive "Option X" reference still points to the pre-balanced letter
+  const matches = Array.from(updated.matchAll(/\b(Option|Choice)\s+\(?([A-D])\)?\b/gi));
+  if (matches.length === 1) {
+    const matchedLetter = matches[0][2].toUpperCase();
+    const matchPos = matches[0].index ?? 0;
+    const afterText = updated.slice(matchPos, matchPos + 45).toLowerCase();
+    const isNegativeRef = /\b(is incorrect|is wrong|is false|is not|contradicts)\b/.test(afterText);
+    if (!isNegativeRef && matchedLetter !== newLetter) {
+      updated = updated.replace(
+        /\b(Option|Choice)\s+\(?[A-D]\)?\b/i,
+        (_, prefix) => `${prefix} ${newLetter}`
+      );
+    }
+  }
+
+  return updated;
 }
 
 export type NormalizedQuestionType =
@@ -1583,10 +1608,12 @@ export function normalizeListeningChooseResponseTask(task: any): any {
       ? it.options.map((o: any) => String(o || '').trim()).filter(Boolean)
       : [];
     const rawAnswer = typeof it?.answer === 'number' ? it.answer : Number(it?.correctAnswer ?? 0);
-    const balanced = balanceMcqOptions(audioPrompt, rawOptions.slice(0, 4), isNaN(rawAnswer) ? 0 : rawAnswer, idx);
-    const why = String(
+    const validRawAnswer = isNaN(rawAnswer) || rawAnswer < 0 || rawAnswer > 3 ? 0 : rawAnswer;
+    const balanced = balanceMcqOptions(audioPrompt, rawOptions.slice(0, 4), validRawAnswer, idx);
+    const rawWhy = String(
       it?.why || it?.explanation || 'Most appropriate and natural response in this spoken campus exchange.'
     ).trim();
+    const why = updateExplanationOptionLetter(rawWhy, validRawAnswer, balanced.correctAnswer);
 
     return {
       audioPrompt,
