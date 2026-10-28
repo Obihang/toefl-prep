@@ -641,7 +641,7 @@ function evaluateListenRepeatLocally(
   else bandScore6 = 1.0;
 
   const scaledScore = Math.round((bandScore6 / 6.0) * 30);
-  const rawRubricScore = Number(((bandScore6 / 6.0) * 4.0).toFixed(1));
+  const rawRubricScore = Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
   const performanceLevel: LocalEvaluationResult['performanceLevel'] =
     bandScore6 >= 5.5
       ? 'Advanced'
@@ -1053,7 +1053,10 @@ export function evaluateLocally(
     gramScore = 72;
   }
   gramScore = Math.max(20, gramScore - grammarErrorPenalty);
-  if (canonicalType === 'speaking-interview' && (extra?.fillerCount || 0) >= 3) {
+  // Official ETS Speaking Interview Rule (PDF Pages 27-28):
+  // Do NOT penalize natural conversational fillers ('um', 'uh') unless excessive (> 8% of words).
+  const fillerRatio = wordCount > 0 ? (extra?.fillerCount || 0) / wordCount : 0;
+  if (canonicalType === 'speaking-interview' && fillerRatio > 0.08) {
     gramScore = Math.max(25, gramScore - 10);
   }
 
@@ -1107,9 +1110,8 @@ export function evaluateLocally(
     scaledScore = Math.min(scaledScore, 23);
   }
 
-  const rawRubric5 = Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
-  const rawRubric4 = Number(((bandScore6 / 6.0) * 4.0).toFixed(1));
-  const rawRubricScore = canonicalType === 'speaking-interview' ? rawRubric4 : rawRubric5;
+  // All 2026 ETS Tasks (Email, Discussion, Listen & Repeat, Interview) use official 0 to 5 score scale
+  const rawRubricScore = Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
 
   const performanceLevel: LocalEvaluationResult['performanceLevel'] =
     bandScore6 >= 5.5

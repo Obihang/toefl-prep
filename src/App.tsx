@@ -1023,20 +1023,20 @@ export default function App() {
               Listening
             </button>
             <button
-              onClick={() => setCurrentTaskType('speaking-interview')}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                currentTaskDef.section === 'Speaking' ? 'text-teal-800 font-semibold' : ''
-              }`}
-            >
-              Speaking
-            </button>
-            <button
               onClick={() => setCurrentTaskType('academic-discussion')}
               className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
                 currentTaskDef.section === 'Writing' ? 'text-teal-800 font-semibold' : ''
               }`}
             >
               Writing
+            </button>
+            <button
+              onClick={() => setCurrentTaskType('speaking-interview')}
+              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
+                currentTaskDef.section === 'Speaking' ? 'text-teal-800 font-semibold' : ''
+              }`}
+            >
+              Speaking
             </button>
             <button
               onClick={() => setIsRubricsOpen(true)}

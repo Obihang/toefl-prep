@@ -1,0 +1,712 @@
+[
+  {
+    "id": "ra-1",
+    "title": "The Evolution of Avian Flight Mechanics and Metabolic Adaptation",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "passage": "The transition from terrestrial locomotion to powered flight in avian species represents one of the most remarkable evolutionary milestones in vertebrate history. Paleontological discoveries in recent decades indicate that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift. Over successive generations, morphological modifications transformed forelimbs into sophisticated airfoil structures capable of generating thrust and lift simultaneously.\n\nSimultaneously, avian respiratory and cardiovascular systems underwent profound metabolic restructuring to sustain the immense energetic demands of powered flight. Unlike mammalian lungs, which operate on a tidal flow mechanism, birds evolved a continuous, unidirectional airflow system facilitated by a series of air sacs. This cross-current gas exchange ensures that oxygen is extracted during both inhalation and exhalation, providing unparalleled metabolic efficiency at high altitudes where atmospheric partial pressure drops significantly.\n\nIn addition to structural and pulmonary modifications, the evolution of flight necessitated extreme skeletal lightening. Terrestrial ancestral theropods possessed heavy, marrow-filled bones suitable for ground locomotion. Over millions of years of selective pressure, avian lineages evolved pneumatic skeletons characterized by hollow, air-filled cavities reinforced with internal truss-like struts. This architectural balance between extreme lightness and structural rigidity enabled birds to withstand torsional stress during vigorous flapping flight without incurring excessive payload mass.",
+    "questions": [
+      {
+        "q": "According to paragraph 1, what was the primary initial evolutionary purpose of proto-feathers?",
+        "options": [
+          "Direct aerodynamic propulsion and high-altitude soaring",
+          "Underwater steering and hydrodynamic stabilization",
+          "Thermal insulation, camouflage, or courtship display",
+          "Acoustic signaling for territory defense"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 1 explicitly notes that paleontological discoveries indicate proto-feathers initially served thermal insulation, camouflage, or courtship display functions."
+      },
+      {
+        "q": "Which anatomical innovation allows avian lungs to achieve continuous unidirectional airflow?",
+        "options": [
+          "A muscular diaphragm that forces rapid cyclical tidal respiration",
+          "Flexible cartilaginous gills lining the bronchial passages",
+          "An interconnected network of anterior and posterior air sacs",
+          "Enlarged ventricular chambers in the cardiovascular system"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 2 explains that birds evolved a continuous, unidirectional airflow system facilitated by a series of air sacs."
+      },
+      {
+        "q": "The word 'restructuring' in paragraph 2 is closest in meaning to:",
+        "options": [
+          "interruption",
+          "elimination",
+          "stagnation",
+          "reorganization"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "In this context, restructuring describes profound morphological and functional reorganization of the respiratory and cardiovascular systems."
+      },
+      {
+        "q": "What can be inferred from the passage regarding high-altitude flight in birds?",
+        "options": [
+          "Birds must cease flying when atmospheric partial pressure declines",
+          "Mammals possess greater respiratory efficiency than birds at high altitudes",
+          "Cross-current oxygen extraction enables birds to fly in oxygen-depleted atmospheres",
+          "Avian air sacs collapse when atmospheric pressure diminishes"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The author notes that continuous gas exchange provides unparalleled metabolic efficiency at high altitudes where partial pressure drops significantly."
+      },
+      {
+        "q": "Why does the author mention 'internal truss-like struts' in paragraph 3?",
+        "options": [
+          "To argue that hollow bones are more fragile than mammalian bones during flight",
+          "To illustrate why ancestral theropods were unable to run rapidly on land",
+          "To contrast avian bone marrow production with reptilian circulatory systems",
+          "To explain how hollow avian bones maintain structural rigidity despite reduced mass"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 3 states that hollow pneumatic cavities are reinforced with internal truss-like struts to balance lightness and structural rigidity."
+      }
+    ],
+    "altId": "rp-curated-1"
+  },
+  {
+    "id": "ra-2",
+    "title": "Subterranean Mycorrhizal Networks and Forest Ecology",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "environment",
+    "passage": "Beneath the temperate forest floor lies an intricate, microscopic web of fungal filaments known as mycorrhizal networks. These mutualistic subterranean symbioses connect the root systems of geographically separated trees, creating what ecologists describe as a living biological conduit. Fungi absorb photosynthetic sugars and carbohydrates from the host trees; in exchange, the fungal hyphae, possessing vastly superior surface-area-to-volume ratios, supply the trees with soil phosphorus, nitrogen, and essential moisture.\n\nRecent isotopic labeling experiments demonstrate that these fungal pathways facilitate complex inter-tree resource redistribution. Robust, mature canopy trees channel surplus carbon to shaded juvenile saplings struggling beneath the dense forest understory, significantly enhancing sapling survival rates. Furthermore, when an individual tree suffers attack from herbivorous insects or fungal pathogens, it transmits volatile biochemical warnings through the mycorrhizal filaments, prompting neighboring trees to synthesize defensive phytoalexins and tannin compounds prior to infestation.\n\nMoreover, the architectural diversity of mycorrhizal associations reflects distinct ecological adaptations across biomes. While arbuscular mycorrhizae penetrate cortical root cells in tropical and agricultural ecosystems, ectomycorrhizal fungi form external sheaths around coniferous root tips in boreal and alpine forests. These ectomycorrhizal associations secrete specialized organic acids that actively dissolve recalcitrant mineral rocks, unlocking previously inaccessible potassium and micronutrients necessary for continuous forest canopy renewal.",
+    "questions": [
+      {
+        "q": "What reciprocal benefit do mycorrhizal fungi derive from host trees?",
+        "options": [
+          "Photosynthetic sugars and carbon compounds",
+          "Nitrogen gas and mineral phosphorus",
+          "Physical shade from subterranean ultraviolet radiation",
+          "Protective tannin compounds against parasitic insects"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The first paragraph explains that fungi absorb photosynthetic sugars and carbohydrates from the host trees in exchange for soil minerals."
+      },
+      {
+        "q": "According to paragraph 2, how do mature canopy trees assist shaded saplings?",
+        "options": [
+          "By transferring surplus carbon through fungal conduits",
+          "By pruning their own roots to reduce subterranean competition",
+          "By dropping leaves to provide immediate thermal insulation",
+          "By emitting airborne acoustic frequencies to stimulate growth"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 2 states that mature canopy trees channel surplus carbon to shaded juvenile saplings, enhancing their survival."
+      },
+      {
+        "q": "The word 'conduit' in paragraph 1 is closest in meaning to:",
+        "options": [
+          "canopy",
+          "barrier",
+          "reservoir",
+          "channel"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "In biological ecology, a conduit refers to a channel or transmission pathway facilitating the flow of nutrients."
+      },
+      {
+        "q": "How do neighboring trees respond when they receive biochemical warnings through the network?",
+        "options": [
+          "They sever their root connections with the infected host",
+          "They shed their foliage to conserve moisture",
+          "They accelerate flowering to disperse seeds immediately",
+          "They proactively synthesize defensive chemical compounds"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 2 states that biochemical warnings prompt neighboring trees to synthesize defensive phytoalexins and tannins."
+      },
+      {
+        "q": "According to paragraph 3, how do ectomycorrhizal fungi in boreal forests obtain potassium from rocks?",
+        "options": [
+          "By secreting organic acids that dissolve mineral rocks",
+          "By relying on earthworms to pulverize subterranean granite",
+          "By absorbing potassium directly from rainwater runoff",
+          "By penetrating deep into tropical agricultural root cells"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 3 notes that ectomycorrhizal associations secrete specialized organic acids that actively dissolve recalcitrant mineral rocks."
+      }
+    ],
+    "altId": "rp-curated-2"
+  },
+  {
+    "id": "ra-3",
+    "title": "Urban Heat Islands and Microclimate Architecture",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "environment",
+    "passage": "Metropolitan urban centers frequently register atmospheric temperatures between two and six degrees Celsius higher than surrounding rural peripheries. This climatological anomaly, known as the urban heat island effect, stems directly from anthropogenic spatial design. Asphalt roadways, concrete pavements, and brick facades exhibit low albedo—reflectance capacity—meaning they absorb vast quantities of shortwave solar radiation during daylight hours and re-radiate this stored thermal energy slowly throughout the night.\n\nCompounding this radiative thermal absorption is the widespread deficit of vegetated canopies in densely developed city cores. In undisturbed natural landscapes, trees and ground foliage cool ambient air through evapotranspiration, a natural refrigeration process wherein plants absorb heat energy to convert groundwater into vapor. To counteract dangerous urban heat stress, modern municipal architects advocate for retrofitting building rooftops with extensive green gardens and high-albedo cool roofs. These reflective interventions reduce cooling energy consumption and enhance pedestrian comfort during summer heatwaves.\n\nIn recent years, urban planners have integrated computational fluid dynamics to design urban wind corridors alongside albedo interventions. By arranging high-rise commercial towers parallel to prevailing seasonal breezes rather than perpendicular to them, municipal architects can stimulate natural air circulation that disperses stagnating hot air masses. Combined with permeable pavements that allow stormwater infiltration into subterranean aquifers, these multi-tiered infrastructural strategies offer a comprehensive blueprint for climate-resilient metropolis design.",
+    "questions": [
+      {
+        "q": "What is the primary physical cause of the urban heat island effect mentioned in paragraph 1?",
+        "options": [
+          "Geothermal heat escaping through subway transportation tunnels",
+          "Low-albedo materials absorbing solar radiation and re-radiating heat",
+          "Reflective glass windows magnifying sunlight onto pedestrians",
+          "Industrial factories releasing chemical coolant vapors"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 1 explains that asphalt, concrete, and brick possess low albedo, absorbing solar radiation during the day and re-radiating it at night."
+      },
+      {
+        "q": "How does vegetation naturally cool surrounding atmospheric air in natural ecosystems?",
+        "options": [
+          "By creating subterranean air currents that circulate cool soil air",
+          "By converting carbon dioxide into liquid oxygen on leaf surfaces",
+          "Through evapotranspiration converting water into vapor using heat energy",
+          "Through magnetic repulsion of atmospheric solar particles"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 2 explicitly states that foliage cools ambient air through evapotranspiration, where heat energy is used to evaporate water."
+      },
+      {
+        "q": "The term 'albedo' as utilized in the passage refers to an object's capacity to:",
+        "options": [
+          "withstand physical seismic friction",
+          "reflect incoming solar radiation",
+          "insulate electrical wiring inside buildings",
+          "store subterranean groundwater"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 1 defines albedo as 'reflectance capacity'—the measure of an object's ability to reflect solar radiation."
+      },
+      {
+        "q": "Which architectural countermeasure is specifically recommended in paragraph 2?",
+        "options": [
+          "Installing high-albedo reflective coatings and vegetative green roofs",
+          "Constructing subterranean pedestrian shopping concourses exclusively",
+          "Banning air conditioning compressor units on apartment facades",
+          "Replacing concrete sidewalks with dark asphalt pavements"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 2 concludes by advocating retrofitting building rooftops with green gardens and high-albedo cool roofs."
+      },
+      {
+        "q": "Why do urban planners align high-rise commercial towers parallel to prevailing seasonal breezes?",
+        "options": [
+          "To shield rooftop gardens from excessive rainwater evaporation",
+          "To create wind corridors that disperse stagnating hot air masses",
+          "To maximize solar absorption on brick building facades during winter",
+          "To prevent stormwater from infiltrating subterranean aquifers"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 3 explains that arranging towers parallel to breezes stimulates natural air circulation to disperse stagnating hot air."
+      }
+    ],
+    "altId": "rp-curated-3"
+  },
+  {
+    "id": "ra-4",
+    "title": "Early Mesopotamian Cuneiform and Bureaucratic Accounting",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "arts-humanities",
+    "passage": "Contrary to the romantic conception that writing emerged primarily to transcribe epic mythological poetry or heroic royal annals, archaeological evidence from fourth-millennium BCE Mesopotamia demonstrates that the origins of literacy were utilitarian and administrative. In the fertile agrarian floodplains between the Tigris and Euphrates rivers, the emergence of complex temple redistribution systems necessitated a reliable method for recording stored grain surpluses, livestock counts, and commercial barter agreements.\n\nBefore the invention of phonetic cuneiform script, Sumerian temple accountants utilized three-dimensional clay tokens shaped like jars, sheep, or bushels of wheat. To prevent tampering during transit, these tokens were sealed inside hollow clay spheres called bullae. However, to inspect the contents, officials had to smash the bullae. Accountants soon began impressing the outer surface of wet clay tablets with stylized reed styluses to represent the enclosed tokens. Over centuries, these impressed pictographs evolved into abstract wedge-shaped characters, giving birth to the world's first comprehensive written language system.\n\nAs urban bureaucracies expanded across southern Mesopotamia, scribal education became institutionalized through specialized academies known as edubbas, or tablet houses. Apprentice scribes spent years memorizing lexical lists, mathematical tables, and legal contracts before advancing to literary compositions. Thus, a system initially devised for mundane warehouse auditing ultimately provided the intellectual scaffolding for codifying statutory law, astronomical observations, and epic literature.",
+    "questions": [
+      {
+        "q": "According to paragraph 1, what was the primary societal driver behind the invention of writing in Mesopotamia?",
+        "options": [
+          "Transcribing epic religious liturgies and mythological legends",
+          "Standardizing astrological maps for maritime navigation",
+          "Drafting diplomatic correspondence between rival city-states",
+          "Utilitarian administrative accounting for agricultural and temple commodities"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 1 notes that literacy originated for utilitarian and administrative needs to track grain, livestock, and barter transactions."
+      },
+      {
+        "q": "What practical disadvantage did hollow clay bullae present to ancient temple accountants?",
+        "options": [
+          "They had to be smashed open to inspect the enclosed transaction tokens",
+          "They were easily duplicated by counterfeiters and barter merchants",
+          "They degraded quickly when exposed to humid riverbank air",
+          "They were too heavy to be transported on river barges"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 2 states that 'to inspect the contents, officials had to smash the bullae.'"
+      },
+      {
+        "q": "The word 'utilitarian' in paragraph 1 is closest in meaning to:",
+        "options": [
+          "ceremonial and decorative",
+          "functional and practical",
+          "fictional and creative",
+          "unstable and fleeting"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Utilitarian describes objects or systems designed to be useful and practical rather than attractive or ornamental."
+      },
+      {
+        "q": "Which technological tool was utilized to imprint wedge-shaped characters into moist clay tablets?",
+        "options": [
+          "A bronze chisel",
+          "An iron-tipped quill",
+          "A carved reed stylus",
+          "A heated obsidian blade"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 2 explains that accountants began impressing clay tablets with stylized reed styluses."
+      },
+      {
+        "q": "What was the primary role of the 'edubbas' described in paragraph 3?",
+        "options": [
+          "Fortified military outposts guarding the Tigris and Euphrates trade routes",
+          "Granary storehouses where temple priests distributed barley rations",
+          "Specialized scribal academies where apprentices trained in writing and mathematics",
+          "Royal observatories dedicated exclusively to predicting solar eclipses"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 3 defines edubbas ('tablet houses') as specialized academies where apprentice scribes memorized lexical lists and contracts."
+      }
+    ],
+    "altId": "rp-curated-4"
+  },
+  {
+    "id": "ra-5",
+    "title": "Behavioral Economics and the Framing Effect",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "social-sciences",
+    "passage": "For over two centuries, classical economic doctrine rested on the assumption of homo economicus—a hypothetical rational actor possessing perfect market information, cognitive consistency, and immutable self-interest. However, pioneering empirical experiments conducted by cognitive psychologists Daniel Kahneman and Amos Tversky decisively upended this foundational premise. Their seminal prospect theory revealed that human decision-makers evaluate prospective outcomes not in terms of absolute terminal wealth, but relative to a subjective cognitive baseline known as a reference point.\n\nCrucial to prospect theory is the phenomenon of loss aversion: human beings experience the psychological pain of a monetary loss roughly twice as intensely as the equivalent emotional satisfaction derived from a gain of identical magnitude. Consequently, how an identical objective probability is presented—the framing effect—radically alters consumer and investor choices. For instance, medical patients presented with a surgical procedure boasting a 'ninety percent survival rate' are substantially more inclined to authorize the operation than when informed the same surgery entails a 'ten percent mortality rate.'\n\nPolicy architects and institutional economists have increasingly leveraged these behavioral insights to design choice architectures known as 'nudges.' Rather than restricting individual freedom through coercive mandates, institutions alter default enrollment options—such as automatic opt-in employee retirement savings plans. Because individuals exhibit status quo bias and reluctance to incur perceived short-term reductions in take-home pay, shifting the default reference point dramatically elevates long-term financial participation.",
+    "questions": [
+      {
+        "q": "Which fundamental tenet of classical economics was challenged by Kahneman and Tversky's prospect theory?",
+        "options": [
+          "The principle of supply and demand determining equilibrium commodity pricing",
+          "The concept of comparative advantage driving cross-border international trade",
+          "The theory that commercial banks expand the money supply through fractional reserves",
+          "The assumption that market participants behave as strictly rational maximizers of absolute wealth"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 1 explains that their work upended the classical assumption of homo economicus as a rational actor evaluating terminal wealth."
+      },
+      {
+        "q": "According to paragraph 2, what defines the psychological principle of loss aversion?",
+        "options": [
+          "Losses are felt approximately twice as intensely as equivalent monetary gains",
+          "Consumers prioritize instant gratification over deferred retirement security",
+          "Investors consistently overestimate their long-term investment performance",
+          "Individuals become indifferent to financial outcomes after experiencing initial losses"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The text states that people experience the pain of a loss roughly twice as intensely as satisfaction from an identical gain."
+      },
+      {
+        "q": "The word 'seminal' in paragraph 1 is closest in meaning to:",
+        "options": [
+          "groundbreaking and influential",
+          "controversial and disputed",
+          "unsubstantiated and flawed",
+          "preliminary and incomplete"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Seminal refers to a work of scholarship that is original, groundbreaking, and strongly influences later developments."
+      },
+      {
+        "q": "Why does the author mention the 'ninety percent survival rate' versus 'ten percent mortality rate' example?",
+        "options": [
+          "To prove that medical patients lack basic mathematical literacy",
+          "To argue that surgeons should withhold statistical risks from patients",
+          "To show that hospital mortality rates have declined over two centuries",
+          "To illustrate how identical probabilities framed differently alter human decisions"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 2 uses the surgical example to demonstrate the framing effect—how presenting the same statistic as a gain vs. a loss changes choices."
+      },
+      {
+        "q": "According to paragraph 3, how do automatic opt-in retirement plans improve employee savings rates?",
+        "options": [
+          "By legally prohibiting employees from withdrawing their salaries",
+          "By shifting the default option to work with human status quo bias",
+          "By eliminating all income taxes on corporate stock dividends",
+          "By requiring employees to pass an econometrics exam before retiring"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 3 explains that automatic opt-in alters the default reference point, leveraging status quo bias to increase participation."
+      }
+    ],
+    "altId": "rp-curated-5"
+  },
+  {
+    "id": "ra-6",
+    "title": "The Flipped Classroom Pedagogical Paradigm in Higher Education",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "campus-life",
+    "passage": "The flipped classroom is an instructional strategy that reverses traditional university teaching methods. In a conventional lecture course, professors spend class time speaking at a podium while students listen quietly and take notes, leaving homework problems to be completed alone at home. In contrast, a flipped course delivers foundational lecture material outside the classroom—typically through short, pre-recorded video modules or guided digital readings—while moving active problem-solving exercises into the scheduled classroom session.\n\nAdvocates of this inverted structure emphasize that it fosters deeper student engagement. Because instructional contact hours are freed from passive lecturing, professors can dedicate in-person sessions to collaborative group projects, laboratory case studies, and individualized mentoring. Students can pause or rewatch video lectures at their own pace prior to class, which is especially helpful when reviewing complex terminology.\n\nHowever, educational researchers note that the flipped model depends heavily on student self-discipline. Undergraduates who arrive on campus without watching the assigned preparatory videos struggle to contribute meaningfully to group discussions. To address this challenge, many university instructors embed brief, low-stakes comprehension quizzes at the end of each online video module to verify student readiness before the seminar begins.",
+    "questions": [
+      {
+        "q": "How does a flipped classroom differ from a traditional university lecture course?",
+        "options": [
+          "Professors eliminate all group projects and rely solely on final written exams",
+          "Students watch lectures before class and spend class time on active problem-solving",
+          "Classes meet only once a month in the university library archive",
+          "Students record their own lectures instead of reading assigned textbooks"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 1 states that a flipped course delivers lectures outside class via video and moves active problem-solving into the classroom."
+      },
+      {
+        "q": "According to paragraph 2, what is one major advantage of pre-recorded video lectures for students?",
+        "options": [
+          "They automatically grant extra credit toward graduation requirements",
+          "Students can pause and rewatch explanations at their own learning pace",
+          "They replace the need to attend any in-person university sessions",
+          "They shorten the academic semester from fifteen weeks to six weeks"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 2 notes that students can pause or rewatch video lectures at their own pace when reviewing complex material."
+      },
+      {
+        "q": "The word 'fosters' in paragraph 2 is closest in meaning to:",
+        "options": [
+          "prevents",
+          "measures",
+          "encourages",
+          "postpones"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "To foster means to encourage or promote the development of something (here, deeper student engagement)."
+      },
+      {
+        "q": "What challenge associated with the flipped classroom is identified in paragraph 3?",
+        "options": [
+          "University libraries lack sufficient computers to play video files",
+          "Professors dislike answering student questions during group activities",
+          "Students who skip the preparatory videos cannot participate effectively in class",
+          "Video lectures cost too much money for science departments to produce"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 3 explains that undergraduates who fail to complete preparatory viewings struggle to contribute to in-class discussions."
+      },
+      {
+        "q": "How do instructors encourage students to complete the pre-class video assignments?",
+        "options": [
+          "By locking the classroom doors fifteen minutes before the seminar starts",
+          "By charging a financial fee for every missed classroom discussion",
+          "By requiring students to write a ten-page summary of every video",
+          "By embedding short comprehension quizzes at the end of online modules"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "The final sentence states that instructors embed brief, low-stakes comprehension quizzes at the end of each video module."
+      }
+    ],
+    "altId": "rp-curated-6"
+  },
+  {
+    "id": "ra-7",
+    "title": "Comparative Advantage and International Supply Chain Specialization",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "business-economics",
+    "passage": "In early nineteenth-century economic thought, British economist David Ricardo introduced the theory of comparative advantage to explain why nations engage in international trade. Before Ricardo, many observers assumed that trade only benefited a country if it had an absolute advantage—meaning it could produce a good using fewer total resources than any trading partner. Ricardo demonstrated mathematically that even if one nation is more efficient at producing every single commodity, both nations still gain by specializing in the goods where their opportunity cost is lowest.\n\nOpportunity cost refers to the value of the next best alternative foregone when making a production choice. For example, if a country with advanced semiconductor factories diverts its skilled engineers to manufacture simple cotton textiles, it sacrifices high-value microchip output. By exporting semiconductors and importing textiles from a trading partner, total combined production increases across both economies.\n\nIn the twenty-first century, comparative advantage has evolved from finished national goods to global value chains. Rather than manufacturing an entire airplane or smartphone within a single country, multinational firms distribute research, component fabrication, and final assembly across multiple countries based on local technological expertise, labor skills, and logistics infrastructure.",
+    "questions": [
+      {
+        "q": "What core economic principle did David Ricardo demonstrate regarding international trade?",
+        "options": [
+          "Countries should only trade if they possess an absolute advantage in all industries",
+          "Nations benefit by specializing in goods with the lowest opportunity cost",
+          "Importing foreign goods always reduces domestic manufacturing efficiency",
+          "International trade should be restricted to agricultural commodities"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 1 states that Ricardo demonstrated both nations gain by specializing in goods where their opportunity cost is lowest."
+      },
+      {
+        "q": "How does paragraph 2 define the concept of 'opportunity cost'?",
+        "options": [
+          "The total shipping fee paid to transport goods across international borders",
+          "The government tariff imposed on imported electronics and textiles",
+          "The value of the next best alternative sacrificed when making a choice",
+          "The hourly wage paid to engineers in semiconductor factories"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 2 explicitly defines opportunity cost as 'the value of the next best alternative foregone when making a production choice.'"
+      },
+      {
+        "q": "Why does the author use the example of semiconductor engineers making cotton textiles?",
+        "options": [
+          "To illustrate how diverting specialized resources creates a high opportunity cost",
+          "To show that textile manufacturing requires more training than microchip design",
+          "To argue that countries should ban the export of computer microchips",
+          "To prove that nineteenth-century factories used modern assembly lines"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The example shows that diverting skilled engineers to textiles sacrifices high-value microchip output, illustrating opportunity cost."
+      },
+      {
+        "q": "The word 'foregone' in paragraph 2 is closest in meaning to:",
+        "options": [
+          "guaranteed",
+          "purchased",
+          "given up",
+          "expanded"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Foregone means given up, sacrificed, or done without when choosing another option."
+      },
+      {
+        "q": "According to paragraph 3, how has comparative advantage changed in the twenty-first century?",
+        "options": [
+          "Smartphones are now manufactured entirely within a single country",
+          "Production is distributed across multi-country global value chains",
+          "Multinational firms have stopped investing in research and development",
+          "Transportation infrastructure no longer influences factory locations"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 3 notes that comparative advantage has evolved into global value chains where design, fabrication, and assembly span multiple countries."
+      }
+    ],
+    "altId": "rp-curated-7"
+  },
+  {
+    "id": "ra-8",
+    "title": "Linear Perspective and Optical Realism in Florentine Renaissance Art",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "arts-humanities",
+    "passage": "During the early fifteenth century in Florence, visual art underwent a geometric revolution that fundamentally altered how painters represented three-dimensional space on flat wooden panels and plaster walls. Medieval European artists had previously arranged figures according to spiritual hierarchy—rendering important religious figures larger than surrounding architecture and placing distant objects higher on the picture plane without consistent spatial recession.\n\nAround 1415, Florentine architect Filippo Brunelleschi conducted a series of optical experiments in front of the Florence Baptistery using a painted panel and a mirror, establishing the mathematical laws of linear perspective. Soon thereafter, humanist theorist Leon Battista Alberti codified these geometric principles in his treatise Della Pittura. Alberti explained that by constructing a grid of orthogonal lines converging at a single vanishing point along the viewer's horizon line, artists could create a convincing optical window into physical space.\n\nThis synthesis of geometry and painting was masterfully realized by Masaccio in his fresco The Holy Trinity at the church of Santa Maria Novella. By aligning the barrel-vaulted ceiling coffer lines with the eye level of a spectator standing in the church nave, Masaccio created a trompe-l'œil architectural niche that appeared to recede directly into the stone wall.",
+    "questions": [
+      {
+        "q": "How did medieval European painters typically determine the size of figures in their artwork?",
+        "options": [
+          "By measuring the exact physical distance from the viewer's eye",
+          "According to spiritual importance and religious hierarchy",
+          "By projecting camera obscura images onto wooden panels",
+          "According to the mathematical ratio of the horizon line"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 1 states that medieval artists arranged figures according to spiritual hierarchy, rendering important figures larger."
+      },
+      {
+        "q": "What was Leon Battista Alberti's primary contribution to linear perspective?",
+        "options": [
+          "He wrote a theoretical treatise codifying the mathematical rules of perspective",
+          "He designed the octagonal dome of the Florence Baptistery",
+          "He painted the famous Holy Trinity fresco in Santa Maria Novella",
+          "He invented oil-based pigments that dried slowly on canvas"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 2 explains that Alberti codified Brunelleschi's geometric principles in his treatise Della Pittura."
+      },
+      {
+        "q": "In linear perspective, what is the function of 'orthogonal lines'?",
+        "options": [
+          "They reflect candlelight onto the church nave floor",
+          "They separate religious murals into three distinct chronological panels",
+          "They frame the outer wooden border of an altarpiece",
+          "They converge at a vanishing point on the horizon to create depth"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 2 notes that a grid of orthogonal lines converging at a single vanishing point along the horizon creates an optical window."
+      },
+      {
+        "q": "The word 'codified' in paragraph 2 is closest in meaning to:",
+        "options": [
+          "concealed",
+          "questioned",
+          "systematized",
+          "abandoned"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "To codify means to arrange laws, rules, or principles into a systematic written code."
+      },
+      {
+        "q": "Why did Masaccio align the perspective of his fresco with the eye level of a viewer standing in the nave?",
+        "options": [
+          "To allow priests to read Latin inscriptions from the high altar",
+          "To create the optical illusion of a three-dimensional niche receding into the wall",
+          "To hide structural cracks in the plaster ceiling of Santa Maria Novella",
+          "To imitate medieval flat gold-leaf background techniques"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 3 states that aligning the coffer lines with the spectator's eye level created a trompe-l'œil niche appearing to recede into the wall."
+      }
+    ],
+    "altId": "rp-curated-8"
+  },
+  {
+    "id": "ra-9",
+    "title": "Paleoclimatology and the Collapse of Classic Maya Urban Centers",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "social-sciences",
+    "passage": "During the ninth century CE, the flourishing Classic Maya civilization of the southern Mesoamerican lowlands experienced a rapid demographic and political unraveling. Monumental urban centers such as Tikal, Calakmul, and Copán were progressively abandoned as royal dynasties ceased carving dated stone stelae. For decades, archaeologists debated competing single-cause hypotheses, ranging from endemic inter-city warfare and peasant insurrections to soil nutrient exhaustion.\n\nIn recent decades, paleoclimatologists have reconstructed high-resolution precipitation records by analyzing oxygen isotope ratios in cave stalagmites (speleothems) and gypsum crystal layers in lake sediment cores. Because lighter oxygen-16 isotopes evaporate more readily than heavier oxygen-18 isotopes, calcium carbonate layers enriched in oxygen-18 provide a precise chemical signature of prolonged aridity. These paleoclimatic proxies reveal that the Classic Maya collapse coincided with a series of severe, multi-decade megadroughts.\n\nCrucially, the southern Maya cities were uniquely vulnerable to rainfall deficits due to their karst limestone topography, which lacked perennial surface rivers. Urban populations depended entirely on vast plaster-lined reservoirs to store seasonal monsoon rain. Furthermore, widespread deforestation for maize cultivation and lime-plaster production reduced regional evapotranspiration, inadvertently suppressing local convective rainfall and intensifying the environmental crisis.",
+    "questions": [
+      {
+        "q": "What archaeological evidence indicates the political decline of Classic Maya cities in the ninth century?",
+        "options": [
+          "Volcanic ash buried the agricultural terraces of Tikal and Calakmul",
+          "Foreign armies burned all wooden libraries along the Pacific coast",
+          "Written treaties recorded the relocation of capitals to South America",
+          "Royal dynasties stopped erecting dated stone monuments and cities were abandoned"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 1 notes that monumental urban centers were abandoned as royal dynasties ceased carving dated stone stelae."
+      },
+      {
+        "q": "How do scientists use oxygen isotopes in cave stalagmites to identify ancient droughts?",
+        "options": [
+          "Stalagmites stop growing completely whenever carbon dioxide levels fall",
+          "Oxygen-16 turns cave stalagmites bright blue during heavy monsoon floods",
+          "Higher concentrations of heavier oxygen-18 indicate periods of intense evaporation and aridity",
+          "Radioactive oxygen isotopes reveal the exact temperature of volcanic magma"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 2 explains that because lighter oxygen-16 evaporates more readily, layers enriched in heavier oxygen-18 signal prolonged aridity."
+      },
+      {
+        "q": "The word 'proxies' in paragraph 2 is closest in meaning to:",
+        "options": [
+          "obstacles",
+          "royal officials",
+          "indirect indicators",
+          "artificial reservoirs"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "In paleoclimatology, proxies are preserved physical or chemical records (like sediment cores) that serve as indirect indicators of past climate."
+      },
+      {
+        "q": "Why were southern lowland Maya cities particularly susceptible to multi-year droughts?",
+        "options": [
+          "Their porous limestone terrain had no permanent rivers, forcing reliance on rainwater reservoirs",
+          "They lacked engineering knowledge to build water storage containers",
+          "Their coastal wells were contaminated by rising Pacific Ocean tides",
+          "Their staple crops required freezing winter temperatures to germinate"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 3 states that the karst limestone topography lacked perennial surface rivers, making cities dependent on seasonal rainwater reservoirs."
+      },
+      {
+        "q": "According to paragraph 3, how did human activity worsen the regional drought?",
+        "options": [
+          "Damming major rivers cut off water supplies to neighboring valleys",
+          "Overgrazing by domesticated cattle compacted the topsoil",
+          "Mining underground aquifers caused catastrophic sinkholes",
+          "Deforestation for agriculture and lime plaster reduced evapotranspiration and local rainfall"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "The final sentence explains that widespread deforestation for maize and lime-plaster production reduced evapotranspiration and suppressed rainfall."
+      }
+    ],
+    "altId": "rp-curated-9"
+  },
+  {
+    "id": "ra-10",
+    "title": "CRISPR-Cas9 Adaptive Immunity in Prokaryotes and Genome Editing",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "science-tech",
+    "passage": "Long before molecular biologists adapted CRISPR-Cas9 as a programmable genome-editing tool for eukaryotic cells, the system evolved in bacteria and archaea as an adaptive prokaryotic immune defense against invading bacteriophages. In the late 1980s, microbiologists sequencing Escherichia coli noticed unusual clusters of short, palindromic DNA repeats separated by unique 'spacer' sequences. Subsequent bioinformatics analysis revealed that these spacer sequences matched the genetic material of viral phages.\n\nWhen a bacterium survives an initial viral infection, specialized Cas enzymes excise a short segment of the invader's viral DNA and integrate it into the host's CRISPR locus as a new memory spacer. This locus is subsequently transcribed into precursor RNA and processed into mature guide RNAs (crRNAs). Each crRNA forms a ribonucleoprotein complex with the endonuclease enzyme Cas9, patrolling the intracellular environment.\n\nIf a matching bacteriophage attempts a secondary infection, the guide RNA hybridizes with the complementary viral DNA sequence adjacent to a short conserved motif known as the protospacer adjacent motif (PAM). Upon recognizing the PAM sequence, Cas9 undergoes a conformational shift and cleaves both strands of the viral DNA, neutralizing the pathogen. By synthesizing custom single-guide RNAs in the laboratory, researchers can direct Cas9 to target virtually any genomic locus.",
+    "questions": [
+      {
+        "q": "What is the natural biological function of the CRISPR-Cas system in bacteria and archaea?",
+        "options": [
+          "To serve as an adaptive immune defense against viral bacteriophages",
+          "To accelerate cellular division during nutrient shortages",
+          "To synthesize photosynthetic pigments in deep-sea environments",
+          "To repair damaged cell walls after exposure to antibiotics"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Paragraph 1 states that the system evolved in bacteria and archaea as an adaptive prokaryotic immune defense against invading bacteriophages."
+      },
+      {
+        "q": "What did bioinformatics analysis reveal about the unique 'spacer' sequences in bacterial DNA?",
+        "options": [
+          "They were nonfunctional junk DNA left over from ancient mutations",
+          "They encoded instructions for building bacterial flagella",
+          "They were identical across all plant and mammalian species",
+          "They matched the genetic sequences of invading viral bacteriophages"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Paragraph 1 notes that bioinformatics analysis revealed the spacer sequences matched the genetic material of viral phages."
+      },
+      {
+        "q": "According to paragraph 2, how does a bacterium record a memory of a viral infection?",
+        "options": [
+          "Ribosomes convert viral proteins into protective lipid droplets",
+          "The bacterial cell membrane thickens to block future viral attachment",
+          "Cas enzymes cut a piece of viral DNA and insert it into the host's CRISPR locus",
+          "The bacterium transfers its entire genome into neighboring host cells"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Paragraph 2 explains that Cas enzymes excise a segment of invading viral DNA and integrate it into the host's CRISPR locus as a spacer."
+      },
+      {
+        "q": "The word 'cleaves' in paragraph 3 is closest in meaning to:",
+        "options": [
+          "binds together",
+          "replicates",
+          "conceals",
+          "cuts apart"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "In molecular biology, an endonuclease cleaves DNA by cutting or splitting the nucleotide strands apart."
+      },
+      {
+        "q": "Why is the protospacer adjacent motif (PAM) essential for Cas9 function?",
+        "options": [
+          "The PAM prevents guide RNA from leaving the bacterial cell nucleus",
+          "Recognition of the PAM triggers Cas9 to change shape and cut the target DNA",
+          "The PAM supplies adenosine triphosphate (ATP) to power RNA transcription",
+          "Recognition of the PAM allows bacteriophages to evade bacterial immunity"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Paragraph 3 states that upon recognizing the PAM sequence, Cas9 undergoes a conformational shift and cleaves both strands of the target DNA."
+      }
+    ],
+    "altId": "rp-curated-10"
+  }
+]

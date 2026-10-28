@@ -42,9 +42,10 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const TOEFL_2026_PURGE_V3 = 'toefl_bank_purged_2026_v3';
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V3;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v14';
+export const TOEFL_2026_PURGE_V4 = 'toefl_bank_purged_2026_v4';
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V4;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V4;
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v15';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);
@@ -214,6 +215,7 @@ export async function ensurePurged2026V2(): Promise<void> {
   return purgePromise;
 }
 
+export const ensurePurged2026V4 = ensurePurged2026V2;
 export const ensurePurged2026V3 = ensurePurged2026V2;
 
 /**

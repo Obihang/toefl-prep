@@ -47,6 +47,7 @@ export const MALE_NEURAL_VOICES = [
   'en-US-BrianNeural',
   'en-GB-RyanNeural',
   'en-GB-ThomasNeural',
+  'en-AU-WilliamNeural',
 ];
 
 export const FEMALE_NEURAL_VOICES = [
@@ -56,6 +57,7 @@ export const FEMALE_NEURAL_VOICES = [
   'en-US-EmmaNeural',
   'en-GB-SoniaNeural',
   'en-GB-LibbyNeural',
+  'en-AU-NatashaNeural',
 ];
 
 const COMMON_FEMALE_NAMES = new Set([

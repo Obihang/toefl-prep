@@ -1,326 +1,414 @@
 [
   {
-    "id": "ld-curated-1",
-    "title": "University Library Special Collections Archive Access",
-    "level": "beginner",
-    "difficulty": "beginner",
+    "id": "ld-1",
+    "title": "Literature Office Hours: Victorian Social Realism Thesis",
+    "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "campus-life",
-    "context": "A student speaks with a library staff member about accessing rare manuscript archives for an undergraduate history thesis.",
+    "context": "A student speaks with her English literature professor about narrowing her thesis statement for an upcoming term paper.",
     "speakers": {
-      "A": "Sarah (Student)",
-      "B": "Mr. Davis (Librarian)"
+      "A": "Emma (Student)",
+      "B": "Prof. Miller (Professor)"
     },
     "speakerGenders": {
       "A": "female",
       "B": "male"
     },
-    "script": "Sarah (Female): Good afternoon, Mr. Davis. I am currently researching nineteenth-century maritime trade periodicals for my senior history thesis, and my advisor mentioned that original logbooks are stored in the rare manuscripts vault.\nMr. Davis (Male): Welcome, Sarah. Yes, those maritime records are housed in our secure archive room on the fourth floor. Because the materials are fragile, they cannot be checked out or photographed with flash.\nSarah (Female): That is completely understandable. Do I need special departmental permission to review the physical documents?\nMr. Davis (Male): You will need to complete a brief manuscript registration form and show your student identification card. Additionally, your faculty advisor must submit an electronic verification acknowledging your research topic.\nSarah (Female): Dr. Henderson already submitted that electronic form yesterday morning. Would it be possible for me to reserve a reading desk for tomorrow afternoon?\nMr. Davis (Male): Let me check the schedule. Yes, station three is available from one to five o'clock. Please remember to bring pencils only, as ink pens are strictly prohibited in the vault.\nSarah (Female): Thank you very much, Mr. Davis. I will make sure to arrive promptly with my notes.",
+    "script": "Emma (Female): Good afternoon, Professor Miller. Thank you for meeting with me during office hours. I wanted to discuss my proposed thesis statement for our Victorian literature term paper.\nProf. Miller (Male): Welcome, Emma. Come in and take a seat. I have your preliminary outline here. You are comparing social realism in George Eliot and Charles Dickens, correct?\nEmma (Female): Yes, exactly. But as I was reviewing primary sources in the library, I realized my initial scope was far too broad for a fifteen-page essay.\nProf. Miller (Male): That is a very common challenge with comparative literature topics. When a thesis tries to encompass entire novelistic canons, the analysis inevitably becomes superficial. How do you plan to narrow your focus?\nEmma (Female): I want to focus specifically on their contrasting depictions of provincial industrialization and child labor legislation in Middlemarch and Hard Times.\nProf. Miller (Male): That is a much sharper critical lens. You will be able to perform close textual readings of parliamentary report excerpts and show how both authors engaged with historical reform debates.\nEmma (Female): Would you recommend that I consult Victorian legislative records in the university digital archive, or should I stick primarily to literary commentaries?\nProf. Miller (Male): Definitely incorporate the primary parliamentary blue books from eighteen fifty-four. They will anchor your historical argument firmly. Just make sure to submit your annotated bibliography by next Tuesday so I can verify your citations.\nEmma (Female): That sounds wonderful. I will reserve an afternoon slot at the library microform lab and have the bibliography ready. Thank you so much for the guidance, Professor Miller!",
     "questions": [
       {
-        "q": "Why does Sarah visit the university library archive?",
+        "q": "Why does Emma visit Professor Miller during office hours?",
         "options": [
-          "To examine nineteenth-century maritime records for her thesis",
-          "To return overdue reference textbooks to the circulation desk",
-          "To request employment as an archive preservation assistant",
-          "To register for a digital humanities faculty workshop"
-        ],
-        "answer": 0,
-        "why": "Sarah states she is researching nineteenth-century maritime trade periodicals for her senior history thesis."
-      },
-      {
-        "q": "What requirement must Sarah fulfill before accessing the fragile materials?",
-        "options": [
-          "Pay an archival security deposit to the bursar office",
-          "Complete a registration form and provide advisor verification",
-          "Submit three printed copies of her thesis proposal",
-          "Complete an online preservation handling certification course"
+          "To request an extension on her final Victorian literature essay deadline",
+          "To consult him about narrowing the scope of her term paper thesis",
+          "To ask for a letter of recommendation for graduate literature studies",
+          "To dispute a low grade she received on her previous draft outline"
         ],
         "answer": 1,
-        "why": "Mr. Davis explains she needs a manuscript registration form, student ID, and electronic faculty advisor verification."
+        "correctAnswer": 1,
+        "why": "Emma explains that she realized her initial comparative scope was far too broad and wants guidance on narrowing her thesis statement."
       },
       {
-        "q": "Why does the librarian remind Sarah to bring pencils only?",
+        "q": "What specific focus does Emma choose to make her thesis manageable?",
         "options": [
-          "The reading desks lack adequate electrical power outlets",
-          "The university bookstore ran out of notebook supplies",
-          "Ballpoint pens and ink can permanently damage fragile archival documents",
-          "Digital tablets are strictly forbidden inside the university library"
-        ],
-        "answer": 2,
-        "why": "Archive standards prohibit ink pens to prevent irreversible accidental staining or damage to historical documents."
-      },
-      {
-        "q": "What has Sarah's faculty advisor, Dr. Henderson, already done?",
-        "options": [
-          "Reserved reading station three for the entire semester",
-          "Photographed the maritime logbooks using a specialized scanner",
-          "Donated nineteenth-century periodicals to the fourth-floor vault",
-          "Submitted the electronic verification form for Sarah's research"
+          "Poetic meter and dramatic monologues in Victorian serialized journals",
+          "Biographical influences of London street life on Charles Dickens's early journalism",
+          "Philosophical comparisons between German idealism and George Eliot's translation work",
+          "Contrasting depictions of industrialization and child labor laws in two specific novels"
         ],
         "answer": 3,
-        "why": "Sarah mentions that Dr. Henderson already submitted the electronic verification form yesterday morning."
+        "correctAnswer": 3,
+        "why": "Emma states she wants to focus specifically on depictions of provincial industrialization and child labor legislation in Middlemarch and Hard Times."
+      },
+      {
+        "q": "Why does Professor Miller advise against Emma's original research plan?",
+        "options": [
+          "The library lacks sufficient primary source holdings for Victorian authors",
+          "Departmental policy prohibits comparing two different nineteenth-century novelists",
+          "Covering entire novelistic canons in a short essay results in superficial analysis",
+          "Charles Dickens and George Eliot wrote in mutually incompatible literary genres"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The professor warns that attempting to encompass entire novelistic canons makes the analysis inevitably superficial in a fifteen-page essay."
+      },
+      {
+        "q": "What task is Emma expected to complete by next Tuesday?",
+        "options": [
+          "Conduct an oral peer-review interview with a classmate in the library",
+          "Present her thesis argument to the weekly undergraduate literary colloquium",
+          "Submit an annotated bibliography citing primary parliamentary records",
+          "Deliver a complete fifteen-page draft of her comparative essay"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Professor Miller instructs Emma to submit her annotated bibliography by next Tuesday so he can verify her citations."
       }
     ]
   },
   {
-    "id": "ld-curated-2",
-    "title": "Office Hours: Organic Synthesis Reaction Mechanisms",
+    "id": "ld-2",
+    "title": "Cellular Biology Lab: Molecular Genetics Research Assistantship",
     "level": "upper-intermediate",
     "difficulty": "upper-intermediate",
     "topic": "science-tech",
-    "context": "A chemistry undergraduate consults her professor during office hours regarding carbocation stability in stereoselective reactions.",
+    "context": "An undergraduate student meets with a molecular genetics professor to apply for an assistant position in her research laboratory.",
     "speakers": {
-      "A": "Elena (Student)",
-      "B": "Professor Vance (Instructor)"
+      "A": "Liam (Student)",
+      "B": "Dr. Chen (Faculty Researcher)"
+    },
+    "speakerGenders": {
+      "A": "male",
+      "B": "female"
+    },
+    "script": "Liam (Male): Hi, Dr. Chen. I attended your departmental seminar on CRISPR Cas9 gene editing last week, and I am very interested in applying for an undergraduate assistantship in your molecular biology laboratory.\nDr. Chen (Female): Hello, Liam. I remember you asked a thoughtful question about off-target mutations during the Q and A session. Have you completed our department's prerequisite coursework in biochemistry and cellular genetics?\nLiam (Male): Yes, I completed Biochemistry two-ten with Dr. Harris last semester and received an A, and I am currently enrolled in Advanced Molecular Genetics.\nDr. Chen (Female): Excellent academic foundation. In our lab, student researchers assist with purifying recombinant proteins, preparing mammalian cell cultures, and running western blot assays. Have you worked with gel electrophoresis before?\nLiam (Male): Yes, we conducted several agarose gel electrophoresis trials in the prerequisite laboratory sessions, so I am familiar with micropipetting and calibrating the voltage chambers.\nDr. Chen (Female): That hands-on familiarity will definitely flatten your initial training curve. Our current project investigates epigenetic histone modification in drought-resistant crop strains, which requires meticulous sterile technique.\nLiam (Male): That sounds fascinating. How many hours per week do undergraduate assistants typically commit during the semester?\nDr. Chen (Female): We expect ten to twelve hours weekly, divided between lab benchwork and our Friday morning data presentation meetings. If that fits your academic schedule, please email me your unofficial transcript and two faculty references by Friday.\nLiam (Male): That schedule aligns perfectly with my course load. I will send over my transcript and references this afternoon. Thank you for the opportunity, Dr. Chen!",
+    "questions": [
+      {
+        "q": "What is the primary purpose of Liam's meeting with Dr. Chen?",
+        "options": [
+          "To report an equipment calibration malfunction in the teaching laboratory",
+          "To request permission to enroll in an advanced graduate seminar without prerequisites",
+          "To ask for financial assistance to attend an international biochemistry conference",
+          "To apply for an undergraduate research assistantship in her genetics laboratory"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Liam explicitly states he is interested in applying for an undergraduate assistantship in Dr. Chen's molecular biology research laboratory."
+      },
+      {
+        "q": "What prior technical laboratory experience does Liam describe having?",
+        "options": [
+          "Performing agarose gel electrophoresis, micropipetting, and voltage calibration",
+          "Operating confocal laser scanning microscopes on live neural tissue",
+          "Synthesizing synthetic nucleotide primers for automated sequencing machines",
+          "Managing clinical trial patient documentation for pharmacology studies"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Liam explains that he conducted several agarose gel electrophoresis trials and is familiar with micropipetting and voltage chambers."
+      },
+      {
+        "q": "What does Dr. Chen imply when mentioning Liam's question at her guest lecture?",
+        "options": [
+          "She was impressed by his intellectual curiosity and comprehension of the subject",
+          "She felt his question was too elementary for a departmental research seminar",
+          "She was concerned that he lacked adequate background knowledge in genetics",
+          "She suspected he had memorized the question from an online biology forum"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Dr. Chen notes that he asked a thoughtful question about off-target mutations, indicating she took favorable notice of his scientific engagement."
+      },
+      {
+        "q": "What must Liam submit by Friday to advance his application?",
+        "options": [
+          "A letter of recommendation from the university registrar verifying his class standing",
+          "A formal five-page research proposal outlining an independent CRISPR experiment",
+          "A certified laboratory safety certificate from the environmental health office",
+          "His unofficial academic transcript and two faculty reference contacts"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Dr. Chen instructs Liam to email his unofficial transcript and two faculty references by Friday."
+      }
+    ]
+  },
+  {
+    "id": "ld-3",
+    "title": "Academic Advising: Environmental Science and Economics Double Major",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "context": "A sophomore consults an academic advisor about declaring a double major and planning her graduation timeline.",
+    "speakers": {
+      "A": "Sophia (Student)",
+      "B": "Advisor Ross (Academic Counselor)"
     },
     "speakerGenders": {
       "A": "female",
       "B": "male"
     },
-    "script": "Elena (Female): Professor Vance, thank you for meeting with me. I am struggling to understand why the electrophilic addition in yesterday's laboratory experiment yielded primarily the anti-Markovnikov product rather than the expected thermodynamic intermediate.\nProfessor Vance (Male): Ah, that is a common hurdle, Elena. Remember that under our specific experimental conditions, we introduced peroxide catalysts into the reaction mixture.\nElena (Female): Oh, so the reaction followed a radical pathway rather than an ionic mechanism involving a discrete carbocation?\nProfessor Vance (Male): Precisely. The peroxide generates bromine free radicals, which attack the less sterically hindered carbon atom first to generate the more stable secondary carbon radical.\nElena (Female): That makes complete sense now! In the ionic mechanism, hydrogen attacks first, but here the radical addition inverts the regiochemical selectivity.\nProfessor Vance (Male): Exactly right. When you write up your lab report, make sure to draw out the homolytic bond cleavage steps in your initiation mechanism clearly.\nElena (Female): I will certainly do that. Should I also calculate the percent yield differences between the two trials?\nProfessor Vance (Male): Yes, include the error analysis discussing any unreacted starting alkene in your chromatography results.",
+    "script": "Sophia (Female): Good morning, Advisor Ross. I scheduled this appointment because I am considering declaring a double major in Environmental Science and Economics, and I need to review my degree audit.\nAdvisor Ross (Male): Good morning, Sophia. A double major in environmental science and economics is an increasingly popular interdisciplinary combination, especially for careers in sustainable resource management and public policy. Let me pull up your academic record on the terminal.\nSophia (Female): Thank you. According to my calculations, I have already fulfilled sixty credits, but I want to make sure I can still graduate within four academic years without taking summer courses.\nAdvisor Ross (Male): Looking at your completed coursework, you have already satisfied your general education distribution requirements. However, both programs have rigorous independent capstone seminar requirements that cannot be taken concurrently in the same semester.\nSophia (Female): Does that mean I would need to complete the environmental fieldwork seminar in the fall of my senior year and the econometrics thesis in the spring?\nAdvisor Ross (Male): Exactly. Staggering the two capstones prevents scheduling conflicts and ensures you are not overwhelmed by simultaneous senior research deliverables. Furthermore, eight of your advanced statistics credits can be cross-counted toward both majors.\nSophia (Female): That cross-counting policy saves me an entire semester of elective coursework! What paperwork do I need to finalize the declaration?\nAdvisor Ross (Male): You will need to fill out the double major declaration petition, obtain signed approvals from both department chairs, and return the packet to the registrar by Friday at five o'clock.\nSophia (Female): I have meetings scheduled with both department heads tomorrow afternoon, so I should easily meet the deadline. Thank you for clarifying the timeline, Advisor Ross!",
     "questions": [
       {
-        "q": "What is the primary purpose of Elena's visit to Professor Vance's office?",
+        "q": "What is the main topic of Sophia's advising meeting?",
         "options": [
-          "To clarify an unexpected reaction outcome in a laboratory experiment",
-          "To request an extension on her organic chemistry final project",
-          "To apply for an undergraduate research assistantship in his lab",
-          "To contest her grade on the midterm chemical kinetics exam"
-        ],
-        "answer": 0,
-        "why": "Elena wants to understand why her experiment produced the anti-Markovnikov product instead of the expected thermodynamic intermediate."
-      },
-      {
-        "q": "According to the professor, why did the reaction yield the anti-Markovnikov product?",
-        "options": [
-          "High thermal energy shifted the equilibrium toward the cis-isomer",
-          "The presence of peroxide catalysts induced a free-radical mechanism",
-          "A basic solvent suppressed nucleophilic substitution entirely",
-          "Excess moisture hydrolyzed the transition-state intermediate"
+          "Appealing an academic probation status following an incomplete semester",
+          "Evaluating course requirements to declare a double major without delaying graduation",
+          "Applying for an off-campus study abroad program in environmental conservation",
+          "Requesting a waiver for undergraduate foreign language distribution requirements"
         ],
         "answer": 1,
-        "why": "Professor Vance points out that peroxide catalysts generated free radicals, changing the pathway from ionic to radical addition."
+        "correctAnswer": 1,
+        "why": "Sophia meets with Advisor Ross to check her degree audit and confirm she can graduate within four years with a double major in Environmental Science and Economics."
       },
       {
-        "q": "Why does the bromine free radical attack the less sterically hindered carbon atom first?",
+        "q": "Why does Advisor Ross emphasize staggering the two senior capstones across separate semesters?",
         "options": [
-          "To precipitate solid salt crystals out of the solvent",
-          "To avoid reacting with the glass walls of the reaction flask",
-          "To form a more stable secondary carbon radical intermediate",
-          "To consume all remaining hydrogen gas in the chamber"
+          "Because university regulations prohibit students from taking more than twelve credits",
+          "To avoid scheduling conflicts and prevent overwhelming simultaneous research workloads",
+          "To ensure faculty advisors have sufficient time to grade oral defense presentations",
+          "Because the econometrics seminar is only offered during summer sessions"
         ],
-        "answer": 2,
-        "why": "Professor Vance explains that bromine radicals attack the less sterically hindered carbon first to generate the more stable secondary carbon radical."
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Advisor Ross explains that staggering the capstones prevents conflicts and ensures she is not overwhelmed by concurrent major deliverables."
       },
       {
-        "q": "What does Professor Vance instruct Elena to include in her final laboratory report?",
+        "q": "What university policy helps Sophia complete both degree tracks on schedule?",
         "options": [
-          "A bibliography of historical nineteenth-century syntheses",
-          "Photographs of the infrared spectrophotometer instrumentation",
-          "Letters of recommendation from her laboratory partners",
-          "Diagrams of the homolytic cleavage steps and yield error analysis"
+          "Permitting students to substitute high school coursework for college electives",
+          "Exempting double majors from completing senior undergraduate capstone projects",
+          "Granting automatic tuition scholarships for interdisciplinary double majors",
+          "Allowing up to eight advanced statistics credits to count toward both departments"
         ],
         "answer": 3,
-        "why": "The professor specifically asks her to draw the homolytic bond cleavage steps and include error analysis on percent yields."
+        "correctAnswer": 3,
+        "why": "Advisor Ross explains that eight advanced statistics credits can be cross-counted toward both majors, saving her an entire semester."
+      },
+      {
+        "q": "What step must Sophia finish before Friday at five o'clock?",
+        "options": [
+          "Defend her proposed econometrics research thesis before a faculty committee",
+          "Obtain signatures from both department chairs and submit the petition to the registrar",
+          "Register for thirty credits of upper-division environmental chemistry courses",
+          "Complete an internship exit interview with the campus career development center"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The advisor states she must complete the petition, gather signed approvals from both department heads, and turn it in to the registrar by Friday at five."
       }
     ]
   },
   {
-    "id": "ld-curated-3",
-    "title": "Campus Housing Renewal and Roommate Assignment Policy",
+    "id": "ld-4",
+    "title": "Library Reference Desk: Regional Cartographic Depository Access",
     "level": "beginner",
     "difficulty": "beginner",
     "topic": "campus-life",
-    "context": "A student speaks with a residential life coordinator regarding housing lottery selection and mutual roommate requests.",
+    "context": "A student speaks with a research librarian about finding historical eighteenth-century maps and gazetteers.",
     "speakers": {
-      "A": "Marcus (Student)",
-      "B": "Ms. Ramirez (Housing Coordinator)"
+      "A": "Noah (Student)",
+      "B": "Librarian Brooks (Research Librarian)"
     },
     "speakerGenders": {
       "A": "male",
       "B": "female"
     },
-    "script": "Marcus (Male): Hello, Ms. Ramirez. I have a question regarding next year's suite lottery selection process. My current roommate and I would like to live together again in Alder Hall, but our lottery numbers are quite far apart.\nMs. Ramirez (Female): That happens quite frequently, Marcus. Under our university residential policy, students who form a verified roommate pair use the average of their two lottery numbers rather than the individual scores.\nMarcus (Male): That is a relief. If my number is four hundred and his is twelve hundred, our composite group number would be eight hundred?\nMs. Ramirez (Female): Exactly. That composite ranking determines when your selection window opens in the housing portal next Tuesday.\nMarcus (Male): Does that guarantee we will receive a two-bedroom suite in Alder Hall?\nMs. Ramirez (Female): It does not guarantee that specific residence hall, as Alder fills up very quickly with graduating seniors. I strongly advise you and your roommate to select two backup preferences in Pine or Cedar Court just in case.\nMarcus (Male): Understood. When is the final deadline to submit our mutual roommate confirmation in the portal?\nMs. Ramirez (Female): Both of you must confirm the match electronically by Friday evening at five o'clock.",
+    "script": "Noah (Male): Excuse me, Librarian Brooks. I am searching for several eighteenth-century regional gazetteers for my urban geography seminar, but our catalog indicates our library only possesses digital microfilm reels.\nLibrarian Brooks (Female): Welcome to the research desk, Noah. Yes, our physical paper gazetteers were transferred to the climate-controlled regional depository five years ago to prevent paper degradation. However, all volumes are available on high-definition microform on the second floor.\nNoah (Male): I have never operated an archival microform scanner before. Is the equipment difficult to navigate?\nLibrarian Brooks (Female): Not at all. Our digital scanners connect directly to university workstations. You can load the film spool, zoom in with optical enhancement, adjust contrast, and export high-resolution PDFs directly to your cloud drive.\nNoah (Male): That sounds very convenient. What should I do if a particular county gazetteer from seventeen ninety-two is missing from our microfilm collection?\nLibrarian Brooks (Female): In that case, we can submit an expedited interlibrary loan request through our national consortium. We partner with seventeen research universities, and they typically send electronic scans of specific chapters within forty-eight hours.\nNoah (Male): Is there any service fee for interlibrary loan scans for undergraduate researchers?\nLibrarian Brooks (Female): No, interlibrary loan services are completely funded by university student library fees. Just be sure to log in with your campus portal credentials on the interlibrary loan page and include the exact publication year and volume number.\nNoah (Male): That is wonderful news. I will head upstairs to examine the available reels right now, and submit a loan request if any volumes are missing. Thank you for your assistance, Librarian Brooks!",
     "questions": [
       {
-        "q": "What concern does Marcus raise regarding his housing application?",
+        "q": "Why does Noah visit the library research reference desk?",
         "options": [
-          "He wants to cancel his housing contract to move off campus",
-          "His lottery number differs significantly from his preferred roommate's",
-          "He was placed on an involuntary waitlist for residential dining",
-          "His room assignment was accidentally swapped with another student"
-        ],
-        "answer": 1,
-        "why": "Marcus explains that he and his roommate want to live together, but their lottery numbers are very far apart."
-      },
-      {
-        "q": "How does the housing office calculate lottery rankings for roommate pairs?",
-        "options": [
-          "By taking the mathematical average of both students' numbers",
-          "By using the single highest lottery number in the group",
-          "By prioritizing whoever completed their housing deposit first",
-          "By conducting a random secondary drawing during selection week"
-        ],
-        "answer": 0,
-        "why": "Ms. Ramirez clarifies that roommate pairs are assigned the average of their two lottery numbers."
-      },
-      {
-        "q": "What recommendation does Ms. Ramirez offer Marcus?",
-        "options": [
-          "Request a medical accommodation waiver immediately",
-          "Apply for a single room rather than a shared suite",
-          "Select backup dormitories because Alder Hall reaches capacity early",
-          "Postpone housing selection until the autumn semester"
+          "To report a damaged microfilm scanner in the second-floor computer lab",
+          "To apply for a part-time student assistant job at the circulation desk",
+          "To locate eighteenth-century regional gazetteers for his geography seminar",
+          "To request permission to check out reference encyclopedias overnight"
         ],
         "answer": 2,
-        "why": "She warns that Alder Hall fills up rapidly with seniors and advises preparing backup choices like Pine or Cedar Court."
+        "correctAnswer": 2,
+        "why": "Noah explains he is searching for eighteenth-century regional gazetteers for his urban geography seminar paper."
       },
       {
-        "q": "What must Marcus and his roommate complete by Friday at five o'clock?",
+        "q": "Why are the physical paper gazetteers no longer kept in the campus library?",
         "options": [
-          "Pay the full autumn semester tuition balance in person",
-          "Move their furniture out of their current dormitory room",
-          "Attend a mandatory fire safety inspection in Pine Court",
-          "Confirm their mutual roommate match electronically in the portal"
+          "They were destroyed in an accidental warehouse flood several decades ago",
+          "They were permanently sold to an antique book auction house to raise funds",
+          "They were transferred to a climate-controlled depository to prevent paper deterioration",
+          "They were relocated to another university campus due to lack of student interest"
         ],
-        "answer": 3,
-        "why": "Ms. Ramirez states that both roommates must confirm the match electronically by Friday evening at five o'clock."
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Librarian Brooks states that physical paper volumes were moved to a climate-controlled depository five years ago to prevent paper degradation."
+      },
+      {
+        "q": "How does Librarian Brooks reassure Noah about using the microform equipment?",
+        "options": [
+          "By explaining that modern digital scanners easily export high-resolution PDFs to cloud storage",
+          "By assigning a graduate assistant to operate the scanner on his behalf",
+          "By offering to print out all the microfilm reels onto archival parchment",
+          "By waiving all equipment rental fees for the entire semester"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "She reassures him by explaining that digital scanners connect directly to workstations and export high-resolution PDFs directly to cloud drives."
+      },
+      {
+        "q": "What does the librarian emphasize regarding interlibrary loan requests?",
+        "options": [
+          "They take between four to six weeks to arrive via postal express mail",
+          "They require advance written authorization from the dean of academic affairs",
+          "They are fully covered by student library fees and incur no additional charge",
+          "Undergraduate students are limited to ordering only one document per academic year"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Librarian Brooks explains that interlibrary loan services are completely funded by student library fees, meaning there is zero charge."
       }
     ]
   },
   {
-    "id": "ld-curated-4",
-    "title": "Field Research Grant Application Consultation",
-    "level": "advanced",
-    "difficulty": "advanced",
+    "id": "ld-5",
+    "title": "Sociology Advising: Urban Transit Survey Methodology and Ethics Addendum",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "topic": "social-sciences",
-    "context": "An anthropology student discusses her ethnographic field proposal and institutional review board compliance with a research advisor.",
+    "context": "A sociology student discusses her survey methodology and Institutional Review Board paperwork with her research supervisor.",
     "speakers": {
       "A": "Maya (Student)",
-      "B": "Dr. Alvarez (Research Advisor)"
+      "B": "Prof. Anderson (Sociology Supervisor)"
     },
     "speakerGenders": {
       "A": "female",
       "B": "male"
     },
-    "script": "Maya (Female): Good morning, Dr. Alvarez. I have drafted the preliminary budget and methodology sections for the undergraduate summer ethnographic grant, focusing on indigenous weaving cooperatives in Oaxaca.\nDr. Alvarez (Male): Excellent progress, Maya. I reviewed your methodology yesterday. Your proposed participant observation approach is rigorous, but you need to clarify your protocol for informed consent with non-literate community artisans.\nMaya (Female): That was one of my primary concerns. Should I incorporate an oral consent audio recording protocol approved by the university Institutional Review Board?\nDr. Alvarez (Male): Yes, definitely. The IRB requires verifiable documentation that participants comprehend how their interviews and weaving patterns will be cataloged and disseminated.\nMaya (Female): I will prepare an oral consent script translated into both Spanish and the local Zapotec dialect.\nDr. Alvarez (Male): Wonderful. What about your travel stipend breakdown? Does the budget account for local transportation between rural highland villages?\nMaya (Female): I budgeted for regional bus passes, but I may need to adjust the line item for regional guide escorts due to monsoon road conditions.\nDr. Alvarez (Male): Make sure you detail that in the contingency justification section before the grant committee convenes next Friday.",
+    "script": "Maya (Female): Hello, Professor Anderson. Thank you for meeting with me. I wanted to review my draft survey questionnaire for the urban sociological study on public transit accessibility.\nProf. Anderson (Male): Come in, Maya. I reviewed the survey draft you uploaded to the portal yesterday. Your research questions regarding transit deserts and commuter wait times are well formulated, but your sample selection method raises methodological concerns.\nMaya (Female): Are you referring to my plan to recruit survey participants exclusively at the downtown light rail station during morning rush hour?\nProf. Anderson (Male): Exactly. Surveying solely at the central rail depot introduces substantial selection bias. You would systematically exclude bus commuters, suburban transfers, and residents who work non-standard night shifts.\nMaya (Female): That is a great point. How can I ensure a more demographically representative sample across the metropolitan transit network?\nProf. Anderson (Male): I recommend stratifying your sampling protocol across three distinct neighborhood transfer hubs and conducting interviews across both peak morning and off-peak evening intervals.\nMaya (Female): That makes complete sense. Will altering the sampling protocol require me to amend my Institutional Review Board ethics application?\nProf. Anderson (Male): Since the survey questions themselves remain anonymous and non-invasive, you only need to submit a minor procedural addendum to the ethics board rather than a full re-application. That usually gets approved within three business days.\nMaya (Female): That is a huge relief. I will revise the sampling framework tonight, submit the IRB addendum tomorrow, and begin training my peer interviewers. Thank you, Professor Anderson!",
     "questions": [
       {
-        "q": "What is the focal subject of Maya's summer research grant proposal?",
+        "q": "What is the primary objective of Maya's meeting with Professor Anderson?",
         "options": [
-          "Indigenous weaving cooperatives in Oaxaca",
-          "Archaeological excavation of pre-Columbian agricultural terraces",
-          "Economic analysis of coffee exports in Central America",
-          "Linguistic preservation of extinct Mesoamerican dialects"
+          "To review her transit accessibility survey draft and resolve sampling methodology issues",
+          "To request departmental grant funding to purchase transit ticket subsidies for participants",
+          "To ask for an extension on her sociology master's thesis submission deadline",
+          "To report interpersonal conflicts between student interviewers on her research team"
         ],
         "answer": 0,
-        "why": "Maya states her ethnographic grant focuses on indigenous weaving cooperatives in Oaxaca."
+        "correctAnswer": 0,
+        "why": "Maya explains that she scheduled the meeting to review her draft survey questionnaire and discuss methodological refinements."
       },
       {
-        "q": "What modification does Dr. Alvarez suggest regarding participant consent?",
+        "q": "Why does Professor Anderson object to Maya's initial participant recruitment strategy?",
         "options": [
-          "Replace student interviews with standardized mail surveys",
-          "Establish an IRB-approved oral consent protocol with language translations",
-          "Require all artisan participants to sign notarized legal contracts",
-          "Exclude non-literate cooperative members from ethnographic interviews"
-        ],
-        "answer": 1,
-        "why": "Dr. Alvarez advises establishing an oral consent recording protocol that accounts for non-literate participants."
-      },
-      {
-        "q": "Which two languages will Maya include in her translated oral consent script?",
-        "options": [
-          "English and Portuguese",
-          "French and Quechua",
-          "Spanish and the local Zapotec dialect",
-          "Latin and Classical Mayan"
+          "Downtown commuters are statistically known to provide unreliable survey responses",
+          "University insurance policies prohibit students from conducting off-campus interviews",
+          "Conducting interviews at a single downtown rail station introduces substantial selection bias",
+          "The municipal transit authority requires commercial filming permits for surveys"
         ],
         "answer": 2,
-        "why": "Maya states she will prepare an oral consent script translated into both Spanish and the local Zapotec dialect."
+        "correctAnswer": 2,
+        "why": "The professor explains that surveying solely at the central rail station systematically excludes bus riders, suburban commuters, and night-shift workers."
       },
       {
-        "q": "Why might Maya need to adjust her proposed travel budget?",
+        "q": "What revision does Professor Anderson suggest to improve sample representation?",
         "options": [
-          "Fuel inflation has increased international airline ticket prices",
-          "The university reduced the maximum total grant allocation",
-          "Local cooperative lodging fees doubled unexpectedly",
-          "Adverse monsoon weather conditions necessitate regional guide escorts"
+          "Stratifying interviews across three neighborhood transfer hubs during peak and off-peak hours",
+          "Replacing in-person street interviews with an automated telephone robocall questionnaire",
+          "Restricting the study exclusively to university faculty who commute via public transit",
+          "Limiting the survey to weekend tourists traveling between downtown museum districts"
         ],
-        "answer": 3,
-        "why": "Maya notes that monsoon road conditions between highland villages may require budgeting for local guide escorts."
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "He recommends stratifying the protocol across three distinct neighborhood transfer hubs and collecting data during morning and evening intervals."
+      },
+      {
+        "q": "What does Professor Anderson say about the Institutional Review Board paperwork?",
+        "options": [
+          "She must withdraw her original study proposal and restart the full review process",
+          "Maya only needs to file a minor procedural addendum because the survey is anonymous",
+          "Ethics review boards do not have jurisdiction over undergraduate student surveys",
+          "Approval will take at least six months because public transit studies carry high risk"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "He clarifies that because the questions are anonymous and non-invasive, she only needs a minor procedural addendum that typically clears in three days."
       }
     ]
   },
   {
-    "id": "ld-curated-5",
-    "title": "Registrar Office: Double Major Degree Audit",
-    "level": "intermediate",
-    "difficulty": "intermediate",
-    "topic": "business-economics",
-    "context": "An economics student meets with an academic counselor to verify graduation requirements for a second major in applied mathematics.",
+    "id": "ld-6",
+    "title": "Biochemistry Lab: Spectrophotometer Calibration and Reaction Kinetics",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "science-tech",
+    "context": "A student troubleshoots unexpected spectrophotometer readings from an enzyme assay with his biochemistry instructor.",
     "speakers": {
-      "A": "Julian (Student)",
-      "B": "Mrs. Clark (Academic Counselor)"
+      "A": "Lucas (Student)",
+      "B": "Dr. Patel (Biochemistry Instructor)"
     },
     "speakerGenders": {
       "A": "male",
       "B": "female"
     },
-    "script": "Julian (Male): Hello, Mrs. Clark. I am entering my senior year and wanted to perform a comprehensive degree audit. I am trying to complete a double major in economics and applied mathematics.\nMrs. Clark (Female): Let us pull up your academic transcript on the screen, Julian. You have accumulated ninety-six credit units with an exemplary grade point average.\nJulian (Male): Thank you. My primary question involves the econometrics seminar. Does that course satisfy both the economics elective and the upper-division probability requirement for mathematics?\nMrs. Clark (Female): Under university regulations, you can double-count a maximum of two cross-listed courses between departments. Econometrics 410 is approved for dual credit, so that clears both prerequisites.\nJulian (Male): That saves me three credits next spring! What about the senior capstone requirement?\nMrs. Clark (Female): Because both departments mandate an independent thesis, you must either write two distinct papers or register for an interdisciplinary joint honors thesis supervised by co-advisors.\nJulian (Male): An interdisciplinary honors thesis sounds much more coherent. How do I obtain approval for that track?\nMrs. Clark (Female): You must submit a single joint proposal signed by both department chairs before the end of the add-drop period.",
+    "script": "Lucas (Male): Good morning, Dr. Patel. I am checking in because my enzyme kinetics assay yesterday afternoon produced absorbance readings that deviated noticeably from our theoretical Michaelis-Menten curve.\nDr. Patel (Female): Good morning, Lucas. Kinetic deviations can occur for several technical reasons. Let us look at your raw spectrophotometer output. At what wavelength did you calibrate your optical baseline?\nLucas (Male): I zeroed the spectrophotometer at three hundred forty nanometers using deionized water, which matched the standard protocol manual.\nDr. Patel (Female): Ah, that explains the discrepancy right there. While deionized water is standard for baseline transmittance, our enzymatic reaction buffer contains cofactors that absorb light at three hundred forty nanometers. You must blank the instrument using the complete reaction buffer lacking only the substrate.\nLucas (Male): I see! Because the buffer itself absorbs light at that wavelength, my baseline zero was artificially low, inflating all subsequent substrate velocity measurements.\nDr. Patel (Female): Precisely. Furthermore, did you maintain the reaction cuvette temperature at thirty-seven degrees Celsius in the thermal jacket throughout the assay?\nLucas (Male): I did monitor the digital thermal readout, but the ambient room temperature was quite cold, so the first two trials might have experienced slight thermal fluctuations.\nDr. Patel (Female): Enzymatic reaction rates are exquisitely sensitive to temperature shifts. Even a two-degree drop can decrease turnover velocity by up to twenty percent. I suggest recalibrating the spectrophotometer with the proper buffer blank and repeating the trial using pre-equilibrated reagents.\nLucas (Male): I will prepare fresh buffer solutions immediately, ensure the incubator reaches thirty-seven degrees, and rerun the trial this afternoon. Thank you for troubleshooting this with me, Dr. Patel!",
     "questions": [
       {
-        "q": "Why is Julian consulting with Mrs. Clark?",
+        "q": "What problem does Lucas discuss with Dr. Patel?",
         "options": [
-          "To audit his credit requirements for completing a double major",
-          "To appeal a prerequisite disqualification in economics",
-          "To withdraw from his upcoming spring semester courses",
-          "To apply for a graduate teaching assistantship position"
-        ],
-        "answer": 0,
-        "why": "Julian states he is entering his senior year and wants to conduct a degree audit for his economics and applied mathematics double major."
-      },
-      {
-        "q": "What rule does the university have regarding overlapping courses for double majors?",
-        "options": [
-          "Students may not count any courses toward more than one department",
-          "A maximum of two approved cross-listed courses may be double-counted",
-          "All upper-division mathematics courses automatically count as economics electives",
-          "Students must pay tuition surcharges for each overlapping seminar"
+          "His laboratory balance failed to register milligrams of powdered catalyst accurately",
+          "His spectrophotometric enzyme assay data deviated from the expected theoretical curve",
+          "His glass reaction cuvettes fractured inside the high-speed refrigerated centrifuge",
+          "His computer spreadsheet software corrupted his recorded experimental trial figures"
         ],
         "answer": 1,
-        "why": "Mrs. Clark explicitly explains that university regulations permit double-counting a maximum of two cross-listed courses."
+        "correctAnswer": 1,
+        "why": "Lucas explains that his enzyme kinetics assay produced absorbance measurements that deviated noticeably from the theoretical Michaelis-Menten curve."
       },
       {
-        "q": "How does Econometrics 410 affect Julian's academic schedule?",
+        "q": "Why was zeroing the spectrophotometer with deionized water incorrect?",
         "options": [
-          "It requires him to take an extra summer laboratory session",
-          "It replaces his introductory freshman calculus requirement",
-          "It satisfies requirements in both majors, saving him three credits",
-          "It disqualifies him from graduating with departmental honors"
+          "The reaction buffer contains chemical cofactors that absorb light at that wavelength",
+          "Deionized water corrodes the optical quartz lenses inside the instrument chamber",
+          "Water molecules evaporate too rapidly to provide an accurate baseline optical density",
+          "The protocol required testing absorbance in the infrared rather than ultraviolet spectrum"
         ],
-        "answer": 2,
-        "why": "Because Econometrics 410 is approved for dual credit, it clears both the economics elective and mathematics probability requirement."
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Dr. Patel explains that the reaction buffer contains cofactors that absorb light at 340 nm, requiring a blank with the full buffer minus substrate."
       },
       {
-        "q": "What must Julian do to pursue an interdisciplinary joint capstone thesis?",
+        "q": "What consequence did the ambient room temperature have on the early assay trials?",
         "options": [
-          "Publish his preliminary econometrics findings in a peer-reviewed journal",
-          "Enroll in twelve additional summer research units",
-          "Take an oral examination administered by the college dean",
-          "Obtain approval on a single joint proposal signed by both department chairs"
+          "Thermal fluctuations likely decreased enzyme turnover velocity by up to twenty percent",
+          "Cold temperatures caused the enzymatic protein chains to denature permanently",
+          "The temperature drop caused the aqueous solution to freeze solid inside the cuvette",
+          "Substrate molecules crystallized and precipitated out of the liquid suspension"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Dr. Patel points out that enzymatic rates are exquisitely temperature-sensitive and a two-degree drop can decrease reaction velocity by twenty percent."
+      },
+      {
+        "q": "What corrective action does Lucas plan to take next?",
+        "options": [
+          "Switch to an entirely different biochemical protocol using radioactive isotope tracers",
+          "Discard the enzyme batch and request replacement stock from the departmental storeroom",
+          "Modify the mathematical equations in his lab report to match the aberrant readings",
+          "Recalibrate the instrument with a buffer blank and rerun the assay with pre-equilibrated reagents"
         ],
         "answer": 3,
-        "why": "Mrs. Clark notes that he must submit a joint proposal signed by both department chairs before add-drop ends."
+        "correctAnswer": 3,
+        "why": "Lucas agrees to prepare fresh solutions, zero the spectrophotometer with the proper buffer blank, ensure thermal equilibrium, and repeat the trial."
       }
     ]
   },
   {
-    "id": "ld-curated-6",
-    "title": "Astronomy Lecture: Stellar Nucleosynthesis and Heavy Element Formation",
+    "id": "ld-7",
+    "title": "Astronomy Lecture: Stellar Nucleosynthesis and Supernova Mechanics",
     "level": "advanced",
     "difficulty": "advanced",
     "topic": "science-tech",
-    "context": "An astrophysics professor lectures on nuclear fusion cycles in massive stars and supernova explosions.",
+    "type": "academic_talk",
+    "context": "An astrophysics professor lectures on stellar nucleosynthesis, iron core collapse, and supernova elemental formation.",
     "speakers": {
       "A": "Professor Davis (Astrophysics)",
       "B": "Professor Davis (Astrophysics)"
@@ -329,61 +417,66 @@
       "A": "male",
       "B": "male"
     },
-    "script": "Professor Davis (Male): Good morning, class. Today we are continuing our discussion of stellar nucleosynthesis—the cosmic forge where chemical elements are created. In young, main-sequence stars like our Sun, hydrogen fusion produces helium through the proton-proton chain. However, when massive stars exhaust their core hydrogen, gravitational contraction increases core temperatures to over one hundred million Kelvin, initiating helium burning via the triple-alpha process to synthesize carbon and oxygen. In truly massive stars—those exceeding eight solar masses—this nucleosynthetic ladder continues through successive layers: carbon burns to neon, neon to oxygen, oxygen to silicon, until the stellar core is packed with iron-56. Now, iron represents an absolute thermodynamic dead-end. Fusing iron requires more energy than it releases. Once the iron core reaches the Chandrasekhar limit, electron degeneracy pressure fails, triggering a catastrophic gravitational collapse in fractions of a second. The resulting supernova shockwave produces intense neutron fluxes, initiating the rapid neutron-capture process, or r-process, which synthesizes the universe's heaviest elements, including gold, platinum, and uranium.",
+    "script": "Professor Davis (Male): Today we explore how massive stars forge the chemical elements that constitute planetary bodies and living organisms. Throughout their main-sequence lifespans, stars fuse hydrogen into helium within their ultra-dense cores. In stars with masses exceeding eight solar masses, successive core contractions elevate temperatures to hundreds of millions of Kelvin, enabling the fusion of carbon, neon, oxygen, and silicon. This stellar nucleosynthesis creates concentric burning shells resembling the layers of an onion. However, this elemental fusion progression halts abruptly at iron-fifty-six. Iron has the highest binding energy per nucleon of any atomic nucleus, meaning fusing iron consumes kinetic energy rather than releasing it. When a massive star builds an inert iron core approaching the Chandrasekhar limit of one point four solar masses, outward radiation pressure drops below the inward pull of gravity. Electron degeneracy pressure fails catastrophically, and the core collapses within milliseconds. The resulting core-collapse supernova generates an outward shockwave with staggering neutron fluxes. Through rapid neutron capture, known as the r-process, this cataclysmic explosion synthesizes elements heavier than iron, including silver, gold, and uranium, dispersing them across the interstellar medium to seed future generations of solar systems.",
     "questions": [
       {
-        "q": "What nuclear process synthesizes carbon and oxygen after a massive star exhausts its core hydrogen?",
+        "q": "What is the central focus of the astrophysics lecture?",
         "options": [
-          "Helium burning via the triple-alpha process at extreme core temperatures",
-          "Radioactive decay of uranium isotopes in the outer photosphere",
-          "Chemical combustion of molecular hydrogen with atmospheric oxygen",
-          "Gravitational capture of passing interstellar comets"
-        ],
-        "answer": 0,
-        "why": "The professor explains that gravitational contraction heats the core to over 100 million Kelvin, initiating helium burning via the triple-alpha process."
-      },
-      {
-        "q": "Why is the formation of iron considered a thermodynamic dead-end in massive stars?",
-        "options": [
-          "Iron immediately absorbs all helium atoms in the surrounding stellar atmosphere",
-          "Fusing iron consumes more energy than the nuclear reaction releases",
-          "Iron expands rapidly and extinguishes all convection currents in the outer layers",
-          "Iron converts gravitational force into magnetic repulsion"
+          "The orbital dynamics of extrasolar gas giant planets in binary star systems",
+          "How core-collapse supernovae and nucleosynthesis synthesize heavy elements in the universe",
+          "The technological engineering required to construct space-based infrared telescopes",
+          "Comparing magnetic field variations between white dwarfs and main-sequence stars"
         ],
         "answer": 1,
-        "why": "The professor states that iron is a thermodynamic dead-end because fusing iron requires more energy than it releases."
+        "correctAnswer": 1,
+        "why": "The professor introduces the lecture by explaining how massive stars forge the chemical elements through nucleosynthesis and supernova explosions."
       },
       {
-        "q": "What causes the core of a massive star to collapse catastrophically?",
+        "q": "Why does nuclear fusion cease inside a massive star once iron-fifty-six is produced?",
         "options": [
-          "Excessive solar wind blows away the outer gravitational field",
-          "Helium fusion accelerates uncontrollably into hydrogen fission",
-          "The iron core exceeds the Chandrasekhar limit and electron degeneracy pressure fails",
-          "Surrounding planets fall into the core due to orbital decay"
+          "Iron has the highest nuclear binding energy and consumes energy rather than releasing it during fusion",
+          "Iron molecules instantly decay into subatomic antineutrinos through radioactive beta emission",
+          "Iron produces an impenetrable magnetic field that repels all incoming protons from the core",
+          "Stellar convection currents transport iron outward to the cool surface layers of the photosphere"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The lecture explains that iron has the highest binding energy per nucleon, meaning fusing iron absorbs thermal kinetic energy rather than releasing it."
+      },
+      {
+        "q": "What physical event initiates the catastrophic millisecond collapse of the stellar core?",
+        "options": [
+          "The star's rapid rotational velocity tears the outer convective envelope apart",
+          "Helium flash reactions ignite uncontrollably inside the outer hydrogen atmosphere",
+          "Electron degeneracy pressure fails as the core mass approaches the Chandrasekhar limit",
+          "Interstellar gas clouds collide with the outer perimeter of the planetary nebula"
         ],
         "answer": 2,
-        "why": "The lecture explicitly explains that once the iron core reaches the Chandrasekhar limit, electron degeneracy pressure fails, causing collapse."
+        "correctAnswer": 2,
+        "why": "The professor states that when the iron core approaches the Chandrasekhar limit of 1.4 solar masses, radiation pressure fails and electron degeneracy collapses."
       },
       {
-        "q": "How are elements heavier than iron, such as gold and platinum, formed in the universe?",
+        "q": "How are elements heavier than iron, such as gold and uranium, synthesized?",
         "options": [
-          "Through gradual cooling inside low-mass white dwarf stars",
-          "Through routine proton-proton chain reactions in planetary nebulae",
-          "Through tidal friction between orbiting binary asteroids",
-          "Through the rapid neutron-capture process during supernova shockwaves"
+          "Through gradual slow crystallization inside cooling white dwarf cores over billions of years",
+          "Through the rapid neutron capture r-process occurring within the supernova shockwave",
+          "Through cosmic ray collisions in the upper stratosphere of terrestrial planets",
+          "Through routine hydrogen fusion reactions inside low-mass red dwarf stars"
         ],
-        "answer": 3,
-        "why": "The professor clarifies that the supernova shockwave produces intense neutron fluxes initiating the r-process, synthesizing heavy elements."
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The professor explains that supernova shockwaves generate staggering neutron fluxes that drive rapid neutron capture (the r-process), creating heavy elements."
       }
     ]
   },
   {
-    "id": "ld-curated-7",
+    "id": "ld-8",
     "title": "Archaeology Lecture: Paleoclimatology and Classic Maya Collapse",
     "level": "upper-intermediate",
     "difficulty": "upper-intermediate",
     "topic": "social-sciences",
-    "context": "An archaeology professor lectures on hydrological proxies and the ninth-century Classic Maya abandonment.",
+    "type": "academic_talk",
+    "context": "An archaeology professor lectures on paleoclimatic proxies, karst hydrology, and the Classic Maya societal collapse.",
     "speakers": {
       "A": "Professor Martinez (Archaeology)",
       "B": "Professor Martinez (Archaeology)"
@@ -392,61 +485,66 @@
       "A": "female",
       "B": "female"
     },
-    "script": "Professor Martinez (Female): Today we are examining the collapse of Classic Maya civilization in the southern lowlands during the ninth century. For decades, archaeologists debated whether warfare, peasant revolt, or epidemic disease triggered the abandonment of grand urban centers like Tikal and Copán. Recent paleoclimatic breakthroughs using sediment cores from Lake Chichancanab and speleothem records from regional limestone caves have provided definitive evidence: the Maya collapse coincided with the most severe megadrought in seven thousand years. Now, why were the Maya so extraordinarily vulnerable to drought? Unlike northern settlements with subterranean cenotes, the southern lowlands sat atop deep porous limestone with no perennial rivers. The Maya relied on vast artificial reservoirs lined with plaster to capture rainwater during the four-month rainy season. When consecutive multi-year droughts struck, these reservoirs ran dry. Compounding this hydrological crisis was rampant anthropogenic deforestation. To produce the plaster needed for monumental stone temples, the Maya burned colossal quantities of green timber. Climate modeling demonstrates that clearing the tropical canopy reduced regional evapotranspiration, suppressing local rainfall by up to fifteen percent and amplifying the drought.",
+    "script": "Professor Martinez (Female): Today we examine the ninth-century collapse of Classic Maya civilization across the southern lowlands. For decades, Mesoamerican scholars debated whether endemic warfare, trade breakdown, or epidemic pathogens caused the sudden abandonment of monumental stone cities like Tikal, Calakmul, and Palenque. Recent advances in paleoclimatology, particularly isotope analysis of sediment cores from Lake Chichancanab and stalagmite records from regional caves, provide compelling evidence that a protracted megadrought devastated the region between eight hundred and one thousand CE. Why were the southern Maya lowlands uniquely vulnerable to rainfall deficits? Unlike the northern Yucatan peninsula, where underground limestone sinkholes called cenotes provided natural groundwater access, the southern lowlands rested on deep porous karst with no perennial river systems. The Maya depended entirely on massive plaster-lined municipal reservoirs designed to collect seasonal monsoon rainfall. When consecutive drought years occurred, these reservoirs completely dried up, decimating municipal drinking supplies and agricultural irrigation. Furthermore, human environmental modification severely exacerbated the climatic crisis. To manufacture plaster for monumental architecture, the Maya clear-cut immense swaths of tropical rainforest. Climate models indicate that this deforestation reduced regional evapotranspiration, suppressing local precipitation by an additional fifteen percent and creating an ecological tipping point.",
     "questions": [
       {
-        "q": "What new evidence revolutionized archaeologists' understanding of the Classic Maya collapse?",
+        "q": "What is the primary objective of Professor Martinez's archaeology lecture?",
         "options": [
-          "Lake sediment cores and cave speleothem records revealing a severe megadrought",
-          "Deciphered hieroglyphic codices describing dynastic civil warfare",
-          "Discovery of mass burial grounds containing antibiotic-resistant pathogens",
-          "Excavated bronze agricultural tools imported from South America"
-        ],
-        "answer": 0,
-        "why": "The professor explains that sediment cores from Lake Chichancanab and speleothem cave records proved a severe megadrought occurred."
-      },
-      {
-        "q": "Why were the southern Maya lowlands especially vulnerable to rainfall shortages?",
-        "options": [
-          "Their agricultural crops could only grow in flooded swamp environments",
-          "They possessed no natural perennial rivers and relied on artificial rainwater reservoirs",
-          "They lacked masonry technology to construct water storage cisterns",
-          "Their religious laws strictly prohibited drinking groundwater"
-        ],
-        "answer": 1,
-        "why": "The lecture notes that the southern lowlands sat on porous limestone with no natural rivers, forcing reliance on plaster reservoirs."
-      },
-      {
-        "q": "How did monumental temple construction contribute to the environmental crisis?",
-        "options": [
-          "Large stone quarries blocked seasonal trade routes across the peninsula",
-          "Temple foundations poisoned the underlying subterranean aquifers with sulfur",
-          "Burning vast amounts of timber for plaster caused deforestation that reduced rainfall",
-          "Monuments diverted river water away from subsistence maize terraces"
-        ],
-        "answer": 2,
-        "why": "The professor states that burning timber for plaster caused deforestation, which reduced evapotranspiration and suppressed rainfall."
-      },
-      {
-        "q": "According to climate modeling mentioned in the lecture, by how much did deforestation suppress local rainfall?",
-        "options": [
-          "By less than one percent",
-          "By fifty to sixty percent",
-          "By ninety percent",
-          "By up to fifteen percent"
+          "To evaluate trade routes between Mesoamerican coastal ports and highland obsidian mines",
+          "To decipher newly discovered hieroglyphic inscriptions describing ninth-century dynastic warfare",
+          "To compare agricultural terrace engineering between the Maya and Andean Inca civilizations",
+          "To demonstrate how paleoclimatic megadroughts and deforestation drove the Classic Maya collapse"
         ],
         "answer": 3,
-        "why": "The professor notes that clearing the tropical canopy reduced regional evapotranspiration, suppressing local rainfall by up to fifteen percent."
+        "correctAnswer": 3,
+        "why": "The professor reviews paleoclimatic evidence showing that multi-year megadroughts compounded by anthropogenic deforestation triggered the southern lowland collapse."
+      },
+      {
+        "q": "What scientific proxy provided definitive empirical proof of the ancient Mesoamerican megadrought?",
+        "options": [
+          "Radiocarbon dating of wooden defensive palisades excavated around rural farming hamlets",
+          "Pollen samples extracted from seventeenth-century Spanish colonial church foundations",
+          "Sediment core isotope records from Lake Chichancanab and cave stalagmite formations",
+          "Microscopic tooth enamel analysis of royal skeletal remains discovered in pyramid tombs"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The lecture highlights sediment cores from Lake Chichancanab and speleothem cave stalagmite records as conclusive empirical proof of the megadrought."
+      },
+      {
+        "q": "Why were populations in the southern lowlands far more vulnerable to drought than northern Maya settlements?",
+        "options": [
+          "Northern kingdoms held a total monopoly on regional pottery water storage containers",
+          "Southern agricultural varieties required five times more water than northern desert succulents",
+          "Southern cities were situated along saltwater estuaries that frequently flooded farmland",
+          "The southern lowlands lacked natural groundwater cenotes and relied on artificial rainwater reservoirs"
+        ],
+        "answer": 3,
+        "correctAnswer": 3,
+        "why": "Unlike the northern peninsula with natural subterranean cenotes, the southern lowlands sat on porous karst with no rivers, requiring plaster reservoirs."
+      },
+      {
+        "q": "How did monumental temple construction worsen the regional environmental crisis?",
+        "options": [
+          "Burning huge quantities of timber to make architectural plaster caused severe deforestation",
+          "Carving stone blocks drained regional wetlands and poisoned freshwater fish habitats",
+          "Temple foundations blocked underground aquifers from replenishing surrounding soil moisture",
+          "Monumental stone courtyards trapped solar heat and elevated ambient city temperatures by ten degrees"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The professor notes that burning timber to produce plaster led to widespread deforestation, reducing evapotranspiration and suppressing rainfall by 15%."
       }
     ]
   },
   {
-    "id": "ld-curated-8",
+    "id": "ld-9",
     "title": "Art History Lecture: Dutch Golden Age Vanitas Still Life",
     "level": "intermediate",
     "difficulty": "intermediate",
     "topic": "arts-humanities",
-    "context": "An art history professor discusses optical realism and moral symbolism in seventeenth-century Dutch vanitas paintings.",
+    "type": "academic_talk",
+    "context": "An art history professor discusses optical realism and moral symbolism in seventeenth-century Dutch vanitas still life paintings.",
     "speakers": {
       "A": "Professor Van Der Berg (Art History)",
       "B": "Professor Van Der Berg (Art History)"
@@ -455,124 +553,66 @@
       "A": "male",
       "B": "male"
     },
-    "script": "Professor Van Der Berg (Male): In seventeenth-century Holland, rapid commercial expansion fostered an affluent merchant class eager to patronize the visual arts. Rather than commissioning grandiose religious murals for Catholic churches, Protestant Dutch burghers purchased intimate, finely detailed easel paintings for their domestic townhouses. Among the most culturally resonant genres to emerge was the vanitas still life. At first glance, a masterwork by Pieter Claesz or Willem Kalf appears to be a dazzling celebration of worldly prosperity: gleaming silver goblets, exotic Turkish carpets, imported citrus fruits with painstakingly rendered peeling rinds. But look closer, and the painting reveals a profound moral sermon. Interspliced among luxury commodities are deliberate emblems of mortality: an hourglass with dwindling sand grains, an extinguished candle with a wisp of curling smoke, a cracked walnut, or a human skull. These optical illusions, often rendered with breathtaking trompe-l'œil verisimilitude, reminded viewers of the transience of earthly possessions—the Latin phrase memento mori, or 'remember that you must die.' Thus, Dutch still lifes functioned simultaneously as displays of artistic virtuosity and didactic instruments warning against spiritual vanity.",
+    "script": "Professor Van Der Berg (Male): During the seventeenth-century Dutch Golden Age, maritime commerce generated extraordinary private wealth, fostering a burgeoning domestic art market. Among the most culturally revealing genres to emerge from university cities like Leiden and Delft was the vanitas still life. Derived from the biblical phrase in Ecclesiastes regarding earthly vanity, vanitas compositions juxtaposed emblems of worldly accomplishment against stark symbols of biological mortality and fleeting time. On one hand, artists demonstrated breathtaking technical mastery by rendering lavish material luxury: imported Chinese porcelain, rare velvet textiles, gilded musical instruments, and antique astronomical globes. On the other hand, painters subverted this material celebration by carefully incorporating sobering visual warnings: extinguished candle wicks emitting thin trails of smoke, human skulls resting beside open ledger books, overturned wine goblets, and decaying fruit infested with insects. These paintings catered to affluent Calvinist merchant patrons who experienced profound moral tension between worldly prosperity and spiritual piety. The subtle visual rhetoric functioned as a memento mori, reminding viewers that wealth, sensory pleasure, and secular academic knowledge are inherently transient, urging personal humility and ethical contemplation in the face of inevitable mortality.",
     "questions": [
       {
-        "q": "Why did seventeenth-century Dutch art buyers favor domestic easel paintings over grand church murals?",
+        "q": "What is the overarching theme explored in seventeenth-century Dutch vanitas paintings?",
         "options": [
-          "Protestant merchants wanted intimate paintings to decorate their private townhouses",
-          "The Dutch government legally prohibited the manufacture of large linen canvases",
-          "Artists were banned from painting historical or biblical scenes by municipal guilds",
-          "Foreign invasions destroyed all public cathedrals in seventeenth-century Holland"
-        ],
-        "answer": 0,
-        "why": "The lecture explains that Protestant Dutch burghers purchased intimate easel paintings for domestic homes rather than Catholic church murals."
-      },
-      {
-        "q": "What was the symbolic purpose of items like skulls, hourglasses, and extinguished candles in vanitas paintings?",
-        "options": [
-          "To advertise imported medical instruments sold by Dutch merchant guilds",
-          "To remind viewers of human mortality and the transience of earthly wealth",
-          "To demonstrate the artist's inability to paint living human subjects",
-          "To celebrate scientific discoveries made during the optical revolution"
-        ],
-        "answer": 1,
-        "why": "The professor points out that mortality emblems reminded viewers of the transience of worldly possessions (memento mori)."
-      },
-      {
-        "q": "The artistic term 'trompe-l'œil' refers to:",
-        "options": [
-          "a chemical method for varnishing wooden panels against insect damage",
-          "a structural framing technique using imported timber from the Baltic",
-          "an optical illusion that deceives the eye into perceiving painted objects as real",
-          "a quick watercolor sketching method used by studio apprentices"
+          "The political triumph of parliamentary democracy over monarchical governance",
+          "The technological superiority of Dutch maritime shipbuilding over Mediterranean galleys",
+          "The transience of worldly wealth and the inevitability of human mortality",
+          "The scientific categorization of newly imported botanical flora from overseas trade"
         ],
         "answer": 2,
-        "why": "Trompe-l'œil is an optical illusion technique creating breathtaking verisimilitude where painted objects appear physically real."
+        "correctAnswer": 2,
+        "why": "The professor explains that vanitas still lifes juxtaposed emblems of worldly success against symbols of mortality, reminding viewers of life's transience."
       },
       {
-        "q": "How did vanitas paintings reconcile the display of luxury goods with Protestant moral values?",
+        "q": "Which visual motif in vanitas still lifes served as an explicit reminder of the passage of time?",
         "options": [
-          "By depicting only impoverished rural farmhouses and simple wooden bowls",
-          "By donating all proceeds from painting sales to overseas monasteries",
-          "By burning the paintings publicly at the conclusion of each calendar year",
-          "By pairing finely rendered luxury objects with didactic warnings against worldly vanity"
+          "Extinguished smoking candle wicks, overturned wine goblets, and human skulls",
+          "Pristine imported porcelain bowls filled with unblemished tropical flowers",
+          "Polished brass terrestrial globes showing newly charted navigation routes",
+          "Embroidered silk banners representing prominent municipal civic guard guilds"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The lecture details extinguished candle wicks, skulls, overturned goblets, and decaying fruit as deliberate visual warnings of mortality."
+      },
+      {
+        "q": "What cultural tension characterized the Dutch merchant patrons who purchased vanitas works?",
+        "options": [
+          "Economic rivalry between domestic textile producers and foreign import merchants",
+          "Hostility between academic university faculties and working-class guild artisans",
+          "Frustration regarding royal censorship of secular landscape and maritime paintings",
+          "Anxiety reconciling commercial material prosperity with Calvinist spiritual modesty"
         ],
         "answer": 3,
-        "why": "The lecture concludes that Dutch still lifes functioned simultaneously as displays of artistic virtuosity and moral instruments warning against vanity."
+        "correctAnswer": 3,
+        "why": "The professor highlights the profound moral tension Calvinist merchants felt between their rapid wealth accumulation and religious calls for piety."
+      },
+      {
+        "q": "Why did vanitas painters showcase their ability to depict luxury objects with extreme photorealism?",
+        "options": [
+          "To heighten the poignant contrast between exquisite physical beauty and inevitable decay",
+          "To advertise commercial wares manufactured by their personal financial sponsors",
+          "Because guild regulations mandated that all painters include at least three luxury goods",
+          "To deceive foreign art collectors into purchasing counterfeit Flemish tapestries"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Artists rendered lavish luxuries with technical mastery precisely to subvert them with symbols of decay, creating a powerful memento mori contrast."
       }
     ]
   },
   {
-    "id": "ld-curated-9",
-    "title": "Economics Lecture: Schumpeterian Creative Destruction",
-    "level": "upper-intermediate",
-    "difficulty": "upper-intermediate",
-    "topic": "business-economics",
-    "context": "A business professor lectures on Joseph Schumpeter's theory of dynamic economic transformation and innovation.",
-    "speakers": {
-      "A": "Professor Alvarez (Economics)",
-      "B": "Professor Alvarez (Economics)"
-    },
-    "speakerGenders": {
-      "A": "female",
-      "B": "female"
-    },
-    "script": "Professor Alvarez (Female): When we study modern market economies, neoclassical equilibrium models often treat competition as simple price competition between firms producing identical goods. But Austrian economist Joseph Schumpeter offered a far more dynamic perspective in his landmark 1942 treatise. Schumpeter argued that the fundamental impulse that sets and keeps the capitalist engine in motion is not price competition, but the continuous introduction of new consumer goods, new production methods, new transportation markets, and new forms of industrial organization. He coined the famous phrase 'creative destruction' to describe the biological-like process of industrial mutation that incessantly revolutionizes the economic structure from within, incessantly destroying the old one, incessantly creating a new one. Think about how digital photography dismantled Kodak, or how e-commerce disrupted brick-and-mortar department stores. In Schumpeter's view, temporary monopolies are not market failures; rather, the outsized entrepreneurial profits earned by innovators provide the essential incentive for undertaking risky technological investments. Therefore, attempting to preserve dying industries through subsidies merely suppresses economic dynamism.",
-    "questions": [
-      {
-        "q": "How do neoclassical equilibrium models typically view market competition compared to Schumpeter?",
-        "options": [
-          "Neoclassical models focus on price competition among identical goods rather than disruptive innovation",
-          "Neoclassical models argue that all private corporations should be nationalized",
-          "Neoclassical models assume that technological innovation occurs only during wartime",
-          "Neoclassical models reject the concept of supply and demand curves"
-        ],
-        "answer": 0,
-        "why": "The professor states that neoclassical equilibrium models treat competition as simple price competition between firms producing identical goods."
-      },
-      {
-        "q": "According to Schumpeter, what is the primary driver of capitalistic economic progress?",
-        "options": [
-          "Price discounting on standardized manufactured commodities",
-          "Continuous technological and organizational innovation that replaces old industries",
-          "State-directed agricultural subsidies protecting legacy family farms",
-          "Permanent stabilization of interest rates by international central banks"
-        ],
-        "answer": 1,
-        "why": "Schumpeter argued that the introduction of new goods, methods, and industrial organizations (creative destruction) drives the economy."
-      },
-      {
-        "q": "Why does the professor mention digital photography and Kodak?",
-        "options": [
-          "To show how government antitrust lawsuits broke up camera monopolies",
-          "To argue that film cameras produced higher artistic quality than digital sensors",
-          "To provide a concrete historical example of creative destruction dismantling an established industry",
-          "To illustrate how tariffs protect domestic electronics manufacturers"
-        ],
-        "answer": 2,
-        "why": "The professor cites digital photography dismantling Kodak as a real-world illustration of Schumpeter's creative destruction."
-      },
-      {
-        "q": "How did Schumpeter view temporary monopoly profits earned by innovative firms?",
-        "options": [
-          "As criminal exploitation that must be dismantled by antitrust regulators",
-          "As mathematical accounting errors caused by inflationary monetary policy",
-          "As evidence that consumer sovereignty has been permanently extinguished",
-          "As necessary incentives that reward high-risk entrepreneurial investments"
-        ],
-        "answer": 3,
-        "why": "Schumpeter viewed outsized entrepreneurial profits as the essential incentive for undertaking risky technological investments."
-      }
-    ]
-  },
-  {
-    "id": "ld-curated-10",
-    "title": "Marine Ecology Lecture: Ocean Acidification and Coral Calcification",
-    "level": "intermediate",
-    "difficulty": "intermediate",
+    "id": "ld-10",
+    "title": "Marine Ecology Lecture: Coral Reef Symbiosis and Thermal Bleaching",
+    "level": "advanced",
+    "difficulty": "advanced",
     "topic": "environment",
-    "context": "A marine ecology professor lectures on carbonate chemistry in warming oceans and its impact on coral reefs.",
+    "type": "academic_talk",
+    "context": "A marine ecology professor lectures on the mutualistic symbiosis between corals and zooxanthellae, and the physiological mechanisms of bleaching.",
     "speakers": {
       "A": "Professor Simmons (Marine Ecology)",
       "B": "Professor Simmons (Marine Ecology)"
@@ -581,51 +621,55 @@
       "A": "female",
       "B": "female"
     },
-    "script": "Professor Simmons (Female): Marine calcifying organisms—such as reef-building scleractinian corals, pteropods, and coccolithophores—are facing an unprecedented chemical threat known as ocean acidification. Since the dawn of the Industrial Revolution, the world's oceans have absorbed roughly thirty percent of anthropogenic carbon dioxide emissions. When carbon dioxide dissolves in seawater, it reacts with water molecules to form carbonic acid, which rapidly dissociates into hydrogen ions and bicarbonate ions. The surge in free hydrogen ions lowers ocean pH and, crucially, bonds with carbonate ions to produce additional bicarbonate. Now, why is this biochemical reaction catastrophic for corals? Coral polyps build their calcium carbonate aragonite skeletons by extracting dissolved calcium and carbonate ions directly from seawater. But because surplus hydrogen ions aggressively scavenge carbonate ions, the saturation state of aragonite plummets. Under lower saturation conditions, corals must expend substantially more metabolic energy just to maintain skeletal calcification, leading to fragile, porous reef structures that crumble under wave action. At extreme acidification thresholds, existing calcium carbonate structures literally begin to dissolve.",
+    "script": "Professor Simmons (Female): Coral reefs support over twenty-five percent of all marine species, yet they occupy less than one percent of the ocean floor. The architectural foundation of these biodiverse ecosystems relies on an obligate mutualistic symbiosis between scleractinian coral polyps and microscopic photosynthetic dinoflagellates called zooxanthellae. Residing within the gastrodermal cells of the coral host, zooxanthellae photosynthesize and translocate up to ninety percent of their metabolic carbon products, such as glucose and amino acids, to nourish the coral. In return, the coral provides protected shelter and essential inorganic nutrients, including nitrogen and phosphorus. However, this mutualistic relationship is exquisitely sensitive to elevated sea surface temperatures. When ocean water warms by just one to two degrees Celsius above historical summertime maximums, the photosynthetic apparatus of zooxanthellae malfunctions, generating harmful reactive oxygen species. To protect its own cellular tissues from oxidative stress, the coral host is forced to violently expel its algal symbionts. Deprived of the pigments produced by zooxanthellae, the coral's white calcium carbonate skeleton becomes visible, a phenomenon termed coral bleaching. If elevated thermal anomalies persist for more than several weeks, corals starve and succumb to opportunistic bacterial pathogens.",
     "questions": [
       {
-        "q": "Approximately what percentage of human-generated carbon dioxide emissions have the world's oceans absorbed?",
+        "q": "What is the primary focus of Professor Simmons's marine ecology lecture?",
         "options": [
-          "Roughly thirty percent",
-          "Less than two percent",
-          "Approximately seventy-five percent",
-          "Nearly ninety-five percent"
+          "The biochemical mutualism between corals and zooxanthellae and the drivers of coral bleaching",
+          "The geological formation of subterranean volcanic atolls in the South Pacific basin",
+          "The historical commercial impact of international industrial overfishing on pelagic sharks",
+          "The evolutionary development of bioluminescence in deep-sea cephalopods and teleost fish"
         ],
         "answer": 0,
-        "why": "The professor states that since the Industrial Revolution, the world's oceans have absorbed roughly thirty percent of anthropogenic CO2 emissions."
+        "correctAnswer": 0,
+        "why": "The professor discusses the obligate mutualistic symbiosis between coral polyps and zooxanthellae, and how thermal anomalies trigger bleaching."
       },
       {
-        "q": "How does dissolving carbon dioxide reduce carbonate ion availability in seawater?",
+        "q": "What vital biological contribution do zooxanthellae dinoflagellates provide to coral polyps?",
         "options": [
-          "Carbon dioxide transforms all marine calcium into toxic gaseous chlorine",
-          "Released hydrogen ions bond with carbonate ions to form bicarbonate",
-          "Carbon dioxide evaporates seawater, concentrating solid salt crystals on coral polyps",
-          "Marine bacteria consume all carbonate ions during photosynthesis"
-        ],
-        "answer": 1,
-        "why": "The lecture explains that excess free hydrogen ions scavenge and bond with carbonate ions to form bicarbonate, reducing carbonate availability."
-      },
-      {
-        "q": "What mineral form of calcium carbonate do coral polyps use to build their skeletons?",
-        "options": [
-          "Silicate quartz",
-          "Iron oxide",
-          "Aragonite",
-          "Gypsum"
+          "They produce calcium carbonate crystals that directly construct the barrier reef wall",
+          "They secrete a toxic chemical slime that repels predatory crown-of-thorns starfish",
+          "They transfer up to ninety percent of their photosynthetic glucose and amino acid products",
+          "They filter harmful radioactive isotopes and microplastics from ambient seawater"
         ],
         "answer": 2,
-        "why": "The professor states that coral polyps build their calcium carbonate aragonite skeletons by extracting calcium and carbonate ions."
+        "correctAnswer": 2,
+        "why": "The lecture explains that zooxanthellae translocate up to 90% of their metabolic carbon products (glucose and amino acids) to nourish the coral host."
       },
       {
-        "q": "What physical consequence does reduced aragonite saturation have on coral reefs?",
+        "q": "Why do coral polyps expel their algal symbionts during elevated sea surface temperatures?",
         "options": [
-          "Corals grow at four times their historical calcification rate",
-          "Coral reefs transform into deep subterranean granite canyons",
-          "Reefs become completely immune to tropical cyclone wave damage",
-          "Corals construct brittle, porous skeletons that are prone to mechanical erosion"
+          "Elevated ocean acidity dissolves the outer protective lipid membrane of the zooxanthellae",
+          "The warming water causes zooxanthellae to mutate into predatory heterotrophic parasites",
+          "Thermal expansion forces the coral polyp gastrodermal cell walls to burst open mechanically",
+          "Malfuncting algal photosynthesis produces dangerous reactive oxygen species causing cellular stress"
         ],
         "answer": 3,
-        "why": "The professor states that lower saturation forces corals to expend more energy, resulting in fragile, porous reef structures that crumble under wave action."
+        "correctAnswer": 3,
+        "why": "When ocean temperatures rise 1-2 degrees, the photosynthetic apparatus malfunctions and generates reactive oxygen species, forcing corals to expel them."
+      },
+      {
+        "q": "What typically occurs if high sea temperature anomalies continue for several consecutive weeks?",
+        "options": [
+          "Corals deplete their energy reserves, starve, and fall victim to opportunistic infections",
+          "Corals spontaneously switch to absorbing dissolved sulfur dioxide from volcanic hydrothermal vents",
+          "Corals detach from the seabed substrate and migrate toward cooler polar latitudes",
+          "Corals generate fluorescent proteins that reflect one hundred percent of incoming sunlight"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The professor warns that if thermal anomalies persist for more than several weeks, the deprived corals starve and succumb to bacterial pathogens."
       }
     ]
   }

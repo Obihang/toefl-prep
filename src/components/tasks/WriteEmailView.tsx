@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WriteEmailTask } from '../../data/curatedQuestions';
 import { evaluateLocally } from '../../utils/localEvaluator';
-import { Send, Sparkles, AlertCircle, ArrowRight, Zap } from 'lucide-react';
+import { Send, Sparkles, AlertCircle, ArrowRight, Zap, Clock, Play, Pause, RotateCcw } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
@@ -16,13 +16,30 @@ interface Props {
   onOpenApiKeySettings?: () => void;
 }
 
+const OFFICIAL_EMAIL_TIME_SECONDS = 420; // 7 minutes official ETS timing (PDF Page 14)
+
 export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKeySettings }) => {
-  const [subject, setSubject] = useState('');
+  const defaultSubject = `Inquiry regarding ${task.title}`;
+  const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+
+  // Official 7-Minute Timer
+  const [timeLeft, setTimeLeft] = useState(OFFICIAL_EMAIL_TIME_SECONDS);
+  const [timerRunning, setTimerRunning] = useState(false);
+
+  useEffect(() => {
+    let timer: any = null;
+    if (timerRunning && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [timerRunning, timeLeft]);
 
   useEffect(() => {
     let interval: any = null;
@@ -35,14 +52,21 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-
   React.useEffect(() => {
-    setSubject('');
+    setSubject(`Inquiry regarding ${task.title}`);
     setBody('');
+    setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
+    setTimerRunning(false);
     setIsEvaluating(false);
     setEvalResult(null);
     setEvalError(null);
   }, [task.id, task.title]);
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const wordCount = body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0;
   const isWithinTarget = wordCount >= 80 && wordCount <= 130;
@@ -176,19 +200,48 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-500">Word Count:</span>
-          <span
-            className={`font-mono font-bold px-2 py-0.5 rounded ${
-              isWithinTarget
-                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                : wordCount > 0
-                ? 'bg-amber-100 text-amber-900'
-                : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            {wordCount} words
-          </span>
+        <div className="flex items-center gap-3 text-xs flex-wrap">
+          {/* Official 7-Minute Timer */}
+          <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+            <Clock className="w-3.5 h-3.5 text-slate-500" />
+            <span className={`font-mono font-bold ${timeLeft <= 60 ? 'text-rose-600 animate-pulse' : 'text-slate-800'}`}>
+              {formatTimer(timeLeft)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTimerRunning((r) => !r)}
+              className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+              title={timerRunning ? 'Pause official timer' : 'Start 7-minute countdown'}
+            >
+              {timerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTimerRunning(false);
+                setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
+              }}
+              className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+              title="Reset timer to 7:00"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500">Word Count:</span>
+            <span
+              className={`font-mono font-bold px-2 py-0.5 rounded ${
+                isWithinTarget
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  : wordCount > 0
+                  ? 'bg-amber-100 text-amber-900'
+                  : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              {wordCount} words
+            </span>
+          </div>
         </div>
       </div>
 

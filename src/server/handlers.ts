@@ -61,7 +61,8 @@ export const FEMALE_VOICES = [
   "en-US-JennyNeural",
   "en-US-MichelleNeural",
   "en-GB-SoniaNeural",
-  "en-GB-LibbyNeural"
+  "en-GB-LibbyNeural",
+  "en-AU-NatashaNeural"
 ];
 
 export const MALE_VOICES = [
@@ -73,7 +74,8 @@ export const MALE_VOICES = [
   "en-US-RogerNeural",
   "en-US-SteffanNeural",
   "en-GB-RyanNeural",
-  "en-GB-ThomasNeural"
+  "en-GB-ThomasNeural",
+  "en-AU-WilliamNeural"
 ];
 
 export const ALL_EDGE_VOICES = [...FEMALE_VOICES, ...MALE_VOICES];

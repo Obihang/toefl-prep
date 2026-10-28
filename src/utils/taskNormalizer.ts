@@ -1038,11 +1038,65 @@ const FALLBACK_ACADEMIC_DISTRACTORS = [
   'It eliminates the need for any further experimental or longitudinal verification.',
 ];
 
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
 /**
- * Ensures all 4 MCQ options are unique strings and performs Answer-Key Self-Verification:
- * If `why`/`explanation` explicitly quotes or mentions one of the 4 option texts verbatim
- * as the correct answer while `answer`/`correctAnswer` points to a different option index,
- * auto-corrects `answer` and `correctAnswer` to match the verified option index.
+ * Eliminates option key bias (e.g. "always option B") across MCQ items:
+ * Deterministically permutes options so that the verified correct option lands at:
+ *   targetIdx = (hashString(questionText) + questionIdx) % options.length (0..3)
+ * If targetIdx === correctAnswerIdx, returns options unmodified (100% idempotent).
+ */
+export function balanceMcqOptions(
+  questionText: string,
+  options: string[],
+  correctAnswerIdx: number,
+  questionIdx: number
+): { options: string[]; correctAnswer: number } {
+  if (!Array.isArray(options) || options.length !== 4) {
+    return { options: options || [], correctAnswer: correctAnswerIdx };
+  }
+
+  const validCorrectIdx =
+    typeof correctAnswerIdx === 'number' && correctAnswerIdx >= 0 && correctAnswerIdx < options.length
+      ? correctAnswerIdx
+      : 0;
+
+  const correctText = options[validCorrectIdx] ?? options[0];
+  const targetIdx = (hashString(questionText || '') + questionIdx) % options.length;
+
+  if (targetIdx === validCorrectIdx) {
+    return { options: [...options], correctAnswer: validCorrectIdx };
+  }
+
+  // Deterministically swap targetIdx and validCorrectIdx so correctText lands at targetIdx
+  const permutedOptions = [...options];
+  const temp = permutedOptions[targetIdx];
+  permutedOptions[targetIdx] = correctText;
+  permutedOptions[validCorrectIdx] = temp;
+
+  return {
+    options: permutedOptions,
+    correctAnswer: targetIdx,
+  };
+}
+
+function updateExplanationOptionLetter(why: string, oldIdx: number, newIdx: number): string {
+  const letters = ['A', 'B', 'C', 'D'];
+  const oldLetter = letters[oldIdx];
+  const newLetter = letters[newIdx];
+  if (!oldLetter || !newLetter || oldLetter === newLetter) return why;
+  return why.replace(new RegExp(`\\b(Option|Choice)\\s+${oldLetter}\\b`, 'gi'), `$1 ${newLetter}`);
+}
+
+/**
+ * Ensures all 4 MCQ options are unique strings, performs Answer-Key Self-Verification,
+ * and eliminates option position bias by deterministically balancing answers across A, B, C, D (0..3).
  */
 export function verifyAndNormalizeMcqQuestions(
   rawQs: any[],
@@ -1141,14 +1195,18 @@ export function verifyAndNormalizeMcqQuestions(
       }
     }
 
+    // Apply deterministic option balancing across A (0), B (1), C (2), D (3)
+    const balanced = balanceMcqOptions(qText, uniqueOptions.slice(0, 4), answer, qIdx);
+    const updatedWhy = updateExplanationOptionLetter(whyText, answer, balanced.correctAnswer);
+
     result.push({
       q: qText,
       question: qText,
-      options: uniqueOptions.slice(0, 4),
-      answer,
-      correctAnswer: answer,
-      why: whyText,
-      explanation: whyText,
+      options: balanced.options,
+      answer: balanced.correctAnswer,
+      correctAnswer: balanced.correctAnswer,
+      why: updatedWhy,
+      explanation: updatedWhy,
     });
   }
 
@@ -1199,6 +1257,28 @@ export function normalizeListeningDialogueTask(task: any): any {
     speakers,
     speakerGenders,
     script,
+    questions,
+  };
+}
+
+export function normalizeDailyLifeTask(task: any): any {
+  const title = String(task?.title || 'Daily Life Conversation').trim();
+  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly supported by the conversation.');
+  return {
+    ...task,
+    title,
+    questions,
+  };
+}
+
+export function normalizeListeningChooseResponseTask(task: any): any {
+  const title = String(task?.title || 'Choose the Best Response').trim();
+  const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Most appropriate and natural response.');
+  return {
+    ...task,
+    title,
     questions,
   };
 }

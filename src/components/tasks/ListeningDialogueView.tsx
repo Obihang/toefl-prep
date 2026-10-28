@@ -114,6 +114,16 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const scriptText = task?.script || '';
   const lines = useMemo(() => scriptText.split(/\n+/).filter(Boolean), [scriptText]);
 
+  // Default transcript visibility state to false (hidden) when a new listening task loads
+  useEffect(() => {
+    setShowTranscript(false);
+    setSelectedAnswers({});
+    setSubmitted(false);
+    setIsPlaying(false);
+    setActiveLine(null);
+    setPlayCount(0);
+  }, [task.id, task.title]);
+
   // Assign strictly locked voices per canonical speaker role ('professor' vs 'student') once when the task loads:
   // - Conversations: ONE locked voiceId+gender for 'professor' and ONE distinct locked voiceId+gender for 'student'
   // - Announcements / Academic Talks (Lectures): ONE consistent voiceId+gender for the entire passage
@@ -502,6 +512,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
 
   const handleSubmit = () => {
     setSubmitted(true);
+    setShowTranscript(true); // Automatically reveal the script after the student checks their answers
     const correctCount = calculateScore();
     const total = task.questions.length;
     const scaledScore = convertToScaledScore(correctCount, total);
@@ -618,7 +629,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               title="Toggle transcript text"
             >
               {showTranscript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showTranscript ? 'Hide Script' : 'Show Script'}
+              {showTranscript ? 'Hide Script' : '👁️ Show Script (Study Mode)'}
             </button>
           </div>
         </div>

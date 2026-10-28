@@ -35,18 +35,6 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     description: 'Campus conversation or lecture excerpt with audio simulation and questions',
   },
   {
-    id: 'listen-repeat',
-    name: 'Listen & Repeat',
-    section: 'Speaking',
-    description: 'Progressive sentences with speech synthesis and voice recognition accuracy',
-  },
-  {
-    id: 'speaking-interview',
-    name: 'Take an Interview',
-    section: 'Speaking',
-    description: '4 academic interview questions with official prep & speaking countdowns',
-  },
-  {
     id: 'build-sentence',
     name: 'Build a Sentence',
     section: 'Writing',
@@ -63,6 +51,18 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     name: 'Academic Discussion',
     section: 'Writing',
     description: 'Post in a university course forum engaging with professor & classmate views',
+  },
+  {
+    id: 'listen-repeat',
+    name: 'Listen & Repeat',
+    section: 'Speaking',
+    description: 'Progressive sentences with speech synthesis and voice recognition accuracy',
+  },
+  {
+    id: 'speaking-interview',
+    name: 'Take an Interview',
+    section: 'Speaking',
+    description: '4 academic interview questions with official prep & speaking countdowns',
   },
 ];
 

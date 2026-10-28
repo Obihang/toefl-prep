@@ -153,86 +153,22 @@ export function clearPracticeHistory() {
 
 export const resetPracticeHistory = clearPracticeHistory;
 
-// Convert 0-30 scaled score to the new TOEFL 1.0 - 6.0 band scale (0.5 increments)
-export function convertScaledToBand6(scaledScore30: number): number {
-  if (scaledScore30 >= 29) return 6.0;
-  if (scaledScore30 >= 26) return 5.5;
-  if (scaledScore30 >= 23) return 5.0;
-  if (scaledScore30 >= 20) return 4.5;
-  if (scaledScore30 >= 17) return 4.0;
-  if (scaledScore30 >= 14) return 3.5;
-  if (scaledScore30 >= 11) return 3.0;
-  if (scaledScore30 >= 8) return 2.5;
-  if (scaledScore30 >= 5) return 2.0;
-  if (scaledScore30 >= 3) return 1.5;
-  return 1.0;
-}
+export {
+  TOEFL_TEST_STRUCTURE_2026,
+  TOEFL_CONCORDANCE_TABLE_2026,
+  OFFICIAL_TASK_RUBRICS,
+  convertScaledToBand6,
+  convertOverall120ToBand6,
+  getBandScoreRangeForSection,
+  getCefrFromBand6,
+  getTaskRawRubric,
+  convertRawRubricToBand6,
+} from './toeflScoring';
+import { convertScaledToBand6, getCefrFromBand6 } from './toeflScoring';
 
-export function convertToBandScore6(score: number, maxScore: number): number {
+export function convertToBandScore6(score: number, maxScore: number, section?: 'Reading' | 'Listening' | 'Writing' | 'Speaking'): number {
   const scaled = convertToScaledScore(score, maxScore);
-  return convertScaledToBand6(scaled);
-}
-
-export function getCefrFromBand6(band6: number): {
-  code: string;
-  name: string;
-  descriptor: string;
-  colorClass: string;
-} {
-  if (band6 <= 0) {
-    return {
-      code: 'N/A',
-      name: 'No Data / Absolute Zero',
-      descriptor: 'Complete practice sessions to determine your active CEFR proficiency level.',
-      colorClass: 'text-slate-500 bg-slate-100 border-slate-200',
-    };
-  }
-  if (band6 >= 6.0) {
-    return {
-      code: 'C2',
-      name: 'C2 Proficient / Mastery',
-      descriptor: 'Near-native fluency, precision, and nuance across academic domains.',
-      colorClass: 'text-purple-700 bg-purple-50 border-purple-200',
-    };
-  }
-  if (band6 >= 5.0) {
-    return {
-      code: 'C1',
-      name: 'C1 Advanced (High Fluency)',
-      descriptor: 'Effective operational command; suitable for high-ranking graduate programs.',
-      colorClass: 'text-teal-700 bg-teal-50 border-teal-200',
-    };
-  }
-  if (band6 >= 4.0) {
-    return {
-      code: 'B2',
-      name: 'B2 Upper-Intermediate',
-      descriptor: 'Independent user; satisfies standard undergraduate and graduate entrance bar.',
-      colorClass: 'text-blue-700 bg-blue-50 border-blue-200',
-    };
-  }
-  if (band6 >= 3.0) {
-    return {
-      code: 'B1',
-      name: 'B1 Intermediate',
-      descriptor: 'Threshold proficiency; understands main points of familiar academic contexts.',
-      colorClass: 'text-amber-700 bg-amber-50 border-amber-200',
-    };
-  }
-  if (band6 >= 2.0) {
-    return {
-      code: 'A2',
-      name: 'A2 Elementary / Waystage',
-      descriptor: 'Basic command; handles simple, routine communications.',
-      colorClass: 'text-orange-700 bg-orange-50 border-orange-200',
-    };
-  }
-  return {
-    code: 'A1',
-    name: 'A1 Beginner / Breakthrough',
-    descriptor: 'Introductory familiarity with English vocabulary and basic structures.',
-    colorClass: 'text-rose-700 bg-rose-50 border-rose-200',
-  };
+  return convertScaledToBand6(scaled, section);
 }
 
 export interface ScoreEquivalency {
@@ -302,10 +238,10 @@ export function calculateToeflEstimate(history: PracticeRecord[]): {
   const speakingScore = getSectionAvg('Speaking');
   const writingScore = getSectionAvg('Writing');
 
-  const readingBand6 = convertScaledToBand6(readingScore);
-  const listeningBand6 = convertScaledToBand6(listeningScore);
-  const speakingBand6 = convertScaledToBand6(speakingScore);
-  const writingBand6 = convertScaledToBand6(writingScore);
+  const readingBand6 = convertScaledToBand6(readingScore, 'Reading');
+  const listeningBand6 = convertScaledToBand6(listeningScore, 'Listening');
+  const speakingBand6 = convertScaledToBand6(speakingScore, 'Speaking');
+  const writingBand6 = convertScaledToBand6(writingScore, 'Writing');
 
   const rawAvg = (readingBand6 + listeningBand6 + speakingBand6 + writingBand6) / 4;
   const overallBand6 = Math.round(rawAvg * 2) / 2;

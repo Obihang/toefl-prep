@@ -15,15 +15,16 @@ export async function handleEvaluateResponse(
 ) {
   try {
     const evaluationPrompt = `You are a strict, objective ETS 2026 TOEFL iBT grader. Grade the user's response on a strict 1.0 to 6.0 Band scale using these exact anchors. DO NOT inflate scores.
-- BAND 6.0 (Advanced - 30/30): Flawless or near-flawless. Uses highly complex academic syntax, precise vocabulary, and perfectly natural transitions. Fully develops the argument with concrete, specific details. Minor slips are extremely rare and do not obscure meaning.
-- BAND 4.5 to 5.0 (High Intermediate - 24-27/30): Addresses the prompt well. Generally good control of grammar and vocabulary, but relies on some repetitive or generic structures. Contains occasional noticeable grammatical or lexical errors that do not interfere with meaning.
-- BAND 3.0 to 4.0 (Low Intermediate - 16-21/30): Partially develops the topic. Uses basic sentence structures. Noticeable and frequent errors in grammar, word choice, or pacing/hesitation (for speaking). May lack detail or fail to fully address all parts of the prompt.
-- BAND 1.0 to 2.5 (Basic): Fragmented ideas, severe grammar/vocabulary limitations that obscure meaning, or fails to address the prompt.
+- BAND 6.0 (Advanced - 29-30/30): Flawless or near-flawless. Uses highly complex academic syntax, precise vocabulary, and perfectly natural transitions. Fully develops the argument with concrete, specific details. Minor slips are extremely rare and do not obscure meaning.
+- BAND 4.5 to 5.0 (High Intermediate - 21-26/30): Addresses the prompt well. Generally good control of grammar and vocabulary, but relies on some repetitive or generic structures. Contains occasional noticeable grammatical or lexical errors that do not interfere with meaning.
+- BAND 3.0 to 4.0 (Low Intermediate - 13-20/30): Partially develops the topic. Uses basic sentence structures. Noticeable and frequent errors in grammar, word choice, or hesitation. May lack detail or fail to fully address all parts of the prompt.
+- BAND 1.0 to 2.5 (Basic - 0-12/30): Fragmented ideas, severe grammar/vocabulary limitations that obscure meaning, or fails to address the prompt.
 
-MANDATORY COMPLETENESS, RELEVANCE & ANTI-PLAGIARISM CHECKS:
+MANDATORY COMPLETENESS, RELEVANCE, FLUENCY & ANTI-PLAGIARISM CHECKS:
 1. Prompt Copying / Plagiarism: If the student copied large portions (> 45%) of the prompt, passage, or classmate posts verbatim, you MUST score 1.0 to 1.5 and explicitly instruct them to use their own words.
 2. Off-Topic Check: If the response does not address the specific prompt topic or required bullet points, cap the score at 1.5 to 2.0.
-3. Task-Specific Completeness Rules:
+3. Natural Conversational Fillers (Speaking Interview): Per ETS 2026 Guidelines (PDF Pages 27-28), do NOT penalize natural conversational fillers ('um', 'uh') unless excessive (> 8% of total spoken words). Evaluate idea development, conversational rhythm, and communicative effectiveness.
+4. Task-Specific Completeness Rules:
    - speaking_interview / speaking-interview: Check how many of the 4 interview questions (Q1..Q4) the student actually answered in studentResponse. If only k out of 4 questions have real answers (e.g., 1 of 4), multiply/cap the final band score by (k / 4) rounded to the nearest 0.5 (minimum 1.0).
    - speaking_listen_repeat / listen-repeat: Base the score strictly on sequential word-order accuracy across all 7 sentences (unanswered sentences count as 0%).
    - writing_email / write-email: Verify whether all 3 required bullet points (goals) in promptData were addressed, whether the tone/register matches the recipient, and evaluate against the official 7-minute target length (80-130 words for Band 5.0-6.0; do NOT penalize a 90-130 word email for length).
@@ -39,8 +40,8 @@ ${JSON.stringify(studentResponse, null, 2)}
 
 Scoring Scale Reference:
 - bandScore6: Official section Band Score on the 1.0 to 6.0 scale in 0.5 increments (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0).
-- rawRubricScore: Raw rubric score out of 5.0 (Writing tasks) or 4.0 (Speaking tasks).
-- scaledScore: Legacy scaled score out of 30 (Band 6.0 = 29-30, Band 5.5 = 27-28, Band 5.0 = 24-26, Band 4.5 = 21-23, Band 4.0 = 18-20, Band 3.0-3.5 = 14-17, Band 2.0-2.5 = 9-13, Band 1.0-1.5 = 0-8).
+- rawRubricScore: Official ETS 2026 raw task rubric score out of 5.0 (for ALL tasks: Write an Email, Academic Discussion, Listen & Repeat, and Take an Interview).
+- scaledScore: Legacy scaled score out of 30 (Band 6.0 = 29-30, Band 5.5 = 27-28, Band 5.0 = 24-26, Band 4.5 = 21-23, Band 4.0 = 17-20, Band 3.0-3.5 = 13-16, Band 2.0-2.5 = 7-12, Band 1.0-1.5 = 0-6).
 - performanceLevel: "Advanced" (5.5-6.0), "High-Intermediate" (4.0-5.0), "Low-Intermediate" (2.5-3.5), or "Basic" (1.0-2.0).
 
 Strict Rubric Justification & Feedback Rules:
@@ -101,11 +102,10 @@ Return valid JSON format matching this schema:
         rawBand = Math.min(rawBand, maxPossibleForK);
       }
 
-      const bandScore6 = Math.min(6.0, Math.max(1.0, Math.round(rawBand * 2) / 2));
-      const isSpeaking = taskType.includes('speaking') || taskType.includes('listen-repeat') || taskType.includes('listen_repeat');
+      const bandScore6 = Math.max(1.0, Math.min(6.0, Math.round(rawBand * 2) / 2));
       const rawRubric = typeof parsed?.rawRubricScore === 'number'
         ? Math.min(rawBand <= 2.0 ? 2.0 : 5.0, parsed.rawRubricScore)
-        : Number(((bandScore6 / 6.0) * (isSpeaking ? 4.0 : 5.0)).toFixed(1));
+        : Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
       const scaled = bandScore6 >= 6.0
         ? 30
         : bandScore6 >= 5.5
