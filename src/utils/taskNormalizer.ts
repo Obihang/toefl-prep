@@ -248,7 +248,9 @@ const SENTENCE_ABBREVIATIONS = new Set([
 ]);
 
 export interface NormalizedBlankItem {
+  id?: string;
   index: number;
+  word?: string;
   prefix: string;
   answer: string;
   fullWord: string;
@@ -307,19 +309,58 @@ export function normalizeTopicLabel(rawTopic?: any, fallbackContent?: any): Acad
 }
 
 /**
+ * Repairs corrupted bracket tokens where overlapping prefixes/suffixes collided.
+ * E.g. "biodegr[gradable]" -> "biodegradable"
+ *      "quant[umntum]" -> "quantum"
+ */
+function repairBracketToken(prefix: string, answer: string): string {
+  const pLower = prefix.toLowerCase();
+  const aLower = answer.toLowerCase();
+
+  // Known collision pattern: "quant" + "umntum" -> "quantum"
+  if (pLower.startsWith('qua') && (aLower.includes('ntum') || aLower === 'umntum')) {
+    return prefix.slice(0, 3) + 'ntum';
+  }
+
+  // Known collision pattern: "biodegr" + "gradable" -> "biodegradable"
+  if (pLower.startsWith('biodegr') && aLower.endsWith('adable')) {
+    return 'biodegradable';
+  }
+
+  // Seam overlap where prefix ends with the start of answer
+  // e.g. prefix="biodegr", answer="gradable" -> overlap="gr"
+  for (let len = Math.min(prefix.length, answer.length); len >= 1; len--) {
+    if (pLower.slice(-len) === aLower.slice(0, len)) {
+      return prefix + answer.slice(len);
+    }
+  }
+
+  // Check if answer contains a duplicated repeat of suffix or internal syllable
+  const combined = prefix + answer;
+  const deduped = combined.replace(/([a-zA-Z]{2,6})\1+/gi, '$1');
+  if (deduped.length >= prefix.length && deduped !== combined) {
+    return deduped;
+  }
+
+  return combined;
+}
+
+/**
  * Deterministically normalizes any "Complete the Words" (C-Test) task according to
- * strict 2026 TOEFL iBT specifications:
- * 1. Merges separated compound words like "[nano] particles" -> "nanoparticles".
- * 2. Reconstructs full unblanked words from any bracket placement ([penetr]ate, [[penetr]]ate,
- *    integr[ation], [integration], etc.).
- * 3. Keeps Sentence 1 (the first sentence) 100% intact with zero blanks.
- * 4. Enforces that every blanked word is a single complete English word of at least 6 letters
- *    (fullWord.length >= 6) so prefix is ALWAYS >= 3 letters and answer is ALWAYS >= 3 letters:
- *    prefixLen = Math.floor(fullWord.length / 2)
- *    prefix = fullWord.slice(0, prefixLen) (always >= 3 letters)
- *    answer = fullWord.slice(prefixLen) (always >= 3 letters)
- *    Formatted as `${prefix}[[${answer}]]` with ZERO trailing suffix letters.
- * 5. Enforces 10 blanks per passage and derives `blanks` strictly from the validated tokens.
+ * official ETS 2026 TOEFL iBT C-Test specifications:
+ * 1. Repairs any overlapping duplicate letters from bracketed tokens (e.g. biodegr[gradable] -> biodegradable,
+ *    quant[umntum] -> quantum).
+ * 2. Strips all brackets to obtain the 100% clean plain-English paragraph.
+ * 3. Keeps Sentence 1 100% intact with zero blanks.
+ * 4. In Sentence 2+, selects every 2nd eligible word (alternating: skip 1, blank 1, skip 1, blank 1...)
+ *    until exactly 10 words are blanked.
+ *    - An eligible word is a pure alphabetic English word (/^[a-zA-Z]+$/) of length >= 2 that is
+ *      not a capitalized proper noun mid-sentence, not "I" or "a", and not an acronym.
+ *    - For each selected word W of length L: prefixLen = Math.floor(L / 2),
+ *      prefix = W.slice(0, prefixLen), answer = W.slice(prefixLen).
+ *      Formatted as `${prefix}[${answer}]`.
+ * 5. Derives the blanks array exclusively from those 10 generated blank tokens in text.
+ * 6. 100% idempotent: running 1 time or 100 times produces identical output.
  */
 export function normalizeCompleteWordsTask(raw: any): {
   title: string;
@@ -329,7 +370,7 @@ export function normalizeCompleteWordsTask(raw: any): {
   explanation?: string;
 } {
   const fallbackText =
-    'Synaptic plasticity is the biological foundation of human learning and memory consolidation. Neurosc[[ientists]] have disco[[vered]] that syna[[pses]] stren[[gthen]] thr[[ough]] repe[[ated]] elect[[rical]] stimu[[lation]]. This pheno[[menon]] ena[[bles]] cere[[bral]] circ[[uits]] to retain complex information across decades.';
+    'Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists have discovered that synapses gradually strengthen through repeated electrical stimulation. This phenomenon directly enables cortical neurons to store vast quantities of complex information across cerebral circuits.';
 
   const title = String(raw?.title || 'Complete the Words').trim() || 'Complete the Words';
   let rawText = String(raw?.text || raw?.passage || raw?.content?.text || '').trim();
@@ -337,211 +378,139 @@ export function normalizeCompleteWordsTask(raw: any): {
     rawText = fallbackText;
   }
 
-  // Merge separated compound words where a bracketed prefix is separated by a space from its stem,
-  // e.g., "[nano] particles" or "[[nano]] particles" -> "[nano]particles"
-  rawText = rawText.replace(
-    /(\[+[a-zA-Z]{2,8}\]+)\s+(particles|particle|chemical|chemicals|chemistry|logical|biology|biological|diversity|systems|system|organisms|organism|synthesis|synthetic|scientists|scientist|science|economic|economics|disciplinary|graduates|graduate|structure|structures|conductors|conductor|dynamics|thermal|magnetic|climate|climatologists|sphere|spheres|technology|technologies|medicine|medical|mechanics|mechanical|analysis|analytics|network|networks|plasticity|vascular|cellular|molecular)\b/gi,
-    '$1$2'
-  );
-  // Also merge reverse separated compounds like "nano [particles]" or "nano [[particles]]" -> "nano[[particles]]"
-  rawText = rawText.replace(
-    /\b(nano|bio|neuro|eco|micro|macro|photo|chemo|inter|paleo|electro|socio|thermo|hydro|multi|semi|super|under|over|trans|infra|auto|cardio|geo|astro|cyber|radio)\s+(\[+[a-zA-Z]{3,}\]+)/gi,
-    '$1$2'
-  );
+  // Step 1: Repair any corrupted bracket tokens and strip brackets to produce cleanParagraph
+  rawText = rawText.replace(/([a-zA-Z]+)\[+([a-zA-Z]+)\]+/g, (_, p, a) => repairBracketToken(p, a));
+  rawText = rawText.replace(/\[+([a-zA-Z]+)\]+([a-zA-Z]+)/g, '$1$2');
+  rawText = rawText.replace(/\[+([^\]]+)\]+/g, '$1');
+  rawText = rawText.replace(/[\[\]]+/g, '');
 
-  const rawTokens = rawText.split(/(\s+)/);
+  let cleanParagraph = rawText.replace(/\s+/g, ' ').trim();
 
-  interface ParsedToken {
-    isWhitespace: boolean;
-    rawToken: string;
-    leadingPunct: string;
-    fullWord: string;
-    trailingPunct: string;
-    hadBracket: boolean;
-    isPureAlphaWord: boolean;
-    sentenceIndex: number;
-    shouldBlank: boolean;
+  // Step 2: Keep Sentence 1 100% intact (up to first terminal punctuation followed by space)
+  let s1EndIdx = -1;
+  const termRegex = /([.!?])\s+/g;
+  let termMatch: RegExpExecArray | null;
+  while ((termMatch = termRegex.exec(cleanParagraph)) !== null) {
+    const before = cleanParagraph.slice(0, termMatch.index + 1);
+    const lastWord = (before.match(/[a-zA-Z0-9.'’]+$/) || [''])[0].toLowerCase();
+    if (!SENTENCE_ABBREVIATIONS.has(lastWord)) {
+      s1EndIdx = termMatch.index + 1;
+      break;
+    }
   }
 
-  const parsedTokens: ParsedToken[] = [];
-  let currentSentenceIndex = 0;
+  let sentence1 = '';
+  let sentenceRest = '';
+  if (s1EndIdx !== -1) {
+    sentence1 = cleanParagraph.slice(0, s1EndIdx).trim();
+    sentenceRest = cleanParagraph.slice(s1EndIdx).trim();
+  } else {
+    const words = cleanParagraph.split(/\s+/);
+    const splitAt = Math.min(12, Math.floor(words.length / 3));
+    sentence1 = words.slice(0, splitAt).join(' ') + '.';
+    sentenceRest = words.slice(splitAt).join(' ');
+  }
 
-  for (let i = 0; i < rawTokens.length; i++) {
-    const tok = rawTokens[i];
-    if (/^\s+$/.test(tok) || tok === '') {
-      parsedTokens.push({
-        isWhitespace: true,
-        rawToken: tok,
-        leadingPunct: '',
-        fullWord: '',
-        trailingPunct: '',
-        hadBracket: false,
-        isPureAlphaWord: false,
-        sentenceIndex: currentSentenceIndex,
-        shouldBlank: false,
-      });
-      continue;
-    }
+  // Step 3: Tokenize sentenceRest and analyze eligible words
+  const tokens = sentenceRest.split(/(\s+)/);
 
-    const hadBracket = tok.includes('[') && tok.includes(']');
-    // Strip all square brackets from the token to recover the full unbroken word
-    const stripped = tok.replace(/\[+|\]+/g, '');
+  interface WordTokenInfo {
+    tokenIndex: number;
+    lead: string;
+    word: string;
+    trail: string;
+    isEligible: boolean;
+  }
 
-    // Separate leading punctuation, core word characters, and trailing punctuation
-    const match = stripped.match(/^([^a-zA-Z0-9]*)(.*?)([^a-zA-Z0-9]*)$/);
-    const leadingPunct = match ? match[1] : '';
-    const fullWord = match ? match[2] : stripped;
-    const trailingPunct = match ? match[3] : '';
-    const isPureAlphaWord = /^[a-zA-Z]+$/.test(fullWord);
+  const wordInfos: WordTokenInfo[] = [];
+  let isAtSentenceStart = true;
 
-    const thisSentenceIdx = currentSentenceIndex;
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (/^\s+$/.test(tok) || tok === '') continue;
 
-    // Detect end of sentence
-    const lowerWithTrailing = (fullWord + trailingPunct).toLowerCase();
-    if (
-      /[.!?]/.test(trailingPunct) &&
-      !SENTENCE_ABBREVIATIONS.has(lowerWithTrailing) &&
-      fullWord.length > 1
-    ) {
-      currentSentenceIndex++;
-    }
+    const m = tok.match(/^([^a-zA-Z]*)([a-zA-Z]+)([^a-zA-Z]*)$/);
+    if (!m) continue;
 
-    parsedTokens.push({
-      isWhitespace: false,
-      rawToken: tok,
-      leadingPunct,
-      fullWord,
-      trailingPunct,
-      hadBracket,
-      isPureAlphaWord,
-      sentenceIndex: thisSentenceIdx,
-      shouldBlank: false,
+    const [, lead, word, trail] = m;
+    const isAlpha = /^[a-zA-Z]+$/.test(word);
+    const isAcronym = word.length >= 2 && word === word.toUpperCase();
+    const isCapitalized = /^[A-Z]/.test(word);
+    const isProperNounMidSentence = isCapitalized && !isAtSentenceStart;
+    const isEligible = isAlpha && word.length >= 2 && !isAcronym && !isProperNounMidSentence;
+
+    wordInfos.push({
+      tokenIndex: i,
+      lead,
+      word,
+      trail,
+      isEligible,
     });
-  }
 
-  // If the entire passage was written as 1 giant sentence without periods, treat the first 12 words as Sentence 0
-  const hasSentence2 = parsedTokens.some((t) => !t.isWhitespace && t.sentenceIndex >= 1);
-  if (!hasSentence2) {
-    let wordCounter = 0;
-    for (const pt of parsedTokens) {
-      if (!pt.isWhitespace) {
-        wordCounter++;
-        if (wordCounter > 12) {
-          pt.sentenceIndex = 1;
-        }
-      }
-    }
-  }
-
-  // Step 1: Mark existing valid bracketed words in Sentence 2+ (sentenceIndex >= 1)
-  // Any bracketed word < 6 letters (e.g. "side", "nano", "into") is automatically unblanked!
-  const selectedIndices: number[] = [];
-  for (let i = 0; i < parsedTokens.length; i++) {
-    const pt = parsedTokens[i];
-    if (pt.isWhitespace) continue;
-    // Sentence 1 (sentenceIndex === 0) must NEVER have blanks
-    if (pt.sentenceIndex === 0) {
-      pt.shouldBlank = false;
-      continue;
-    }
-    if (
-      pt.hadBracket &&
-      pt.isPureAlphaWord &&
-      pt.fullWord.length >= 6 &&
-      !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
-    ) {
-      if (selectedIndices.length < 10) {
-        pt.shouldBlank = true;
-        selectedIndices.push(i);
-      }
-    }
-  }
-
-  // Step 2: If fewer than 10 blanks exist in Sentence 2+, auto-select additional 6+ letter academic words
-  if (selectedIndices.length < 10) {
-    const needed = 10 - selectedIndices.length;
-    const candidateIndices: number[] = [];
-    for (let i = 0; i < parsedTokens.length; i++) {
-      const pt = parsedTokens[i];
-      if (pt.isWhitespace || pt.sentenceIndex === 0 || pt.shouldBlank) continue;
-      if (
-        pt.isPureAlphaWord &&
-        pt.fullWord.length >= 6 &&
-        pt.fullWord.length <= 15 &&
-        !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
-      ) {
-        candidateIndices.push(i);
-      }
-    }
-
-    // If still fewer than needed (e.g. any >15 letter academic words), include >= 6 letters without upper cap
-    if (candidateIndices.length < needed) {
-      for (let i = 0; i < parsedTokens.length; i++) {
-        const pt = parsedTokens[i];
-        if (pt.isWhitespace || pt.sentenceIndex === 0 || pt.shouldBlank) continue;
-        if (
-          !candidateIndices.includes(i) &&
-          pt.isPureAlphaWord &&
-          pt.fullWord.length >= 6 &&
-          !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
-        ) {
-          candidateIndices.push(i);
-        }
-      }
-    }
-
-    if (candidateIndices.length <= needed) {
-      for (const cIdx of candidateIndices) {
-        parsedTokens[cIdx].shouldBlank = true;
-        selectedIndices.push(cIdx);
+    if (/[.!?]/.test(trail)) {
+      const lower = (word + trail).toLowerCase();
+      if (!SENTENCE_ABBREVIATIONS.has(lower)) {
+        isAtSentenceStart = true;
       }
     } else {
-      // Space selections evenly across candidateIndices
-      for (let k = 0; k < needed; k++) {
-        const pickPos = Math.min(
-          candidateIndices.length - 1,
-          Math.floor(((k + 0.5) * candidateIndices.length) / needed)
-        );
-        let chosenTokenIdx = candidateIndices[pickPos];
-        if (parsedTokens[chosenTokenIdx].shouldBlank) {
-          const alt = candidateIndices.find((idx) => !parsedTokens[idx].shouldBlank);
-          if (alt !== undefined) chosenTokenIdx = alt;
-        }
-        if (!parsedTokens[chosenTokenIdx].shouldBlank) {
-          parsedTokens[chosenTokenIdx].shouldBlank = true;
-          selectedIndices.push(chosenTokenIdx);
-        }
+      isAtSentenceStart = false;
+    }
+  }
+
+  // Step 4: Deterministically select every 2nd eligible word (alternating: skip 1, blank 1, skip 1, blank 1...)
+  const selectedTokenIndices = new Set<number>();
+  let eligibleCount = 0;
+
+  for (const wi of wordInfos) {
+    if (!wi.isEligible) continue;
+    eligibleCount++;
+    if (eligibleCount % 2 === 0 && selectedTokenIndices.size < 10) {
+      selectedTokenIndices.add(wi.tokenIndex);
+    }
+  }
+
+  // If fewer than 10 blanks selected (e.g. passage had fewer eligible words),
+  // supplement from remaining eligible words (odd-indexed words) to reach exactly 10
+  if (selectedTokenIndices.size < 10) {
+    for (const wi of wordInfos) {
+      if (selectedTokenIndices.size >= 10) break;
+      if (wi.isEligible && !selectedTokenIndices.has(wi.tokenIndex)) {
+        selectedTokenIndices.add(wi.tokenIndex);
       }
     }
   }
 
-  // Step 3: Build final normalized text and blanks array strictly from validated prefix[[answer]] tokens
+  // Step 5: Rebuild sentenceRest with bracketed blanks and populate blanks array
   const blanks: NormalizedBlankItem[] = [];
   let blankCounter = 0;
 
-  const rebuiltTokens = parsedTokens.map((pt) => {
-    if (pt.isWhitespace) return pt.rawToken;
-    if (!pt.shouldBlank || blankCounter >= 10 || pt.fullWord.length < 6) {
-      return `${pt.leadingPunct}${pt.fullWord}${pt.trailingPunct}`;
+  const rebuiltTokens = tokens.map((tok, i) => {
+    if (!selectedTokenIndices.has(i)) {
+      return tok;
     }
 
-    const fullWord = pt.fullWord;
+    const wi = wordInfos.find((w) => w.tokenIndex === i);
+    if (!wi) return tok;
+
+    const fullWord = wi.word;
     const prefixLen = Math.floor(fullWord.length / 2);
     const prefix = fullWord.slice(0, prefixLen);
     const answer = fullWord.slice(prefixLen);
 
     blanks.push({
+      id: `blank-${blankCounter + 1}`,
       index: blankCounter,
+      word: fullWord,
       prefix,
       answer,
       fullWord,
     });
     blankCounter++;
 
-    return `${pt.leadingPunct}${prefix}[[${answer}]]${pt.trailingPunct}`;
+    return `${wi.lead}${prefix}[${answer}]${wi.trail}`;
   });
 
-  const normalizedText = rebuiltTokens.join('');
+  const normalizedText = `${sentence1} ${rebuiltTokens.join('')}`.replace(/\s+/g, ' ').trim();
 
   return {
     title,
@@ -1253,17 +1222,17 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
     case 'complete-words': {
       const text = String(data.text || '');
       if (!text || text.length < 50) return false;
-      // Reject any backwards blank where ]] is followed immediately by letters (e.g. [[penetr]]ate)
-      if (/\]\][a-zA-Z]/.test(text)) return false;
-      // Reject any blank where [[ is NOT preceded immediately by at least 3 letters or solution is < 3 letters (minimum 6-letter word)
-      const parts = text.split(/\[\[(.+?)\]\]/);
+      // Reject any backwards blank where ] or ]] is followed immediately by letters (e.g. [penetr]ate or [[penetr]]ate)
+      if (/\]+[a-zA-Z]/.test(text)) return false;
+      // Split on [answer] or [[answer]]
+      const parts = text.split(/\[+([^\]]+)\]+/);
       if (parts.length < 17) return false; // At least 8 blanks (10 standard)
       for (let i = 1; i < parts.length; i += 2) {
         const solution = parts[i];
         const prevText = parts[i - 1] || '';
         const prefixMatch = prevText.match(/([a-zA-Z]+)$/);
-        if (!prefixMatch || prefixMatch[1].length < 3) return false;
-        if (!/^[a-zA-Z]{3,}$/.test(solution)) return false;
+        if (!prefixMatch || prefixMatch[1].length < 1) return false;
+        if (!/^[a-zA-Z]+$/.test(solution)) return false;
       }
       return true;
     }

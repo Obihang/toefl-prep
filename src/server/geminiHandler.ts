@@ -282,13 +282,13 @@ function normalizeCompleteWords(data: any) {
       const m = stripped.match(/^([^a-zA-Z0-9]*)(.*?)([^a-zA-Z0-9]*)$/);
       if (!m) return tok;
       const [, lead, fullWord, trail] = m;
-      if (fullWord.length < 4) return `${lead}${fullWord}${trail}`;
+      if (fullWord.length < 2) return `${lead}${fullWord}${trail}`;
       const prefixLen = Math.floor(fullWord.length / 2);
-      return `${lead}${fullWord.slice(0, prefixLen)}[[${fullWord.slice(prefixLen)}]]${trail}`;
+      return `${lead}${fullWord.slice(0, prefixLen)}[${fullWord.slice(prefixLen)}]${trail}`;
     })
     .join('');
 
-  const blankMatches = repairedText.match(/\[\[/g) || [];
+  const blankMatches = repairedText.match(/\[+[^\]]+\]+/g) || [];
   if (blankMatches.length < 3) {
     throw new Error(`Complete the Words generated insufficient blanks (${blankMatches.length}), at least 3 required`);
   }

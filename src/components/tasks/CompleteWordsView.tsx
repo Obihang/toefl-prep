@@ -29,7 +29,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
   // Parse text formatted with [[missing_letters]] after enforcing strict 2026 C-Test normalization
   useEffect(() => {
     const normalized = normalizeCompleteWordsTask(task);
-    const parts = normalized.text.split(/\[\[(.+?)\]\]/);
+    const parts = normalized.text.split(/\[+([^\]]+)\]+/);
     const newBlanks: BlankItem[] = [];
     const newSegments: Array<{ type: 'text' | 'blank'; value: string; blankIndex?: number }> = [];
 
