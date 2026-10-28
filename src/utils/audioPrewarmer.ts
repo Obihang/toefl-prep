@@ -1,4 +1,4 @@
-import { prefetchSpeechAudio, stripSpeakerAndFormatting } from './audioSpeech';
+import { prefetchSpeechAudio, stripSpeakerAndFormatting, inferGenderFromSpeaker } from './audioSpeech';
 
 export interface PreCacheProgress {
   current: number;
@@ -9,7 +9,7 @@ export interface PreCacheProgress {
 }
 
 /**
- * Pre-caches voice audio into IndexedDB (toefl_audio_cache) for all questions
+ * Pre-caches voice audio into IndexedDB for all questions
  * in the active section (Listening or Speaking) so the entire section plays in 0ms.
  */
 export async function preCacheSectionAudio(
@@ -17,11 +17,10 @@ export async function preCacheSectionAudio(
   onProgress?: (progress: PreCacheProgress) => void
 ): Promise<{ success: boolean; cached: number; total: number }> {
   const normSection = section.toLowerCase();
-  const itemsToFetch: Array<{ text: string; voice: string }> = [];
+  const itemsToFetch: Array<{ text: string; voice: string; gender: 'male' | 'female' }> = [];
 
   try {
     if (normSection.includes('listen')) {
-      // Load listening-dialogue questions
       const res = await fetch('/question-bank/listening-dialogue.json');
       if (res.ok) {
         const data = await res.json();
@@ -31,46 +30,53 @@ export async function preCacheSectionAudio(
             for (const line of lines) {
               const trimmed = line.trim();
               if (!trimmed) continue;
-              const isMale = /male|mr\.|dr\.\s*(?:davis|alvarez|vance)|prof\./i.test(trimmed);
-              const voice = isMale ? 'Fenrir' : 'Kore';
+              const spkPrefix = trimmed.split(':')[0] || '';
+              const inferred = inferGenderFromSpeaker(spkPrefix);
+              const isMale =
+                inferred === 'male' ||
+                (inferred !== 'female' && /male|mr\.|dr\.\s*(?:davis|alvarez|vance)|prof\./i.test(spkPrefix));
+              const gender: 'male' | 'female' = isMale ? 'male' : 'female';
+              const voice = isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural';
               const clean = stripSpeakerAndFormatting(trimmed);
               if (clean.length > 5) {
-                itemsToFetch.push({ text: clean, voice });
+                itemsToFetch.push({ text: clean, voice, gender });
               }
             }
           }
         }
       }
     } else if (normSection.includes('speak')) {
-      // Load listen-repeat questions
       const lrRes = await fetch('/question-bank/listen-repeat.json');
       if (lrRes.ok) {
         const lrData = await lrRes.json();
         for (const task of lrData) {
           if (Array.isArray(task.sentences)) {
-            const voice = task.speakerGender === 'male' ? 'Fenrir' : 'Kore';
+            const isMale = task.speakerGender === 'male';
+            const gender: 'male' | 'female' = isMale ? 'male' : 'female';
+            const voice = isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural';
             for (const s of task.sentences) {
               const clean = stripSpeakerAndFormatting(String(s));
               if (clean.length > 5) {
-                itemsToFetch.push({ text: clean, voice });
+                itemsToFetch.push({ text: clean, voice, gender });
               }
             }
           }
         }
       }
 
-      // Load speaking-interview questions
       const siRes = await fetch('/question-bank/speaking-interview.json');
       if (siRes.ok) {
         const siData = await siRes.json();
         for (const task of siData) {
           if (Array.isArray(task.questions)) {
-            const voice = task.interviewerGender === 'female' ? 'Kore' : 'Puck';
+            const isFemale = task.interviewerGender === 'female';
+            const gender: 'male' | 'female' = isFemale ? 'female' : 'male';
+            const voice = isFemale ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
             for (const q of task.questions) {
               const qText = typeof q === 'string' ? q : q.question;
               const clean = stripSpeakerAndFormatting(String(qText || ''));
               if (clean.length > 5) {
-                itemsToFetch.push({ text: clean, voice });
+                itemsToFetch.push({ text: clean, voice, gender });
               }
             }
           }

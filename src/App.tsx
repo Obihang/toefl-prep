@@ -1232,142 +1232,94 @@ export default function App() {
           aria-label="Practice Parameters"
           className="space-y-2"
         >
-          {/* Question Bank Sync & Count Status Badge */}
-          {(() => {
-            const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
-            const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
-            const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic);
-            const totalAcrossAllSections =
-              bankStats?.totalQuestions ||
-              Object.values(bankStats?.countsPerTaskType || {}).reduce((a, b) => a + b, 0) ||
-              90;
-
-            return (
-              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-teal-50/70 border border-teal-200/80 text-xs text-slate-700 flex-wrap gap-2 shadow-2xs">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Database className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-                  <span className="font-bold text-slate-900">
-                    Section bank: {exactFilterMatches.length} match current filter ({sectionTotalCount} in section &bull; {totalAcrossAllSections} in global bank)
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-[11px] text-teal-800">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span className="font-medium">100% Zero-API &amp; Offline Ready</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Prefetching Toggle Switch (Outside, right above question controls) */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-700">Background Prefetching:</span>
-              <span className="text-[11px] text-slate-500">
-                {enablePrefetching ? 'Pre-loads questions for instant ⚡ generation' : 'Paused to save quota & bandwidth'}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const next = !enablePrefetching;
-                setEnablePrefetching(next);
-                localStorage.setItem('toefl_enable_prefetching', next ? 'true' : 'false');
-                window.dispatchEvent(new Event('prefetchSettingChanged'));
-              }}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition cursor-pointer flex items-center gap-1.5 ${
-                !enablePrefetching
-                  ? 'bg-slate-200 text-slate-700 border-slate-300'
-                  : 'bg-teal-50 text-teal-900 border-teal-300 hover:bg-teal-100'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${enablePrefetching ? 'bg-emerald-600 animate-pulse' : 'bg-slate-400'}`} />
-              <span>{!enablePrefetching ? 'Prefetching Off' : 'Prefetching On'}</span>
-            </button>
-          </div>
-
           <div
             className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4"
           >
-          <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
-            <div className="flex items-center gap-2">
-              <label htmlFor="select-level" className="text-xs text-slate-500 font-medium">
-                Proficiency Level:
-              </label>
-              <select
-                id="select-level"
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
-              >
-                <option value="all">All Levels</option>
-                {LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {LEVEL_LABELS[lvl]}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+              <div className="flex items-center gap-2">
+                <label htmlFor="select-level" className="text-xs text-slate-500 font-medium">
+                  Proficiency Level:
+                </label>
+                <select
+                  id="select-level"
+                  value={level}
+                  onChange={(e) => setLevel(e.target.value)}
+                  className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
+                >
+                  <option value="all">All Levels</option>
+                  {LEVELS.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {LEVEL_LABELS[lvl]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label htmlFor="select-topic" className="text-xs text-slate-500 font-medium">
+                  Academic Topic:
+                </label>
+                <select
+                  id="select-topic"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
+                >
+                  <option value="all">All Topics</option>
+                  {ACADEMIC_TOPICS.map((top) => (
+                    <option key={top} value={top}>
+                      {TOPIC_LABELS[top]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(() => {
+                const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
+                const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
+                const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic);
+                return (
+                  <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-flex items-center gap-1.5">
+                    <Database className="w-3 h-3 text-teal-700 shrink-0" />
+                    <span>{exactFilterMatches.length}/{sectionTotalCount} in bank</span>
+                  </span>
+                );
+              })()}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200 text-teal-800 font-medium" title={adaptiveRec.reason}>
-                Adaptive Level: <strong className="capitalize">{adaptiveRec.level}</strong>
-              </span>
-            </div>
+            <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
+              {isAudioSection && (
+                <button
+                  type="button"
+                  onClick={handlePreCacheAudio}
+                  disabled={isPreCachingAudio}
+                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-75 ${
+                    preCacheStatus && preCacheStatus.includes('0ms ready')
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                      : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs'
+                  }`}
+                  title="Pre-cache high-fidelity voices for the current section into IndexedDB for 0ms offline playback"
+                >
+                  <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
+                  <span>
+                    {isPreCachingAudio
+                      ? preCacheStatus || 'Caching audio...'
+                      : preCacheStatus && preCacheStatus.includes('0ms ready')
+                      ? 'Audio Cached (0ms ⚡)'
+                      : 'Pre-Cache Audio'}
+                  </span>
+                </button>
+              )}
 
-            <div className="flex items-center gap-2">
-              <label htmlFor="select-topic" className="text-xs text-slate-500 font-medium">
-                Academic Topic:
-              </label>
-              <select
-                id="select-topic"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
-              >
-                <option value="all">All Topics</option>
-                {ACADEMIC_TOPICS.map((top) => (
-                  <option key={top} value={top}>
-                    {TOPIC_LABELS[top]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
-            {isAudioSection && (
               <button
-                type="button"
-                onClick={handlePreCacheAudio}
-                disabled={isPreCachingAudio}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-75 ${
-                  preCacheStatus && preCacheStatus.includes('0ms ready')
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                    : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs'
-                }`}
-                title="Pre-cache high-fidelity voices for the current section into IndexedDB for 0ms offline playback"
+                onClick={() => handleNextQuestion(currentTaskType)}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                title="Load next question from shared question bank or curated pool"
               >
-                <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
-                <span>
-                  {isPreCachingAudio
-                    ? preCacheStatus || 'Caching audio...'
-                    : preCacheStatus && preCacheStatus.includes('0ms ready')
-                    ? 'Audio Cached (0ms ⚡)'
-                    : 'Pre-Cache Section Audio'}
-                </span>
+                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                <span>Next Question</span>
               </button>
-            )}
 
-            <button
-              onClick={() => handleNextQuestion(currentTaskType)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              title="Load next question from shared question bank or curated pool"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-              <span>Next Question</span>
-            </button>
-
-            <div className="flex items-center gap-2">
               <button
                 onClick={handleGenerateNewAiTask}
                 disabled={isGenerating}
@@ -1391,39 +1343,29 @@ export default function App() {
                     : 'Generate New with AI'}
                 </span>
               </button>
-              {hasAnyProviderKey() && enablePrefetching && !prefetchProgress.done && (
-                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                  Preparing questions ({prefetchProgress.filled}/8 ready)
-                </span>
-              )}
-              {hasAnyProviderKey() && enablePrefetching && prefetchProgress.done && (
-                <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                  Questions ready
-                </span>
-              )}
             </div>
-          </div>
-          {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (() => {
-            const remainingSec = Math.max(1, Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000));
-            const remainingMin = Math.ceil(remainingSec / 60);
-            const msg = rateLimitPauseState.kind === 'per-day'
-              ? `Prefetch paused: daily quota reached, retrying in ${remainingMin}m`
-              : `Prefetch paused: rate limited, retrying in ${remainingSec}s`;
-            return (
-              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-2 mt-2 w-full md:w-auto">
-                <span>{msg}</span>
-                <button
-                  onClick={() => {
-                    setRateLimitPauseState(null);
-                    quotaExhaustedUntilRef.current = 0;
-                  }}
-                  className="font-semibold text-teal-800 hover:text-teal-950 underline cursor-pointer"
-                >
-                  Resume prefetch now
-                </button>
-              </div>
-            );
-          })()}
+
+            {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (() => {
+              const remainingSec = Math.max(1, Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000));
+              const remainingMin = Math.ceil(remainingSec / 60);
+              const msg = rateLimitPauseState.kind === 'per-day'
+                ? `Prefetch paused: daily quota reached, retrying in ${remainingMin}m`
+                : `Prefetch paused: rate limited, retrying in ${remainingSec}s`;
+              return (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-2 mt-2 w-full md:w-auto">
+                  <span>{msg}</span>
+                  <button
+                    onClick={() => {
+                      setRateLimitPauseState(null);
+                      quotaExhaustedUntilRef.current = 0;
+                    }}
+                    className="font-semibold text-teal-800 hover:text-teal-950 underline cursor-pointer"
+                  >
+                    Resume prefetch now
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </section>
 

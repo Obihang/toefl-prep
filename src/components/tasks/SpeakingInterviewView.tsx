@@ -193,18 +193,19 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-  const playQuestionAudio = async (itemKey: string) => {
+  const playQuestionAudio = async (itemKey: string, qIdx: number = currentQIndex) => {
     stopAllAudio();
     activePlayingKeyRef.current = itemKey;
     setIsPlayingAudio(true);
     setAudioError(null);
-    const parsed = parseDialogueLine(currentQ.question);
-    const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(currentQ.question);
+    const targetQ = task.questions[qIdx] || currentQ;
+    const parsed = parseDialogueLine(targetQ.question);
+    const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(targetQ.question);
     const effGender = interviewerGender;
     const voice = interviewerVoice;
 
     // Pre-warm next question's first chunk in parallel if available
-    const nextQ = task.questions[currentQIndex + 1]?.question;
+    const nextQ = task.questions[qIdx + 1]?.question;
     if (nextQ) {
       const nextChunks = chunkTextForTTS(nextQ);
       if (nextChunks.length > 0) {
@@ -247,13 +248,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     if (wasPlayingThis) {
       return;
     }
-    await playQuestionAudio(itemKey);
+    await playQuestionAudio(itemKey, currentQIndex);
   };
 
   const handleRestartQuestionAudio = async () => {
     stopAllAudio();
     const itemKey = `question_${currentQIndex}`;
-    await playQuestionAudio(itemKey);
+    await playQuestionAudio(itemKey, currentQIndex);
   };
 
   // Background transcription per question
@@ -351,8 +352,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   };
 
   // Start Official TOEFL Test Simulation for current question
-  const startSimulation = () => {
-    if (currentQIndex === 0) {
+  const startSimulation = (qIdx: number = currentQIndex) => {
+    if (qIdx === 0) {
       hasCompletedRef.current = false;
     }
     clearInterval(timerIntervalRef.current);
@@ -378,18 +379,19 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
       if (currentSeconds <= 0) {
         clearInterval(timerIntervalRef.current);
-        startSpeakingPhase();
+        startSpeakingPhase(qIdx);
       }
     }, 1000);
   };
 
-  const startSpeakingPhase = async () => {
+  const startSpeakingPhase = async (qIdx: number = currentQIndex) => {
+    const targetQ = task.questions[qIdx] || currentQ;
     setStep('speaking');
     setTimerMode('speaking');
-    setTimeLeft(currentQ.responseTimeSeconds);
+    setTimeLeft(targetQ.responseTimeSeconds);
     playChime(880, 400);
 
-    const qIndex = currentQIndex;
+    const qIndex = qIdx;
     const session = createVoiceSession({
       onTranscriptUpdate: (transcript) => {
         setAnswers((prev) => ({
@@ -429,21 +431,21 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       setMicNotice(err.message || 'Could not start microphone');
     }
 
-    let speakingSeconds = currentQ.responseTimeSeconds;
+    let speakingSeconds = targetQ.responseTimeSeconds;
     timerIntervalRef.current = setInterval(async () => {
       speakingSeconds--;
       setTimeLeft(speakingSeconds);
 
       if (speakingSeconds <= 0) {
         clearInterval(timerIntervalRef.current);
-        await stopSimulation();
+        await stopSimulation(qIndex);
       }
     }, 1000);
   };
 
-  const stopSimulation = async () => {
+  const stopSimulation = async (explicitQIndex?: number) => {
     clearInterval(timerIntervalRef.current);
-    const qIndex = currentQIndex;
+    const qIndex = explicitQIndex !== undefined ? explicitQIndex : currentQIndex;
     if (voiceSessionRef.current) {
       const activeSession = voiceSessionRef.current;
       voiceSessionRef.current = null;
@@ -487,8 +489,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       const nextIdx = qIndex + 1;
       setCurrentQIndex(nextIdx);
       setTimeout(() => {
-        playQuestionAudio(`question_${nextIdx}`).then(() => {
-          startSimulation();
+        playQuestionAudio(`question_${nextIdx}`, nextIdx).then(() => {
+          startSimulation(nextIdx);
         }).catch(() => {});
       }, 600);
     } else if (qIndex >= task.questions.length - 1 && !hasCompletedRef.current) {
@@ -905,10 +907,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
               onChange={(e) => setAutoStart(e.target.checked)}
               className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
             />
-            <span>Auto-start on sound &amp; Auto-advance sequence (Q1 → Q{task.questions.length})</span>
+            <span>Auto-Flow (Q1 → Q{task.questions.length})</span>
           </label>
           <span className="text-[11px] text-slate-600">
-            One control for all {task.questions.length} interview questions: plays prompt, detects your voice, and advances automatically.
+            Plays question → 2s prep → records response → advances automatically through all {task.questions.length} questions.
           </span>
         </div>
 
@@ -916,16 +918,16 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
           type="button"
           onClick={async () => {
             setAutoStart(true);
-            stopSimulation();
+            stopSimulation(0);
             setCurrentQIndex(0);
-            await playQuestionAudio('question_0');
-            startSimulation();
+            await playQuestionAudio('question_0', 0);
+            startSimulation(0);
           }}
           disabled={timerMode !== 'idle' || isPlayingAudio}
           className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
         >
           <Play className="w-3.5 h-3.5 fill-current" />
-          <span>Start Full Auto-Interview (Q1–Q{task.questions.length})</span>
+          <span>Start Practice (Auto-Flow)</span>
         </button>
       </div>
 

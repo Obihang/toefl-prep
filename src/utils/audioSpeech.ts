@@ -43,9 +43,8 @@ export interface SpeechVoiceOption {
 export const MALE_NEURAL_VOICES = [
   'en-US-ChristopherNeural',
   'en-US-GuyNeural',
-  'en-US-EricNeural',
-  'en-US-RogerNeural',
-  'en-US-SteffanNeural',
+  'en-US-AndrewNeural',
+  'en-US-BrianNeural',
   'en-GB-RyanNeural',
   'en-GB-ThomasNeural',
 ];
@@ -53,7 +52,8 @@ export const MALE_NEURAL_VOICES = [
 export const FEMALE_NEURAL_VOICES = [
   'en-US-AriaNeural',
   'en-US-JennyNeural',
-  'en-US-MichelleNeural',
+  'en-US-AvaNeural',
+  'en-US-EmmaNeural',
   'en-GB-SoniaNeural',
   'en-GB-LibbyNeural',
 ];
@@ -1627,19 +1627,23 @@ export async function playDialogue(
     if (!parsed.spokenText) continue;
 
     const speakerName = parsed.speakerName || (i % 2 === 0 ? 'Speaker A' : 'Speaker B');
-    const lowerSpk = speakerName.toLowerCase();
-    const isSpeakerB =
-      lowerSpk.includes('student') ||
-      /speaker b|^b$/i.test(lowerSpk) ||
-      (!/professor|prof|advisor|librarian|instructor|doctor|dr\.|staff|dean|coordinator|director|coach|assistant|speaker a|^a$/i.test(
+    const lowerSpk = `${speakerName} ${parsed.speakerHint || ''}`.toLowerCase();
+    const isAuthority =
+      /\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean|coordinator|director|coach|assistant|receptionist|narrator|lecturer|faculty|teacher|speaker\s*a|^a$)\b/i.test(
         lowerSpk
-      ) &&
-        i % 2 === 1);
+      );
+    const isExplicitStudent =
+      /\b(student|undergraduate|grad student|classmate|peer|speaker\s*b|^b$)\b/i.test(
+        lowerSpk
+      );
+    // Any first-name-only speaker (like "Emma") who is not an authority figure maps to Speaker B (student)
+    const isSpeakerB = isExplicitStudent || (!isAuthority && Boolean(parsed.speakerName)) || (!isAuthority && i % 2 === 1);
 
     const mappedVoice = isSpeakerB ? voiceMapping?.B : voiceMapping?.A;
     const voiceToUse =
       mappedVoice || manager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
-    const genderToUse = inferGender(voiceToUse);
+    const inferredSpkGender = inferGenderFromSpeaker(`${speakerName} ${parsed.speakerHint || ''}`);
+    const genderToUse = inferredSpkGender || inferGender(voiceToUse);
 
     await playSpeech(parsed.spokenText, {
       voice: voiceToUse,
@@ -2569,149 +2573,216 @@ function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
-// Check if two words are equivalent in TOEFL speaking context
+// Check if two words are equivalent in TOEFL speaking context (strict — never matches "and" to "wind")
 function areWordsEquivalent(targetWord: string, candidate: string): boolean {
+  if (!targetWord || !candidate) return false;
   if (targetWord === candidate) return true;
 
-  // Contraction or o'clock without quote
-  const cleanTarget = targetWord.replace(/'/g, '').toLowerCase();
-  const cleanCandidate = candidate.replace(/'/g, '').toLowerCase();
+  // Contraction or punctuation-stripped exact match
+  const cleanTarget = targetWord.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const cleanCandidate = candidate.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (!cleanTarget || !cleanCandidate) return false;
   if (cleanTarget === cleanCandidate) return true;
 
-  // Common synonyms / abbreviations
-  const synonyms: Record<string, string[]> = {
+  // Strict TOEFL abbreviations & true homophones only
+  const equivalents: Record<string, string[]> = {
     laboratory: ['lab', 'labs'],
     lab: ['laboratory'],
-    professor: ['prof', 'professors'],
-    professors: ['prof', 'professor'],
+    professor: ['prof'],
+    prof: ['professor'],
     doctor: ['dr'],
-    assistants: ['assistant'],
-    assistant: ['assistants'],
-    reports: ['report'],
-    report: ['reports'],
-    slides: ['slide'],
-    slide: ['slides'],
-    sessions: ['session'],
-    session: ['sessions'],
-    hours: ['hour'],
-    hour: ['hours'],
-    concepts: ['concept'],
-    concept: ['concepts'],
-    datasets: ['dataset'],
-    dataset: ['datasets'],
-    panels: ['panel'],
-    panel: ['panels'],
-    trials: ['trial'],
-    trial: ['trials'],
-    organisms: ['organism'],
-    organism: ['organisms'],
-    layers: ['layer'],
-    layer: ['layers'],
-    communities: ['community'],
-    community: ['communities'],
+    dr: ['doctor'],
+    there: ['their', 'theyre'],
+    their: ['there', 'theyre'],
+    theyre: ['there', 'their'],
+    to: ['too', 'two'],
+    too: ['to', 'two'],
+    two: ['to', 'too'],
+    hear: ['here'],
+    here: ['hear'],
+    for: ['four'],
+    four: ['for'],
+    right: ['write'],
+    write: ['right'],
+    know: ['no'],
+    no: ['know'],
+    new: ['knew'],
+    knew: ['new'],
+    our: ['hour'],
+    hour: ['our'],
+    by: ['buy'],
+    buy: ['by'],
   };
 
-  if (synonyms[cleanTarget]?.includes(cleanCandidate)) return true;
-  if (synonyms[cleanCandidate]?.includes(cleanTarget)) return true;
+  if (equivalents[cleanTarget]?.includes(cleanCandidate)) return true;
+  if (equivalents[cleanCandidate]?.includes(cleanTarget)) return true;
 
-  // Single-letter morphological difference (plural 's' or 'ed')
+  // Minor plural/past inflection ONLY on content words of 6+ letters
   if (
-    cleanTarget.length >= 5 &&
-    (cleanTarget + 's' === cleanCandidate || cleanCandidate + 's' === cleanTarget || cleanTarget + 'ed' === cleanCandidate)
+    cleanTarget.length >= 6 &&
+    cleanCandidate.length >= 6 &&
+    (cleanTarget + 's' === cleanCandidate ||
+      cleanCandidate + 's' === cleanTarget ||
+      cleanTarget + 'ed' === cleanCandidate ||
+      cleanCandidate + 'ed' === cleanTarget)
   ) {
     return true;
   }
 
-  // Prefix overlap (e.g., "maint" vs "maintenance", "lab" vs "laboratory")
-  if (
-    (cleanTarget.length >= 4 && cleanCandidate.startsWith(cleanTarget)) ||
-    (cleanCandidate.length >= 4 && cleanTarget.startsWith(cleanCandidate))
-  ) {
-    return true;
-  }
-
-  // Fuzzy phonetic & Levenshtein similarity for accented speech / Whisper mishearings (>= 55% match)
-  const dist = levenshteinDistance(cleanTarget, cleanCandidate);
-  const maxLen = Math.max(cleanTarget.length, cleanCandidate.length);
-  const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
-  if (similarity >= 0.55) return true;
-
-  // Consonant skeleton similarity (>= 55%)
-  const c1 = cleanTarget.replace(/[aeiouy]/g, '');
-  const c2 = cleanCandidate.replace(/[aeiouy]/g, '');
-  if (c1 && c2) {
-    const cDist = levenshteinDistance(c1, c2);
-    const cMax = Math.max(c1.length, c2.length);
-    if (cMax > 0 && 1 - cDist / cMax >= 0.55) return true;
+  // Allow at most 1 character edit ONLY on long words (>= 7 chars) that start with the same letter
+  if (cleanTarget.length >= 7 && cleanCandidate.length >= 7 && cleanTarget[0] === cleanCandidate[0]) {
+    const dist = levenshteinDistance(cleanTarget, cleanCandidate);
+    if (dist <= 1) return true;
   }
 
   return false;
 }
 
-// Compare target sentence vs student spoken transcript with smart time & number equivalence
+const FILLER_TOKENS_SET = new Set(['um', 'uh', 'er', 'erm', 'ah', 'hmm', 'uhm', 'umm']);
+
+/**
+ * Strict Sequence Alignment (Needleman-Wunsch / Longest Common Subsequence)
+ * for TOEFL Listen & Repeat accuracy scoring:
+ * 1. Aligns target words and spoken words in strict sequential order (0..N).
+ *    Each spoken word can match at most one target word in sequence.
+ * 2. Penalizes both omitted/missed target words AND extra/inserted/repeated spoken words.
+ * 3. Any missing target word OR any extra/inserted word guarantees accuracy < 100%.
+ * 4. Returns ordered wordStatuses with 'matched' (green), 'missed' (red), and 'extra' (amber "+ word").
+ */
 export function calculateSentenceMatch(
   target: string,
   spoken: string
 ): {
   percentage: number;
   wordStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
+  matchedCount?: number;
+  missedCount?: number;
+  extraCount?: number;
 } {
   const mergedSpoken = mergeCompoundWords ? mergeCompoundWords(spoken, target) : spoken;
-  const rawTargetWords = target.split(/\s+/).filter(Boolean);
+  const rawTargetWords = target.trim().split(/\s+/).filter(Boolean);
   if (rawTargetWords.length === 0) {
-    return { percentage: 0, wordStatuses: [] };
+    return { percentage: 0, wordStatuses: [], matchedCount: 0, missedCount: 0, extraCount: 0 };
   }
 
-  const spokenTokens = tokenizeNormalizedWords(mergedSpoken);
-  const spokenFreq = new Map<string, number>();
-  for (const t of spokenTokens) {
-    spokenFreq.set(t, (spokenFreq.get(t) || 0) + 1);
-  }
+  // Expand target words so each display word has its normalized comparison token(s)
+  const targetItems = rawTargetWords.map((raw) => {
+    const tokens = tokenizeNormalizedWords(raw);
+    return {
+      display: raw,
+      norm: tokens.join(' ') || raw.toLowerCase().replace(/[^a-z0-9]/g, ''),
+      tokens,
+    };
+  });
 
-  const wordStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }> = [];
-  let matchedCount = 0;
+  // Tokenize spoken words while preserving display tokens and excluding pure vocalized fillers
+  // (vocalized fillers are tracked separately by the filler detector)
+  const rawSpokenWords = mergedSpoken
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/^\[|\]$/g, '').trim())
+    .filter((w) => {
+      if (!w) return false;
+      const clean = w.toLowerCase().replace(/[^a-z0-9']/g, '');
+      return Boolean(clean) && !FILLER_TOKENS_SET.has(clean);
+    });
 
-  for (const rawWord of rawTargetWords) {
-    const normTokens = tokenizeNormalizedWords(rawWord);
-    let allTokensMatched = true;
-
-    if (normTokens.length === 0) {
-      allTokensMatched = true;
-    } else {
-      for (const token of normTokens) {
-        // Direct match
-        const directCount = spokenFreq.get(token) || 0;
-        if (directCount > 0) {
-          spokenFreq.set(token, directCount - 1);
-          continue;
-        }
-
-        // Equivalence / synonym match
-        let foundEquivalent = false;
-        for (const [candidate, count] of spokenFreq.entries()) {
-          if (count > 0 && areWordsEquivalent(token, candidate)) {
-            spokenFreq.set(candidate, count - 1);
-            foundEquivalent = true;
-            break;
-          }
-        }
-
-        if (!foundEquivalent) {
-          allTokensMatched = false;
-        }
+  // Collapse multi-word spoken time expressions (e.g. "ten" + "o'clock" when target has "10:00")
+  const spokenItems: Array<{ display: string; norm: string }> = [];
+  for (let idx = 0; idx < rawSpokenWords.length; idx++) {
+    const w1 = rawSpokenWords[idx];
+    const w2 = idx + 1 < rawSpokenWords.length ? rawSpokenWords[idx + 1] : '';
+    if (w2) {
+      const combinedNorm = tokenizeNormalizedWords(`${w1} ${w2}`).join(' ');
+      if (combinedNorm && targetItems.some((ti) => ti.norm === combinedNorm && ti.tokens.length >= 2)) {
+        spokenItems.push({ display: `${w1} ${w2}`, norm: combinedNorm });
+        idx++;
+        continue;
       }
     }
+    const norm = tokenizeNormalizedWords(w1).join(' ') || w1.toLowerCase().replace(/[^a-z0-9]/g, '');
+    spokenItems.push({ display: w1, norm });
+  }
 
-    if (allTokensMatched) {
-      matchedCount++;
-      wordStatuses.push({ word: rawWord, status: 'matched' });
-    } else {
-      wordStatuses.push({ word: rawWord, status: 'missed' });
+  const M = targetItems.length;
+  const N = spokenItems.length;
+
+  if (N === 0) {
+    return {
+      percentage: 0,
+      wordStatuses: targetItems.map((ti) => ({ word: ti.display, status: 'missed' as const })),
+      matchedCount: 0,
+      missedCount: M,
+      extraCount: 0,
+    };
+  }
+
+  // Dynamic Programming LCS table for strict sequential alignment
+  const dp: number[][] = Array.from({ length: M + 1 }, () => Array(N + 1).fill(0));
+
+  for (let i = 1; i <= M; i++) {
+    for (let j = 1; j <= N; j++) {
+      if (areWordsEquivalent(targetItems[i - 1].norm, spokenItems[j - 1].norm)) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
     }
   }
 
-  const percentage = Math.round((matchedCount / rawTargetWords.length) * 100);
-  return { percentage, wordStatuses };
+  // Backtrack from (M, N) to (0, 0) to reconstruct exact sequential diff (matched, missed, extra)
+  const reversedStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }> = [];
+  let i = M;
+  let j = N;
+  let alignedMatchesCount = 0;
+  let extraWordsCount = 0;
+
+  while (i > 0 || j > 0) {
+    if (
+      i > 0 &&
+      j > 0 &&
+      areWordsEquivalent(targetItems[i - 1].norm, spokenItems[j - 1].norm) &&
+      dp[i][j] === dp[i - 1][j - 1] + 1
+    ) {
+      reversedStatuses.push({ word: targetItems[i - 1].display, status: 'matched' });
+      alignedMatchesCount++;
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      reversedStatuses.push({ word: spokenItems[j - 1].display, status: 'extra' });
+      extraWordsCount++;
+      j--;
+    } else {
+      reversedStatuses.push({ word: targetItems[i - 1].display, status: 'missed' });
+      i--;
+    }
+  }
+
+  const wordStatuses = reversedStatuses.reverse();
+  const missedWordsCount = M - alignedMatchesCount;
+
+  // Compute strict accuracy score with penalty for extra/inserted/repeated words
+  let percentage = Math.max(
+    0,
+    Math.round(((alignedMatchesCount - extraWordsCount * 0.5) / M) * 100)
+  );
+
+  // If ANY target word was missed OR ANY extra word was inserted, accuracy MUST be < 100%
+  if (missedWordsCount > 0 || extraWordsCount > 0) {
+    const maxAllowed =
+      missedWordsCount === 0 && extraWordsCount > 0
+        ? Math.max(0, Math.min(94, 100 - extraWordsCount * 6))
+        : Math.min(95, Math.floor((alignedMatchesCount / M) * 100));
+    percentage = Math.min(percentage, maxAllowed);
+  }
+
+  return {
+    percentage,
+    wordStatuses,
+    matchedCount: alignedMatchesCount,
+    missedCount: missedWordsCount,
+    extraCount: extraWordsCount,
+  };
 }
 
 // Play short beep tone for real exam auto-flow

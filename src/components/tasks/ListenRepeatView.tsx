@@ -435,6 +435,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
       const activeSession = voiceSessionRef.current;
       voiceSessionRef.current = null;
       setMicStatus('transcribing');
+      let alignedTranscript = '';
       try {
         const result = await activeSession.stop();
         if (result.audioBlob) {
@@ -447,6 +448,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
           setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
           const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
           const aligned = alignHomophonesAndPhonetics(result.transcript, task.sentences[index]);
+          alignedTranscript = aligned;
           const metrics = result.metrics;
           setStates((prev) => {
             const next = [...prev];
@@ -466,6 +468,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         setActiveMicIdx(null);
         setMicStatus('idle');
         setAudioLevel(0);
+      }
+      if (alignedTranscript.trim()) {
+        await handleCheck(index, alignedTranscript);
       }
       return;
     }
@@ -549,23 +554,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
   };
 
 
-  const handleCheck = async (index: number) => {
+  const handleCheck = async (index: number, customTranscript?: string) => {
     // If mic is running, stop it first and await its audioBlob before finalizing
     if (activeMicIdx === index && voiceSessionRef.current) {
       await stopSpeechRecognition(index);
     }
 
     const target = task.sentences[index];
-    const user = states[index].userInput;
+    const user = customTranscript !== undefined ? customTranscript : states[index].userInput;
     const { percentage, wordStatuses } = calculateSentenceMatch(target, user);
     const metrics = states[index].metrics;
 
     let itemBand = 1.0;
-    if (percentage >= 92) itemBand = 6.0;
-    else if (percentage >= 82) itemBand = 5.5;
-    else if (percentage >= 72) itemBand = 5.0;
-    else if (percentage >= 60) itemBand = 4.5;
-    else if (percentage >= 48) itemBand = 4.0;
+    if (percentage === 100) itemBand = 6.0;
+    else if (percentage >= 88) itemBand = 5.5;
+    else if (percentage >= 75) itemBand = 5.0;
+    else if (percentage >= 62) itemBand = 4.5;
+    else if (percentage >= 50) itemBand = 4.0;
     else if (percentage >= 35) itemBand = 3.0;
     else if (percentage >= 20) itemBand = 2.0;
     else itemBand = 1.0;
@@ -590,6 +595,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
       const next = [...prev];
       next[index] = {
         ...next[index],
+        userInput: user,
         scorePercent: percentage,
         bandScore,
         wordBreakdown: wordStatuses,
@@ -618,6 +624,11 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         feedbackSummary: `Listen & Repeat: Average accuracy of ${avgPercent}% across ${task.sentences.length} sentences`,
       });
       onComplete?.({ blobs: { ...blobsRef.current }, scaledScore: scaled, avgPercent });
+    } else if (autoStart && index + 1 < task.sentences.length) {
+      // Auto-advance to the next sentence when Auto-Flow is active
+      setTimeout(() => {
+        handlePlay(index + 1);
+      }, 500);
     }
   };
 
@@ -767,10 +778,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
               onChange={(e) => setAutoStart(e.target.checked)}
               className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
             />
-            <span>Auto-start mic on sound (All {task.sentences.length} sentences)</span>
+            <span>Auto-Flow (All {task.sentences.length} sentences)</span>
           </label>
           <span className="text-[11px] text-slate-600">
-            Automatically starts microphone recording after each sentence plays.
+            Plays sentence → records your voice → checks word accuracy → advances automatically.
           </span>
         </div>
 
@@ -786,7 +797,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
           className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
         >
           <Play className="w-3.5 h-3.5 fill-current" />
-          <span>Start Auto-Sequence</span>
+          <span>Start Practice (Auto-Flow)</span>
         </button>
       </div>
 
@@ -858,16 +869,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                       ) : (
                         <Volume2 className="w-3.5 h-3.5" />
                       )}
-                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? '⏹ Stop Audio' : 'Hear Sentence'}
-                    </button>
-
-                    <button
-                      onClick={() => handleRestartSentence(idx)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                      title="Restart sentence audio from beginning"
-                    >
-                      <RotateCcw className="w-3 h-3 text-slate-500" />
-                      <span>Restart</span>
+                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? 'Stop Audio' : 'Hear Prompt'}
                     </button>
                   </div>
                   {audioErrors[idx] && (
@@ -979,63 +981,53 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                           <button
                             type="button"
                             onClick={() => handlePlayUserRecording(idx)}
-                            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                            className={`px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                               playingRecordingIdx === idx
                                 ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
-                                : 'border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100'
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                             }`}
-                            title={playingRecordingIdx === idx ? 'Click to stop playback' : 'Listen to your exact recorded voice'}
+                            title={playingRecordingIdx === idx ? 'Stop playback' : 'Listen to your recorded voice'}
                           >
                             {playingRecordingIdx === idx ? (
                               <>
                                 <Pause className="w-3.5 h-3.5 fill-current text-slate-950" />
-                                <span>⏹ Stop Playback</span>
+                                <span>Stop</span>
                               </>
                             ) : (
                               <>
                                 <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
-                                <span>▶ Hear My Recording</span>
+                                <span>My Voice</span>
                               </>
                             )}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRetryTranscription(idx)}
-                            disabled={isRecordingThis || isTranscribingThis}
-                            className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                              transcribeErrors[idx]
-                                ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold'
-                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                            }`}
-                            title="Retry transcription from saved recording"
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
-                            <span>Retry STT</span>
-                          </button>
+                          {transcribeErrors[idx] && (
+                            <button
+                              type="button"
+                              onClick={() => handleRetryTranscription(idx)}
+                              disabled={isRecordingThis || isTranscribingThis}
+                              className="px-2.5 py-2 text-xs font-semibold rounded-lg border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                              title="Retry transcription from saved recording"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-amber-700'}`} />
+                              <span>Retry STT</span>
+                            </button>
+                          )}
                         </>
                       )}
 
-                      <button
-                        onClick={() => handleCheck(idx)}
-                        disabled={!state.userInput.trim() || isRecordingThis || isTranscribingThis}
-                        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        {state.checked ? 'Re-Check' : 'Check'}
-                      </button>
+                      {!state.checked && state.userInput.trim() && (
+                        <button
+                          onClick={() => handleCheck(idx)}
+                          disabled={!state.userInput.trim() || isRecordingThis || isTranscribingThis}
+                          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Check</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-
-                {/* Real-time speaking status strip */}
-                {isRecordingThis && (
-                  <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg">
-                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
-                    <span className="font-medium">
-                      Microphone active · Speak clearly now. When finished, click <strong>Stop</strong> or <strong>Check</strong>.
-                    </span>
-                  </div>
-                )}
 
                 {/* Live Transcript / Word Accuracy Diff */}
                 {state.checked && (
@@ -1049,14 +1041,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                           Band {(state.bandScore ?? 5.0).toFixed(1)}/6.0
                         </span>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          (state.scorePercent ?? 0) >= 85
+                          (state.scorePercent ?? 0) === 100
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : (state.scorePercent ?? 0) >= 65
+                            : (state.scorePercent ?? 0) >= 85
                             ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                            : (state.scorePercent ?? 0) >= 65
+                            ? 'bg-sky-100 text-sky-800 border border-sky-300'
                             : 'bg-amber-100 text-amber-800 border border-amber-300'
                         }`}>
-                          {(state.scorePercent ?? 0) >= 85
+                          {(state.scorePercent ?? 0) === 100
                             ? 'Band 6.0 Exemplar Match'
+                            : (state.scorePercent ?? 0) >= 85
+                            ? 'Band 5.5 Advanced Match'
                             : (state.scorePercent ?? 0) >= 65
                             ? 'Band 5.0 Competent Match'
                             : 'Needs Refinement'}
@@ -1083,18 +1079,27 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                       </span>
                     </div>
 
-                    {/* Word-by-word breakdown with filler chips */}
+                    {/* Word-by-word breakdown with extra words and filler chips */}
                     <div className="flex flex-wrap gap-1.5 pt-1 items-center">
                       {state.wordBreakdown?.map((wb, wIdx) => (
                         <span
                           key={wIdx}
+                          title={
+                            wb.status === 'matched'
+                              ? 'Matched in sequence'
+                              : wb.status === 'extra'
+                              ? 'Extra / inserted spoken word (not in target sentence)'
+                              : 'Missed or out-of-order target word'
+                          }
                           className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
                             wb.status === 'matched'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : wb.status === 'extra'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold'
                               : 'bg-rose-100 text-rose-800 border border-rose-300 line-through'
                           }`}
                         >
-                          {wb.word}
+                          {wb.status === 'extra' ? `+ ${wb.word}` : wb.word}
                         </span>
                       ))}
 

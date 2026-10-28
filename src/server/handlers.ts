@@ -59,6 +59,7 @@ export const FEMALE_VOICES = [
   "en-US-EmmaNeural",
   "en-US-AriaNeural",
   "en-US-JennyNeural",
+  "en-US-MichelleNeural",
   "en-GB-SoniaNeural",
   "en-GB-LibbyNeural"
 ];
@@ -68,6 +69,9 @@ export const MALE_VOICES = [
   "en-US-GuyNeural",
   "en-US-BrianNeural",
   "en-US-ChristopherNeural",
+  "en-US-EricNeural",
+  "en-US-RogerNeural",
+  "en-US-SteffanNeural",
   "en-GB-RyanNeural",
   "en-GB-ThomasNeural"
 ];
@@ -483,18 +487,23 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     const reqGender = (body.gender || (body.isMale === true ? 'male' : body.isMale === false ? 'female' : '')).toString().toLowerCase();
 
     let selectedVoice = '';
-    if (reqVoice && (FEMALE_VOICES.includes(reqVoice) || MALE_VOICES.includes(reqVoice))) {
+    if (
+      reqVoice &&
+      (FEMALE_VOICES.includes(reqVoice) ||
+        MALE_VOICES.includes(reqVoice) ||
+        /^en-[A-Z]{2}-[A-Za-z]+Neural$/.test(reqVoice))
+    ) {
       selectedVoice = reqVoice;
     } else if (reqGender === 'male' || reqGender === 'female') {
       const pool = reqGender === 'male' ? MALE_VOICES : FEMALE_VOICES;
-      selectedVoice = pool[Math.floor(Math.random() * pool.length)];
+      selectedVoice = pool[0];
     } else {
       const gender = isMale ? 'male' : detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
       if (gender === 'male' || gender === 'female') {
         const pool = gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
-        selectedVoice = pool[Math.floor(Math.random() * pool.length)];
+        selectedVoice = pool[0];
       } else {
-        selectedVoice = ALL_EDGE_VOICES[Math.floor(Math.random() * ALL_EDGE_VOICES.length)];
+        selectedVoice = ALL_EDGE_VOICES[0];
       }
     }
 
