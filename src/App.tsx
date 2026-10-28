@@ -143,9 +143,9 @@ const MockTestView = lazy(() => import('./components/tasks/MockTestView').then(m
 
 export default function App() {
   const { user, displayName } = useAuth();
-  const [currentTaskType, setCurrentTaskType] = useState<TaskTypeId>('academic-discussion');
-  const [level, setLevel] = useState<string>('upper-intermediate');
-  const [topic, setTopic] = useState('science-tech');
+  const [currentTaskType, setCurrentTaskType] = useState<TaskTypeId>('complete-words');
+  const [level, setLevel] = useState<string>('all');
+  const [topic, setTopic] = useState<string>('all');
   const [readingSkillFocus, setReadingSkillFocus] = useState<ReadingQuestionSkill>('all');
 
   const levelRef = React.useRef(level);
@@ -324,12 +324,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExamMode, currentTaskType]);
-
-  useEffect(() => {
-    const history = getPracticeHistory();
-    const recommended = getRecommendedLevel(history, level as DifficultyLevel);
-    setLevel(recommended.level);
-  }, []);
 
   useEffect(() => {
     let interval: any = null;
@@ -1024,57 +1018,75 @@ export default function App() {
             <span>TOEFL Prep Studio</span>
           </a>
 
-          {/* Zone 2: 4-5 single-line clean text navigation links */}
+          {/* Zone 2: Clean text navigation links */}
           <nav className="hidden md:flex items-center gap-6 text-xs sm:text-sm font-medium text-slate-600">
             <button
-              onClick={() => setCurrentTaskType('complete-words')}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                currentTaskDef.section === 'Reading' ? 'text-teal-800 font-semibold' : ''
+              onClick={() => {
+                setIsMockTest(false);
+                setCurrentTaskType('complete-words');
+              }}
+              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                !isMockTest && activeSection === 'Reading' ? 'text-teal-800 font-semibold' : ''
               }`}
             >
               Reading
             </button>
             <button
-              onClick={() => setCurrentTaskType('listening-dialogue')}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                currentTaskDef.section === 'Listening' ? 'text-teal-800 font-semibold' : ''
+              onClick={() => {
+                setIsMockTest(false);
+                setCurrentTaskType('listening-choose-response');
+              }}
+              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                !isMockTest && activeSection === 'Listening' ? 'text-teal-800 font-semibold' : ''
               }`}
             >
               Listening
             </button>
             <button
-              onClick={() => setCurrentTaskType('academic-discussion')}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                currentTaskDef.section === 'Writing' ? 'text-teal-800 font-semibold' : ''
+              onClick={() => {
+                setIsMockTest(false);
+                setCurrentTaskType('build-sentence');
+              }}
+              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                !isMockTest && activeSection === 'Writing' ? 'text-teal-800 font-semibold' : ''
               }`}
             >
               Writing
             </button>
             <button
-              onClick={() => setCurrentTaskType('speaking-interview')}
-              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 ${
-                currentTaskDef.section === 'Speaking' ? 'text-teal-800 font-semibold' : ''
+              onClick={() => {
+                setIsMockTest(false);
+                setCurrentTaskType('listen-repeat');
+              }}
+              className={`hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                !isMockTest && activeSection === 'Speaking' ? 'text-teal-800 font-semibold' : ''
               }`}
             >
               Speaking
             </button>
             <button
               onClick={() => setIsRubricsOpen(true)}
-              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 text-slate-500"
+              className="hover:text-slate-900 transition-colors whitespace-nowrap shrink-0 text-slate-500 cursor-pointer"
             >
               Scoring Rubrics
             </button>
+            <button
+              onClick={() => setIsMockTest(true)}
+              className={`transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                isMockTest
+                  ? 'text-rose-700 font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              Full Mock Test
+            </button>
           </nav>
 
-          {/* Zone 3: 1 primary action */}
-          <div className="flex items-center gap-3 shrink-0">
-            <WeeklyGoalTracker onOpenGoals={() => {
-              setDashboardDefaultTab('goals');
-              setIsDashboardOpen(true);
-            }} />
+          {/* Zone 3: Right actions (Score History, Dashboard, System Status, Theme Toggle) */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={() => setIsHistoryOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <BarChart2 className="w-3.5 h-3.5" />
               <span>Score History</span>
@@ -1101,38 +1113,10 @@ export default function App() {
             <button
               onClick={() => setDarkMode(prev => !prev)}
               aria-label="Toggle Dark Mode"
-              className="p-2 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              className="p-2 rounded-lg text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
             </button>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => {
-                  setIsExamMode(!isExamMode);
-                  if (!isExamMode) {
-                    setExamSecondsRemaining(1800);
-                    setIsPaused(false);
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-l-lg shadow-xs transition-colors whitespace-nowrap shrink-0 ${
-                  isExamMode
-                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                    : 'bg-slate-900 hover:bg-slate-800 text-white'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span>{isExamMode ? `Exam: ${formatTimer(examSecondsRemaining)}` : 'Timed Exam Mode'}</span>
-              </button>
-              {isExamMode && (
-                <button
-                  onClick={() => setIsPaused(!isPaused)}
-                  className="px-2.5 py-1.5 text-xs font-semibold rounded-r-lg shadow-xs transition-colors whitespace-nowrap shrink-0 bg-slate-700 hover:bg-slate-600 text-white border-l border-slate-600"
-                >
-                  {isPaused ? 'Resume' : 'Pause'}
-                </button>
-              )}
-            </div>
           </div>
         </div>
       </header>
@@ -1148,103 +1132,54 @@ export default function App() {
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400">Current Section:</span>
               <span className="text-xs font-semibold text-teal-800 uppercase tracking-wider">
-                {currentTaskDef.section}
+                {activeSection}
               </span>
             </div>
           </div>
 
-          {/* Segmented Task Selector Buttons with Hover-to-Scroll & Navigation Controls */}
-          <div className="relative group">
-            {/* Left Scroll Indicator / Button */}
-            {canScrollLeft && (
-              <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-4 pl-1 bg-gradient-to-r from-slate-200 via-slate-200/90 to-transparent pointer-events-auto rounded-l-xl">
+          {/* Section-Filtered Task Format Selector Bar */}
+          <div className="p-1 bg-slate-200/80 rounded-xl flex items-center gap-1.5 flex-wrap">
+            {TASK_DEFINITIONS.filter((td) => td.section === activeSection).map((td) => {
+              const isActive =
+                !isMockTest &&
+                (currentTaskType === td.id ||
+                  (td.id === 'reading-academic' && currentTaskType === 'reading-passage') ||
+                  (td.id === 'listening-dialogue' && currentTaskType === 'listening-conversation') ||
+                  (td.id === 'listening-academic-talk' && currentTaskType === 'listening-lecture'));
+              const readyCount = (prefetchedQueue[td.id] || []).filter(
+                (item) => matchesLevelFilter(item, level) && matchesTopicFilter(item, topic)
+              ).length;
+              const isReady = readyCount > 0;
+              const cleanLabel = td.name.replace(/^[RLWS]\s*[·•.]\s*/i, '').trim();
+              return (
                 <button
-                  type="button"
-                  onClick={() => scrollBarBy(-360)}
-                  onMouseEnter={() => startContinuousScroll('left', 8)}
-                  onMouseLeave={stopHoverScroll}
-                  className="w-6 h-6 rounded-full bg-white/95 hover:bg-white text-slate-700 shadow-xs flex items-center justify-center transition-all hover:scale-110 cursor-pointer border border-slate-300/60"
-                  title="Scroll left (or hover near left edge)"
-                  aria-label="Scroll sections left"
+                  key={td.id}
+                  data-active={isActive ? 'true' : 'false'}
+                  onClick={() => {
+                    setIsMockTest(false);
+                    setCurrentTaskType(td.id);
+                    setGenerationError(null);
+                  }}
+                  className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
+                    isActive
+                      ? 'bg-white text-slate-950 font-bold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                  }`}
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span className="text-slate-400 font-normal text-[11px]">{td.section.slice(0, 1)} ·</span>
+                  <span>{cleanLabel}</span>
+                  {isReady && (
+                    <span
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 rounded-full"
+                      title={`${readyCount} instant question${readyCount > 1 ? 's' : ''} pre-fetched and ready`}
+                    >
+                      <span>⚡</span>
+                      {readyCount > 1 && <span>{readyCount}</span>}
+                    </span>
+                  )}
                 </button>
-              </div>
-            )}
-
-            {/* Scrollable Bar Track */}
-            <div
-              ref={sectionBarRef}
-              onMouseMove={handleBarMouseMove}
-              onMouseLeave={stopHoverScroll}
-              className="p-1 bg-slate-200/80 rounded-xl overflow-x-auto flex items-center gap-1 scrollbar-none select-none cursor-grab active:cursor-grabbing scroll-smooth overscroll-none"
-            >
-              <button
-                data-active={isMockTest ? 'true' : 'false'}
-                onClick={() => {
-                  setIsMockTest(true);
-                  setCurrentTaskType('academic-discussion'); // Default
-                }}
-                className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                  isMockTest
-                    ? 'bg-rose-100 text-rose-900 font-bold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                }`}
-              >
-                Full Mock Test
-              </button>
-              {TASK_DEFINITIONS.map((td) => {
-                const isActive = currentTaskType === td.id && !isMockTest;
-                const readyCount = (prefetchedQueue[td.id] || []).filter(item => item.level === level && item.topic === topic).length;
-                const isReady = readyCount > 0;
-                const cleanLabel = td.name.replace(/^[RLWS]\s*[·•.]\s*/i, '').trim();
-                return (
-                  <button
-                    key={td.id}
-                    data-active={isActive ? 'true' : 'false'}
-                    onClick={() => {
-                      setIsMockTest(false);
-                      setCurrentTaskType(td.id);
-                      setGenerationError(null);
-                    }}
-                    className={`px-3 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5 ${
-                      isActive
-                        ? 'bg-white text-slate-950 font-bold shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                    }`}
-                  >
-                    <span className="text-slate-400 font-normal text-[11px]">{td.section.slice(0, 1)} ·</span>
-                    <span>{cleanLabel}</span>
-                    {isReady && (
-                      <span
-                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 rounded-full"
-                        title={`${readyCount} instant question${readyCount > 1 ? 's' : ''} pre-fetched and ready`}
-                      >
-                        <span>⚡</span>
-                        {readyCount > 1 && <span>{readyCount}</span>}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Right Scroll Indicator / Button */}
-            {canScrollRight && (
-              <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-4 pr-1 bg-gradient-to-l from-slate-200 via-slate-200/90 to-transparent pointer-events-auto rounded-r-xl">
-                <button
-                  type="button"
-                  onClick={() => scrollBarBy(360)}
-                  onMouseEnter={() => startContinuousScroll('right', 8)}
-                  onMouseLeave={stopHoverScroll}
-                  className="w-6 h-6 rounded-full bg-white/95 hover:bg-white text-slate-700 shadow-xs flex items-center justify-center transition-all hover:scale-110 cursor-pointer border border-slate-300/60"
-                  title="Scroll right (or hover near right edge)"
-                  aria-label="Scroll sections right"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+              );
+            })}
           </div>
         </section>
 
