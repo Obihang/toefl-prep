@@ -1198,6 +1198,16 @@ function updateExplanationOptionLetter(why: string, oldIdx: number, newIdx: numb
   return why.replace(new RegExp(`\\b(Option|Choice)\\s+${oldLetter}\\b`, 'gi'), `$1 ${newLetter}`);
 }
 
+export type NormalizedQuestionType =
+  | 'factual'
+  | 'factual_detail'
+  | 'negative_factual'
+  | 'inference'
+  | 'vocabulary'
+  | 'idiomatic_meaning'
+  | 'rhetorical_purpose'
+  | 'main_purpose';
+
 export function inferReadingQuestionType(
   questionText: string
 ): 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose' {
@@ -1224,6 +1234,50 @@ export function inferReadingQuestionType(
   return 'factual';
 }
 
+export function inferDailyLifeQuestionType(
+  questionText: string,
+  rawQType?: string
+): 'main_purpose' | 'inference' | 'factual_detail' | 'idiomatic_meaning' | 'negative_factual' {
+  const cleanType = (rawQType || '').trim().toLowerCase();
+  if (cleanType === 'main_purpose' || cleanType === 'rhetorical_purpose') return 'main_purpose';
+  if (cleanType === 'idiomatic_meaning' || cleanType === 'vocabulary') return 'idiomatic_meaning';
+  if (cleanType === 'inference') return 'inference';
+  if (cleanType === 'negative_factual') return 'negative_factual';
+  if (cleanType === 'factual_detail') return 'factual_detail';
+
+  const qText = questionText || '';
+  const lower = qText.toLowerCase();
+
+  if (
+    /\b(not|except|least likely|false)\b/i.test(qText) &&
+    !/\b(cannot|whether or not)\b/i.test(qText)
+  ) {
+    return 'negative_factual';
+  }
+  if (
+    /\b(purpose|main reason|why did .* send|why was .* posted|why is .* writing|who issued|intended for|primarily to|written to)\b/i.test(
+      lower
+    )
+  ) {
+    return 'main_purpose';
+  }
+  if (
+    /\b(closest in meaning|mean by|means|the word|the phrase|expression|informal|refers to)\b/i.test(
+      lower
+    )
+  ) {
+    return 'idiomatic_meaning';
+  }
+  if (
+    /\b(infer|inferred|imply|implied|implies|most likely|probably|suggests|can be concluded|what will .* likely)\b/i.test(
+      lower
+    )
+  ) {
+    return 'inference';
+  }
+  return 'factual_detail';
+}
+
 /**
  * Ensures all 4 MCQ options are unique strings, performs Answer-Key Self-Verification,
  * tags questionType, and eliminates option position bias by deterministically balancing answers across A, B, C, D (0..3).
@@ -1239,7 +1293,7 @@ export function verifyAndNormalizeMcqQuestions(
   correctAnswer: number;
   why: string;
   explanation: string;
-  questionType: 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose';
+  questionType: NormalizedQuestionType;
 }> {
   if (!Array.isArray(rawQs)) return [];
 
@@ -1251,7 +1305,7 @@ export function verifyAndNormalizeMcqQuestions(
     correctAnswer: number;
     why: string;
     explanation: string;
-    questionType: 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose';
+    questionType: NormalizedQuestionType;
   }> = [];
 
   for (let qIdx = 0; qIdx < rawQs.length; qIdx++) {
@@ -1331,14 +1385,17 @@ export function verifyAndNormalizeMcqQuestions(
     const balanced = balanceMcqOptions(qText, uniqueOptions.slice(0, 4), answer, qIdx);
     const updatedWhy = updateExplanationOptionLetter(whyText, answer, balanced.correctAnswer);
     const rawQType = String(q.questionType || q.type || '').trim().toLowerCase();
-    const validQType = [
+    const validQType: NormalizedQuestionType = [
       'factual',
+      'factual_detail',
       'negative_factual',
       'inference',
       'vocabulary',
+      'idiomatic_meaning',
       'rhetorical_purpose',
+      'main_purpose',
     ].includes(rawQType)
-      ? (rawQType as 'factual' | 'negative_factual' | 'inference' | 'vocabulary' | 'rhetorical_purpose')
+      ? (rawQType as NormalizedQuestionType)
       : inferReadingQuestionType(qText);
 
     result.push({
@@ -1431,7 +1488,15 @@ export function normalizeDailyLifeTask(task: any): any {
   ).trim();
   const context = String(task?.context || task?.situation || '').trim();
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly supported by the document or message.');
+  const normalizedQs = verifyAndNormalizeMcqQuestions(
+    rawQs,
+    'Directly supported by the document or message.'
+  )
+    .slice(0, 3)
+    .map((q) => ({
+      ...q,
+      questionType: inferDailyLifeQuestionType(q.q, q.questionType),
+    }));
 
   return {
     ...task,
@@ -1442,7 +1507,7 @@ export function normalizeDailyLifeTask(task: any): any {
     text: contentText,
     context,
     meta: task?.meta || task?.metadata || {},
-    questions,
+    questions: normalizedQs,
   };
 }
 

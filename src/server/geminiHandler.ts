@@ -863,11 +863,19 @@ Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 65
       case 'daily-life':
       case 'daily_life':
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Reading "Read in Daily Life" item for level: ${levelDesc}. Topic: ${top}.
-STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", or "invoice".
-2. Write a realistic text of strictly 25 to 120 words (contentText) with relevant campus or everyday context. Avoid repetitive phrasing or filler text.
-3. Include 2 or 3 multiple choice questions based directly on the text. Each question must have 4 distinct options, verified answer index (0..3), why explanation, and questionType ('factual', 'negative_factual', 'inference', 'vocabulary', 'rhetorical_purpose').
-Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campus context description", "contentText": "Full text...", "questions": [{"q": "Question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "why": "Explanation...", "questionType": "factual"}]}`;
+STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Page 6):
+1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", "invoice", or "social-post".
+2. Write a realistic text of 15 to 150 words (contentText) with relevant campus or everyday context. Avoid repetitive phrasing or filler text.
+3. Follow the official length-dependent question rule:
+   - If the text is shorter (15–70 words, such as a campus notice, sign, social post, or short text message chain), include EXACTLY 2 multiple-choice questions.
+   - If the text is longer (75–150 words, such as a detailed email, event schedule, itemized invoice, or dining menu), include EXACTLY 3 multiple-choice questions.
+4. Vary the question skills across the official Page 6 types and tag each question's \`questionType\` accurately using:
+   - "main_purpose" (identifying the main purpose or issuer of the communication)
+   - "inference" (making inferences based on the text)
+   - "factual_detail" (skimming and scanning for specific nonlinear information)
+   - "idiomatic_meaning" (understanding informal or telegraphic language in context)
+   - "negative_factual" (identifying which option is NOT true or EXCEPT)
+Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campus context description", "contentText": "Full text...", "questions": [{"q": "What is the main purpose of this notice?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "why": "Explanation...", "questionType": "main_purpose"}, {"q": "What can be inferred about...?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation...", "questionType": "inference"}]}`;
       case 'reading-passage':
       case 'reading_academic':
       case 'reading-academic': {

@@ -7,8 +7,21 @@
     "difficulty": "intermediate",
     "topic": "campus-life",
     "context": "Posted at the main entrance of Green Memorial Library",
-    "contentText": "NOTICE: Extended Final Exam Study Hours\nFrom Monday, May 5 through Thursday, May 15, the Central Reading Room and 2nd Floor Silent Study Commons will remain open 24 hours daily. Student ID card access is required after 10:00 PM at the West entrance only. Campus Escort Services will operate continuous shuttles between the library and all residence halls every 20 minutes from 11:00 PM to 5:00 AM. Free coffee and quiet study snacks will be served nightly in Room 104 starting at midnight.",
+    "contentText": "NOTICE: Extended Final Exam Study Hours\nFrom Monday, May 5 through Thursday, May 15, the Central Reading Room and 2nd Floor Study Commons will remain open 24 hours daily. Student ID card swipe access is required after 10:00 PM at the West entrance only. Campus Escort Shuttles depart every 20 minutes from 11:00 PM to 5:00 AM.",
     "questions": [
+      {
+        "q": "What is the main purpose of this notice?",
+        "options": [
+          "To announce 24-hour library access and late-night shuttle service during final exams",
+          "To notify students that the Central Reading Room is closing for renovations",
+          "To recruit student employees for the campus night security desk",
+          "To introduce a new fee for overnight study carrel reservations"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The notice informs students that the Central Reading Room and Study Commons will remain open 24 hours daily during final exams and details entry and shuttle arrangements.",
+        "questionType": "main_purpose"
+      },
       {
         "q": "What requirement must students meet to enter the library after 10:00 PM?",
         "options": [
@@ -19,34 +32,8 @@
         ],
         "answer": 0,
         "correctAnswer": 0,
-        "why": "The notice clearly specifies that 'Student ID card access is required after 10:00 PM at the West entrance only.'",
-        "questionType": "factual"
-      },
-      {
-        "q": "What service is provided to assist students returning to dormitories late at night?",
-        "options": [
-          "Designated parking permits for private vehicles",
-          "Subsidized city bus passes available at Room 104",
-          "Continuous campus shuttle vans running every 20 minutes",
-          "Accompanied bicycle rentals from the information desk"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The text states that Campus Escort Services operate continuous shuttles between the library and residence halls every 20 minutes.",
-        "questionType": "factual"
-      },
-      {
-        "q": "The word 'commons' in the first paragraph is closest in meaning to:",
-        "options": [
-          "ordinary items",
-          "shared public area",
-          "private faculty offices",
-          "underground storage vaults"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "In this context, 'Silent Study Commons' refers to a shared, communal study space for students.",
-        "questionType": "vocabulary"
+        "why": "The notice clearly specifies that 'Student ID card swipe access is required after 10:00 PM at the West entrance only.'",
+        "questionType": "factual_detail"
       }
     ]
   },
@@ -61,6 +48,19 @@
     "contentText": "Subject: Mandatory Semi-Annual HVAC Filter Replacement & Smoke Detector Audit\nDear Residents,\nOur certified facilities maintenance technicians will enter all apartment suites on Wednesday, October 18, between 9:00 AM and 4:00 PM to replace air intake filters and test emergency smoke alarms. You do not need to be present during the inspection; however, please ensure all household pets are secured in a bedroom or travel crate. Technicians will leave a completion card on your kitchen counter once the check is finalized. If your deadbolt lock has been privately modified, please contact the leasing office immediately.",
     "questions": [
       {
+        "q": "Why did Oakridge Student Living Management send this email to residents?",
+        "options": [
+          "To notify residents of an upcoming mandatory apartment maintenance and safety inspection",
+          "To announce a monthly rent increase for suites with privately modified locks",
+          "To prohibit residents from keeping household pets inside student apartments",
+          "To offer optional air-conditioning upgrades for the winter semester"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The email informs residents that maintenance technicians will enter suites on October 18 to replace HVAC filters and test smoke alarms.",
+        "questionType": "main_purpose"
+      },
+      {
         "q": "What are residents instructed to do regarding their pets during the maintenance visit?",
         "options": [
           "Remove them from the apartment premises entirely for the entire day",
@@ -71,20 +71,20 @@
         "answer": 1,
         "correctAnswer": 1,
         "why": "The email explicitly requests: 'please ensure all household pets are secured in a bedroom or travel crate.'",
-        "questionType": "factual"
+        "questionType": "factual_detail"
       },
       {
-        "q": "How will residents know that technicians have finished working in their apartment?",
+        "q": "What can be inferred about apartments with privately modified deadbolt locks?",
         "options": [
-          "They will receive an automated text confirmation on their phone",
-          "A replacement key will be left in their mailbox",
-          "The building manager will phone them directly",
-          "A completion card will be placed on the kitchen counter"
+          "They are exempt from the semi-annual smoke detector inspection",
+          "Technicians may be unable to enter them using standard master keys unless the leasing office is notified",
+          "Residents in those units will be evicted immediately",
+          "Their air intake filters were already replaced last month"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "The email notes that 'Technicians will leave a completion card on your kitchen counter once the check is finalized.'",
-        "questionType": "factual"
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "Because technicians must enter all suites even when residents are not home, a privately modified deadbolt lock would prevent standard key entry unless coordinated with the leasing office.",
+        "questionType": "inference"
       }
     ]
   },
@@ -96,7 +96,7 @@
     "difficulty": "intermediate",
     "topic": "science-tech",
     "context": "Text message chain among three biology lab partners",
-    "contentText": "Marcus (1:15 PM): Hey guys, Dr. Alvarez just posted the rubric for our water ecology report. We need 4 peer-reviewed citations minimum.\nElena (1:17 PM): I already pulled two journal articles on microplastic filtration in local watersheds from JSTOR.\nSam (1:19 PM): Perfect. I can synthesize the lab sample data into comparison charts tonight. Can we meet at the campus cafe tomorrow at 3 PM to merge our drafts?\nMarcus (1:22 PM): I have organic chemistry lab until 3:30 PM. Could we do 4:00 PM at the science library seminar room instead?\nElena (1:23 PM): 4:00 PM works for me! I will reserve Room 3B right now.\nSam (1:24 PM): Sounds good, see you both at 4.",
+    "contentText": "Marcus (1:15 PM): Hey guys, Dr. Alvarez just posted the rubric for our water ecology report. We need 4 peer-reviewed citations minimum.\nElena (1:17 PM): I already pulled two journal articles on microplastic filtration in local watersheds from JSTOR.\nSam (1:19 PM): Perfect. I can crunch the lab sample numbers into comparison charts tonight. Can we meet at the campus cafe tomorrow at 3 PM to merge our drafts?\nMarcus (1:22 PM): I have organic chemistry lab until 3:30 PM. Could we do 4:00 PM at the science library seminar room instead?\nElena (1:23 PM): 4:00 PM works for me! I will reserve Room 3B right now.\nSam (1:24 PM): Sounds good, see you both at 4.",
     "questions": [
       {
         "q": "Why is Marcus unable to meet at the campus cafe at 3:00 PM?",
@@ -109,33 +109,33 @@
         "answer": 0,
         "correctAnswer": 0,
         "why": "Marcus explicitly states: 'I have organic chemistry lab until 3:30 PM.'",
-        "questionType": "factual"
+        "questionType": "factual_detail"
       },
       {
-        "q": "What task has Elena volunteered to do immediately?",
+        "q": "What does Sam mean by the informal phrase 'crunch the lab sample numbers'?",
         "options": [
-          "Gather four additional peer-reviewed citations",
-          "Draft the executive summary of the lab report",
-          "Book seminar Room 3B in the science library",
-          "Create the comparative data charts"
+          "Delete inaccurate measurements from the laboratory notebook",
+          "Process and analyze the quantitative data from the water samples",
+          "Collect additional water specimens from the local watershed",
+          "Print physical copies of the grading rubric for the group"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "Elena responds: '4:00 PM works for me! I will reserve Room 3B right now.'",
-        "questionType": "factual"
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "In informal usage, 'crunch the numbers' means to calculate, process, and analyze numerical data.",
+        "questionType": "idiomatic_meaning"
       },
       {
         "q": "What is the primary purpose of this text message exchange?",
         "options": [
           "To request an extension on a laboratory assignment deadline",
           "To debate scientific findings regarding local watershed contamination",
-          "To distribute research duties and schedule a joint meeting time",
+          "To coordinate research tasks and schedule a group meeting time",
           "To complain about the professor's strict grading expectations"
         ],
         "answer": 2,
         "correctAnswer": 2,
-        "why": "The students are sharing what tasks they have done and settling on a time and venue to compile their report.",
-        "questionType": "rhetorical_purpose"
+        "why": "The students are dividing up research tasks and agreeing on a time and room to merge their drafts.",
+        "questionType": "main_purpose"
       }
     ]
   },
@@ -160,20 +160,33 @@
         "answer": 1,
         "correctAnswer": 1,
         "why": "The schedule states for Vanguard FinTech at 1:15 PM: '[Bring portfolio code samples]'.",
-        "questionType": "factual"
+        "questionType": "factual_detail"
       },
       {
-        "q": "What is required to attend the BioHealth Labs presentation session?",
+        "q": "What does the phrase 'Resume drop encouraged' in the GreenGrid Utilities listing mean?",
         "options": [
-          "Prior enrollment in an advanced graduate degree program",
-          "At least 16 completed academic credits in biology or chemistry",
-          "A verified letter of recommendation from an academic advisor",
-          "A pre-submitted clinical internship portfolio"
+          "Applicants should leave printed copies of their resumes with company representatives",
+          "Students are advised to omit prior work experience from their applications",
+          "Attendees must cancel their registration before 11:00 AM",
+          "The session has been canceled due to low student turnout"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "BioHealth Labs lists the prerequisite: '[Prerequisite: 16+ credits in biology or chemistry]'.",
-        "questionType": "factual"
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "At a career fair, a 'resume drop' refers to submitting or handing in one's resume directly to recruiters.",
+        "questionType": "idiomatic_meaning"
+      },
+      {
+        "q": "What can be inferred about a mechanical engineering freshman who has taken no biology or chemistry courses?",
+        "options": [
+          "The student is eligible to attend Session A, but does not meet the prerequisite for Session D",
+          "The student is prohibited from attending any morning sessions at the Career Expo",
+          "The student automatically qualifies for the Clinical Research Associate position",
+          "The student must pay an admission fee to enter the Auditorium"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Session A (Apex Robotics) is open to all engineering majors, whereas Session D (BioHealth Labs) requires 16+ credits in biology or chemistry.",
+        "questionType": "inference"
       }
     ]
   },
@@ -198,20 +211,20 @@
         "answer": 3,
         "correctAnswer": 3,
         "why": "Station 1 specifies: 'Roasted Moroccan Chickpea Tagine with saffron couscous [Vegan, Nut-Free, Halal]'.",
-        "questionType": "factual"
+        "questionType": "factual_detail"
       },
       {
-        "q": "According to the allergen advisory, what should students with severe shellfish or peanut allergies avoid?",
+        "q": "All of the following ingredients or allergens are mentioned in the station descriptions EXCEPT:",
         "options": [
-          "All baked goods and breads prepared on sourdough",
-          "Food items cooked in shared deep-frying equipment",
-          "Any cold sandwiches prepared at the Fresh Market Deli",
-          "Brown rice dishes prepared at the Pacific Wok station"
+          "Sesame",
+          "Dairy",
+          "Eggs",
+          "Gluten"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The allergen note states: 'All deep-fried items are prepared in equipment shared with peanut and shellfish oils.'",
-        "questionType": "factual"
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "Station 2 explicitly states 'egg-free', whereas sesame (Station 3), dairy (Stations 2 and 4), and gluten (Station 4) are present.",
+        "questionType": "negative_factual"
       },
       {
         "q": "What can be inferred about students who require special dietary accommodations?",
@@ -249,20 +262,33 @@
         "answer": 1,
         "correctAnswer": 1,
         "why": "The policy states: 'Calculators and electronics are subject to a 15% restocking fee if packaging is unsealed.'",
-        "questionType": "factual"
+        "questionType": "factual_detail"
       },
       {
-        "q": "What will occur if the customer fails to return the rental chemistry textbook by the deadline?",
+        "q": "What does the term 'auto-replacement billing' mean in the return policy?",
         "options": [
-          "The customer's academic transcript will be withheld immediately",
-          "The item will be billed as an automatic replacement purchase",
-          "The customer will lose borrowing privileges at the main library",
-          "A daily late charge of twelve dollars will accumulate"
+          "Automatically charging the student's account for the full cost of a replacement book",
+          "Issuing an automatic refund to the customer's original credit card",
+          "Renewing the textbook rental for an additional academic semester",
+          "Replacing damaged lab goggles at no additional charge"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The invoice warns: 'Rental textbooks must be returned by 5:00 PM on Friday of finals week to avoid auto-replacement billing.'",
-        "questionType": "factual"
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "'Auto-replacement billing' means the bookstore automatically bills the renter for the cost of replacing an unreturned rental textbook.",
+        "questionType": "idiomatic_meaning"
+      },
+      {
+        "q": "What can be inferred about the customer who made Transaction #89421?",
+        "options": [
+          "The customer is most likely enrolled in quantitative science or chemistry coursework",
+          "The customer purchased only digital e-books during this visit",
+          "The customer works as a cashier at Pioneer Bookstore",
+          "The customer returned a graphing calculator on January 14"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The customer rented an Organic Chemistry textbook and purchased lab safety goggles and a graphing calculator, strongly implying enrollment in science/math courses.",
+        "questionType": "inference"
       }
     ]
   },
@@ -274,45 +300,45 @@
     "difficulty": "intermediate",
     "topic": "arts-humanities",
     "context": "Social media announcement posted by the Campus Arts Council",
-    "contentText": "✨ Opening This Friday at 6:00 PM: 'Resilient Horizons' in the Lower Galleria! ✨\nCome experience multimedia sculptures and photographic installations created entirely by graduating visual arts seniors. Opening night features live acoustic chamber music by our student string quartet, light artisan refreshments, and a moderated Q&A with the artists starting at 7:15 PM. Admission is completely free for students, faculty, and community members. The exhibition runs daily from 9:00 AM to 8:00 PM through November 20th. Don't forget to vote for your favorite piece at the front desk for the Annual People's Choice Grant!",
+    "contentText": "Opening This Friday at 6:00 PM: 'Resilient Horizons' in the Lower Galleria! Experience multimedia sculptures and photo installations by graduating visual arts seniors. Opening night features live string quartet music, refreshments, and an artist Q&A at 7:15 PM. Free admission! Vote for your favorite piece at the front desk for the People's Choice Grant.",
     "questions": [
+      {
+        "q": "What is the main purpose of this social media post?",
+        "options": [
+          "To invite the campus community to attend a senior art exhibition opening",
+          "To announce audition dates for the student string quartet",
+          "To solicit financial donations for renovating the Lower Galleria",
+          "To publish the winners of last year's People's Choice Grant"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The post invites students and community members to Friday's opening night of the 'Resilient Horizons' senior art exhibition.",
+        "questionType": "main_purpose"
+      },
       {
         "q": "What event is scheduled to take place at 7:15 PM on opening night?",
         "options": [
           "An acoustic chamber music concert by the quartet",
           "A ribbon-cutting ceremony by university administrators",
           "A guided gallery tour conducted by art professors",
-          "A moderated question-and-answer session with featured artists"
+          "A question-and-answer session with the featured artists"
         ],
         "answer": 3,
         "correctAnswer": 3,
-        "why": "The post states: 'light artisan refreshments, and a moderated Q&A with the artists starting at 7:15 PM.'",
-        "questionType": "factual"
-      },
-      {
-        "q": "How can visitors support individual artists during the exhibition?",
-        "options": [
-          "By casting a vote at the reception desk for the People's Choice Grant",
-          "By bidding on student artwork in a silent auction",
-          "By purchasing exhibition catalogs at the campus bookstore",
-          "By writing published critiques for the university newspaper"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "The announcement urges visitors to 'vote for your favorite piece at the front desk for the Annual People's Choice Grant!'",
-        "questionType": "factual"
+        "why": "The post states that opening night features 'an artist Q&A at 7:15 PM.'",
+        "questionType": "factual_detail"
       }
     ]
   },
   {
     "id": "dl-8",
-    "title": "Campus Recreation Center Pool Closure and Maintenance Notice",
+    "title": "Campus Recreation Center Pool Closure Notice",
     "formatType": "notice",
     "level": "intermediate",
     "difficulty": "intermediate",
     "topic": "campus-life",
-    "context": "Physical bulletin board flyer in the Aquatics Center lobby",
-    "contentText": "ATTENTION AQUATICS PATRONS: Temporary Lap Pool Closure\nThe 50-meter competition pool will close for scheduled tile resurfacing and chemical filtration overhaul from August 1 to August 12. During this closure period, all morning master swim practices and open recreational lap swimming will be relocated to the adjacent indoor therapy pool. Please observe modified lane allocations: Lanes 1–3 are designated for slow/medium swimmers, and Lanes 4–6 are reserved for fast lap training. Locker rooms will remain fully accessible throughout the project.",
+    "context": "Bulletin board sign in the Aquatics Center lobby",
+    "contentText": "ATTENTION AQUATICS PATRONS: The 50-meter competition pool will close for tile resurfacing from August 1 to August 12. All morning swim practices and recreational lap swimming will relocate to the adjacent indoor therapy pool. Lanes 1–3 are for slow/medium swimmers; Lanes 4–6 are for fast lap training. Locker rooms remain open.",
     "questions": [
       {
         "q": "Where should swimmers go for lap swimming while the competition pool is closed?",
@@ -324,20 +350,20 @@
         ],
         "answer": 2,
         "correctAnswer": 2,
-        "why": "The notice states: 'open recreational lap swimming will be relocated to the adjacent indoor therapy pool.'",
-        "questionType": "factual"
+        "why": "The notice states: 'All morning swim practices and recreational lap swimming will relocate to the adjacent indoor therapy pool.'",
+        "questionType": "factual_detail"
       },
       {
-        "q": "Which facility service will NOT be interrupted by the resurfacing project?",
+        "q": "Which facility area will NOT be closed during the resurfacing project?",
         "options": [
-          "Access to the locker room facilities",
+          "The locker room facilities",
           "The 50-meter competition pool lanes",
-          "Standard competitive diving board sessions",
-          "Normal afternoon water polo matches"
+          "The competition pool tile deck",
+          "The deep-water competition diving lanes"
         ],
         "answer": 0,
         "correctAnswer": 0,
-        "why": "The notice concludes: 'Locker rooms will remain fully accessible throughout the project.'",
+        "why": "The notice concludes: 'Locker rooms remain open.'",
         "questionType": "negative_factual"
       }
     ]
@@ -353,6 +379,19 @@
     "contentText": "Subject: Spring Semester Commuter Parking Permits Now Available Online\nDear Student,\nOnline renewal for Spring Commuter (Zone C) parking permits opens Monday, December 1st at 8:00 AM via your MyCampus portal. Due to upcoming construction on the South Garage, Zone C permit quotas have been reduced by 15% this term. Permits will be awarded on a strict first-come, first-served basis. If your vehicle license plate or residential address has changed since fall term, you must update your vehicle profile prior to submitting your permit request. Physical hangtags are no longer issued; your license plate serves as your digital permit.",
     "questions": [
       {
+        "q": "What is the main purpose of this email?",
+        "options": [
+          "To inform commuter students about the opening and updated rules for spring parking permit renewals",
+          "To notify students that all campus parking garages will be permanently closed",
+          "To issue a parking citation for an unregistered license plate",
+          "To distribute plastic rearview mirror hangtags by campus mail"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The email announces when Spring Commuter permit renewal opens and explains reduced quotas, profile updates, and digital license-plate permits.",
+        "questionType": "main_purpose"
+      },
+      {
         "q": "Why has the number of available Zone C parking permits been decreased?",
         "options": [
           "The university is increasing regional public transit subsidies",
@@ -363,23 +402,10 @@
         "answer": 2,
         "correctAnswer": 2,
         "why": "The email notes: 'Due to upcoming construction on the South Garage, Zone C permit quotas have been reduced by 15% this term.'",
-        "questionType": "factual"
+        "questionType": "factual_detail"
       },
       {
-        "q": "How does the parking enforcement office verify authorized commuter vehicles?",
-        "options": [
-          "By scanning plastic hangtags hung from the rearview mirror",
-          "By scanning the vehicle's registered license plate electronically",
-          "By checking paper receipt permits displayed on the windshield",
-          "By requiring students to check in with a gate attendant"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The text explains: 'Physical hangtags are no longer issued; your license plate serves as your digital permit.'",
-        "questionType": "factual"
-      },
-      {
-        "q": "The word 'quotas' in the passage is closest in meaning to:",
+        "q": "The word 'quotas' in the email is closest in meaning to:",
         "options": [
           "enforcement fines",
           "predetermined limits",
@@ -388,46 +414,46 @@
         ],
         "answer": 1,
         "correctAnswer": 1,
-        "why": "In this context, 'permit quotas' refers to the set limits or allowances of permits made available.",
-        "questionType": "vocabulary"
+        "why": "In this context, 'permit quotas' refers to the set maximum limits or allotments of permits available.",
+        "questionType": "idiomatic_meaning"
       }
     ]
   },
   {
     "id": "dl-10",
-    "title": "University IT Service Desk Maintenance and Outage Alert",
+    "title": "University IT Service Desk Outage Advisory",
     "formatType": "notice",
     "level": "upper-intermediate",
     "difficulty": "upper-intermediate",
     "topic": "science-tech",
-    "context": "Broadcast email and portal notification from University Information Technology",
-    "contentText": "SYSTEM ADVISORY: Enterprise Cloud Storage and Learning Management System Maintenance\nPlease be advised that University IT will perform critical database upgrades this Saturday, March 12, from 1:00 AM to 6:00 AM EST. During this five-hour maintenance window, the Canvas course management platform, campus cloud file drives, and student portal registration modules will be inaccessible. However, campus Wi-Fi networks and official university email (@university.edu) will continue to operate without interruption. Faculty have been instructed not to schedule any assignment deadlines or online quizzes during this downtime.",
+    "context": "Portal notification from University Information Technology",
+    "contentText": "SYSTEM ADVISORY: University IT will perform database upgrades Saturday, March 12, from 1:00 AM to 6:00 AM. During this five-hour window, Canvas, cloud drives, and course registration will be offline. Campus Wi-Fi and university email (@university.edu) will operate normally. Faculty have been asked not to schedule quiz deadlines during this window.",
     "questions": [
       {
-        "q": "According to the advisory, which service will remain fully functional during the maintenance window?",
+        "q": "Which service will NOT be offline during Saturday's maintenance window?",
         "options": [
           "The Canvas course management system",
-          "The student portal registration portal",
-          "Official student and faculty email accounts",
+          "The student course registration portal",
+          "University email and campus Wi-Fi networks",
           "Campus cloud file storage drives"
         ],
         "answer": 2,
         "correctAnswer": 2,
-        "why": "The notice explicitly confirms: 'campus Wi-Fi networks and official university email (@university.edu) will continue to operate without interruption.'",
+        "why": "The notice explicitly confirms: 'Campus Wi-Fi and university email (@university.edu) will operate normally.'",
         "questionType": "negative_factual"
       },
       {
-        "q": "What step has the university taken to prevent academic disruption during the maintenance?",
+        "q": "What can be inferred about students who need to submit a Canvas assignment on Saturday?",
         "options": [
-          "Extended all semester deadlines automatically by one week",
-          "Directed faculty not to schedule quizzes or deadlines during the downtime",
-          "Arranged temporary alternative servers for file storage",
-          "Provided off-campus internet stipends for affected students"
+          "They will be unable to upload files to Canvas between 1:00 AM and 6:00 AM",
+          "They must visit the IT Service Desk in person to reset their passwords",
+          "Their university email accounts will be erased during the upgrade",
+          "They will be charged a late fee for logging in after 6:00 AM"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The text states: 'Faculty have been instructed not to schedule any assignment deadlines or online quizzes during this downtime.'",
-        "questionType": "factual"
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "Because Canvas will be offline from 1:00 AM to 6:00 AM on Saturday, students cannot upload assignments to Canvas during that five-hour window.",
+        "questionType": "inference"
       }
     ]
   }

@@ -229,18 +229,40 @@ export const DailyLifeView: React.FC<Props> = ({
     );
   };
 
-  const getQuestionSkillBadge = (qType?: string) => {
-    switch (qType) {
-      case 'negative_factual':
-        return { label: 'Negative Factual (EXCEPT)', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+  const getQuestionSkillBadge = (qType?: string, qText?: string) => {
+    const clean = (qType || '').trim().toLowerCase();
+    const stem = (qText || '').toLowerCase();
+
+    let resolved = clean;
+    if (!resolved || resolved === 'factual') {
+      if (/\b(not|except|least likely|false)\b/i.test(qText || '') && !/\b(cannot|whether or not)\b/i.test(qText || '')) {
+        resolved = 'negative_factual';
+      } else if (/\b(purpose|main reason|why did .* send|why was .* posted|why is .* writing|who issued|intended for|primarily to|written to)\b/i.test(stem)) {
+        resolved = 'main_purpose';
+      } else if (/\b(closest in meaning|mean by|means|the word|the phrase|expression|informal|refers to)\b/i.test(stem)) {
+        resolved = 'idiomatic_meaning';
+      } else if (/\b(infer|inferred|imply|implied|implies|most likely|probably|suggests|can be concluded|what will .* likely)\b/i.test(stem)) {
+        resolved = 'inference';
+      } else {
+        resolved = 'factual_detail';
+      }
+    }
+
+    switch (resolved) {
+      case 'main_purpose':
+      case 'rhetorical_purpose':
+        return { label: 'Main Purpose', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
       case 'inference':
         return { label: 'Inference', bg: 'bg-purple-50 text-purple-700 border-purple-200' };
+      case 'idiomatic_meaning':
       case 'vocabulary':
-        return { label: 'Vocabulary in Context', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
-      case 'rhetorical_purpose':
-        return { label: 'Rhetorical Purpose', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+        return { label: 'Idiomatic / Informal Meaning', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+      case 'negative_factual':
+        return { label: 'Negative Factual (EXCEPT)', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+      case 'factual_detail':
+      case 'factual':
       default:
-        return { label: 'Factual Comprehension', bg: 'bg-teal-50 text-teal-700 border-teal-200' };
+        return { label: 'Factual Detail', bg: 'bg-teal-50 text-teal-700 border-teal-200' };
     }
   };
 
@@ -295,7 +317,7 @@ export const DailyLifeView: React.FC<Props> = ({
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
-            const skillBadge = getQuestionSkillBadge(q.questionType);
+            const skillBadge = getQuestionSkillBadge(q.questionType, q.q);
 
             return (
               <div
