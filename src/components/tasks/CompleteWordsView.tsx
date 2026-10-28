@@ -9,6 +9,8 @@ import { normalizeCompleteWordsTask } from '../../utils/taskNormalizer';
 interface Props {
   task: CompleteWordsTask;
   onNextTask?: () => void;
+  wordWrapperClassName?: string;
+  blankInputClassName?: string;
 }
 
 interface BlankItem {
@@ -282,13 +284,13 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
             return (
               <span
                 key={idx}
-                className="inline-flex items-baseline whitespace-nowrap align-baseline"
+                className="inline-flex items-baseline whitespace-nowrap"
               >
-                {blank.prefix && <span className="text-slate-800">{blank.prefix}</span>}
+                {blank.prefix && <span className="text-base font-normal text-slate-800">{blank.prefix}</span>}
 
                 <span
                   onClick={() => inputRefs.current[bIndex]?.focus()}
-                  className="inline-flex items-baseline align-baseline relative cursor-text select-none group"
+                  className="inline-flex items-baseline relative cursor-text select-none group"
                 >
                   {/* Hidden input capturing exact keystrokes */}
                   <input
@@ -303,7 +305,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
                     onBlur={() => setFocusedIndex(null)}
                     onChange={(e) => handleInputChange(bIndex, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(bIndex, e)}
-                    className="absolute inset-0 opacity-0 cursor-text z-10 w-full h-full pointer-events-auto"
+                    className="absolute inset-0 opacity-0 cursor-text z-10 w-full h-full pointer-events-auto text-base font-semibold"
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
@@ -329,7 +331,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
                       return (
                         <span
                           key={charIdx}
-                          className={`inline-flex items-center justify-center min-w-[11px] sm:min-w-[12px] h-5 px-[0.5px] font-mono text-base font-semibold tracking-tight transition-all relative ${
+                          className={`inline-flex items-center justify-center min-w-[10px] sm:min-w-[11px] h-5 px-[0.5px] text-base font-semibold tracking-normal transition-all relative ${
                             checked
                               ? isRight
                                 ? 'text-emerald-900'

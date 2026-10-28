@@ -1605,6 +1605,8 @@ export default function App() {
                 <CompleteWordsView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as CompleteWordsTask}
+                  wordWrapperClassName="inline-flex items-baseline whitespace-nowrap"
+                  blankInputClassName="text-base font-semibold"
                   onNextTask={() => handleNextQuestion('complete-words')}
                 />
               )}
