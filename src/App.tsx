@@ -497,12 +497,8 @@ export default function App() {
     if (!container) return;
     checkSectionScrollState();
     const activeBtn = container.querySelector('[data-active="true"]') as HTMLElement;
-    if (activeBtn) {
-      const containerRect = container.getBoundingClientRect();
-      const btnRect = activeBtn.getBoundingClientRect();
-      if (btnRect.left < containerRect.left || btnRect.right > containerRect.right) {
-        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
+    if (activeBtn && typeof activeBtn.scrollIntoView === 'function') {
+      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
   }, [currentTaskType, isMockTest]);
 
@@ -968,33 +964,47 @@ export default function App() {
       if (loadedTasks && loadedTasks.length > 0) {
         task = loadedTasks[idx % loadedTasks.length];
       } else {
-        switch (currentTaskType) {
-          case 'complete-words':
-            task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
-            break;
-          case 'reading-passage':
-          case 'reading-academic':
-            task = CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
-            break;
-          case 'listening-dialogue':
-            task = CURATED_LISTENING[idx % CURATED_LISTENING.length];
-            break;
-          case 'listen-repeat':
-            task = CURATED_LISTEN_REPEAT[idx % CURATED_LISTEN_REPEAT.length];
-            break;
-          case 'speaking-interview':
-            task = CURATED_SPEAKING_INTERVIEWS[idx % CURATED_SPEAKING_INTERVIEWS.length];
-            break;
-          case 'build-sentence':
-            task = CURATED_BUILD_SENTENCES[idx % CURATED_BUILD_SENTENCES.length];
-            break;
-          case 'write-email':
-            task = CURATED_WRITE_EMAILS[idx % CURATED_WRITE_EMAILS.length];
-            break;
-          case 'academic-discussion':
-          default:
-            task = CURATED_ACADEMIC_DISCUSSIONS[idx % CURATED_ACADEMIC_DISCUSSIONS.length];
-            break;
+        const allSectionTasks = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
+        const levelMatches = allSectionTasks.filter((t) => matchesLevelFilter(t, level));
+        const topicMatches = allSectionTasks.filter((t) => matchesTopicFilter(t, topic));
+        const closestPool =
+          levelMatches.length > 0
+            ? levelMatches
+            : topicMatches.length > 0
+            ? topicMatches
+            : allSectionTasks;
+
+        if (closestPool.length > 0) {
+          task = closestPool[idx % closestPool.length];
+        } else {
+          switch (currentTaskType) {
+            case 'complete-words':
+              task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
+              break;
+            case 'reading-passage':
+            case 'reading-academic':
+              task = CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
+              break;
+            case 'listening-dialogue':
+              task = CURATED_LISTENING[idx % CURATED_LISTENING.length];
+              break;
+            case 'listen-repeat':
+              task = CURATED_LISTEN_REPEAT[idx % CURATED_LISTEN_REPEAT.length];
+              break;
+            case 'speaking-interview':
+              task = CURATED_SPEAKING_INTERVIEWS[idx % CURATED_SPEAKING_INTERVIEWS.length];
+              break;
+            case 'build-sentence':
+              task = CURATED_BUILD_SENTENCES[idx % CURATED_BUILD_SENTENCES.length];
+              break;
+            case 'write-email':
+              task = CURATED_WRITE_EMAILS[idx % CURATED_WRITE_EMAILS.length];
+              break;
+            case 'academic-discussion':
+            default:
+              task = CURATED_ACADEMIC_DISCUSSIONS[idx % CURATED_ACADEMIC_DISCUSSIONS.length];
+              break;
+          }
         }
       }
     }
@@ -1157,7 +1167,7 @@ export default function App() {
               <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-4 pl-1 bg-gradient-to-r from-slate-200 via-slate-200/90 to-transparent pointer-events-auto rounded-l-xl">
                 <button
                   type="button"
-                  onClick={() => scrollBarBy(-200)}
+                  onClick={() => scrollBarBy(-360)}
                   onMouseEnter={() => startContinuousScroll('left', 8)}
                   onMouseLeave={stopHoverScroll}
                   className="w-6 h-6 rounded-full bg-white/95 hover:bg-white text-slate-700 shadow-xs flex items-center justify-center transition-all hover:scale-110 cursor-pointer border border-slate-300/60"
@@ -1194,6 +1204,7 @@ export default function App() {
                 const isActive = currentTaskType === td.id && !isMockTest;
                 const readyCount = (prefetchedQueue[td.id] || []).filter(item => item.level === level && item.topic === topic).length;
                 const isReady = readyCount > 0;
+                const cleanLabel = td.name.replace(/^[RLWS]\s*[·•.]\s*/i, '').trim();
                 return (
                   <button
                     key={td.id}
@@ -1209,8 +1220,8 @@ export default function App() {
                         : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
                     }`}
                   >
-                    <span className="text-slate-400 mr-0.5 font-normal text-[11px]">{td.section.slice(0, 1)}·</span>
-                    <span>{td.name}</span>
+                    <span className="text-slate-400 font-normal text-[11px]">{td.section.slice(0, 1)} ·</span>
+                    <span>{cleanLabel}</span>
                     {isReady && (
                       <span
                         className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 rounded-full"
@@ -1230,7 +1241,7 @@ export default function App() {
               <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-4 pr-1 bg-gradient-to-l from-slate-200 via-slate-200/90 to-transparent pointer-events-auto rounded-r-xl">
                 <button
                   type="button"
-                  onClick={() => scrollBarBy(200)}
+                  onClick={() => scrollBarBy(360)}
                   onMouseEnter={() => startContinuousScroll('right', 8)}
                   onMouseLeave={stopHoverScroll}
                   className="w-6 h-6 rounded-full bg-white/95 hover:bg-white text-slate-700 shadow-xs flex items-center justify-center transition-all hover:scale-110 cursor-pointer border border-slate-300/60"
@@ -1319,7 +1330,11 @@ export default function App() {
                 return (
                   <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-flex items-center gap-1.5">
                     <Database className="w-3 h-3 text-teal-700 shrink-0" />
-                    <span>{exactFilterMatches.length}/{sectionTotalCount} in bank</span>
+                    <span>
+                      {exactFilterMatches.length > 0
+                        ? `${exactFilterMatches.length}/${sectionTotalCount} in bank`
+                        : `0 exact filter matches (showing closest from ${sectionTotalCount} in section)`}
+                    </span>
                   </span>
                 );
               })()}

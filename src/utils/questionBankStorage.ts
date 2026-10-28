@@ -42,14 +42,15 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const TOEFL_2026_PURGE_V8 = 'toefl_bank_purged_2026_v8';
-export const TOEFL_2026_PURGE_V7 = TOEFL_2026_PURGE_V8;
-export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V8;
-export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V8;
-export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V8;
-export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V8;
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V8;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v19';
+export const TOEFL_2026_PURGE_V9 = 'toefl_bank_purged_2026_v9';
+export const TOEFL_2026_PURGE_V8 = TOEFL_2026_PURGE_V9;
+export const TOEFL_2026_PURGE_V7 = TOEFL_2026_PURGE_V9;
+export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V9;
+export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V9;
+export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V9;
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V9;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V9;
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v20';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);

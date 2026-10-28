@@ -77,9 +77,9 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     name: 'L · Listen & Choose a Response',
     shortName: 'Choose Response',
     section: 'Listening',
-    description: 'Hear 1 spoken campus question/statement (text hidden) & select the best reply A–D',
-    itemCountDesc: '1 item (4 choices)',
-    timingDesc: '~30 secs',
+    description: 'Hear 5 short spoken campus questions/statements (text hidden) & select the best reply A–D',
+    itemCountDesc: '5 items per set',
+    timingDesc: '~2 mins',
   },
   {
     id: 'listening-dialogue',

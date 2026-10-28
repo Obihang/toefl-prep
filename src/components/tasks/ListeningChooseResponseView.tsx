@@ -1,5 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Volume2, CheckCircle2, ArrowRight, Eye, EyeOff, HelpCircle, Headphones, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  Play,
+  Pause,
+  RotateCcw,
+  Volume2,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  HelpCircle,
+  Headphones,
+  Loader2,
+} from 'lucide-react';
 import {
   speakWithCloudTTS,
   stopSpeaking,
@@ -8,13 +21,15 @@ import {
   fetchCloudTtsAudio,
   chunkTextForTTS,
 } from '../../utils/audioSpeech';
-import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import {
+  convertToScaledScore,
+  convertScaledToBand6,
+  savePracticeRecord,
+} from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 
-export interface ListeningChooseResponseTask {
-  id?: string;
-  title: string;
+export interface ListeningChooseResponseItem {
   audioPrompt?: string;
   promptAudioScript?: string;
   script?: string;
@@ -24,6 +39,24 @@ export interface ListeningChooseResponseTask {
   speakerGender?: 'male' | 'female';
   options: string[];
   answer: number;
+  correctAnswer?: number;
+  why?: string;
+  explanation?: string;
+}
+
+export interface ListeningChooseResponseTask {
+  id?: string;
+  title: string;
+  items?: ListeningChooseResponseItem[];
+  audioPrompt?: string;
+  promptAudioScript?: string;
+  script?: string;
+  spokenPrompt?: string;
+  prompt?: string;
+  speakerName?: string;
+  speakerGender?: 'male' | 'female';
+  options?: string[];
+  answer?: number;
   correctAnswer?: number;
   why?: string;
   explanation?: string;
@@ -44,47 +77,108 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
   onNextTask,
   onComplete,
 }) => {
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const items: ListeningChooseResponseItem[] = useMemo(() => {
+    if (Array.isArray(task.items) && task.items.length > 0) {
+      return task.items;
+    }
+    return [
+      {
+        audioPrompt:
+          task.audioPrompt ||
+          task.promptAudioScript ||
+          task.script ||
+          task.spokenPrompt ||
+          task.prompt ||
+          '',
+        speakerName: task.speakerName || 'Campus Speaker',
+        speakerGender: task.speakerGender === 'female' ? 'female' : 'male',
+        options: Array.isArray(task.options) ? task.options : [],
+        answer:
+          typeof task.answer === 'number'
+            ? task.answer
+            : Number(task.correctAnswer ?? 0),
+        why:
+          task.why ||
+          task.explanation ||
+          'Most natural and contextually appropriate response in this campus situation.',
+      },
+    ];
+  }, [task]);
+
+  const totalItems = items.length;
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [playCount, setPlayCount] = useState(0);
+  const [playCounts, setPlayCounts] = useState<Record<number, number>>({});
 
   const playbackSessionRef = useRef(0);
 
+  // Reset state when task changes
+  useEffect(() => {
+    playbackSessionRef.current++;
+    stopSpeaking();
+    setCurrentIndex(0);
+    setSelectedAnswers({});
+    setSubmitted(false);
+    setIsPlaying(false);
+    setIsLoadingAudio(false);
+    setShowTranscript(false);
+    setPlayCounts({});
+  }, [task.id, task.title]);
+
+  const currentItem = items[currentIndex] || items[0];
   const promptText =
-    task.audioPrompt ||
-    task.promptAudioScript ||
-    task.script ||
-    task.spokenPrompt ||
-    task.prompt ||
+    currentItem?.audioPrompt ||
+    currentItem?.promptAudioScript ||
+    currentItem?.script ||
+    currentItem?.spokenPrompt ||
+    currentItem?.prompt ||
     '';
   const cleanPrompt = stripSpeakerAndFormatting(promptText);
-  const speakerName = task.speakerName || 'Campus Speaker';
+  const speakerName = currentItem?.speakerName || task.speakerName || 'Campus Speaker';
   const gender: 'male' | 'female' =
-    task.speakerGender === 'female' ? 'female' : 'male';
+    currentItem?.speakerGender === 'female' ? 'female' : 'male';
   const voiceName =
     gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
 
   const correctAnswerIdx =
-    typeof task.answer === 'number'
-      ? task.answer
-      : Number(task.correctAnswer ?? 0);
+    typeof currentItem?.answer === 'number'
+      ? currentItem.answer
+      : Number(currentItem?.correctAnswer ?? 0);
   const explanation =
-    task.why ||
-    task.explanation ||
+    currentItem?.why ||
+    currentItem?.explanation ||
     'Most natural and contextually appropriate response in this campus situation.';
 
-  // Pre-warm TTS audio immediately on mount
+  // Pre-warm TTS audio for all items in the set so every item plays with 0ms latency
   useEffect(() => {
-    if (cleanPrompt) {
-      prefetchSpeechAudio(cleanPrompt, voiceName, gender).catch(() => {});
-    }
+    items.forEach((it) => {
+      const text = stripSpeakerAndFormatting(
+        it.audioPrompt || it.promptAudioScript || it.script || it.spokenPrompt || it.prompt || ''
+      );
+      const g: 'male' | 'female' = it.speakerGender === 'female' ? 'female' : 'male';
+      const v = g === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+      if (text) {
+        prefetchSpeechAudio(text, v, g).catch(() => {});
+      }
+    });
     return () => {
       stopSpeaking();
     };
-  }, [cleanPrompt, voiceName, gender]);
+  }, [items]);
+
+  // Stop audio when switching between items
+  const switchToItem = (idx: number) => {
+    if (idx < 0 || idx >= totalItems) return;
+    playbackSessionRef.current++;
+    stopSpeaking();
+    setIsPlaying(false);
+    setIsLoadingAudio(false);
+    setCurrentIndex(idx);
+  };
 
   const handlePlayAudio = async () => {
     if (isPlaying) {
@@ -107,7 +201,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
       if (playbackSessionRef.current !== currentSession) return;
 
       await speakWithCloudTTS(cleanPrompt, gender, {
-        rate: 0.95,
+        rate: 0.96,
         voice: voiceName,
         voiceName,
         gender,
@@ -115,7 +209,10 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
           if (playbackSessionRef.current === currentSession) {
             setIsLoadingAudio(false);
             setIsPlaying(true);
-            setPlayCount((prev) => prev + 1);
+            setPlayCounts((prev) => ({
+              ...prev,
+              [currentIndex]: (prev[currentIndex] || 0) + 1,
+            }));
           }
         },
         onEnd: () => {
@@ -139,55 +236,79 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     }
   };
 
-  const handleSelectOption = (idx: number) => {
+  const handleSelectOption = (optIdx: number) => {
     if (submitted) return;
-    setSelectedIdx(idx);
+    setSelectedAnswers((prev) => ({
+      ...prev,
+      [currentIndex]: optIdx,
+    }));
   };
 
+  const answeredCount = Object.keys(selectedAnswers).length;
+  const selectedIdx =
+    selectedAnswers[currentIndex] !== undefined ? selectedAnswers[currentIndex] : null;
+
   const handleSubmit = () => {
-    if (selectedIdx === null || submitted) return;
+    if (answeredCount === 0 || submitted) return;
+    playbackSessionRef.current++;
+    stopSpeaking();
+    setIsPlaying(false);
     setSubmitted(true);
     setShowTranscript(true);
 
-    const isCorrect = selectedIdx === correctAnswerIdx;
-    const scoreVal = isCorrect ? 1 : 0;
-    const scaledScore = convertToScaledScore(scoreVal, 1);
+    let correctTotal = 0;
+    items.forEach((it, idx) => {
+      const userAns = selectedAnswers[idx];
+      const rightAns =
+        typeof it.answer === 'number' ? it.answer : Number(it.correctAnswer ?? 0);
+      if (userAns === rightAns) {
+        correctTotal++;
+      } else if (auth.currentUser && userAns !== undefined) {
+        saveMistake(
+          `${task.title} (Item ${idx + 1})`,
+          'listening-choose-response',
+          it.options[userAns] ?? 'No answer',
+          it.options[rightAns],
+          it.why || it.explanation || ''
+        );
+      }
+    });
 
-    if (auth.currentUser && !isCorrect) {
-      saveMistake(
-        task.title,
-        'listening-choose-response',
-        task.options[selectedIdx] ?? 'No answer',
-        task.options[correctAnswerIdx],
-        explanation
-      );
-    }
+    const scaledScore = convertToScaledScore(correctTotal, totalItems);
 
     savePracticeRecord({
       taskType: 'listening-choose-response',
       taskTitle: task.title,
       section: 'Listening',
-      score: scoreVal,
-      maxScore: 1,
+      score: correctTotal,
+      maxScore: totalItems,
       scaledScore30: scaledScore,
-      timeSpentSeconds: 30,
-      feedbackSummary: isCorrect
-        ? 'Correctly identified the appropriate spoken response (1/1)'
-        : 'Selected incorrect conversational reply (0/1)',
+      timeSpentSeconds: totalItems * 20,
+      feedbackSummary: `Scored ${correctTotal}/${totalItems} on Listen & Choose a Response`,
     });
 
     onComplete?.(scaledScore);
   };
 
   const handleReset = () => {
-    setSelectedIdx(null);
+    playbackSessionRef.current++;
+    stopSpeaking();
+    setSelectedAnswers({});
     setSubmitted(false);
     setShowTranscript(false);
-    stopSpeaking();
     setIsPlaying(false);
+    setCurrentIndex(0);
   };
 
-  const isCorrect = submitted && selectedIdx === correctAnswerIdx;
+  const totalScore = items.reduce((acc, it, idx) => {
+    const rightAns =
+      typeof it.answer === 'number' ? it.answer : Number(it.correctAnswer ?? 0);
+    return acc + (selectedAnswers[idx] === rightAns ? 1 : 0);
+  }, 0);
+  const scaledScore30 = convertToScaledScore(totalScore, totalItems);
+  const band6Score = convertScaledToBand6(scaledScore30);
+  const isCurrentCorrect = submitted && selectedIdx === correctAnswerIdx;
+  const currentPlayCount = playCounts[currentIndex] || 0;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -201,14 +322,18 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             </span>
             <span className="text-xs text-slate-400">·</span>
             <span className="text-xs text-slate-500 font-medium">
-              Choose a Response
+              Listen &amp; Choose a Response
+            </span>
+            <span className="text-xs text-slate-400">·</span>
+            <span className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+              Item {currentIndex + 1} of {totalItems}
             </span>
           </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">
             {task.title}
           </h2>
           <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Official 2026 Short Campus Exchange</span>
+            <span>Official 2026 Short Campus Exchange (6–15 words)</span>
             <span aria-hidden="true">·</span>
             <span>Speaker: {speakerName} ({gender})</span>
             <span aria-hidden="true">·</span>
@@ -221,6 +346,44 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             )}
           </div>
         </div>
+
+        {/* Item Stepper Pills (1 .. 5) */}
+        {totalItems > 1 && (
+          <div className="flex items-center gap-1.5 self-start sm:self-center">
+            {items.map((it, idx) => {
+              const isCurrent = idx === currentIndex;
+              const isAnswered = selectedAnswers[idx] !== undefined;
+              const rightAns =
+                typeof it.answer === 'number' ? it.answer : Number(it.correctAnswer ?? 0);
+              const isItemRight = submitted && selectedAnswers[idx] === rightAns;
+
+              let pillStyle = 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200';
+              if (submitted) {
+                pillStyle = isItemRight
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-400 font-bold'
+                  : 'bg-rose-100 text-rose-900 border-rose-400 font-bold';
+              } else if (isCurrent) {
+                pillStyle = 'bg-teal-700 text-white border-teal-700 font-bold shadow-xs';
+              } else if (isAnswered) {
+                pillStyle = 'bg-teal-50 text-teal-900 border-teal-300 font-semibold';
+              }
+
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => switchToItem(idx)}
+                  className={`w-8 h-8 rounded-lg text-xs border transition-all flex items-center justify-center cursor-pointer ${pillStyle} ${
+                    isCurrent && submitted ? 'ring-2 ring-slate-900 ring-offset-1' : ''
+                  }`}
+                  title={`Item ${idx + 1} of ${totalItems}`}
+                >
+                  {idx + 1}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Spoken Prompt Audio Card */}
@@ -228,15 +391,16 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="text-xs font-semibold text-teal-400 uppercase tracking-wider">
-              Spoken Prompt
+              Spoken Prompt · Item {currentIndex + 1} of {totalItems}
             </span>
             <p className="text-sm text-slate-300">
-              Listen to {speakerName}. In the official test, you only hear this exchange once or twice.
+              Listen to {speakerName}. Select the most natural response from the 4 choices below (spoken prompt text is hidden during the test).
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <button
+              type="button"
               onClick={handlePlayAudio}
               className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-md cursor-pointer ${
                 isPlaying
@@ -257,7 +421,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
               ) : (
                 <>
                   <Play className="w-5 h-5 fill-current" />
-                  <span>{playCount > 0 ? 'Replay Prompt' : 'Play Spoken Prompt'}</span>
+                  <span>{currentPlayCount > 0 ? 'Replay Prompt' : 'Play Spoken Prompt'}</span>
                 </>
               )}
             </button>
@@ -271,14 +435,15 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             <span>
               {isPlaying
                 ? `Playing audio (${speakerName})...`
-                : playCount > 0
-                ? `Played ${playCount} time${playCount > 1 ? 's' : ''}`
+                : currentPlayCount > 0
+                ? `Played ${currentPlayCount} time${currentPlayCount > 1 ? 's' : ''}`
                 : 'Ready to listen — click Play Spoken Prompt'}
             </span>
           </div>
 
-          {(submitted || showTranscript) && (
+          {submitted && (
             <button
+              type="button"
               onClick={() => setShowTranscript(!showTranscript)}
               className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 cursor-pointer"
             >
@@ -288,8 +453,8 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Revealed Transcript (if toggled or submitted) */}
-        {showTranscript && (
+        {/* Revealed Transcript (strictly after submission) */}
+        {submitted && showTranscript && (
           <div className="mt-4 p-4 rounded-xl bg-slate-950/60 border border-slate-700 text-sm text-slate-200 leading-relaxed font-normal">
             <div className="text-[11px] font-semibold text-teal-400 uppercase tracking-wider mb-1">
               Spoken Transcript ({speakerName}):
@@ -303,15 +468,15 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-            Which response is best? Select option A, B, C, or D:
+            Choose the best response for Item {currentIndex + 1}:
           </span>
-          <span className="text-xs text-slate-400 font-mono">
-            {selectedIdx !== null ? '1 of 1 selected' : 'Choose 1 option'}
+          <span className="text-xs text-slate-500 font-mono">
+            {answeredCount} of {totalItems} answered
           </span>
         </div>
 
         <div className="space-y-2.5">
-          {task.options.map((opt, optIdx) => {
+          {(currentItem?.options || []).map((opt, optIdx) => {
             const isSelected = selectedIdx === optIdx;
             const isRightOption = correctAnswerIdx === optIdx;
             const optionLetter = String.fromCharCode(65 + optIdx);
@@ -321,7 +486,8 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
 
             if (submitted) {
               if (isRightOption) {
-                optionClasses = 'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium ring-1 ring-emerald-500';
+                optionClasses =
+                  'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium ring-1 ring-emerald-500';
               } else if (isSelected && !isRightOption) {
                 optionClasses = 'border-rose-400 bg-rose-50 text-rose-900';
               } else {
@@ -351,7 +517,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
                 </div>
                 <input
                   type="radio"
-                  name="choose-response-option"
+                  name={`choose-response-option-${currentIndex}`}
                   checked={isSelected}
                   onChange={() => handleSelectOption(optIdx)}
                   disabled={submitted}
@@ -364,11 +530,11 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Post-Submission Explanation */}
+      {/* Post-Submission Explanation for Current Item */}
       {submitted && (
         <div
           className={`p-5 rounded-xl border leading-relaxed text-sm ${
-            isCorrect
+            isCurrentCorrect
               ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : 'bg-rose-50 border-rose-200 text-rose-900'
           }`}
@@ -377,7 +543,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             <HelpCircle className="w-5 h-5 shrink-0 mt-0.5" />
             <div>
               <strong className="block font-semibold mb-1">
-                {isCorrect ? 'Correct Response!' : 'Incorrect Choice'}
+                Item {currentIndex + 1}: {isCurrentCorrect ? 'Correct Response!' : 'Incorrect Choice'}
               </strong>
               <p className="text-slate-800 text-xs sm:text-sm">{explanation}</p>
             </div>
@@ -385,46 +551,84 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Action Buttons */}
+      {/* Navigation & Action Buttons */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-        {!submitted ? (
-          <button
-            onClick={handleSubmit}
-            disabled={selectedIdx === null}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:hover:bg-teal-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            Submit Response
-          </button>
-        ) : (
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Retake
-            </button>
-            {onNextTask && (
+        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-wrap">
+          {totalItems > 1 && (
+            <>
               <button
-                onClick={onNextTask}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors cursor-pointer"
+                type="button"
+                onClick={() => switchToItem(currentIndex - 1)}
+                disabled={currentIndex === 0}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-40 rounded-lg transition-colors cursor-pointer"
               >
-                Next Spoken Item
+                <ArrowLeft className="w-4 h-4" />
+                Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => switchToItem(currentIndex + 1)}
+                disabled={currentIndex >= totalItems - 1}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-40 rounded-lg transition-colors cursor-pointer"
+              >
+                Next Item
                 <ArrowRight className="w-4 h-4" />
               </button>
-            )}
-          </div>
-        )}
+            </>
+          )}
+
+          {!submitted ? (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={answeredCount === 0}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:hover:bg-teal-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {totalItems > 1
+                ? `Submit All (${answeredCount}/${totalItems})`
+                : 'Submit Response'}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Retake Set
+              </button>
+              {onNextTask && (
+                <button
+                  type="button"
+                  onClick={onNextTask}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  Next Practice Set
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
         {submitted && (
           <div className="flex items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg">
             <span>
-              Score: <strong className="font-mono text-slate-900">{isCorrect ? 1 : 0}</strong>/1
+              Score:{' '}
+              <strong className="font-mono text-slate-900">
+                {totalScore}/{totalItems}
+              </strong>
             </span>
-            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span aria-hidden="true" className="text-slate-300">
+              ·
+            </span>
             <span>
-              Est. Scaled: <strong className="font-mono text-teal-800">Band {isCorrect ? '6.0' : '1.0'} / 6.0</strong>
+              Est. Band:{' '}
+              <strong className="font-mono text-teal-800">
+                Band {band6Score.toFixed(1)} / 6.0
+              </strong>
             </span>
           </div>
         )}

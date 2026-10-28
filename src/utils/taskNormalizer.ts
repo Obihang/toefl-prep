@@ -1448,40 +1448,71 @@ export function normalizeDailyLifeTask(task: any): any {
 
 export function normalizeListeningChooseResponseTask(task: any): any {
   const title = String(task?.title || 'Listen & Choose a Response').trim();
-  const audioPrompt = String(
-    task?.audioPrompt ||
-    task?.promptAudioScript ||
-    task?.script ||
-    task?.spokenPrompt ||
-    task?.prompt ||
-    ''
-  ).trim();
-  const speakerName = String(task?.speakerName || 'Campus Speaker').trim();
-  const speakerGender = String(task?.speakerGender || inferGender(speakerName));
-  const rawOptions = Array.isArray(task?.options)
-    ? task.options.map((o: any) => String(o || '').trim()).filter(Boolean)
-    : [];
-  const rawAnswer = typeof task?.answer === 'number' ? task.answer : Number(task?.correctAnswer ?? 0);
-  const balanced = balanceMcqOptions(audioPrompt, rawOptions.slice(0, 4), isNaN(rawAnswer) ? 0 : rawAnswer, 0);
-  const why = String(
-    task?.why || task?.explanation || 'Most appropriate and natural response in this spoken campus exchange.'
-  ).trim();
   const category = String(task?.category || 'Campus Life').trim();
+
+  const rawItems =
+    Array.isArray(task?.items) && task.items.length > 0
+      ? task.items
+      : [task];
+
+  const items = rawItems.map((it: any, idx: number) => {
+    const audioPrompt = String(
+      it?.audioPrompt ||
+      it?.promptAudioScript ||
+      it?.script ||
+      it?.spokenPrompt ||
+      it?.prompt ||
+      ''
+    ).trim();
+    const speakerName = String(it?.speakerName || task?.speakerName || 'Campus Speaker').trim();
+    const speakerGender = String(it?.speakerGender || task?.speakerGender || inferGender(speakerName)) === 'female' ? 'female' : 'male';
+    const rawOptions = Array.isArray(it?.options)
+      ? it.options.map((o: any) => String(o || '').trim()).filter(Boolean)
+      : [];
+    const rawAnswer = typeof it?.answer === 'number' ? it.answer : Number(it?.correctAnswer ?? 0);
+    const balanced = balanceMcqOptions(audioPrompt, rawOptions.slice(0, 4), isNaN(rawAnswer) ? 0 : rawAnswer, idx);
+    const why = String(
+      it?.why || it?.explanation || 'Most appropriate and natural response in this spoken campus exchange.'
+    ).trim();
+
+    return {
+      audioPrompt,
+      promptAudioScript: audioPrompt,
+      script: audioPrompt,
+      speakerName,
+      speakerGender,
+      options: balanced.options,
+      answer: balanced.correctAnswer,
+      correctAnswer: balanced.correctAnswer,
+      why,
+      explanation: why,
+    };
+  });
+
+  const first = items[0] || {
+    audioPrompt: '',
+    speakerName: 'Campus Speaker',
+    speakerGender: 'male',
+    options: [],
+    answer: 0,
+    why: '',
+  };
 
   return {
     ...task,
     title,
-    audioPrompt,
-    promptAudioScript: audioPrompt,
-    script: audioPrompt,
-    speakerName,
-    speakerGender,
-    options: balanced.options,
-    answer: balanced.correctAnswer,
-    correctAnswer: balanced.correctAnswer,
-    why,
-    explanation: why,
     category,
+    items,
+    audioPrompt: first.audioPrompt,
+    promptAudioScript: first.audioPrompt,
+    script: first.audioPrompt,
+    speakerName: first.speakerName,
+    speakerGender: first.speakerGender,
+    options: first.options,
+    answer: first.answer,
+    correctAnswer: first.answer,
+    why: first.why,
+    explanation: first.why,
   };
 }
 
@@ -1608,16 +1639,19 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
     }
 
     case 'listening-choose-response': {
-      const prompt = String(data.audioPrompt || data.promptAudioScript || data.script || '');
-      const options = Array.isArray(data.options) ? data.options : [];
-      return (
-        prompt.trim().length >= 10 &&
-        options.length === 4 &&
-        new Set(options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
-        typeof data.answer === 'number' &&
-        data.answer >= 0 &&
-        data.answer <= 3
-      );
+      const items = Array.isArray(data.items) && data.items.length > 0 ? data.items : [data];
+      return items.every((item: any) => {
+        const prompt = String(item.audioPrompt || item.promptAudioScript || item.script || '');
+        const options = Array.isArray(item.options) ? item.options : [];
+        return (
+          prompt.trim().length >= 8 &&
+          options.length === 4 &&
+          new Set(options.map((o: any) => String(o).toLowerCase().trim())).size === 4 &&
+          typeof item.answer === 'number' &&
+          item.answer >= 0 &&
+          item.answer <= 3
+        );
+      });
     }
 
     case 'listening-dialogue':

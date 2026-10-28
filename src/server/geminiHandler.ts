@@ -176,13 +176,21 @@ const Schemas = {
   }),
   listeningChooseResponse: z.object({
     title: z.string(),
-    audioPrompt: z.string(),
-    speakerName: z.string().default('Campus Speaker'),
-    speakerGender: z.string().default('male'),
-    options: z.array(z.string()),
-    answer: z.number(),
-    why: z.string(),
     category: z.string().optional().default('Campus Life'),
+    items: z.array(z.object({
+      audioPrompt: z.string(),
+      speakerName: z.string().default('Campus Speaker'),
+      speakerGender: z.string().default('male'),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+    })).optional(),
+    audioPrompt: z.string().optional(),
+    speakerName: z.string().optional().default('Campus Speaker'),
+    speakerGender: z.string().optional().default('male'),
+    options: z.array(z.string()).optional(),
+    answer: z.number().optional(),
+    why: z.string().optional(),
   }),
   listeningAnnouncement: z.object({
     title: z.string(),
@@ -876,12 +884,14 @@ Return JSON format: {"title": "Passage Title", "passage": "180-210 word passage.
       }
       case 'listening-choose-response':
       case 'listening_choose_response':
-        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen & Choose a Response" item for level: ${levelDesc}. Topic: ${top}.
-STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write 1 spoken campus question or statement (audioPrompt, 15-30 words) spoken by a campus speaker (speakerName, speakerGender: 'male'|'female').
-2. Provide EXACTLY 4 plausible spoken conversational replies (options). Exactly ONE option is the natural, appropriate response (answer: 0..3), while 3 are plausible distractors.
-3. Provide a clear why explanation.
-Return JSON format: {"title": "Campus Interaction Title", "audioPrompt": "Excuse me, ...?", "speakerName": "Sarah", "speakerGender": "female", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Direct and natural response to the speaker's inquiry.", "category": "Campus Life"}`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a 5-item TOEFL Listening "Listen & Choose a Response" practice set for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 8-9):
+1. Provide EXACTLY 5 independent short items in the \`items\` array.
+2. Each item's \`audioPrompt\` MUST be a short, natural, 1-sentence everyday or campus question/statement of strictly 6 to 15 words (e.g., "Didn't I just see you in the library an hour ago?").
+3. Provide \`speakerName\` and \`speakerGender\` ('male' or 'female') for each item.
+4. For each item, provide EXACTLY 4 brief conversational reply \`options\` (each 5 to 12 words). Exactly ONE option is the natural, appropriate reply (\`answer\`: 0..3), and 3 are plausible distractors.
+5. Include a clear \`why\` explanation for each item.
+Return JSON format: {"title": "Campus Interaction Set", "category": "Campus Life", "items": [{"audioPrompt": "Short 6-15 word question?", "speakerName": "Sarah", "speakerGender": "female", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Direct and natural response."}]}`;
       case 'listening-announcement':
       case 'listening_announcement':
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Announcement" item for level: ${levelDesc}. Topic: ${top}.
