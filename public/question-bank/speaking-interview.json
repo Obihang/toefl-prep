@@ -1,232 +1,372 @@
 [
   {
     "id": "si-curated-1",
-    "title": "University Admissions: Academic Intellectual Growth",
-    "level": "intermediate",
+    "taskType": "speaking-interview",
     "topic": "campus-life",
-    "context": "An admissions committee interviewer asks about an academic subject that challenged your intellectual perspective.",
-    "interviewerName": "Prof. Lee (Male)",
-    "interviewerGender": "male",
+    "level": "beginner",
+    "difficulty": "beginner",
     "questions": [
       {
-        "question": "Describe an academic subject that challenged your perspective and explain how working through that challenge influenced your intellectual development.",
-        "prepTimeSeconds": 20,
+        "id": "si-1-1",
+        "question": "What is your favorite place on campus to study or relax between classes, and why do you prefer it?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "State the specific academic discipline clearly",
-          "Identify the conceptual challenge or misconception you had to overcome",
-          "Explain the lasting cognitive or problem-solving benefit"
-        ]
+        "suggestedPoints": ["Describe the location and atmosphere", "Explain why it helps you focus or unwind"]
+      },
+      {
+        "id": "si-1-2",
+        "question": "Do you prefer studying alone or in a study group with classmates? Explain your preference with an example.",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Compare focus when working alone versus group collaboration", "Give a specific example from a recent class"]
+      },
+      {
+        "id": "si-1-3",
+        "question": "How should universities help first-year students adjust to living and studying away from home?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Suggest peer mentoring or orientation workshops", "Explain how social events build community"]
+      },
+      {
+        "id": "si-1-4",
+        "question": "Should universities require all first-year students to participate in at least one campus club or organization?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Weigh the benefits of social engagement against academic workload", "Propose incentives rather than strict requirements"]
       }
-    ],
-    "modelResponse": "An academic discipline that profoundly challenged my perspective was introductory macroeconomics. Initially, I naively assumed that economic outcomes were purely driven by individual rational decision-making. However, analyzing complex systems like inflation and currency devaluation demonstrated how macroeconomic policies produce counterintuitive aggregate results. Working through quantitative econometric models forced me to adopt an empirical, evidence-based mindset. Consequently, this intellectual challenge taught me to look beyond immediate individual choices and evaluate systemic interconnections, a analytical skill that now shapes how I evaluate societal challenges.",
-    "sampleAnswer": "Band 6.0 exemplar: Directly introduces macroeconomics, articulates the initial misconception versus new insight, links the learning process to analytical growth, and concludes with a synthesis sentence."
+    ]
   },
   {
     "id": "si-curated-2",
-    "title": "Environmental Sustainability: Urban Public Transportation",
-    "level": "upper-intermediate",
-    "topic": "science-tech",
-    "context": "A graduate fellowship interviewer inquires about urban policy interventions for climate change mitigation.",
-    "interviewerName": "Dr. Simmons (Female)",
-    "interviewerGender": "female",
+    "taskType": "speaking-interview",
+    "topic": "environment",
+    "level": "beginner",
+    "difficulty": "beginner",
     "questions": [
       {
-        "question": "In your opinion, should municipal governments prioritize investments in electric vehicle subsidies or in expanding electrified public transit networks? Explain your view.",
-        "prepTimeSeconds": 20,
+        "id": "si-2-1",
+        "question": "What are some simple everyday habits that you or your family practice to reduce waste or save energy?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "State your policy preference explicitly in the opening sentence",
-          "Provide comparative analysis regarding carbon efficiency and spatial congestion",
-          "Address socioeconomic equity and accessibility"
-        ]
+        "suggestedPoints": ["Mention recycling, reusable bags, or turning off appliances", "Explain why these daily habits matter"]
+      },
+      {
+        "id": "si-2-2",
+        "question": "How can schools and universities encourage students to use less single-use plastic on campus?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Discuss water refill stations and reusable cup discounts", "Explain how awareness campaigns change habits"]
+      },
+      {
+        "id": "si-2-3",
+        "question": "Do you think cities should expand public parks and green spaces even when housing space is limited?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Describe health and environmental benefits of urban parks", "Consider creative solutions like rooftop gardens"]
+      },
+      {
+        "id": "si-2-4",
+        "question": "Who bears greater responsibility for protecting the environment: individual citizens or large corporations?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Compare corporate industrial emissions with consumer demand", "Argue how both groups must work together"]
       }
-    ],
-    "modelResponse": "In my view, municipal governments should prioritize expanding electrified public transit networks over individual electric vehicle subsidies. While electric cars certainly reduce tailpipe emissions, they do not resolve traffic congestion, pedestrian hazards, or the immense spatial footprints required for urban parking structures. Conversely, high-capacity electrified subway and light-rail lines transport thousands of commuters simultaneously with superior thermodynamic efficiency. Furthermore, public transit provides universal socioeconomic accessibility for lower-income residents who cannot afford private vehicles. Therefore, investing in communal infrastructure yields far superior environmental and societal dividends.",
-    "sampleAnswer": "Band 6.0 exemplar: Firm stance taken immediately, strong contrastive discourse markers ('while', 'conversely', 'furthermore', 'therefore'), and dual justification covering ecological efficiency and social equity."
+    ]
   },
   {
     "id": "si-curated-3",
-    "title": "Technological Ethics: Artificial Intelligence in Healthcare",
-    "level": "advanced",
+    "taskType": "speaking-interview",
     "topic": "science-tech",
-    "context": "A biomedical ethics committee member asks your perspective on diagnostic algorithms.",
-    "interviewerName": "Dr. Chen (Male)",
-    "interviewerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
     "questions": [
       {
-        "question": "Some researchers argue that diagnostic AI algorithms should operate autonomously, while others insist human physicians must retain final authority. What is your position and why?",
-        "prepTimeSeconds": 20,
+        "id": "si-3-1",
+        "question": "What piece of modern technology do you rely on most for your daily academic or professional work?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "Take a definitive ethical stance regarding algorithmic autonomy",
-          "Examine diagnostic pattern recognition vs clinical contextual empathy",
-          "Conclude with a collaborative physician-AI framework"
-        ]
+        "suggestedPoints": ["Name the device or software application", "Provide a specific example of how it saves time"]
+      },
+      {
+        "id": "si-3-2",
+        "question": "In what ways have smartphones changed how people communicate with friends and family compared to the past?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Highlight instant connectivity across long distances", "Discuss potential drawbacks for face-to-face conversation"]
+      },
+      {
+        "id": "si-3-3",
+        "question": "How has artificial intelligence changed the way students conduct academic research and prepare assignments?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Discuss faster literature discovery and brainstorming", "Address concerns about critical thinking and academic integrity"]
+      },
+      {
+        "id": "si-3-4",
+        "question": "Should governments establish stricter regulations on how technology companies collect and use personal data?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Evaluate consumer privacy risks and data security", "Balance regulation against technological innovation"]
       }
-    ],
-    "modelResponse": "I firmly believe that human physicians must retain final diagnostic authority rather than allowing algorithms to operate autonomously. Without question, deep-learning models possess remarkable capability in identifying subtle radiographic patterns in MRI scans that the human eye might overlook. Nevertheless, medicine is not merely pattern detection; it demands holistic contextual understanding, patient rapport, and ethical judgment. An algorithm cannot evaluate a patient's subtle psychological distress or weigh complex quality-of-life trade-offs. By maintaining a collaborative model where artificial intelligence acts as an advisory diagnostic tool, healthcare systems maximize accuracy while safeguarding ethical accountability.",
-    "sampleAnswer": "Band 6.0 exemplar: Sophisticated concession of AI strengths ('Without question...'), followed by decisive ethical distinction ('Nevertheless, medicine is not merely...'), ending in a well-reasoned collaborative paradigm."
+    ]
   },
   {
     "id": "si-curated-4",
-    "title": "Campus Living: Shared Dormitories versus Private Apartments",
+    "taskType": "speaking-interview",
+    "topic": "social-sciences",
     "level": "intermediate",
-    "topic": "campus-life",
-    "context": "A student orientation advisor asks for advice to incoming first-year college students.",
-    "interviewerName": "Coach Miller (Male)",
-    "interviewerGender": "male",
+    "difficulty": "intermediate",
     "questions": [
       {
-        "question": "Do you recommend that first-year university students reside in on-campus dormitories or rent off-campus private apartments? Give specific reasons for your choice.",
-        "prepTimeSeconds": 20,
+        "id": "si-4-1",
+        "question": "Where do you usually get your daily news, and why do you trust that source over others?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "State clear recommendation for incoming first-year students",
-          "Highlight peer socialization and academic integration",
-          "Contrast logistical convenience with off-campus isolation"
-        ]
+        "suggestedPoints": ["Identify your primary news platform", "Explain how you check accuracy and objectivity"]
+      },
+      {
+        "id": "si-4-2",
+        "question": "How do social media platforms influence public opinion on important community or global issues?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Discuss rapid information sharing and diverse viewpoints", "Mention echo chambers and algorithmic bias"]
+      },
+      {
+        "id": "si-4-3",
+        "question": "Why is it important for citizens in modern society to develop strong media literacy skills?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Explain how to spot misinformation and deepfakes", "Connect informed citizenship to healthy decision-making"]
+      },
+      {
+        "id": "si-4-4",
+        "question": "Should social media platforms be held legally responsible for false information posted by their users?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Weigh public safety against freedom of expression", "Propose transparent fact-checking standards"]
       }
-    ],
-    "modelResponse": "I strongly recommend that first-year students reside in on-campus dormitories. Living in a residential hall immerses newcomers in campus culture, allowing them to forge friendships and form collaborative study groups naturally. When students live together in proximity, they can easily participate in student clubs and access university libraries without commuting. While private off-campus apartments might offer greater quiet and privacy, they frequently isolate first-year students from collegiate social life and introduce burdensome logistical responsibilities like utility bills and cooking. Consequently, the social camaraderie and convenience of dormitory life provide an optimal foundation for academic transition.",
-    "sampleAnswer": "Band 6.0 exemplar: Pragmatic tone, clear structural progression, contrasting advantages of dorm living with drawbacks of off-campus housing, and fluid transitional words."
+    ]
   },
   {
     "id": "si-curated-5",
-    "title": "Business Strategy: Remote Work vs Traditional Office Collaboration",
-    "level": "upper-intermediate",
+    "taskType": "speaking-interview",
     "topic": "business-economics",
-    "context": "A corporate management interviewer asks about corporate workplace organization.",
-    "interviewerName": "Ms. Foster (Female)",
-    "interviewerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
     "questions": [
       {
-        "question": "Many international corporations have shifted toward permanent remote work models. Do you believe remote work enhances or degrades overall organizational innovation? Explain why.",
-        "prepTimeSeconds": 20,
+        "id": "si-5-1",
+        "question": "Would you prefer to work from home, in an office, or in a hybrid arrangement in your future career?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "Articulate your stance on innovation and organizational dynamics",
-          "Analyze spontaneous interaction versus scheduled virtual meetings",
-          "Provide examples of collaborative synergy"
-        ]
+        "suggestedPoints": ["State your preferred work environment clearly", "Explain how it supports your productivity and lifestyle"]
+      },
+      {
+        "id": "si-5-2",
+        "question": "What are the main advantages and challenges for companies that allow employees to work remotely?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Mention lower office costs and broader talent pools", "Discuss team communication and company culture challenges"]
+      },
+      {
+        "id": "si-5-3",
+        "question": "How does widespread remote work affect local small businesses located in downtown commercial districts?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Analyze reduced foot traffic for cafes and retail shops", "Describe how suburban neighborhood businesses may benefit"]
+      },
+      {
+        "id": "si-5-4",
+        "question": "In the coming decades, will lifelong employment at a single company disappear in favor of freelance careers?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Compare job security and benefits with freelance flexibility", "Predict how automation and global markets will shape employment"]
       }
-    ],
-    "modelResponse": "I believe permanent remote work often degrades spontaneous organizational innovation, despite improving individual task productivity. Breakthrough innovations typically emerge from serendipitous encounters—informal hallway conversations and spontaneous whiteboard sketches where employees from diverse departments cross-pollinate ideas. In fully remote settings, nearly all interactions become structured, scheduled video meetings that discourage informal experimentation. While remote tools excel at routine operational tasks, building trust and creative synergy remains significantly more challenging across computer screens. Therefore, a hybrid model that preserves regular in-person collaboration is essential for sustained corporate innovation.",
-    "sampleAnswer": "Band 6.0 exemplar: Nuanced distinction between individual productivity and organizational innovation, effective metaphor ('cross-pollinate ideas'), and balanced hybrid conclusion."
+    ]
   },
   {
     "id": "si-curated-6",
-    "title": "Arts & Humanities: Preserving Local Cultural Heritage",
-    "level": "intermediate",
+    "taskType": "speaking-interview",
     "topic": "arts-humanities",
-    "context": "A cultural foundation board member asks your view on historic building preservation.",
-    "interviewerName": "Professor Laurent (Male)",
-    "interviewerGender": "male",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "questions": [
       {
-        "question": "Should city governments allocate public tax revenues to restore aging historical landmarks, or should funds be reserved for modern infrastructure? Explain your viewpoint.",
-        "prepTimeSeconds": 20,
+        "id": "si-6-1",
+        "question": "Describe a museum exhibition, concert, or theatrical performance that left a lasting impression on you.",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "State clear position supporting heritage preservation with public funds",
-          "Explain educational and cultural identity value of historic landmarks",
-          "Mention economic tourism revitalization"
-        ]
+        "suggestedPoints": ["Describe the event and setting", "Explain what made the experience memorable"]
+      },
+      {
+        "id": "si-6-2",
+        "question": "Do digital virtual tours of museums enhance or diminish the experience of viewing historical artworks?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Highlight global accessibility for people who cannot travel", "Contrast screen viewing with seeing physical brushwork and scale"]
+      },
+      {
+        "id": "si-6-3",
+        "question": "Why should governments allocate public tax funds to support arts, music, and cultural heritage institutions?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Connect cultural preservation to national identity and education", "Mention economic benefits from cultural tourism"]
+      },
+      {
+        "id": "si-6-4",
+        "question": "Should national museums return ancient cultural artifacts to their countries of origin?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Address historical justice and cultural sovereignty", "Consider preservation conditions and international sharing agreements"]
       }
-    ],
-    "modelResponse": "City governments should definitely allocate public tax revenues to preserve aging historical landmarks alongside modern infrastructure. Historical architecture embodies a community's unique cultural heritage, offering tangible educational links to previous generations that contemporary glass high-rises cannot replicate. When municipal authorities demolish historic districts, they erase irreplaceable collective memory and architectural craftsmanship. Moreover, restored historic sites often stimulate substantial cultural tourism and commercial vitality in downtown neighborhoods. Investing in landmark conservation is not a waste of capital; rather, it enriches civic pride and reinforces the cultural identity that makes a city vibrant.",
-    "sampleAnswer": "Band 6.0 exemplar: Persuasive rhetoric, vivid architectural imagery ('contemporary glass high-rises', 'irreplaceable collective memory'), and economic counter-argument."
+    ]
   },
   {
     "id": "si-curated-7",
-    "title": "Social Psychology: Social Media and Interpersonal Communication",
-    "level": "advanced",
-    "topic": "social-sciences",
-    "context": "A psychology department interviewer asks about technological impacts on human social bonds.",
-    "interviewerName": "Dr. Gomez (Female)",
-    "interviewerGender": "female",
+    "taskType": "speaking-interview",
+    "topic": "environment",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "questions": [
       {
-        "question": "Some sociologists assert that digital social media networks have eroded deep interpersonal relationships. To what extent do you agree or disagree with this assessment?",
-        "prepTimeSeconds": 20,
+        "id": "si-7-1",
+        "question": "What is the most convenient and sustainable way to commute around your city or university campus?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "Express clear degree of agreement with the sociological assessment",
-          "Examine curated digital personas versus authentic vulnerability",
-          "Contrast superficial online metrics with genuine social intimacy"
-        ]
+        "suggestedPoints": ["Describe transit options such as buses, trains, or cycling", "Explain their impact on congestion and air quality"]
+      },
+      {
+        "id": "si-7-2",
+        "question": "What obstacles prevent more commuters from switching from private cars to public transportation?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Discuss schedule reliability, coverage gaps, and safety", "Propose improvements that would attract riders"]
+      },
+      {
+        "id": "si-7-3",
+        "question": "Should major cities charge congestion pricing fees to drivers who enter busy downtown areas during peak hours?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Evaluate reductions in traffic and emissions", "Consider fairness for lower-income commuters"]
+      },
+      {
+        "id": "si-7-4",
+        "question": "Can technological innovations alone solve global climate change, or must societies also reduce overall consumption?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Assess renewable energy and carbon capture potential", "Argue why behavioral and economic shifts remain essential"]
       }
-    ],
-    "modelResponse": "I substantially agree with the assessment that social media has eroded the depth of interpersonal relationships. Although digital platforms facilitate instantaneous global connectivity, they fundamentally prioritize superficial engagement metrics like follower counts and algorithmic likes over genuine emotional intimacy. Communicating through curated profiles encourages individuals to project idealized personas, which discourages vulnerable, authentic self-expression. Furthermore, rapid text messaging lacks the nuanced vocal inflections, facial micro-expressions, and empathetic eye contact that anchor deep human bonding. Consequently, while social media expands broad acquaintance networks, it often leaves people feeling paradoxically more isolated and disconnected from meaningful relationships.",
-    "sampleAnswer": "Band 6.0 exemplar: Eloquent conceptual vocabulary ('superficial engagement metrics', 'idealized personas', 'paradoxically more isolated'), precise structural flow, and poignant conclusion."
+    ]
   },
   {
     "id": "si-curated-8",
-    "title": "University Governance: Student Representation on Advisory Boards",
-    "level": "intermediate",
+    "taskType": "speaking-interview",
     "topic": "campus-life",
-    "context": "A university governance committee member asks about student voting rights on administrative boards.",
-    "interviewerName": "Dean Henderson (Male)",
-    "interviewerGender": "male",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "questions": [
       {
-        "question": "Should universities allocate voting seats to undergraduate student representatives on governing trustee boards? Explain your perspective with reasons.",
-        "prepTimeSeconds": 20,
+        "id": "si-8-1",
+        "question": "What skills or experiences outside the classroom have been most valuable during your education?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "State clear position supporting or opposing student representation",
-          "Discuss student accountability and unique campus insights",
-          "Address potential concerns regarding fiduciary experience"
-        ]
+        "suggestedPoints": ["Mention internships, volunteering, or student leadership", "Explain how the experience developed practical skills"]
+      },
+      {
+        "id": "si-8-2",
+        "question": "Should universities require every undergraduate student to complete a professional internship before graduating?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Highlight career readiness and professional networking", "Address challenges with unpaid internships and scheduling"]
+      },
+      {
+        "id": "si-8-3",
+        "question": "How should universities balance broad liberal arts education with specialized career training?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Compare adaptable critical thinking with technical job skills", "Suggest interdisciplinary curriculum models"]
+      },
+      {
+        "id": "si-8-4",
+        "question": "Are traditional timed final exams an effective way to measure a student's true mastery of a subject?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Critique memorization under pressure", "Compare exams with project-based and continuous assessment"]
       }
-    ],
-    "modelResponse": "I firmly believe that universities should allocate voting seats to undergraduate student representatives on governing trustee boards. Students are the primary stakeholders of higher education, and institutional decisions regarding tuition increases, campus mental health facilities, and housing policies directly affect their daily lives. By including student trustees, governing boards gain invaluable frontline perspectives that administrative executives often overlook. While critics may argue that undergraduates lack complex fiduciary experience, student representatives can receive financial orientation before voting. Ultimately, incorporating democratic student representation fosters transparency, strengthens institutional trust, and ensures university policies genuinely reflect the academic community's needs.",
-    "sampleAnswer": "Band 6.0 exemplar: Decisive opening stance, strong contrastive discourse markers ('while critics may argue', 'ultimately'), and dual reasoning linking campus transparency to stakeholder representation."
+    ]
   },
   {
     "id": "si-curated-9",
-    "title": "Economics & Technology: Cashless Societies and Financial Inclusion",
-    "level": "upper-intermediate",
-    "topic": "business-economics",
-    "context": "A central bank research fellow asks your view on digital-only payment mandates.",
-    "interviewerName": "Dr. Bradley (Female)",
-    "interviewerGender": "female",
+    "taskType": "speaking-interview",
+    "topic": "science-tech",
+    "level": "advanced",
+    "difficulty": "advanced",
     "questions": [
       {
-        "question": "Many retailers are transitioning to completely cashless payment systems. Do you believe eliminating physical cash benefits or harms modern society? Explain why.",
-        "prepTimeSeconds": 20,
+        "id": "si-9-1",
+        "question": "What recent scientific or medical breakthrough do you think has had the greatest positive impact on society?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "State clear position on the transition to cashless transactions",
-          "Examine transaction speed, security, and tax compliance",
-          "Address the vulnerability of unbanked populations and privacy risks"
-        ]
+        "suggestedPoints": ["Identify a specific medical or scientific innovation", "Explain how it improved longevity or quality of life"]
+      },
+      {
+        "id": "si-9-2",
+        "question": "Should public research funding prioritize space exploration or urgent environmental and medical challenges on Earth?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Compare immediate humanitarian needs with long-term scientific discovery", "Note how satellite and space technologies benefit Earth observation"]
+      },
+      {
+        "id": "si-9-3",
+        "question": "What ethical boundaries should govern genetic engineering and biotechnology in agriculture and medicine?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Distinguish therapeutic disease prevention from genetic enhancement", "Discuss ecological safety and equitable access"]
+      },
+      {
+        "id": "si-9-4",
+        "question": "When autonomous systems make critical mistakes in healthcare or transportation, who should bear legal liability?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Examine the roles of software developers, operators, and regulators", "Propose accountability frameworks for high-risk AI"]
       }
-    ],
-    "modelResponse": "In my view, while cashless payments offer undeniable speed and administrative convenience, completely eliminating physical cash harms vulnerable segments of society. Digital mobile payments certainly streamline commercial checkout lines and reduce accounting overhead for retail merchants. However, transitioning to a cashless system disenfranchises elderly citizens, unbanked low-income families, and undocumented individuals who lack bank accounts or smartphones. Furthermore, purely digital transactions expose consumers to surveillance and vulnerabilities during power outages or cyber disruptions. Therefore, while modern economies should encourage digital payment innovations, maintaining cash as legal tender is essential to protect financial inclusion and social equity.",
-    "sampleAnswer": "Band 6.0 exemplar: Balanced thesis balancing convenience with societal drawbacks, clear transitional connectors ('however', 'furthermore', 'therefore'), and strong socioeconomic reasoning."
+    ]
   },
   {
     "id": "si-curated-10",
-    "title": "Bioethics: Genetic Editing in Agriculture and Human Healthcare",
+    "taskType": "speaking-interview",
+    "topic": "business-economics",
     "level": "advanced",
-    "topic": "science-tech",
-    "context": "A bioethics seminar coordinator asks your opinion on CRISPR genetic editing applications.",
-    "interviewerName": "Professor Vance (Male)",
-    "interviewerGender": "male",
+    "difficulty": "advanced",
     "questions": [
       {
-        "question": "CRISPR gene editing offers immense potential to eradicate congenital diseases and enhance crop resilience. Should governments promote or restrict genetic editing technologies?",
-        "prepTimeSeconds": 20,
+        "id": "si-10-1",
+        "question": "When you purchase products, how much does a company's environmental or ethical reputation influence your decision?",
+        "prepTimeSeconds": 15,
         "responseTimeSeconds": 45,
-        "suggestedPoints": [
-          "Take a nuanced position distinguishing somatic therapeutic editing from germline enhancement",
-          "Highlight humanitarian benefits for food security and hereditary diseases",
-          "Address ecological risks and ethical concerns regarding genetic inequality"
-        ]
+        "suggestedPoints": ["Weigh price and quality against sustainability", "Give an example of a brand choice you have made"]
+      },
+      {
+        "id": "si-10-2",
+        "question": "Why have many corporations adopted environmental, social, and governance initiatives in recent years?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Discuss consumer pressure, investor expectations, and regulation", "Distinguish genuine sustainability from greenwashing"]
+      },
+      {
+        "id": "si-10-3",
+        "question": "How does economic globalization affect local industries and cultural traditions in developing nations?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Analyze job creation, technology transfer, and export growth", "Address wage competition and cultural homogenization"]
+      },
+      {
+        "id": "si-10-4",
+        "question": "Is continuous gross domestic product growth compatible with long-term planetary sustainability?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": ["Evaluate decoupling economic output from resource depletion", "Discuss alternative metrics of societal well-being"]
       }
-    ],
-    "modelResponse": "I believe governments should actively promote somatic genetic editing for therapeutic medical treatments and agricultural resilience, while enforcing strict international moratoria on human germline modifications. Utilizing CRISPR to cure debilitating genetic disorders like sickle-cell anemia or to bioengineer drought-tolerant staple crops provides immense humanitarian benefits that can alleviate starvation and suffering worldwide. However, allowing heritable germline alterations raises terrifying ethical concerns regarding genetic inequality and unpredictable mutations across future generations. By establishing rigorous regulatory oversight that permits therapeutic and agricultural applications while prohibiting non-medical cosmetic enhancements, society can harness the profound benefits of genetic engineering safely and ethically.",
-    "sampleAnswer": "Band 6.0 exemplar: Highly sophisticated conceptual distinction between somatic and germline editing, clear academic terminology ('heritable alterations', 'drought-tolerant staple crops'), and nuanced ethical resolution."
+    ]
   }
 ]

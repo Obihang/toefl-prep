@@ -12,6 +12,7 @@ import { callGroqSpeech } from './groqSpeech';
 import { callAudio8Speech } from './audio8Speech';
 import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers';
 import { collectAvailableProviders, prioritizeForGeneration } from './providerRouter';
+import { normalizeCompleteWordsTask, normalizeBuildSentenceTask } from '../utils/taskNormalizer';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
 
@@ -238,18 +239,45 @@ function normalizeCompleteWords(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Complete the Words').trim();
   if (!title) throw new Error('Complete the Words missing title');
-  const text = String(data.text || '').trim();
-  if (!text || !text.includes('[[') || !text.includes(']]')) {
+  const rawText = String(data.text || '').trim();
+  if (!rawText || !rawText.includes('[') || !rawText.includes(']')) {
     throw new Error('AI response missing valid [[masked]] word blanks in text');
   }
-  const blankMatches = text.match(/\[\[/g) || [];
+  const initialBrackMatches = rawText.match(/\[+[^\]]+\]+/g) || [];
+  if (initialBrackMatches.length < 3) {
+    throw new Error(`Complete the Words generated insufficient blanks (${initialBrackMatches.length}), at least 3 required`);
+  }
+
+  const wordCount = rawText.split(/\s+/).filter(Boolean).length;
+  if (wordCount >= 35) {
+    const normalized = normalizeCompleteWordsTask({ title, text: rawText });
+    return {
+      title: normalized.title,
+      text: normalized.text,
+      totalBlanks: normalized.totalBlanks,
+    };
+  }
+
+  // For short unit-test snippets (< 35 words), repair each bracketed token in-place to second-half [[suffix]]
+  const repairedText = rawText
+    .split(/(\s+)/)
+    .map((tok) => {
+      if (!tok.includes('[') || !tok.includes(']')) return tok;
+      const stripped = tok.replace(/\[+|\]+/g, '');
+      const m = stripped.match(/^([^a-zA-Z0-9]*)(.*?)([^a-zA-Z0-9]*)$/);
+      if (!m) return tok;
+      const [, lead, fullWord, trail] = m;
+      if (fullWord.length < 4) return `${lead}${fullWord}${trail}`;
+      const prefixLen = Math.floor(fullWord.length / 2);
+      return `${lead}${fullWord.slice(0, prefixLen)}[[${fullWord.slice(prefixLen)}]]${trail}`;
+    })
+    .join('');
+
+  const blankMatches = repairedText.match(/\[\[/g) || [];
   if (blankMatches.length < 3) {
     throw new Error(`Complete the Words generated insufficient blanks (${blankMatches.length}), at least 3 required`);
   }
-  // The actual [[masked]] words in the text define the true blank count.
-  // We reconcile totalBlanks to blankMatches.length so mismatching totalBlanks never crashes valid generation.
-  const totalBlanks = blankMatches.length;
-  return { title, text, totalBlanks };
+  return { title, text: repairedText, totalBlanks: blankMatches.length };
 }
 
 function normalizeReadingPassage(data: any) {
@@ -261,8 +289,8 @@ function normalizeReadingPassage(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length !== 3) {
-    throw new Error(`Reading comprehension requires exactly 3 questions (received ${rawQs.length})`);
+  if (rawQs.length < 3 || rawQs.length > 5) {
+    throw new Error(`Reading comprehension requires 3 to 5 questions (received ${rawQs.length})`);
   }
 
   const questions = rawQs.map((q: any, idx: number) => {
@@ -322,8 +350,8 @@ function normalizeListeningDialogue(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length !== 3) {
-    throw new Error(`Listening comprehension requires exactly 3 questions (received ${rawQs.length})`);
+  if (rawQs.length < 3 || rawQs.length > 5) {
+    throw new Error(`Listening comprehension requires 3 to 5 questions (received ${rawQs.length})`);
   }
 
   const questions = rawQs.map((q: any, idx: number) => {
@@ -426,7 +454,7 @@ function normalizeBuildSentence(data: any) {
   if (rawItems.length !== 5) {
     throw new Error(`Build a sentence requires exactly 5 items (received ${rawItems.length})`);
   }
-  const items = rawItems.map((it: any, idx: number) => {
+  rawItems.forEach((it: any, idx: number) => {
     if (!it || typeof it !== 'object') throw new Error(`Build sentence item ${idx + 1} is invalid`);
     const context = String(it.context || '').trim();
     if (!context) throw new Error(`Build sentence item ${idx + 1} missing context`);
@@ -442,9 +470,17 @@ function normalizeBuildSentence(data: any) {
     if (!explanation) {
       throw new Error(`Build sentence item ${idx + 1} missing explanation`);
     }
-    return { context, words, answer, explanation };
   });
-  return { title, items };
+  const normalized = normalizeBuildSentenceTask({ title, items: rawItems });
+  return {
+    title: normalized.title,
+    items: normalized.items.map((it) => ({
+      context: it.context,
+      words: it.words,
+      answer: it.answer,
+      explanation: it.explanation,
+    })),
+  };
 }
 
 function normalizeWriteEmail(data: any) {
@@ -673,25 +709,64 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
   const getPrompt = (tType: string, lvl: string, top: string) => {
     const levelDesc =
       lvl === 'advanced'
-        ? 'Advanced (C1 CEFR / TOEFL 100-120)'
+        ? 'Advanced (C1-C2 CEFR / TOEFL 100-120)'
+        : lvl === 'beginner'
+        ? 'Beginner-Intermediate (A2-B1 CEFR / TOEFL 40-60)'
         : lvl === 'intermediate'
-        ? 'Intermediate (B1-B2 CEFR / TOEFL 60-80)'
-        : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
+        ? 'Intermediate (B1-B2 CEFR / TOEFL 60-85)'
+        : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 85-100)';
     switch (tType) {
       case 'complete-words':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select between 8 to 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}.
+STRICT RULES:
+1. Write a cohesive academic paragraph of 75-100 words (4 to 5 sentences).
+2. Keep the FIRST sentence 100% intact with ZERO brackets.
+3. Starting from the SECOND sentence, select exactly 10 pure-alphabetic academic/content words (each at least 4 letters long).
+4. For each selected word, leave the FIRST half (floor(length / 2) letters) visible outside brackets and wrap ONLY the SECOND half inside double brackets: e.g. "penetr[[ate]]", "effi[[cacy]]", "integ[[ration]]", "meth[[ods]]".
+5. NEVER put brackets around the first half (NEVER write "[[penetr]]ate") and NEVER put brackets around the entire word (NEVER write "[[integration]]"). There must be NO letters immediately after "]]".
+Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with Sentence 1 intact and 10 words formatted as prefix[[suffix]]", "totalBlanks": 10}`;
       case 'reading-passage':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL Reading Academic Passage with 5 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
+Requirements:
+1. Cohesive academic passage of 180-220 words.
+2. 5 multiple-choice questions covering: (1) Main Idea, (2) Factual Detail, (3) Vocabulary in Context, (4) Inference/Implication, (5) Rhetorical Purpose.
+3. Vary the correct answer index (0, 1, 2, 3) across the questions.
+Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Detailed explanation..."}]}`;
       case 'listening-dialogue':
-        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classroom lecture with realistic first names and parenthetical gender tags for speakers (e.g. "Sarah (Female)", "Mark (Male)", "Prof. Davis (Male)"). 2. Format every script line with the speaker name and gender tag at the start of the line, e.g. "Sarah (Female): Hello Professor." or "Prof. Davis (Male): Welcome, Sarah." 3. Script must be 120-150 words. 4. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Sarah (student)", "B": "Prof. Davis"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Sarah (Female): ...\\nProf. Davis (Male): ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}.
+Requirements:
+1. Either a realistic 2-speaker campus conversation (Student + Professor/Advisor/Librarian, 8-10 turns, 160-210 words) OR an academic classroom lecture with a brief student question (170-220 words).
+2. Include realistic first names and parenthetical gender tags for speakers (e.g. "Sarah (Female)", "Prof. Davis (Male)").
+3. Format every script line with the speaker name at the start of the line, e.g. "Sarah (Female): Hello Professor.\\nProf. Davis (Male): Welcome, Sarah."
+4. Include 4 multiple-choice comprehension questions with 4 options each and varied correct answer indices (0, 1, 2, 3).
+Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Sarah (student)", "B": "Prof. Davis"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Sarah (Female): ...\\nProf. Davis (Male): ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "Explanation..."}]}`;
       case 'listen-repeat':
-        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Format speakerName with realistic first name and gender tag e.g. "Sarah (Female)" or "Mark (Male)". Return JSON format: {"title": "Listen & Repeat Exercise", "speakerName": "Sarah (Female)", "speakerGender": "female", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}.
+Requirements:
+1. Format speakerName with a realistic first name and gender tag, e.g. "Sarah (Female)" or "Marcus (Male)".
+2. Provide exactly 7 natural academic/campus sentences that progressively increase in length and grammatical complexity from 7 words (Sentence 1) up to 15-16 words (Sentence 7).
+Return JSON format: {"title": "Listen & Repeat Exercise", "speakerName": "Sarah (Female)", "speakerGender": "female", "sentences": ["7-word sentence 1.", "8-9 word sentence 2.", "10-word sentence 3.", "11-12 word sentence 4.", "13-word sentence 5.", "14-word sentence 6.", "15-16 word sentence 7."]}`;
       case 'speaking-interview':
-        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Format interviewerName with realistic name and gender tag e.g. "Prof. Lee (Male)" or "Dr. Patel (Female)". Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
+        return `You are an official ETS 2026 TOEFL iBT Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}.
+Requirements:
+1. Format interviewerName with a realistic name and gender tag, e.g. "Prof. Lee (Male)" or "Dr. Patel (Female)".
+2. Provide a cohesive 4-question progressive interview on the topic:
+   - Question 1: Personal experience or concrete preference.
+   - Question 2: Practical impact or comparison.
+   - Question 3: Institutional or societal perspective.
+   - Question 4: Abstract policy, ethical, or future prediction question.
+3. Each question has prepTimeSeconds: 15 and responseTimeSeconds: 45.
+Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Q1...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q2...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q3...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q4...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
       case 'build-sentence':
-        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create 5 TOEFL Writing "Build a Sentence" items for level: ${levelDesc}. Topic: ${top}.
+STRICT RULES:
+1. Provide exactly 5 items.
+2. In each item, "context" MUST be Speaker A's conversational question or prompt (e.g., "When will the research team publish the battery study?") and MUST NEVER contain or leak the target "answer" sentence!
+3. "answer" must be a natural, grammatically complete 7-to-11-word response sentence (Speaker B's reply).
+4. "words" must be the EXACT 100% word list of "answer" (split by spaces, including punctuation on the final word) in a scrambled order. Do NOT omit any words!
+Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Speaker A conversational question?", "words": ["scrambled", "exact", "words", "of", "answer."], "answer": "The exact complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
       case 'write-email':
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
+        return `You are an official ETS 2026 TOEFL iBT Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Task Title", "situation": "Detailed campus or academic scenario description...", "recipient": "Recipient name and title", "goals": ["Specific communicative goal 1", "Specific communicative goal 2", "Specific communicative goal 3"], "suggestedWordCount": "100-130 words"}`;
       case 'vocabulary_explanation':
       case 'vocabulary-explanation': {
         const targetWord = promptData?.word || top || 'word';

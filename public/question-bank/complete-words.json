@@ -1,92 +1,102 @@
 [
   {
     "id": "cw-curated-1",
-    "title": "Synaptic Plasticity and Long-Term Memory",
-    "level": "upper-intermediate",
-    "topic": "science-tech",
-    "text": "Synaptic plasticity is the biological foundation of human learning. Neuroscien[[tists]] have discov[[ered]] that syna[[pses]] strengthen throu[[gh]] repeated elect[[rical]] stimulation. This phenom[[enon]], known as long-term potentiation, ena[[bles]] neurons to st[[ore]] vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.",
+    "title": "University Orientation and Academic Advising",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "campus-life",
+    "text": "New undergraduate students attend orientation workshops during their first week on campus. Faculty advi[[sors]] carefully exp[[lain]] degree gradu[[ation]] rules and seme[[ster]] course regist[[ration]] deadlines. Students also tour univ[[ersity]] research libr[[aries]] and comp[[uter]] laboratories before reg[[ular]] classroom lect[[ures]] officially begin.",
     "totalBlanks": 10,
-    "explanation": "Complete the academic affixes and word stems: neuroscientists, discovered, synapses, through, electrical, phenomenon, enables, store, quantities, information."
+    "explanation": "Complete the campus orientation vocabulary: advisors, explain, graduation, semester, registration, university, libraries, computer, regular, lectures."
   },
   {
     "id": "cw-curated-2",
-    "title": "The Industrial Revolution and Urban Demographics",
-    "level": "intermediate",
-    "topic": "social-sciences",
-    "text": "During the late eighteenth century, the expan[[sion]] of mechanized manufac[[turing]] transformed Brit[[ish]] society. Thousands of agricul[[tural]] laborers migra[[ted]] from rural villages into burgeon[[ing]] factory towns. This unprec[[edented]] demographic shift crea[[ted]] dense industrial cen[[ters]] that required fundam[[ental]] reforms in public health and sanitation.",
+    "title": "Synaptic Plasticity and Long-Term Memory",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "text": "Synaptic plasticity is the biological foundation of human learning and memory retention. Neurosc[[ientists]] have disco[[vered]] that syna[[pses]] gradually stren[[gthen]] through repe[[ated]] elect[[rical]] stimulation. This pheno[[menon]] directly ena[[bles]] cortical neu[[rons]] to store vast quant[[ities]] of complex infor[[mation]] across cerebral circuits.",
     "totalBlanks": 10,
-    "explanation": "Complete the demographic and historical vocabulary: expansion, manufacturing, British, agricultural, migrated, burgeoning, unprecedented, created, centers, fundamental."
+    "explanation": "Complete the neuroscience vocabulary: neuroscientists, discovered, synapses, strengthen, repeated, electrical, phenomenon, enables, neurons, quantities, information."
   },
   {
     "id": "cw-curated-3",
-    "title": "Photosynthetic Efficiency and Solar Energy Capture",
-    "level": "advanced",
-    "topic": "science-tech",
-    "text": "Plant chloroplasts utilize chlorop[[hyll]] pigments to abso[[rb]] solar photons with extraor[[dinary]] quantum effici[[ency]]. Through a compl[[ex]] sequence of bioche[[mical]] reactions known as the Calvin cycle, carbon dio[[xide]] is enzymat[[ically]] converted into ener[[gy]]-rich glucose mole[[cules]] that sustain terrestrial life.",
+    "title": "The Industrial Revolution and Urban Demographics",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "social-sciences",
+    "text": "During the late eighteenth century, mechanized manufacturing transformed traditional European society. Thousands of agricu[[ltural]] laborers migr[[ated]] from rural vill[[ages]] into burge[[oning]] industrial fac[[tory]] towns. This unprec[[edented]] demographic shift cre[[ated]] dense urban cen[[ters]] that required fundam[[ental]] municipal ref[[orms]] in public sanitation.",
     "totalBlanks": 10,
-    "explanation": "Complete biological biochemistry terminology: chlorophyll, absorb, extraordinary, efficiency, complex, biochemical, dioxide, enzymatically, energy, molecules."
+    "explanation": "Complete the historical demographic vocabulary: agricultural, migrated, villages, burgeoning, factory, unprecedented, created, centers, fundamental, reforms."
   },
   {
     "id": "cw-curated-4",
-    "title": "Monetary Policy and Central Bank Inflation Controls",
-    "level": "upper-intermediate",
-    "topic": "business-economics",
-    "text": "Central banking insti[[tutions]] utilize inter[[est]] rate adjust[[ments]] to preserve macroeconomic stabi[[lity]]. When consumer infla[[tion]] accelerates beyond target thresh[[olds]], policymakers inc[[rease]] benchmark borrowing costs to mod[[erate]] aggregate demand and stabilize curren[[cy]] purchasing po[[wer]].",
+    "title": "Photosynthetic Efficiency and Solar Energy Capture",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "environment",
+    "text": "Plant chloroplasts utilize specialized pigment molecules to capture incoming solar radiation. Through a com[[plex]] sequence of bioch[[emical]] reactions known as the Calvin cycle, atmospheric car[[bon]] dioxide is enzyma[[tically]] converted into org[[anic]] glucose comp[[ounds]]. These metab[[olic]] pathways sus[[tain]] terrestrial ecosy[[stems]] and regulate glo[[bal]] oxygen cycles.",
     "totalBlanks": 10,
-    "explanation": "Complete macroeconomic and financial terms: institutions, interest, adjustments, stability, inflation, thresholds, increase, moderate, currency, power."
+    "explanation": "Complete the ecological biochemistry terms: complex, biochemical, carbon, enzymatically, organic, compounds, metabolic, sustain, ecosystems, global."
   },
   {
     "id": "cw-curated-5",
-    "title": "Architectural Acoustics in Classical Concert Halls",
-    "level": "intermediate",
-    "topic": "arts-humanities",
-    "text": "Designing an auditorium requires bala[[ncing]] sound reflec[[tion]] and acoustic absor[[ption]]. Sound waves origi[[nating]] from the stage must trav[[el]] evenly to every audie[[nce]] member without gene[[rating]] distracting echo[[es]] or muffled reso[[nance]]. Sound engin[[eers]] install curved timber panels along the perimeter walls to scatter frequencies evenly.",
+    "title": "Monetary Policy and Central Bank Inflation Controls",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "business-economics",
+    "text": "Central banking institutions play a vital role in preserving national macroeconomic stability. When cons[[umer]] price infl[[ation]] accelerates bey[[ond]] established tar[[get]] thresholds, policy[[makers]] typically incr[[ease]] benchmark borr[[owing]] rates. Higher inte[[rest]] costs mode[[rate]] aggregate spending and stab[[ilize]] domestic currency values.",
     "totalBlanks": 10,
-    "explanation": "Complete acoustics and design vocabulary: balancing, reflection, absorption, originating, travel, audience, generating, echoes, resonance, engineers."
+    "explanation": "Complete the macroeconomic terms: consumer, inflation, beyond, target, policymakers, increase, borrowing, interest, moderate, stabilize."
   },
   {
     "id": "cw-curated-6",
-    "title": "University Registrar Credit Transfer and Accreditation",
+    "title": "Architectural Acoustics in Classical Concert Halls",
     "level": "intermediate",
-    "topic": "campus-life",
-    "text": "Undergraduate stude[[nts]] who transfer between colleg[[es]] must submit offi[[cial]] academic transcr[[ipts]] for credential evalu[[ation]]. Department chairs rev[[iew]] course syll[[abi]] to determ[[ine]] whether previ[[ous]] coursework fulfills core curric[[ulum]] graduation requirements.",
+    "difficulty": "intermediate",
+    "topic": "arts-humanities",
+    "text": "Designing a symphony auditorium requires careful coordination between structural engineers and acousticians. Sound waves origi[[nating]] from the performance stage must tra[[vel]] evenly to every audi[[ence]] member without gener[[ating]] distracting ech[[oes]] or muffled reso[[nance]]. Acoustic desi[[gners]] install cur[[ved]] timber pan[[els]] along perimeter walls to sca[[tter]] harmonic frequencies.",
     "totalBlanks": 10,
-    "explanation": "Complete collegiate administrative vocabulary: students, colleges, official, transcripts, evaluation, review, syllabi, determine, previous, curriculum."
+    "explanation": "Complete the architectural acoustics vocabulary: originating, travel, audience, generating, echoes, resonance, designers, curved, panels, scatter."
   },
   {
     "id": "cw-curated-7",
-    "title": "Geothermal Hydrothermal Vents and Extremophile Ecology",
-    "level": "advanced",
-    "topic": "science-tech",
-    "text": "Deep oceanic hydroth[[ermal]] vents support thriving ecosys[[tems]] completely deprived of solar radiat[[ion]]. In the absence of photosyn[[thesis]], chemosynthetic bact[[eria]] oxidize mineral sulf[[ides]] spewing from volcanic chimn[[eys]], generating metabolic ener[[gy]] that forms the nutrit[[ional]] foundation for giant tube worms and deep-sea crustac[[eans]].",
+    "title": "University Registrar Credit Transfer and Accreditation",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "campus-life",
+    "text": "Students who transfer between universities must submit official academic records for evaluation. Department cha[[irs]] carefully rev[[iew]] previous cou[[rse]] syllabi to dete[[rmine]] whether completed cl[[asses]] satisfy core curr[[iculum]] requirements. Once the regi[[strar]] approves the tran[[sfer]] credits, students can enr[[oll]] in advanced sem[[inars]] immediately.",
     "totalBlanks": 10,
-    "explanation": "Complete oceanographic and ecological terms: hydrothermal, ecosystems, radiation, photosynthesis, bacteria, sulfides, chimneys, energy, nutritional, crustaceans."
+    "explanation": "Complete the university administrative vocabulary: chairs, review, course, determine, classes, curriculum, registrar, transfer, enroll, seminars."
   },
   {
     "id": "cw-curated-8",
-    "title": "Geological Sedimentology and Stratigraphic Core Dating",
-    "level": "upper-intermediate",
-    "topic": "science-tech",
-    "text": "Sedimentary rock layers provi[[de]] a detailed chronol[[ogy]] of terrestrial geol[[ogy]]. By analy[[zing]] microscopic foss[[ils]] embedded within marin[[e]] sediments, paleoclimatol[[ogists]] reconstruct prehis[[toric]] atmospheric tempera[[tures]] and oceanic circu[[lation]] patterns over millen[[nia]].",
+    "title": "Deep-Sea Hydrothermal Vents and Chemosynthesis",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "environment",
+    "text": "Deep oceanic hydrothermal vents support thriving biological communities completely deprived of sunlight. In the total abs[[ence]] of solar photosy[[nthesis]], specialized chemosy[[nthetic]] bacteria oxi[[dize]] hydrogen sul[[fide]] minerals spe[[wing]] from volcanic chim[[neys]]. This chem[[ical]] conversion gene[[rates]] vital metabolic ene[[rgy]] for deep-sea marine organisms.",
     "totalBlanks": 10,
-    "explanation": "Complete geological and earth science vocabulary: provide, chronology, geology, analyzing, fossils, marine, paleoclimatologists, prehistoric, temperatures, circulation, millennia."
+    "explanation": "Complete the marine ecology vocabulary: absence, photosynthesis, chemosynthetic, oxidize, sulfide, spewing, chimneys, chemical, generates, energy."
   },
   {
     "id": "cw-curated-9",
-    "title": "Microeconomic Consumer Utility and Marginal Substitution",
-    "level": "advanced",
+    "title": "Microeconomic Consumer Utility and Substitution",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "topic": "business-economics",
-    "text": "Consumer choice theo[[ry]] assumes that indivi[[duals]] allocate budg[[ets]] to maximize perso[[nal]] utility. The margi[[nal]] rate of substi[[tution]] measures the quant[[ity]] of one commo[[dity]] a consumer will relinq[[uish]] to acquire an addit[[ional]] unit of anoth[[er]] good while preserving satisfa[[ction]].",
+    "text": "Microeconomic consumer choice theory examines how households allocate limited financial budgets. Rational indiv[[iduals]] consistently pur[[chase]] combinations of go[[ods]] and services that maxi[[mize]] their personal util[[ity]]. When the mar[[ket]] price of a spec[[ific]] commodity ri[[ses]] sharply, cons[[umers]] naturally subs[[titute]] affordable alternatives.",
     "totalBlanks": 10,
-    "explanation": "Complete microeconomic utility terms: theory, individuals, budgets, personal, marginal, substitution, quantity, commodity, relinquish, additional, another, satisfaction."
+    "explanation": "Complete the microeconomic vocabulary: individuals, purchase, goods, maximize, utility, market, specific, rises, consumers, substitute."
   },
   {
     "id": "cw-curated-10",
     "title": "Classical Rhetoric and Persuasive Discourse Analysis",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "arts-humanities",
-    "text": "Aristotelian rheto[[ric]] identifies thr[[ee]] primary mod[[es]] of persuas[[ion]]: ethos, pathos, and log[[os]]. An authori[[tative]] speaker establi[[shes]] credibility throu[[gh]] character, appeals to audie[[nce]] emotion, and constr[[ucts]] logical argum[[ents]] backed by empir[[ical]] evidence.",
+    "text": "Aristotelian rhetorical theory identifies three foundational modes of persuasive human communication. An effe[[ctive]] public spe[[aker]] establishes pers[[onal]] credibility thr[[ough]] ethical char[[acter]] while appealing to audi[[ence]] emotion. Furthermore, persuasive orat[[ors]] construct log[[ical]] arguments sup[[ported]] by verifiable emp[[irical]] evidence.",
     "totalBlanks": 10,
-    "explanation": "Complete rhetorical and communication terms: rhetoric, three, modes, persuasion, logos, authoritative, establishes, through, audience, constructs, arguments, empirical."
+    "explanation": "Complete the rhetorical communication terms: effective, speaker, personal, through, character, audience, orators, logical, supported, empirical."
   }
 ]

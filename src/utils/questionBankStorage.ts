@@ -1,8 +1,11 @@
 import { isHighQualityTask } from './questionValidator';
 import {
   normalizeTaskData,
+  normalizeQuestionBankItem,
+  validateNormalizedTask,
   normalizeDifficultyLabel,
   normalizeTopicLabel,
+  canonicalizeTaskType as normalizerCanonicalizeTaskType,
 } from './taskNormalizer';
 import { db, auth, ensureAuthenticated } from '../firebase';
 import {
@@ -11,6 +14,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   limit,
@@ -38,14 +42,11 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
+export const TOEFL_2026_PURGE_V2 = 'toefl_bank_purged_2026_v2';
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_curated_shards_synced_v15_2026_v2';
 
 export function canonicalizeTaskType(taskType: string): string {
-  if (!taskType) return 'academic-discussion';
-  if (taskType === 'listening-lecture') return 'listening-dialogue';
-  if (taskType === 'writing-build-sentence' || taskType === 'writing_build_sentence') {
-    return 'build-sentence';
-  }
-  return taskType;
+  return normalizerCanonicalizeTaskType(taskType);
 }
 
 /**
@@ -145,9 +146,78 @@ export async function openIndexedDB(): Promise<IDBDatabase> {
 }
 
 /**
+ * Clears all stored questions from local IndexedDB and resets in-memory cache.
+ */
+export async function clearAllLocalQuestions(): Promise<void> {
+  for (const key of Object.keys(curatedMemoryCache)) {
+    delete curatedMemoryCache[key];
+  }
+  try {
+    const dbInstance = await openIndexedDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
+      const store = tx.objectStore('toefl_question_bank');
+      store.clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('Failed to clear local IndexedDB question bank:', err);
+  }
+}
+
+let purgePromise: Promise<void> | null = null;
+
+/**
+ * One-time 2026 v2 migration that purges all legacy/corrupted questions from IndexedDB,
+ * localStorage prefetch caches, and Firestore 'questions' collection before seeding the 80 clean items.
+ */
+export async function ensurePurged2026V2(): Promise<void> {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  if (localStorage.getItem(TOEFL_2026_PURGE_V2) === 'true') return;
+  if (purgePromise) return purgePromise;
+
+  purgePromise = (async () => {
+    try {
+      await clearAllLocalQuestions();
+      localStorage.removeItem('toefl_prefetched_queue_v1');
+      localStorage.removeItem('toefl_prefetch_queue_v3');
+      localStorage.removeItem('toefl_seen_question_ids');
+
+      if (db) {
+        try {
+          await ensureAuthenticated();
+          const snap = await getDocs(collection(db, 'questions'));
+          if (!snap.empty) {
+            await Promise.all(
+              snap.docs.map((d) =>
+                deleteDoc(doc(db, 'questions', d.id)).catch(() => {})
+              )
+            );
+          }
+        } catch (fsErr) {
+          console.warn('Firestore legacy question purge skipped or partial:', fsErr);
+        }
+      }
+
+      localStorage.setItem(TOEFL_2026_PURGE_V2, 'true');
+      localStorage.setItem(STATIC_SHARDS_SYNC_KEY, 'true');
+    } catch (err) {
+      console.warn('Error during TOEFL_2026_PURGE_V2 migration:', err);
+    } finally {
+      purgePromise = null;
+    }
+  })();
+
+  return purgePromise;
+}
+
+/**
  * Purge low-quality stub questions from IndexedDB and localStorage on startup
  */
 export async function purgeLowQualityCache(): Promise<number> {
+  await ensurePurged2026V2();
   let purgedCount = 0;
   try {
     const dbInstance = await openIndexedDB();
@@ -160,7 +230,11 @@ export async function purgeLowQualityCache(): Promise<number> {
     });
 
     const idsToDelete = allItems
-      .filter((item) => item?.content && !isHighQualityTask(item.content, item.taskType))
+      .filter((item) => {
+        if (!item?.content) return true;
+        const norm = normalizeQuestionBankItem(item.content, item.taskType);
+        return !norm || !validateNormalizedTask(item.taskType, norm);
+      })
       .map((item) => item.id);
 
     if (idsToDelete.length > 0) {
@@ -180,27 +254,6 @@ export async function purgeLowQualityCache(): Promise<number> {
     console.warn('Failed to purge IndexedDB low quality cache:', err);
   }
 
-  // Also purge localStorage prefetched queue if any
-  try {
-    const rawQueue = localStorage.getItem('toefl_prefetched_queue_v1');
-    if (rawQueue) {
-      const queue = JSON.parse(rawQueue);
-      let changed = false;
-      for (const [k, items] of Object.entries(queue)) {
-        if (Array.isArray(items)) {
-          const validItems = items.filter((item: any) => isHighQualityTask(item, k));
-          if (validItems.length !== items.length) {
-            queue[k] = validItems;
-            changed = true;
-          }
-        }
-      }
-      if (changed) {
-        localStorage.setItem('toefl_prefetched_queue_v1', JSON.stringify(queue));
-      }
-    }
-  } catch {}
-
   return purgedCount;
 }
 
@@ -219,15 +272,17 @@ export async function saveVerifiedQuestion(params: {
 }): Promise<string | null> {
   const canonicalType = canonicalizeTaskType(params.taskType);
   const {
-    content,
     audioUrl = null,
     audioClips = null,
     source = 'ai',
     generatedBy = getScholarUsername(),
   } = params;
 
-  if (!isHighQualityTask(content, canonicalType)) {
-    console.warn(`Rejected low-quality question for taskType ${canonicalType} during save.`);
+  const normalizedItem = normalizeQuestionBankItem(params.content, canonicalType);
+  const content = normalizedItem?.content || normalizedItem;
+
+  if (!content || !validateNormalizedTask(canonicalType, content) || !isHighQualityTask(content, canonicalType)) {
+    console.warn(`Rejected invalid or low-quality question for taskType ${canonicalType} during save.`);
     return null;
   }
 
@@ -240,8 +295,10 @@ export async function saveVerifiedQuestion(params: {
     ...content,
     id: questionId,
     level: validLevel,
+    difficulty: validLevel,
     topic: validTopic,
     source,
+    schemaVersion: '2026_v2',
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
   };
@@ -323,15 +380,14 @@ export async function saveVerifiedQuestion(params: {
 }
 
 export const SHARD_FILES = [
-  'academic-discussion',
-  'build-sentence',
   'complete-words',
-  'listening-dialogue',
-  'listening-lecture',
-  'listen-repeat',
   'reading-passage',
+  'listening-dialogue',
+  'listen-repeat',
   'speaking-interview',
+  'build-sentence',
   'write-email',
+  'academic-discussion',
 ];
 
 const CANONICAL_TASK_IDS = TASK_DEFINITIONS.map((t) => t.id);
@@ -344,11 +400,9 @@ const curatedMemoryCache: Record<string, any[]> = {};
  * and merge with any cached IndexedDB questions for that taskType.
  */
 export async function loadCuratedShard(taskType: string): Promise<any[]> {
+  await ensurePurged2026V2();
   const canonicalType = canonicalizeTaskType(taskType);
-  const shardsToLoad =
-    canonicalType === 'listening-dialogue'
-      ? ['listening-dialogue', 'listening-lecture']
-      : [canonicalType];
+  const shardsToLoad = [canonicalType];
 
   if (!curatedMemoryCache[canonicalType]) {
     curatedMemoryCache[canonicalType] = [];
@@ -371,22 +425,21 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json)) {
-            const valid = json.filter((item) => isHighQualityTask(item, shard));
-            for (let idx = 0; idx < valid.length; idx++) {
-              const rawItem = valid[idx];
+            for (let idx = 0; idx < json.length; idx++) {
+              const rawItem = json[idx];
               const qId = rawItem.id || `${shard}-curated-${idx + 1}`;
-              const normalizedItem =
-                canonicalType === 'build-sentence'
-                  ? normalizeTaskData(rawItem, canonicalType)?.content || rawItem
-                  : rawItem;
+              const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
+              const normalizedItem = normalizedWrapper?.content || normalizedWrapper;
+              if (!normalizedItem || !validateNormalizedTask(canonicalType, normalizedItem)) {
+                continue;
+              }
               const enriched = {
                 ...normalizedItem,
                 id: qId,
+                taskType: canonicalType,
                 level: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
+                difficulty: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
                 topic: normalizeTopicLabel(rawItem.topic || rawItem.category, rawItem),
-                ...(shard === 'listening-lecture' && !rawItem.type
-                  ? { type: 'academic_talk' }
-                  : {}),
               };
               const sig = getQuestionContentSignature(canonicalType, enriched);
               if (!seenSigs.has(sig) && !seenIds.has(qId)) {
@@ -403,7 +456,7 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
     }
   }
 
-  // Also merge any questions from local IndexedDB for this taskType
+  // Also merge any validated questions from local IndexedDB for this taskType
   try {
     const dbInstance = await openIndexedDB();
     const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
@@ -418,14 +471,17 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
       const rowType = canonicalizeTaskType(row.taskType);
       if (rowType === canonicalType && row.content) {
         const qId = String(row.content.id || row.id || '');
-        const normalizedContent =
-          canonicalType === 'build-sentence'
-            ? normalizeTaskData(row.content, canonicalType)?.content || row.content
-            : row.content;
+        const normalizedWrapper = normalizeQuestionBankItem(row.content, canonicalType);
+        const normalizedContent = normalizedWrapper?.content || normalizedWrapper;
+        if (!normalizedContent || !validateNormalizedTask(canonicalType, normalizedContent)) {
+          continue;
+        }
         const enriched = {
           ...normalizedContent,
           id: qId || row.id,
+          taskType: canonicalType,
           level: normalizeDifficultyLabel(row.level || row.content.level),
+          difficulty: normalizeDifficultyLabel(row.level || row.content.level),
           topic: normalizeTopicLabel(row.topic || row.content.topic, row.content),
         };
         const sig = getQuestionContentSignature(canonicalType, enriched);
@@ -509,6 +565,7 @@ export interface QuestionBankSyncResult {
  * Deduplicates by content signature and ID across all sources so counts are 100% consistent.
  */
 export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult> {
+  await ensurePurged2026V2();
   const counts: Record<string, number> = {};
   const tempCache: Record<string, any[]> = {};
   for (const tId of CANONICAL_TASK_IDS) {
@@ -531,7 +588,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     updatedAt: number;
   }> = [];
 
-  // 1. Fetch all curated shards completely into memory first BEFORE opening IDB transaction
+  // 1. Fetch all 8 curated shards completely into memory first BEFORE opening IDB transaction
   for (const shard of SHARD_FILES) {
     const canonicalType = canonicalizeTaskType(shard);
     if (!tempCache[canonicalType]) {
@@ -546,24 +603,23 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
       if (res.ok) {
         const json = await res.json();
         if (Array.isArray(json)) {
-          const valid = json.filter((item) => isHighQualityTask(item, shard));
-          for (let idx = 0; idx < valid.length; idx++) {
-            const rawItem = valid[idx];
-            const item =
-              canonicalType === 'build-sentence'
-                ? normalizeTaskData(rawItem, canonicalType)?.content || rawItem
-                : rawItem;
-            const qId = String(item.id || `${shard}-curated-${idx + 1}`);
-            const validLevel = normalizeDifficultyLabel(item.level || item.difficulty);
-            const validTopic = normalizeTopicLabel(item.topic || item.category, item);
+          for (let idx = 0; idx < json.length; idx++) {
+            const rawItem = json[idx];
+            const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
+            const item = normalizedWrapper?.content || normalizedWrapper;
+            if (!item || !validateNormalizedTask(canonicalType, item)) {
+              continue;
+            }
+            const qId = String(rawItem.id || item.id || `${shard}-curated-${idx + 1}`);
+            const validLevel = normalizeDifficultyLabel(rawItem.level || rawItem.difficulty || item.level);
+            const validTopic = normalizeTopicLabel(rawItem.topic || rawItem.category || item.topic, item);
             const enrichedContent = {
               ...item,
               id: qId,
+              taskType: canonicalType,
               level: validLevel,
+              difficulty: validLevel,
               topic: validTopic,
-              ...(shard === 'listening-lecture' && !item.type
-                ? { type: 'academic_talk' }
-                : {}),
             };
 
             const sig = getQuestionContentSignature(canonicalType, enrichedContent);
@@ -604,25 +660,26 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
           const rawDoc = docSnap.data();
           if ((rawDoc.reportCount || 0) >= 3) return;
 
-          const normalized = normalizeTaskData(rawDoc);
-          const contentToCheck = normalized?.content || rawDoc.content || rawDoc;
           const targetTaskType = canonicalizeTaskType(
-            normalized?.taskType || rawDoc.taskType || rawDoc.type || 'academic-discussion'
+            rawDoc.taskType || rawDoc.type || 'academic-discussion'
           );
+          const normalizedWrapper = normalizeQuestionBankItem(rawDoc, targetTaskType);
+          const contentToCheck = normalizedWrapper?.content || normalizedWrapper;
 
           if (
             contentToCheck &&
             targetTaskType &&
             counts[targetTaskType] !== undefined &&
+            validateNormalizedTask(targetTaskType, contentToCheck) &&
             isHighQualityTask(contentToCheck, targetTaskType)
           ) {
             const qId = String(docSnap.id);
             const innerId = String(contentToCheck.id || '');
             const validLevel = normalizeDifficultyLabel(
-              normalized?.level || rawDoc.level || contentToCheck.level
+              rawDoc.level || contentToCheck.level
             );
             const validTopic = normalizeTopicLabel(
-              normalized?.topic || rawDoc.topic || contentToCheck.topic,
+              rawDoc.topic || contentToCheck.topic,
               contentToCheck
             );
 
@@ -630,7 +687,9 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               ...contentToCheck,
               id: contentToCheck.id || qId,
               questionDocId: qId,
+              taskType: targetTaskType,
               level: validLevel,
+              difficulty: validLevel,
               topic: validTopic,
             };
 
@@ -683,14 +742,13 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     for (const row of existingRows) {
       const rowType = canonicalizeTaskType(row.taskType);
       const rawRowContent = row.content || row;
-      const rowContent =
-        rowType === 'build-sentence'
-          ? normalizeTaskData(rawRowContent, rowType)?.content || rawRowContent
-          : rawRowContent;
+      const normalizedWrapper = normalizeQuestionBankItem(rawRowContent, rowType);
+      const rowContent = normalizedWrapper?.content || normalizedWrapper;
       if (
         rowType &&
         counts[rowType] !== undefined &&
         rowContent &&
+        validateNormalizedTask(rowType, rowContent) &&
         isHighQualityTask(rowContent, rowType)
       ) {
         const qId = String(row.id || rowContent.id || '');
@@ -699,7 +757,9 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
         const enrichedContent = {
           ...rowContent,
           id: rowContent.id || qId,
+          taskType: rowType,
           level: validLevel,
+          difficulty: validLevel,
           topic: validTopic,
         };
         const sig = getQuestionContentSignature(rowType, enrichedContent);
@@ -1223,12 +1283,17 @@ export async function saveQuestionToBank(params: {
 }): Promise<string | null> {
   const canonicalType = canonicalizeTaskType(params.taskType);
   const {
-    content,
     audioUrl = null,
     audioClips = null,
     source = 'ai',
     generatedBy = getScholarUsername(),
   } = params;
+
+  const normalizedWrapper = normalizeQuestionBankItem(params.content, canonicalType);
+  const content = normalizedWrapper?.content || normalizedWrapper;
+  if (!content || !validateNormalizedTask(canonicalType, content)) {
+    return null;
+  }
 
   const validatedLevel: Level = normalizeDifficultyLabel(params.level || content?.level);
   const validatedTopic: AcademicTopic = normalizeTopicLabel(
@@ -1248,8 +1313,10 @@ export async function saveQuestionToBank(params: {
     ...content,
     id: content.id || docId,
     level: validatedLevel,
+    difficulty: validatedLevel,
     topic: validatedTopic,
     source,
+    schemaVersion: '2026_v2',
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
   };
@@ -1491,17 +1558,18 @@ export async function fetchUnseenQuestion(
           });
         }
 
+        const normalizedWrapper = normalizeQuestionBankItem(data.content || data, canonicalType);
+        const normalizedDataContent = normalizedWrapper?.content || normalizedWrapper;
+        if (!normalizedDataContent || !validateNormalizedTask(canonicalType, normalizedDataContent)) {
+          continue;
+        }
+
         // 4. Mark usage and update userProgress
         updateDoc(doc(db, 'questions', docSnap.id), {
           useCount: increment(1),
         }).catch(() => {});
 
         markQuestionAsSeen(docSnap.id, currentUid).catch(() => {});
-
-        const normalizedDataContent =
-          canonicalType === 'build-sentence'
-            ? normalizeTaskData(data.content, canonicalType)?.content || data.content
-            : data.content;
 
         return {
           question: {
@@ -1510,6 +1578,7 @@ export async function fetchUnseenQuestion(
             questionDocId: docSnap.id,
             taskType: canonicalType,
             level: activeLevel,
+            difficulty: activeLevel,
             topic: activeTopic,
             reportCount: data.reportCount || 0,
             audioUrl: data.audioUrl || null,

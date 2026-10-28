@@ -114,7 +114,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Synaptic Plasticity and Long-Term Memory',
     level: 'upper-intermediate',
     topic: 'science-tech',
-    text: 'Synaptic plasticity is the biological foundation of human learning. Neuroscien[[tists]] have discov[[ered]] that syna[[pses]] strengthen throu[[gh]] repeated elect[[rical]] stimulation. This phenom[[enon]], known as long-term potentiation, ena[[bles]] neurons to st[[ore]] vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.',
+    text: 'Synaptic plasticity is the biological foundation of human learning. Neurosc[[ientists]] have disco[[vered]] that syna[[pses]] stren[[gthen]] thr[[ough]] repe[[ated]] elect[[rical]] stimulation. This pheno[[menon]], known as long-term potentiation, ena[[bles]] neurons to store vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.',
     totalBlanks: 10,
   },
   {
@@ -122,7 +122,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Urban Heat Islands and Microclimate Mitigation',
     level: 'intermediate',
     topic: 'environment',
-    text: 'Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[[tern]] occurs beca[[use]] concrete struc[[tures]] absorb solar radi[[ation]] during the day. Enviro[[nmental]] planners advo[[cate]] installing refl[[ective]] roofs and expan[[ding]] urban cano[[pies]] to miti[[gate]] excessive heat stress.',
+    text: 'Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[[tern]] occ[[urs]] bec[[ause]] conc[[rete]] struc[[tures]] absorb solar radi[[ation]] during the day. Enviro[[nmental]] plan[[ners]] advo[[cate]] installing refl[[ective]] roofs and expanding urban canopies to mitigate excessive heat stress.',
     totalBlanks: 10,
   },
   {
@@ -130,7 +130,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Algorithmic Pricing in Competitive Markets',
     level: 'advanced',
     topic: 'business-economics',
-    text: 'Modern digital retailers increasingly rely upon automated dynamic pricing models. Soft[[ware]] algorithms moni[[tor]] competitor rates and pred[[ict]] consumer dem[[and]] in real time. While this stra[[tegy]] maximizes prof[[its]], regulatory agen[[cies]] express conc[[ern]] regarding taci[[t]] collusion among rival market part[[icipants]].',
+    text: 'Modern digital retailers increasingly rely upon automated dynamic pricing models. Soft[[ware]] algor[[ithms]] mon[[itor]] compe[[titor]] rates and pre[[dict]] consumer dem[[and]] in real time. While this stra[[tegy]] maxi[[mizes]] pro[[fits]], regulatory agen[[cies]] express concern regarding tacit collusion among rival market participants.',
     totalBlanks: 10,
   },
   {
@@ -138,7 +138,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Glacial Dynamics and Permafrost Thawing',
     level: 'upper-intermediate',
     topic: 'environment',
-    text: 'Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[[bal]] temperatures acceler[[ate]] seasonal melt[[ing]], reducing sum[[mer]] streamflow in agricult[[ural]] valleys. Simultaneously, thaw[[ing]] subterranean perma[[frost]] destabil[[izes]] mountain slopes, increa[[sing]] the frequ[[ency]] of catastrophic rockfall hazards.',
+    text: 'Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[[bal]] temper[[atures]] accel[[erate]] seas[[onal]] mel[[ting]], redu[[cing]] sum[[mer]] strea[[mflow]] in agricu[[ltural]] valleys. Simultaneously, tha[[wing]] subterranean permafrost destabilizes mountain slopes, increasing the frequency of catastrophic rockfall hazards.',
     totalBlanks: 10,
   },
   {
@@ -146,7 +146,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Behavioral Economics and Choice Architecture',
     level: 'advanced',
     topic: 'social-sciences',
-    text: 'Classical economic theory assumes consumers make completely rational choices. However, behav[[ioral]] economists dem[[onstrate]] that cogni[[tive]] biases systema[[tically]] distort decis[[ion]] making. By modif[[ying]] the cho[[ice]] architecture, institu[[tions]] can gently nud[[ge]] citizens toward pref[[erable]] retirement savings outcomes.',
+    text: 'Classical economic theory assumes consumers make completely rational choices. However, behav[[ioral]] econo[[mists]] demon[[strate]] that cogn[[itive]] bia[[ses]] systema[[tically]] dis[[tort]] deci[[sion]] making. By modi[[fying]] the cho[[ice]] architecture, institutions can gently nudge citizens toward preferable retirement savings outcomes.',
     totalBlanks: 10,
   },
 ];
@@ -474,11 +474,13 @@ export const CURATED_LISTEN_REPEAT: ListenRepeatTask[] = [
     speakerName: 'Sarah',
     speakerGender: 'female',
     sentences: [
-      "The seminar begins at ten o'clock tomorrow.",
+      'The seminar begins at ten tomorrow morning.',
       'Students must submit their laboratory reports before Friday afternoon.',
+      'You can reserve a group study room through the library website.',
       'The university library will remain open throughout the entire midterm examination period.',
       'Professors usually recommend reviewing lecture slides thoroughly before participating in discussion sessions.',
       'Attending weekly office hours allows undergraduates to clarify complicated theoretical concepts with teaching assistants.',
+      'All incoming international exchange students are invited to attend the orientation reception in the main auditorium.',
     ],
   },
   {
@@ -490,8 +492,10 @@ export const CURATED_LISTEN_REPEAT: ListenRepeatTask[] = [
     speakerGender: 'male',
     sentences: [
       'Solar panels convert sunlight directly into clean electricity.',
+      'Engineers tested the new battery under extreme heat and pressure.',
       'Recent clinical trials demonstrated remarkable improvements in cognitive memory retention.',
       'Researchers discovered that marine organisms migrate toward deeper oceanic layers during seasonal warming.',
+      'Optical fibers transmit vast amounts of digital data across oceans using pulses of light.',
       'Artificial intelligence systems require extensive training datasets to achieve reliable predictive accuracy across diverse scenarios.',
       'The engineering department recently unveiled an innovative water filtration mechanism designed specifically for remote agricultural communities.',
     ],

@@ -133,7 +133,7 @@ service cloud.firestore {
           && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
         );
 
-      allow delete: if false;
+      allow delete: if isSignedIn();
     }
 
     // Global User Reports

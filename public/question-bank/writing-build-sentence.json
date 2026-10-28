@@ -1,1021 +1,541 @@
 [
   {
     "id": "bs-curated-1",
-    "title": "Neuroscience: Synaptic Plasticity and Long-Term Memory",
-    "level": "advanced",
-    "topic": "science-tech",
+    "taskType": "build-sentence",
+    "topic": "campus-life",
+    "level": "beginner",
+    "difficulty": "beginner",
     "items": [
       {
-        "context": "What have recent laboratory trials concluded about how the brain adapts over time?",
-        "words": [
-          "regarding",
-          "the",
-          "supports",
-          "neural",
-          "empirical",
-          "evidence",
-          "hypothesis",
-          "plasticity",
-          "Substantial"
-        ],
-        "scrambledWords": [
-          "regarding",
-          "the",
-          "supports",
-          "neural",
-          "empirical",
-          "evidence",
-          "hypothesis",
-          "plasticity",
-          "Substantial"
-        ],
-        "answer": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
-        "correctSentence": "Substantial empirical evidence supports the hypothesis regarding neural plasticity.",
-        "explanation": "Subject noun phrase ('Substantial empirical evidence') + transitive verb ('supports') + direct object ('the hypothesis') + modifying prepositional phrase ('regarding neural plasticity')."
+        "id": "bs-1-1",
+        "context": "Where can first-year students pick up their campus identification cards?",
+        "answer": "You can collect your card at the student center.",
+        "correctSentence": "You can collect your card at the student center.",
+        "words": ["center.", "student", "You", "collect", "can", "at", "card", "your", "the"],
+        "scrambledWords": ["center.", "student", "You", "collect", "can", "at", "card", "your", "the"],
+        "explanation": "The modal verb 'can collect' is followed by the direct object 'your card' and the prepositional phrase 'at the student center.'"
       },
       {
-        "context": "How do microscopic connections between neurons physically respond to repeated activation?",
-        "words": [
-          "rapid",
-          "stimulation",
-          "Repetitive",
-          "changes",
-          "dendritic",
-          "structural",
-          "electrical",
-          "in",
-          "spines",
-          "induces"
-        ],
-        "scrambledWords": [
-          "rapid",
-          "stimulation",
-          "Repetitive",
-          "changes",
-          "dendritic",
-          "structural",
-          "electrical",
-          "in",
-          "spines",
-          "induces"
-        ],
-        "answer": "Repetitive electrical stimulation induces rapid structural changes in dendritic spines.",
-        "correctSentence": "Repetitive electrical stimulation induces rapid structural changes in dendritic spines.",
-        "explanation": "Subject ('Repetitive electrical stimulation') + verb ('induces') + object ('rapid structural changes') + prepositional locator ('in dendritic spines')."
+        "id": "bs-1-2",
+        "context": "What time does the main university library close on Friday evenings?",
+        "answer": "The main library closes at eight on Friday evenings.",
+        "correctSentence": "The main library closes at eight on Friday evenings.",
+        "words": ["eight", "The", "closes", "evenings.", "library", "main", "on", "at", "Friday"],
+        "scrambledWords": ["eight", "The", "closes", "evenings.", "library", "main", "on", "at", "Friday"],
+        "explanation": "Time expressions follow the verb 'closes' in order from specific hour ('at eight') to day ('on Friday evenings')."
       },
       {
-        "context": "Why is stronger signaling between brain cells important for human learning?",
-        "words": [
-          "synaptic",
-          "efficient",
-          "across",
-          "transmission",
-          "neural",
-          "information",
-          "Enhanced",
-          "facilitates",
-          "storage",
-          "circuits"
-        ],
-        "scrambledWords": [
-          "synaptic",
-          "efficient",
-          "across",
-          "transmission",
-          "neural",
-          "information",
-          "Enhanced",
-          "facilitates",
-          "storage",
-          "circuits"
-        ],
-        "answer": "Enhanced synaptic transmission facilitates efficient information storage across neural circuits.",
-        "correctSentence": "Enhanced synaptic transmission facilitates efficient information storage across neural circuits.",
-        "explanation": "Modified subject ('Enhanced synaptic transmission') + verb ('facilitates') + direct object with prepositional extension ('efficient information storage across neural circuits')."
+        "id": "bs-1-3",
+        "context": "Did Professor Miller post the reading list for next week yet?",
+        "answer": "She uploaded the complete reading list this morning.",
+        "correctSentence": "She uploaded the complete reading list this morning.",
+        "words": ["reading", "She", "morning.", "complete", "uploaded", "list", "this", "the"],
+        "scrambledWords": ["reading", "She", "morning.", "complete", "uploaded", "list", "this", "the"],
+        "explanation": "Subject 'She' + past verb 'uploaded' + object 'the complete reading list' + time phrase 'this morning.'"
+      },
+      {
+        "id": "bs-1-4",
+        "context": "How do students reserve a group study room in the library?",
+        "answer": "Students must book a study room through the website.",
+        "correctSentence": "Students must book a study room through the website.",
+        "words": ["through", "room", "Students", "website.", "book", "must", "study", "the", "a"],
+        "scrambledWords": ["through", "room", "Students", "website.", "book", "must", "study", "the", "a"],
+        "explanation": "'Students must book' takes the object 'a study room' followed by 'through the website.'"
+      },
+      {
+        "id": "bs-1-5",
+        "context": "Are the campus shuttle buses running during the winter break?",
+        "answer": "The campus shuttles operate on a reduced holiday schedule.",
+        "correctSentence": "The campus shuttles operate on a reduced holiday schedule.",
+        "words": ["holiday", "The", "operate", "schedule.", "shuttles", "reduced", "campus", "on", "a"],
+        "scrambledWords": ["holiday", "The", "operate", "schedule.", "shuttles", "reduced", "campus", "on", "a"],
+        "explanation": "The plural subject 'The campus shuttles' agrees with 'operate', followed by 'on a reduced holiday schedule.'"
       }
     ]
   },
   {
     "id": "bs-curated-2",
-    "title": "Macroeconomics: Global Supply Chains and Market Volatility",
-    "level": "upper-intermediate",
-    "topic": "business-economics",
+    "taskType": "build-sentence",
+    "topic": "environment",
+    "level": "beginner",
+    "difficulty": "beginner",
     "items": [
       {
-        "context": "How can multinational manufacturers protect their operations against sudden factory shutdowns?",
-        "words": [
-          "mitigate",
-          "the",
-          "disruptions",
-          "chains",
-          "supply",
-          "economic",
-          "of",
-          "risk",
-          "Diversified",
-          "global",
-          "unexpected"
-        ],
-        "scrambledWords": [
-          "mitigate",
-          "the",
-          "disruptions",
-          "chains",
-          "supply",
-          "economic",
-          "of",
-          "risk",
-          "Diversified",
-          "global",
-          "unexpected"
-        ],
-        "answer": "Diversified supply chains mitigate the risk of unexpected global economic disruptions.",
-        "correctSentence": "Diversified supply chains mitigate the risk of unexpected global economic disruptions.",
-        "explanation": "Subject ('Diversified supply chains') + present tense verb ('mitigate') + complex object ('the risk of unexpected global economic disruptions')."
+        "id": "bs-2-1",
+        "context": "Why did the city plant so many trees along the main avenue?",
+        "answer": "Shade trees help lower summer temperatures in busy neighborhoods.",
+        "correctSentence": "Shade trees help lower summer temperatures in busy neighborhoods.",
+        "words": ["temperatures", "Shade", "lower", "neighborhoods.", "trees", "summer", "help", "in", "busy"],
+        "scrambledWords": ["temperatures", "Shade", "lower", "neighborhoods.", "trees", "summer", "help", "in", "busy"],
+        "explanation": "'Shade trees help lower' is followed by the object 'summer temperatures' and location 'in busy neighborhoods.'"
       },
       {
-        "context": "What monetary action do national reserve authorities take when consumer prices rise too quickly?",
-        "words": [
-          "interest",
-          "raise",
-          "frequently",
-          "curb",
-          "Central",
-          "rates",
-          "to",
-          "pressures",
-          "excessive",
-          "inflationary",
-          "banks"
-        ],
-        "scrambledWords": [
-          "interest",
-          "raise",
-          "frequently",
-          "curb",
-          "Central",
-          "rates",
-          "to",
-          "pressures",
-          "excessive",
-          "inflationary",
-          "banks"
-        ],
-        "answer": "Central banks frequently raise interest rates to curb excessive inflationary pressures.",
-        "correctSentence": "Central banks frequently raise interest rates to curb excessive inflationary pressures.",
-        "explanation": "Subject ('Central banks') + frequency adverb ('frequently') + transitive verb ('raise') + direct object ('interest rates') + infinitive purpose clause ('to curb excessive inflationary pressures')."
+        "id": "bs-2-2",
+        "context": "Where should residents place their glass bottles for weekly collection?",
+        "answer": "Glass containers belong in the blue recycling bins outside.",
+        "correctSentence": "Glass containers belong in the blue recycling bins outside.",
+        "words": ["recycling", "Glass", "belong", "outside.", "containers", "blue", "in", "bins", "the"],
+        "scrambledWords": ["recycling", "Glass", "belong", "outside.", "containers", "blue", "in", "bins", "the"],
+        "explanation": "Subject 'Glass containers' + verb 'belong' + prepositional phrase 'in the blue recycling bins outside.'"
       },
       {
-        "context": "Why do exporters closely monitor daily shifts in international currency values?",
-        "words": [
-          "of",
-          "the",
-          "foreign",
-          "competitiveness",
-          "significantly",
-          "rates",
-          "exports",
-          "exchange",
-          "influence",
-          "Volatile",
-          "domestic"
-        ],
-        "scrambledWords": [
-          "of",
-          "the",
-          "foreign",
-          "competitiveness",
-          "significantly",
-          "rates",
-          "exports",
-          "exchange",
-          "influence",
-          "Volatile",
-          "domestic"
-        ],
-        "answer": "Volatile foreign exchange rates significantly influence the competitiveness of domestic exports.",
-        "correctSentence": "Volatile foreign exchange rates significantly influence the competitiveness of domestic exports.",
-        "explanation": "Subject ('Volatile foreign exchange rates') + adverb ('significantly') + verb ('influence') + object noun phrase ('the competitiveness of domestic exports')."
+        "id": "bs-2-3",
+        "context": "How much electricity do the new rooftop solar panels generate?",
+        "answer": "The solar panels provide enough power for the building.",
+        "correctSentence": "The solar panels provide enough power for the building.",
+        "words": ["power", "The", "provide", "building.", "panels", "enough", "solar", "for", "the"],
+        "scrambledWords": ["power", "The", "provide", "building.", "panels", "enough", "solar", "for", "the"],
+        "explanation": "'The solar panels provide' takes the direct object 'enough power' and prepositional phrase 'for the building.'"
+      },
+      {
+        "id": "bs-2-4",
+        "context": "Why is the coastal nature reserve closed to visitors this month?",
+        "answer": "Sea turtles are nesting along the quiet sandy beaches.",
+        "correctSentence": "Sea turtles are nesting along the quiet sandy beaches.",
+        "words": ["sandy", "Sea", "nesting", "beaches.", "turtles", "quiet", "are", "along", "the"],
+        "scrambledWords": ["sandy", "Sea", "nesting", "beaches.", "turtles", "quiet", "are", "along", "the"],
+        "explanation": "Present continuous 'are nesting' is followed by the prepositional phrase 'along the quiet sandy beaches.'"
+      },
+      {
+        "id": "bs-2-5",
+        "context": "What can commuters do to reduce air pollution in the city?",
+        "answer": "Commuters can take public transit instead of driving alone.",
+        "correctSentence": "Commuters can take public transit instead of driving alone.",
+        "words": ["instead", "Commuters", "public", "alone.", "can", "driving", "take", "of", "transit"],
+        "scrambledWords": ["instead", "Commuters", "public", "alone.", "can", "driving", "take", "of", "transit"],
+        "explanation": "'Commuters can take public transit' is contrasted using the preposition 'instead of driving alone.'"
       }
     ]
   },
   {
     "id": "bs-curated-3",
-    "title": "Marine Biology: Morphological Convergence and Hydrodynamics",
-    "level": "intermediate",
+    "taskType": "build-sentence",
     "topic": "science-tech",
+    "level": "intermediate",
+    "difficulty": "intermediate",
     "items": [
       {
-        "context": "Why do sharks and dolphins look so much alike despite belonging to different biological classes?",
-        "words": [
-          "body",
-          "frequently",
-          "Unrelated",
-          "develop",
-          "marine",
-          "similar",
-          "streamlined",
-          "species",
-          "shapes"
-        ],
-        "scrambledWords": [
-          "body",
-          "frequently",
-          "Unrelated",
-          "develop",
-          "marine",
-          "similar",
-          "streamlined",
-          "species",
-          "shapes"
-        ],
-        "answer": "Unrelated marine species frequently develop similar streamlined body shapes.",
-        "correctSentence": "Unrelated marine species frequently develop similar streamlined body shapes.",
-        "explanation": "Subject ('Unrelated marine species') + frequency adverb ('frequently') + verb ('develop') + direct object ('similar streamlined body shapes')."
+        "id": "bs-3-1",
+        "context": "How did the engineering team test the strength of the new alloy?",
+        "answer": "Engineers tested the alloy under extreme heat and pressure.",
+        "correctSentence": "Engineers tested the alloy under extreme heat and pressure.",
+        "words": ["extreme", "Engineers", "alloy", "pressure.", "tested", "heat", "the", "under", "and"],
+        "scrambledWords": ["extreme", "Engineers", "alloy", "pressure.", "tested", "heat", "the", "under", "and"],
+        "explanation": "'Engineers tested the alloy' is followed by the prepositional phrase 'under extreme heat and pressure.'"
       },
       {
-        "context": "What physical benefit does a tapered torso provide to fast-moving ocean animals?",
-        "words": [
-          "during",
-          "water",
-          "substantially",
-          "swimming",
-          "Hydrodynamic",
-          "turbulent",
-          "rapid",
-          "reduce",
-          "resistance",
-          "profiles"
-        ],
-        "scrambledWords": [
-          "during",
-          "water",
-          "substantially",
-          "swimming",
-          "Hydrodynamic",
-          "turbulent",
-          "rapid",
-          "reduce",
-          "resistance",
-          "profiles"
-        ],
-        "answer": "Hydrodynamic profiles substantially reduce turbulent water resistance during rapid swimming.",
-        "correctSentence": "Hydrodynamic profiles substantially reduce turbulent water resistance during rapid swimming.",
-        "explanation": "Subject ('Hydrodynamic profiles') + adverb ('substantially') + transitive verb ('reduce') + object with prepositional modifier ('turbulent water resistance during rapid swimming')."
+        "id": "bs-3-2",
+        "context": "Why are hospitals adopting this automated diagnostic software so rapidly?",
+        "answer": "The software detects early signs of disease with accuracy.",
+        "correctSentence": "The software detects early signs of disease with accuracy.",
+        "words": ["signs", "The", "detects", "accuracy.", "software", "disease", "early", "of", "with"],
+        "scrambledWords": ["signs", "The", "detects", "accuracy.", "software", "disease", "early", "of", "with"],
+        "explanation": "'The software detects' + object 'early signs of disease' + manner phrase 'with accuracy.'"
       },
       {
-        "context": "Why do open-ocean predators evolve traits that minimize energy expenditure?",
-        "words": [
-          "environmental",
-          "in",
-          "favor",
-          "pelagic",
-          "locomotion",
-          "environments",
-          "efficient",
-          "hunting",
-          "pressures",
-          "Selective"
-        ],
-        "scrambledWords": [
-          "environmental",
-          "in",
-          "favor",
-          "pelagic",
-          "locomotion",
-          "environments",
-          "efficient",
-          "hunting",
-          "pressures",
-          "Selective"
-        ],
-        "answer": "Selective environmental pressures favor efficient locomotion in pelagic hunting environments.",
-        "correctSentence": "Selective environmental pressures favor efficient locomotion in pelagic hunting environments.",
-        "explanation": "Compound subject ('Selective environmental pressures') + verb ('favor') + direct object and prepositional phrase ('efficient locomotion in pelagic hunting environments')."
+        "id": "bs-3-3",
+        "context": "What prevented the satellite from transmitting images back to Earth yesterday?",
+        "answer": "A solar storm disrupted communication between the satellite and ground stations.",
+        "correctSentence": "A solar storm disrupted communication between the satellite and ground stations.",
+        "words": ["communication", "A", "disrupted", "stations.", "storm", "satellite", "solar", "between", "the", "and", "ground"],
+        "scrambledWords": ["communication", "A", "disrupted", "stations.", "storm", "satellite", "solar", "between", "the", "and", "ground"],
+        "explanation": "'A solar storm disrupted communication' is followed by 'between the satellite and ground stations.'"
+      },
+      {
+        "id": "bs-3-4",
+        "context": "When will the laboratory publish the results of the battery experiment?",
+        "answer": "The research team will publish its findings after peer review.",
+        "correctSentence": "The research team will publish its findings after peer review.",
+        "words": ["publish", "The", "findings", "review.", "team", "after", "research", "will", "its", "peer"],
+        "scrambledWords": ["publish", "The", "findings", "review.", "team", "after", "research", "will", "its", "peer"],
+        "explanation": "Future verb 'will publish' takes 'its findings' followed by 'after peer review.'"
+      },
+      {
+        "id": "bs-3-5",
+        "context": "How does fiber-optic cable improve internet speeds across long distances?",
+        "answer": "Optical fibers transmit data rapidly using pulses of laser light.",
+        "correctSentence": "Optical fibers transmit data rapidly using pulses of laser light.",
+        "words": ["transmit", "Optical", "rapidly", "light.", "fibers", "pulses", "data", "using", "of", "laser"],
+        "scrambledWords": ["transmit", "Optical", "rapidly", "light.", "fibers", "pulses", "data", "using", "of", "laser"],
+        "explanation": "'Optical fibers transmit data rapidly' is modified by the participial phrase 'using pulses of laser light.'"
       }
     ]
   },
   {
     "id": "bs-curated-4",
-    "title": "Urban Sociology: Municipal Public Transit Infrastructure",
-    "level": "intermediate",
+    "taskType": "build-sentence",
     "topic": "social-sciences",
+    "level": "intermediate",
+    "difficulty": "intermediate",
     "items": [
       {
-        "context": "How does expanding affordable subway and bus service benefit lower-income city neighborhoods?",
-        "words": [
-          "significantly",
-          "urban",
-          "enhances",
-          "Accessible",
-          "public",
-          "residents",
-          "for",
-          "mobility",
-          "socioeconomic",
-          "transportation"
-        ],
-        "scrambledWords": [
-          "significantly",
-          "urban",
-          "enhances",
-          "Accessible",
-          "public",
-          "residents",
-          "for",
-          "mobility",
-          "socioeconomic",
-          "transportation"
-        ],
-        "answer": "Accessible public transportation significantly enhances socioeconomic mobility for urban residents.",
-        "correctSentence": "Accessible public transportation significantly enhances socioeconomic mobility for urban residents.",
-        "explanation": "Subject ('Accessible public transportation') + adverb + verb ('significantly enhances') + object phrase ('socioeconomic mobility for urban residents')."
+        "id": "bs-4-1",
+        "context": "What did the census reveal about population trends in rural counties?",
+        "answer": "Many young adults are moving to cities for employment.",
+        "correctSentence": "Many young adults are moving to cities for employment.",
+        "words": ["moving", "Many", "cities", "employment.", "adults", "for", "young", "are", "to"],
+        "scrambledWords": ["moving", "Many", "cities", "employment.", "adults", "for", "young", "are", "to"],
+        "explanation": "'Many young adults are moving' is followed by direction 'to cities' and purpose 'for employment.'"
       },
       {
-        "context": "Why are municipal planners converting standard highway shoulders into transit-only corridors?",
-        "words": [
-          "bus",
-          "hours",
-          "lanes",
-          "Dedicated",
-          "commuting",
-          "effectively",
-          "during",
-          "peak",
-          "alleviate",
-          "traffic",
-          "severe",
-          "congestion"
-        ],
-        "scrambledWords": [
-          "bus",
-          "hours",
-          "lanes",
-          "Dedicated",
-          "commuting",
-          "effectively",
-          "during",
-          "peak",
-          "alleviate",
-          "traffic",
-          "severe",
-          "congestion"
-        ],
-        "answer": "Dedicated bus lanes effectively alleviate severe traffic congestion during peak commuting hours.",
-        "correctSentence": "Dedicated bus lanes effectively alleviate severe traffic congestion during peak commuting hours.",
-        "explanation": "Subject ('Dedicated bus lanes') + adverb ('effectively') + verb ('alleviate') + object with temporal phrase ('severe traffic congestion during peak commuting hours')."
+        "id": "bs-4-2",
+        "context": "How do bilingual children acquire two grammatical systems at once?",
+        "answer": "Children naturally distinguish between two languages through daily interaction.",
+        "correctSentence": "Children naturally distinguish between two languages through daily interaction.",
+        "words": ["distinguish", "Children", "languages", "interaction.", "naturally", "daily", "between", "two", "through"],
+        "scrambledWords": ["distinguish", "Children", "languages", "interaction.", "naturally", "daily", "between", "two", "through"],
+        "explanation": "Adverb 'naturally' precedes 'distinguish between two languages through daily interaction.'"
       },
       {
-        "context": "How do new light-rail stations influence retail and business activity in underserved districts?",
-        "words": [
-          "previously",
-          "attract",
-          "Reliable",
-          "neighborhoods",
-          "transit",
-          "commercial",
-          "development",
-          "neglected",
-          "networks",
-          "to"
-        ],
-        "scrambledWords": [
-          "previously",
-          "attract",
-          "Reliable",
-          "neighborhoods",
-          "transit",
-          "commercial",
-          "development",
-          "neglected",
-          "networks",
-          "to"
-        ],
-        "answer": "Reliable transit networks attract commercial development to previously neglected neighborhoods.",
-        "correctSentence": "Reliable transit networks attract commercial development to previously neglected neighborhoods.",
-        "explanation": "Subject ('Reliable transit networks') + verb ('attract') + direct object ('commercial development') + directional prepositional phrase ('to previously neglected neighborhoods')."
+        "id": "bs-4-3",
+        "context": "Why did the psychologist include a control group in the memory study?",
+        "answer": "A control group allows researchers to measure the treatment effect.",
+        "correctSentence": "A control group allows researchers to measure the treatment effect.",
+        "words": ["allows", "A", "measure", "effect.", "group", "treatment", "control", "researchers", "to", "the"],
+        "scrambledWords": ["allows", "A", "measure", "effect.", "group", "treatment", "control", "researchers", "to", "the"],
+        "explanation": "'allows' takes an object ('researchers') plus an infinitive phrase ('to measure the treatment effect')."
+      },
+      {
+        "id": "bs-4-4",
+        "context": "What role did public marketplaces play in ancient Mediterranean towns?",
+        "answer": "Central marketplaces served as gathering spaces for civic debate.",
+        "correctSentence": "Central marketplaces served as gathering spaces for civic debate.",
+        "words": ["served", "Central", "spaces", "debate.", "marketplaces", "civic", "as", "gathering", "for"],
+        "scrambledWords": ["served", "Central", "spaces", "debate.", "marketplaces", "civic", "as", "gathering", "for"],
+        "explanation": "'Central marketplaces served as' is followed by 'gathering spaces for civic debate.'"
+      },
+      {
+        "id": "bs-4-5",
+        "context": "Does flexible scheduling actually improve employee morale according to the survey?",
+        "answer": "Employees with flexible hours reported higher levels of job satisfaction.",
+        "correctSentence": "Employees with flexible hours reported higher levels of job satisfaction.",
+        "words": ["reported", "Employees", "levels", "satisfaction.", "hours", "job", "with", "flexible", "higher", "of"],
+        "scrambledWords": ["reported", "Employees", "levels", "satisfaction.", "hours", "job", "with", "flexible", "higher", "of"],
+        "explanation": "Subject 'Employees with flexible hours' + past verb 'reported' + object 'higher levels of job satisfaction.'"
       }
     ]
   },
   {
     "id": "bs-curated-5",
-    "title": "Art History: Conservation Ethics and Reversibility",
-    "level": "upper-intermediate",
-    "topic": "arts-humanities",
+    "taskType": "build-sentence",
+    "topic": "business-economics",
+    "level": "intermediate",
+    "difficulty": "intermediate",
     "items": [
       {
-        "context": "What ethical standard guides museum specialists when they treat damaged historical works?",
-        "words": [
-          "artifacts",
-          "prioritize",
-          "Modern",
-          "conservators",
-          "cultural",
-          "when",
-          "restoring",
-          "ancient",
-          "techniques",
-          "reversible"
-        ],
-        "scrambledWords": [
-          "artifacts",
-          "prioritize",
-          "Modern",
-          "conservators",
-          "cultural",
-          "when",
-          "restoring",
-          "ancient",
-          "techniques",
-          "reversible"
-        ],
-        "answer": "Modern conservators prioritize reversible techniques when restoring ancient cultural artifacts.",
-        "correctSentence": "Modern conservators prioritize reversible techniques when restoring ancient cultural artifacts.",
-        "explanation": "Main clause ('Modern conservators prioritize reversible techniques') followed by a subordinate temporal clause ('when restoring ancient cultural artifacts')."
+        "id": "bs-5-1",
+        "context": "Why did the central bank raise interest rates again this quarter?",
+        "answer": "Higher interest rates help slow down rapid consumer inflation.",
+        "correctSentence": "Higher interest rates help slow down rapid consumer inflation.",
+        "words": ["slow", "Higher", "rapid", "inflation.", "rates", "consumer", "interest", "help", "down"],
+        "scrambledWords": ["slow", "Higher", "rapid", "inflation.", "rates", "consumer", "interest", "help", "down"],
+        "explanation": "'Higher interest rates help slow down' takes the direct object 'rapid consumer inflation.'"
       },
       {
-        "context": "Why do restoration laboratories run preliminary trials before cleaning an oil painting?",
-        "words": [
-          "irreversible",
-          "pigment",
-          "tested",
-          "be",
-          "solvents",
-          "degradation",
-          "to",
-          "prevent",
-          "Chemical",
-          "scrupulously",
-          "must"
-        ],
-        "scrambledWords": [
-          "irreversible",
-          "pigment",
-          "tested",
-          "be",
-          "solvents",
-          "degradation",
-          "to",
-          "prevent",
-          "Chemical",
-          "scrupulously",
-          "must"
-        ],
-        "answer": "Chemical solvents must be scrupulously tested to prevent irreversible pigment degradation.",
-        "correctSentence": "Chemical solvents must be scrupulously tested to prevent irreversible pigment degradation.",
-        "explanation": "Passive modal verb phrase ('must be scrupulously tested') + infinitive clause of purpose ('to prevent irreversible pigment degradation')."
+        "id": "bs-5-2",
+        "context": "How is the retail company responding to rising shipping costs?",
+        "answer": "The company is building regional warehouses closer to major cities.",
+        "correctSentence": "The company is building regional warehouses closer to major cities.",
+        "words": ["building", "The", "warehouses", "cities.", "company", "major", "is", "regional", "closer", "to"],
+        "scrambledWords": ["building", "The", "warehouses", "cities.", "company", "major", "is", "regional", "closer", "to"],
+        "explanation": "'The company is building regional warehouses' is followed by 'closer to major cities.'"
       },
       {
-        "context": "How can art historians inspect the hidden layers beneath a painting's surface safely?",
-        "words": [
-          "preparatory",
-          "fragile",
-          "analysis",
-          "Spectroscopic",
-          "reveals",
-          "damaging",
-          "without",
-          "sketches",
-          "canvas",
-          "fibers",
-          "underlying"
-        ],
-        "scrambledWords": [
-          "preparatory",
-          "fragile",
-          "analysis",
-          "Spectroscopic",
-          "reveals",
-          "damaging",
-          "without",
-          "sketches",
-          "canvas",
-          "fibers",
-          "underlying"
-        ],
-        "answer": "Spectroscopic analysis reveals underlying preparatory sketches without damaging fragile canvas fibers.",
-        "correctSentence": "Spectroscopic analysis reveals underlying preparatory sketches without damaging fragile canvas fibers.",
-        "explanation": "Subject ('Spectroscopic analysis') + verb ('reveals') + object ('underlying preparatory sketches') + prepositional phrase with gerund ('without damaging fragile canvas fibers')."
+        "id": "bs-5-3",
+        "context": "What convinced the board of directors to approve the merger?",
+        "answer": "Combining the two firms will reduce operating expenses significantly.",
+        "correctSentence": "Combining the two firms will reduce operating expenses significantly.",
+        "words": ["reduce", "Combining", "operating", "significantly.", "firms", "expenses", "the", "two", "will"],
+        "scrambledWords": ["reduce", "Combining", "operating", "significantly.", "firms", "expenses", "the", "two", "will"],
+        "explanation": "The gerund phrase 'Combining the two firms' serves as subject of 'will reduce operating expenses significantly.'"
+      },
+      {
+        "id": "bs-5-4",
+        "context": "Why do many small startups struggle during their first two years?",
+        "answer": "New businesses often underestimate the cost of customer acquisition.",
+        "correctSentence": "New businesses often underestimate the cost of customer acquisition.",
+        "words": ["underestimate", "New", "cost", "acquisition.", "businesses", "customer", "often", "the", "of"],
+        "scrambledWords": ["underestimate", "New", "cost", "acquisition.", "businesses", "customer", "often", "the", "of"],
+        "explanation": "Frequency adverb 'often' precedes the main verb 'underestimate' and object 'the cost of customer acquisition.'"
+      },
+      {
+        "id": "bs-5-5",
+        "context": "How did the subscription model affect the software firm's revenue?",
+        "answer": "Monthly subscriptions generated predictable revenue throughout the fiscal year.",
+        "correctSentence": "Monthly subscriptions generated predictable revenue throughout the fiscal year.",
+        "words": ["generated", "Monthly", "revenue", "year.", "subscriptions", "fiscal", "predictable", "throughout", "the"],
+        "scrambledWords": ["generated", "Monthly", "revenue", "year.", "subscriptions", "fiscal", "predictable", "throughout", "the"],
+        "explanation": "'Monthly subscriptions generated predictable revenue' is followed by 'throughout the fiscal year.'"
       }
     ]
   },
   {
     "id": "bs-curated-6",
-    "title": "Campus Life: Academic Integrity and Research Authorship",
-    "level": "intermediate",
-    "topic": "campus-life",
+    "taskType": "build-sentence",
+    "topic": "arts-humanities",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "items": [
       {
-        "context": "What citation requirement applies to seniors writing their honors research papers?",
-        "words": [
-          "secondary",
-          "scrupulously",
-          "all",
-          "theses",
-          "sources",
-          "scholars",
-          "attribute",
-          "formal",
-          "in",
-          "Undergraduate",
-          "must"
-        ],
-        "scrambledWords": [
-          "secondary",
-          "scrupulously",
-          "all",
-          "theses",
-          "sources",
-          "scholars",
-          "attribute",
-          "formal",
-          "in",
-          "Undergraduate",
-          "must"
-        ],
-        "answer": "Undergraduate scholars must scrupulously attribute all secondary sources in formal theses.",
-        "correctSentence": "Undergraduate scholars must scrupulously attribute all secondary sources in formal theses.",
-        "explanation": "Subject ('Undergraduate scholars') + modal auxiliary with adverb ('must scrupulously attribute') + object ('all secondary sources') + prepositional phrase ('in formal theses')."
+        "id": "bs-6-1",
+        "context": "How did the museum curators verify the age of the wooden sculpture?",
+        "answer": "Conservators analyzed microscopic wood samples to determine its exact age.",
+        "correctSentence": "Conservators analyzed microscopic wood samples to determine its exact age.",
+        "words": ["microscopic", "Conservators", "samples", "age.", "analyzed", "exact", "wood", "to", "determine", "its"],
+        "scrambledWords": ["microscopic", "Conservators", "samples", "age.", "analyzed", "exact", "wood", "to", "determine", "its"],
+        "explanation": "'Conservators analyzed microscopic wood samples' + infinitive of purpose 'to determine its exact age.'"
       },
       {
-        "context": "How can co-authors avoid disputes over credit when working on a joint laboratory study?",
-        "words": [
-          "drafting",
-          "Research",
-          "before",
-          "guidelines",
-          "contribution",
-          "should",
-          "clear",
-          "manuscripts",
-          "establish",
-          "collaborators"
-        ],
-        "scrambledWords": [
-          "drafting",
-          "Research",
-          "before",
-          "guidelines",
-          "contribution",
-          "should",
-          "clear",
-          "manuscripts",
-          "establish",
-          "collaborators"
-        ],
-        "answer": "Research collaborators should establish clear contribution guidelines before drafting manuscripts.",
-        "correctSentence": "Research collaborators should establish clear contribution guidelines before drafting manuscripts.",
-        "explanation": "Subject ('Research collaborators') + modal verb ('should establish') + object ('clear contribution guidelines') + temporal gerund phrase ('before drafting manuscripts')."
+        "id": "bs-6-2",
+        "context": "What distinguished Impressionist painters from earlier academic artists in France?",
+        "answer": "Impressionist painters captured changing natural light with loose brushstrokes.",
+        "correctSentence": "Impressionist painters captured changing natural light with loose brushstrokes.",
+        "words": ["captured", "Impressionist", "natural", "brushstrokes.", "painters", "loose", "changing", "light", "with"],
+        "scrambledWords": ["captured", "Impressionist", "natural", "brushstrokes.", "painters", "loose", "changing", "light", "with"],
+        "explanation": "Subject 'Impressionist painters' + verb 'captured' + object 'changing natural light' + 'with loose brushstrokes.'"
       },
       {
-        "context": "How does the university review board respond to confirmed cases of data fabrication?",
-        "words": [
-          "serious",
-          "intellectual",
-          "probation",
-          "tribunals",
-          "may",
-          "misconduct",
-          "for",
-          "disciplinary",
-          "impose",
-          "Academic"
-        ],
-        "scrambledWords": [
-          "serious",
-          "intellectual",
-          "probation",
-          "tribunals",
-          "may",
-          "misconduct",
-          "for",
-          "disciplinary",
-          "impose",
-          "Academic"
-        ],
-        "answer": "Academic tribunals may impose disciplinary probation for serious intellectual misconduct.",
-        "correctSentence": "Academic tribunals may impose disciplinary probation for serious intellectual misconduct.",
-        "explanation": "Subject ('Academic tribunals') + modal ('may impose') + object ('disciplinary probation') + causal prepositional modifier ('for serious intellectual misconduct')."
+        "id": "bs-6-3",
+        "context": "Why were Gothic cathedrals able to include such large stained-glass windows?",
+        "answer": "Flying buttresses supported the heavy stone walls from outside.",
+        "correctSentence": "Flying buttresses supported the heavy stone walls from outside.",
+        "words": ["supported", "Flying", "stone", "outside.", "buttresses", "walls", "the", "heavy", "from"],
+        "scrambledWords": ["supported", "Flying", "stone", "outside.", "buttresses", "walls", "the", "heavy", "from"],
+        "explanation": "'Flying buttresses supported' takes the object 'the heavy stone walls' and modifier 'from outside.'"
+      },
+      {
+        "id": "bs-6-4",
+        "context": "How did the invention of movable type transform European scholarship?",
+        "answer": "Printed books enabled scholars to share scientific discoveries rapidly.",
+        "correctSentence": "Printed books enabled scholars to share scientific discoveries rapidly.",
+        "words": ["enabled", "Printed", "share", "rapidly.", "books", "discoveries", "scholars", "to", "scientific"],
+        "scrambledWords": ["enabled", "Printed", "share", "rapidly.", "books", "discoveries", "scholars", "to", "scientific"],
+        "explanation": "'Printed books enabled scholars' is followed by the infinitive clause 'to share scientific discoveries rapidly.'"
+      },
+      {
+        "id": "bs-6-5",
+        "context": "Why do oral historians record interviews with multiple community elders?",
+        "answer": "Comparing multiple accounts helps historians reconstruct unwritten community traditions.",
+        "correctSentence": "Comparing multiple accounts helps historians reconstruct unwritten community traditions.",
+        "words": ["helps", "Comparing", "reconstruct", "traditions.", "accounts", "community", "multiple", "historians", "unwritten"],
+        "scrambledWords": ["helps", "Comparing", "reconstruct", "traditions.", "accounts", "community", "multiple", "historians", "unwritten"],
+        "explanation": "Gerund subject 'Comparing multiple accounts' agrees with singular verb 'helps historians reconstruct unwritten community traditions.'"
       }
     ]
   },
   {
     "id": "bs-curated-7",
-    "title": "Climatology: Photovoltaic Systems and Grid Integration",
-    "level": "advanced",
-    "topic": "science-tech",
+    "taskType": "build-sentence",
+    "topic": "environment",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "items": [
       {
-        "context": "Why can't utility companies rely on rooftop solar panels alone without backup systems?",
-        "words": [
-          "grids",
-          "Decentralized",
-          "arrays",
-          "electrical",
-          "to",
-          "storage",
-          "sophisticated",
-          "photovoltaic",
-          "stabilize",
-          "battery",
-          "require"
-        ],
-        "scrambledWords": [
-          "grids",
-          "Decentralized",
-          "arrays",
-          "electrical",
-          "to",
-          "storage",
-          "sophisticated",
-          "photovoltaic",
-          "stabilize",
-          "battery",
-          "require"
-        ],
-        "answer": "Decentralized photovoltaic arrays require sophisticated battery storage to stabilize electrical grids.",
-        "correctSentence": "Decentralized photovoltaic arrays require sophisticated battery storage to stabilize electrical grids.",
-        "explanation": "Subject ('Decentralized photovoltaic arrays') + verb and direct object ('require sophisticated battery storage') + infinitive purpose clause ('to stabilize electrical grids')."
+        "id": "bs-7-1",
+        "context": "Why are coastal wetlands considered vital buffers against tropical storms?",
+        "answer": "Coastal marshes absorb storm surges before floodwaters reach inland towns.",
+        "correctSentence": "Coastal marshes absorb storm surges before floodwaters reach inland towns.",
+        "words": ["absorb", "Coastal", "surges", "towns.", "marshes", "inland", "storm", "before", "floodwaters", "reach"],
+        "scrambledWords": ["absorb", "Coastal", "surges", "towns.", "marshes", "inland", "storm", "before", "floodwaters", "reach"],
+        "explanation": "Main clause 'Coastal marshes absorb storm surges' is followed by time clause 'before floodwaters reach inland towns.'"
       },
       {
-        "context": "How do modern computerized power networks handle sudden spikes in wind and solar generation?",
-        "words": [
-          "surplus",
-          "consumers",
-          "electricity",
-          "Automated",
-          "route",
-          "algorithms",
-          "dynamically",
-          "renewable",
-          "industrial",
-          "distribution",
-          "to"
-        ],
-        "scrambledWords": [
-          "surplus",
-          "consumers",
-          "electricity",
-          "Automated",
-          "route",
-          "algorithms",
-          "dynamically",
-          "renewable",
-          "industrial",
-          "distribution",
-          "to"
-        ],
-        "answer": "Automated distribution algorithms dynamically route surplus renewable electricity to industrial consumers.",
-        "correctSentence": "Automated distribution algorithms dynamically route surplus renewable electricity to industrial consumers.",
-        "explanation": "Subject ('Automated distribution algorithms') + adverb ('dynamically') + verb ('route') + object and destination phrase ('surplus renewable electricity to industrial consumers')."
+        "id": "bs-7-2",
+        "context": "How does permafrost thawing accelerate global climate warming?",
+        "answer": "Thawing permafrost releases ancient methane gas into the atmosphere.",
+        "correctSentence": "Thawing permafrost releases ancient methane gas into the atmosphere.",
+        "words": ["releases", "Thawing", "methane", "atmosphere.", "permafrost", "the", "ancient", "gas", "into"],
+        "scrambledWords": ["releases", "Thawing", "methane", "atmosphere.", "permafrost", "the", "ancient", "gas", "into"],
+        "explanation": "'Thawing permafrost releases' + direct object 'ancient methane gas' + 'into the atmosphere.'"
       },
       {
-        "context": "Why have solar and wind installations expanded so rapidly over the past decade?",
-        "words": [
-          "clean",
-          "accelerate",
-          "Declining",
-          "of",
-          "technologies",
-          "the",
-          "manufacturing",
-          "adoption",
-          "costs",
-          "widespread",
-          "energy"
-        ],
-        "scrambledWords": [
-          "clean",
-          "accelerate",
-          "Declining",
-          "of",
-          "technologies",
-          "the",
-          "manufacturing",
-          "adoption",
-          "costs",
-          "widespread",
-          "energy"
-        ],
-        "answer": "Declining manufacturing costs accelerate the widespread adoption of clean energy technologies.",
-        "correctSentence": "Declining manufacturing costs accelerate the widespread adoption of clean energy technologies.",
-        "explanation": "Participial subject ('Declining manufacturing costs') + verb ('accelerate') + direct object with prepositional modifiers ('the widespread adoption of clean energy technologies')."
+        "id": "bs-7-3",
+        "context": "What benefit does crop rotation offer over planting a single crop repeatedly?",
+        "answer": "Rotating crops naturally replenishes essential nitrogen in agricultural soil.",
+        "correctSentence": "Rotating crops naturally replenishes essential nitrogen in agricultural soil.",
+        "words": ["replenishes", "Rotating", "nitrogen", "soil.", "crops", "agricultural", "naturally", "essential", "in"],
+        "scrambledWords": ["replenishes", "Rotating", "nitrogen", "soil.", "crops", "agricultural", "naturally", "essential", "in"],
+        "explanation": "Gerund subject 'Rotating crops' takes singular verb 'naturally replenishes essential nitrogen in agricultural soil.'"
+      },
+      {
+        "id": "bs-7-4",
+        "context": "Why did wildlife biologists construct vegetated bridges across the highway?",
+        "answer": "Wildlife corridors allow migratory animals to cross busy highways safely.",
+        "correctSentence": "Wildlife corridors allow migratory animals to cross busy highways safely.",
+        "words": ["allow", "Wildlife", "animals", "safely.", "corridors", "highways", "migratory", "to", "cross", "busy"],
+        "scrambledWords": ["allow", "Wildlife", "animals", "safely.", "corridors", "highways", "migratory", "to", "cross", "busy"],
+        "explanation": "'Wildlife corridors allow migratory animals' + infinitive 'to cross busy highways safely.'"
+      },
+      {
+        "id": "bs-7-5",
+        "context": "How are municipal water utilities addressing prolonged seasonal droughts?",
+        "answer": "Many cities purify recycled wastewater to replenish underground aquifers.",
+        "correctSentence": "Many cities purify recycled wastewater to replenish underground aquifers.",
+        "words": ["purify", "Many", "wastewater", "aquifers.", "cities", "underground", "recycled", "to", "replenish"],
+        "scrambledWords": ["purify", "Many", "wastewater", "aquifers.", "cities", "underground", "recycled", "to", "replenish"],
+        "explanation": "'Many cities purify recycled wastewater' + purpose infinitive 'to replenish underground aquifers.'"
       }
     ]
   },
   {
     "id": "bs-curated-8",
-    "title": "Sociology: Demographic Aging and Pension Sustainability",
+    "taskType": "build-sentence",
+    "topic": "campus-life",
     "level": "upper-intermediate",
-    "topic": "social-sciences",
+    "difficulty": "upper-intermediate",
     "items": [
       {
-        "context": "Why are many governments concerned about rising life expectancy and lower birth rates?",
-        "words": [
-          "statutory",
-          "place",
-          "retirement",
-          "financial",
-          "populations",
-          "schemes",
-          "strains",
-          "pension",
-          "Aging",
-          "on",
-          "unprecedented"
-        ],
-        "scrambledWords": [
-          "statutory",
-          "place",
-          "retirement",
-          "financial",
-          "populations",
-          "schemes",
-          "strains",
-          "pension",
-          "Aging",
-          "on",
-          "unprecedented"
-        ],
-        "answer": "Aging populations place unprecedented financial strains on statutory retirement pension schemes.",
-        "correctSentence": "Aging populations place unprecedented financial strains on statutory retirement pension schemes.",
-        "explanation": "Subject ('Aging populations') + verb ('place') + direct object ('unprecedented financial strains') + prepositional recipient phrase ('on statutory retirement pension schemes')."
+        "id": "bs-8-1",
+        "context": "What must graduate students submit before defending their master's thesis?",
+        "answer": "Candidates must submit their formatted thesis to the committee early.",
+        "correctSentence": "Candidates must submit their formatted thesis to the committee early.",
+        "words": ["submit", "Candidates", "formatted", "early.", "must", "committee", "their", "thesis", "to", "the"],
+        "scrambledWords": ["submit", "Candidates", "formatted", "early.", "must", "committee", "their", "thesis", "to", "the"],
+        "explanation": "'Candidates must submit their formatted thesis' is followed by 'to the committee early.'"
       },
       {
-        "context": "What fiscal argument do policymakers make for encouraging older citizens to remain in the labor force?",
-        "words": [
-          "tax",
-          "reducing",
-          "revenues",
-          "working",
-          "aggregate",
-          "Extending",
-          "benefit",
-          "lives",
-          "outlays",
-          "income",
-          "bolsters",
-          "while"
-        ],
-        "scrambledWords": [
-          "tax",
-          "reducing",
-          "revenues",
-          "working",
-          "aggregate",
-          "Extending",
-          "benefit",
-          "lives",
-          "outlays",
-          "income",
-          "bolsters",
-          "while"
-        ],
-        "answer": "Extending working lives bolsters income tax revenues while reducing aggregate benefit outlays.",
-        "correctSentence": "Extending working lives bolsters income tax revenues while reducing aggregate benefit outlays.",
-        "explanation": "Gerund subject phrase ('Extending working lives') + verb and object ('bolsters income tax revenues') + contrasting participial clause ('while reducing aggregate benefit outlays')."
+        "id": "bs-8-2",
+        "context": "Why did the university registrar extend the course registration deadline?",
+        "answer": "The deadline was extended because the campus server crashed yesterday.",
+        "correctSentence": "The deadline was extended because the campus server crashed yesterday.",
+        "words": ["extended", "The", "because", "yesterday.", "deadline", "server", "was", "the", "campus", "crashed"],
+        "scrambledWords": ["extended", "The", "because", "yesterday.", "deadline", "server", "was", "the", "campus", "crashed"],
+        "explanation": "Passive clause 'The deadline was extended' is followed by causal clause 'because the campus server crashed yesterday.'"
       },
       {
-        "context": "How can countries with shrinking domestic labor pools address severe worker shortages?",
-        "words": [
-          "effectively",
-          "rejuvenates",
-          "workforce",
-          "skilled",
-          "Targeted",
-          "nations",
-          "active",
-          "the",
-          "immigration",
-          "industrialized",
-          "in"
-        ],
-        "scrambledWords": [
-          "effectively",
-          "rejuvenates",
-          "workforce",
-          "skilled",
-          "Targeted",
-          "nations",
-          "active",
-          "the",
-          "immigration",
-          "industrialized",
-          "in"
-        ],
-        "answer": "Targeted skilled immigration effectively rejuvenates the active workforce in industrialized nations.",
-        "correctSentence": "Targeted skilled immigration effectively rejuvenates the active workforce in industrialized nations.",
-        "explanation": "Subject ('Targeted skilled immigration') + adverb + verb ('effectively rejuvenates') + object ('the active workforce in industrialized nations')."
+        "id": "bs-8-3",
+        "context": "How can undergraduate students apply for summer laboratory research grants?",
+        "answer": "Applicants should obtain a faculty recommendation before submitting their proposals.",
+        "correctSentence": "Applicants should obtain a faculty recommendation before submitting their proposals.",
+        "words": ["obtain", "Applicants", "faculty", "proposals.", "should", "submitting", "a", "recommendation", "before", "their"],
+        "scrambledWords": ["obtain", "Applicants", "faculty", "proposals.", "should", "submitting", "a", "recommendation", "before", "their"],
+        "explanation": "'Applicants should obtain a faculty recommendation' + 'before submitting their proposals.'"
+      },
+      {
+        "id": "bs-8-4",
+        "context": "What did the dean announce during the opening convocation ceremony?",
+        "answer": "The dean announced that the new science wing is open.",
+        "correctSentence": "The dean announced that the new science wing is open.",
+        "words": ["announced", "The", "that", "open.", "dean", "wing", "the", "new", "science", "is"],
+        "scrambledWords": ["announced", "The", "that", "open.", "dean", "wing", "the", "new", "science", "is"],
+        "explanation": "'The dean announced' introduces the noun clause 'that the new science wing is open.'"
+      },
+      {
+        "id": "bs-8-5",
+        "context": "Are international exchange students eligible for on-campus work positions?",
+        "answer": "Exchange students may work up to twenty hours per week.",
+        "correctSentence": "Exchange students may work up to twenty hours per week.",
+        "words": ["work", "Exchange", "twenty", "week.", "students", "hours", "may", "up", "to", "per"],
+        "scrambledWords": ["work", "Exchange", "twenty", "week.", "students", "hours", "may", "up", "to", "per"],
+        "explanation": "'Exchange students may work' is followed by the numerical limit 'up to twenty hours per week.'"
       }
     ]
   },
   {
     "id": "bs-curated-9",
-    "title": "Economics: Behavioral Biases in Retail Financial Markets",
+    "taskType": "build-sentence",
+    "topic": "science-tech",
     "level": "advanced",
-    "topic": "business-economics",
+    "difficulty": "advanced",
     "items": [
       {
-        "context": "Why do amateur stock traders often refuse to sell shares that are steadily losing value?",
-        "words": [
-          "biases",
-          "retail",
-          "depreciating",
-          "frequently",
-          "to",
-          "assets",
-          "investors",
-          "hold",
-          "lead",
-          "unnecessarily",
-          "Cognitive"
-        ],
-        "scrambledWords": [
-          "biases",
-          "retail",
-          "depreciating",
-          "frequently",
-          "to",
-          "assets",
-          "investors",
-          "hold",
-          "lead",
-          "unnecessarily",
-          "Cognitive"
-        ],
-        "answer": "Cognitive biases frequently lead retail investors to hold depreciating assets unnecessarily.",
-        "correctSentence": "Cognitive biases frequently lead retail investors to hold depreciating assets unnecessarily.",
-        "explanation": "Subject ('Cognitive biases') + frequency adverb + verb and object ('lead retail investors') + infinitive clause ('to hold depreciating assets unnecessarily')."
+        "id": "bs-9-1",
+        "context": "Why must quantum processors operate inside specialized cryogenic chambers?",
+        "answer": "Quantum processors require temperatures near absolute zero to prevent decoherence.",
+        "correctSentence": "Quantum processors require temperatures near absolute zero to prevent decoherence.",
+        "words": ["require", "Quantum", "near", "decoherence.", "processors", "zero", "temperatures", "absolute", "to", "prevent"],
+        "scrambledWords": ["require", "Quantum", "near", "decoherence.", "processors", "zero", "temperatures", "absolute", "to", "prevent"],
+        "explanation": "'Quantum processors require temperatures near absolute zero' + purpose infinitive 'to prevent decoherence.'"
       },
       {
-        "context": "What happens when inexperienced buyers copy popular trading trends without checking company fundamentals?",
-        "words": [
-          "euphoria",
-          "social",
-          "exacerbates",
-          "of",
-          "bubbles",
-          "during",
-          "periods",
-          "speculative",
-          "Uncritical",
-          "asset",
-          "market",
-          "imitation"
-        ],
-        "scrambledWords": [
-          "euphoria",
-          "social",
-          "exacerbates",
-          "of",
-          "bubbles",
-          "during",
-          "periods",
-          "speculative",
-          "Uncritical",
-          "asset",
-          "market",
-          "imitation"
-        ],
-        "answer": "Uncritical social imitation exacerbates speculative asset bubbles during periods of market euphoria.",
-        "correctSentence": "Uncritical social imitation exacerbates speculative asset bubbles during periods of market euphoria.",
-        "explanation": "Compound subject ('Uncritical social imitation') + verb ('exacerbates') + direct object with temporal phrase ('speculative asset bubbles during periods of market euphoria')."
+        "id": "bs-9-2",
+        "context": "How does CRISPR gene editing achieve such high molecular precision?",
+        "answer": "Guide RNA molecules direct the enzyme to specific genetic sequences.",
+        "correctSentence": "Guide RNA molecules direct the enzyme to specific genetic sequences.",
+        "words": ["direct", "Guide", "enzyme", "sequences.", "RNA", "genetic", "molecules", "the", "to", "specific"],
+        "scrambledWords": ["direct", "Guide", "enzyme", "sequences.", "RNA", "genetic", "molecules", "the", "to", "specific"],
+        "explanation": "'Guide RNA molecules direct the enzyme' is followed by 'to specific genetic sequences.'"
       },
       {
-        "context": "How has automatic retirement plan sign-up affected employee financial security?",
-        "words": [
-          "among",
-          "savings",
-          "Default",
-          "programs",
-          "increase",
-          "enrollment",
-          "long-term",
-          "wealth",
-          "substantially",
-          "accumulation",
-          "wage-earners"
-        ],
-        "scrambledWords": [
-          "among",
-          "savings",
-          "Default",
-          "programs",
-          "increase",
-          "enrollment",
-          "long-term",
-          "wealth",
-          "substantially",
-          "accumulation",
-          "wage-earners"
-        ],
-        "answer": "Default savings enrollment programs substantially increase long-term wealth accumulation among wage-earners.",
-        "correctSentence": "Default savings enrollment programs substantially increase long-term wealth accumulation among wage-earners.",
-        "explanation": "Subject ('Default savings enrollment programs') + adverb + verb ('substantially increase') + complex object ('long-term wealth accumulation among wage-earners')."
+        "id": "bs-9-3",
+        "context": "What advantage do space telescopes have over ground-based observatories?",
+        "answer": "Orbiting telescopes capture infrared radiation without interference from Earth's atmosphere.",
+        "correctSentence": "Orbiting telescopes capture infrared radiation without interference from Earth's atmosphere.",
+        "words": ["capture", "Orbiting", "radiation", "atmosphere.", "telescopes", "Earth's", "infrared", "without", "interference", "from"],
+        "scrambledWords": ["capture", "Orbiting", "radiation", "atmosphere.", "telescopes", "Earth's", "infrared", "without", "interference", "from"],
+        "explanation": "'Orbiting telescopes capture infrared radiation' + 'without interference from Earth's atmosphere.'"
+      },
+      {
+        "id": "bs-9-4",
+        "context": "Why did the neural network fail when tested on hospital radiographs?",
+        "answer": "The algorithm overfitted because its training dataset lacked diverse examples.",
+        "correctSentence": "The algorithm overfitted because its training dataset lacked diverse examples.",
+        "words": ["overfitted", "The", "training", "examples.", "algorithm", "diverse", "because", "its", "dataset", "lacked"],
+        "scrambledWords": ["overfitted", "The", "training", "examples.", "algorithm", "diverse", "because", "its", "dataset", "lacked"],
+        "explanation": "Main clause 'The algorithm overfitted' + subordinate clause 'because its training dataset lacked diverse examples.'"
+      },
+      {
+        "id": "bs-9-5",
+        "context": "How do targeted lipid nanoparticles improve clinical chemotherapy outcomes?",
+        "answer": "Targeted nanoparticles deliver medication directly to tumors while sparing tissue.",
+        "correctSentence": "Targeted nanoparticles deliver medication directly to tumors while sparing tissue.",
+        "words": ["deliver", "Targeted", "directly", "tissue.", "nanoparticles", "sparing", "medication", "to", "tumors", "while"],
+        "scrambledWords": ["deliver", "Targeted", "directly", "tissue.", "nanoparticles", "sparing", "medication", "to", "tumors", "while"],
+        "explanation": "'Targeted nanoparticles deliver medication directly to tumors' + participial clause 'while sparing tissue.'"
       }
     ]
   },
   {
     "id": "bs-curated-10",
-    "title": "Campus Orientation: Laboratory Protocols and Biosafety Tiers",
-    "level": "intermediate",
-    "topic": "campus-life",
+    "taskType": "build-sentence",
+    "topic": "arts-humanities",
+    "level": "advanced",
+    "difficulty": "advanced",
     "items": [
       {
-        "context": "What personal attire rule is strictly enforced inside the chemistry building?",
-        "words": [
-          "researchers",
-          "and",
-          "laboratory",
-          "protective",
-          "coats",
-          "wear",
-          "at",
-          "times",
-          "Student",
-          "all",
-          "must",
-          "eyewear"
-        ],
-        "scrambledWords": [
-          "researchers",
-          "and",
-          "laboratory",
-          "protective",
-          "coats",
-          "wear",
-          "at",
-          "times",
-          "Student",
-          "all",
-          "must",
-          "eyewear"
-        ],
-        "answer": "Student researchers must wear protective eyewear and laboratory coats at all times.",
-        "correctSentence": "Student researchers must wear protective eyewear and laboratory coats at all times.",
-        "explanation": "Subject ('Student researchers') + modal verb ('must wear') + compound direct object ('protective eyewear and laboratory coats') + adverbial temporal phrase ('at all times')."
+        "id": "bs-10-1",
+        "context": "How did airborne laser scanning change archaeological research in Central America?",
+        "answer": "Airborne laser sensors revealed vast Mayan cities beneath dense jungle.",
+        "correctSentence": "Airborne laser sensors revealed vast Mayan cities beneath dense jungle.",
+        "words": ["revealed", "Airborne", "Mayan", "jungle.", "sensors", "dense", "laser", "vast", "cities", "beneath"],
+        "scrambledWords": ["revealed", "Airborne", "Mayan", "jungle.", "sensors", "dense", "laser", "vast", "cities", "beneath"],
+        "explanation": "'Airborne laser sensors revealed vast Mayan cities' + prepositional phrase 'beneath dense jungle.'"
       },
       {
-        "context": "How should lab assistants handle beakers that have held reactive acids?",
-        "words": [
-          "glassware",
-          "in",
-          "must",
-          "before",
-          "designated",
-          "receptacles",
-          "neutralized",
-          "Contaminated",
-          "placement",
-          "disposal",
-          "be"
-        ],
-        "scrambledWords": [
-          "glassware",
-          "in",
-          "must",
-          "before",
-          "designated",
-          "receptacles",
-          "neutralized",
-          "Contaminated",
-          "placement",
-          "disposal",
-          "be"
-        ],
-        "answer": "Contaminated glassware must be neutralized before placement in designated disposal receptacles.",
-        "correctSentence": "Contaminated glassware must be neutralized before placement in designated disposal receptacles.",
-        "explanation": "Passive modal verb phrase ('must be neutralized') + temporal prepositional phrase ('before placement in designated disposal receptacles')."
+        "id": "bs-10-2",
+        "context": "Why do literary translators find classical poetry so difficult to render?",
+        "answer": "Translators must balance literal meaning against rhythmic and cultural nuance.",
+        "correctSentence": "Translators must balance literal meaning against rhythmic and cultural nuance.",
+        "words": ["balance", "Translators", "meaning", "nuance.", "must", "cultural", "literal", "against", "rhythmic", "and"],
+        "scrambledWords": ["balance", "Translators", "meaning", "nuance.", "must", "cultural", "literal", "against", "rhythmic", "and"],
+        "explanation": "'Translators must balance literal meaning' is paired with 'against rhythmic and cultural nuance.'"
       },
       {
-        "context": "Why are flushing fountains installed next to every workbench in the wet lab?",
-        "words": [
-          "eyewash",
-          "damage",
-          "stations",
-          "potential",
-          "emergency",
-          "minimizes",
-          "Immediate",
-          "at",
-          "tissue",
-          "irrigation"
-        ],
-        "scrambledWords": [
-          "eyewash",
-          "damage",
-          "stations",
-          "potential",
-          "emergency",
-          "minimizes",
-          "Immediate",
-          "at",
-          "tissue",
-          "irrigation"
-        ],
-        "answer": "Immediate irrigation at emergency eyewash stations minimizes potential tissue damage.",
-        "correctSentence": "Immediate irrigation at emergency eyewash stations minimizes potential tissue damage.",
-        "explanation": "Subject with prepositional phrase ('Immediate irrigation at emergency eyewash stations') + verb ('minimizes') + object ('potential tissue damage')."
+        "id": "bs-10-3",
+        "context": "How did silk trade routes influence artistic styles across Eurasia?",
+        "answer": "Merchant caravans carried artistic motifs across continents along trade routes.",
+        "correctSentence": "Merchant caravans carried artistic motifs across continents along trade routes.",
+        "words": ["carried", "Merchant", "motifs", "routes.", "caravans", "trade", "artistic", "across", "continents", "along"],
+        "scrambledWords": ["carried", "Merchant", "motifs", "routes.", "caravans", "trade", "artistic", "across", "continents", "along"],
+        "explanation": "'Merchant caravans carried artistic motifs' + 'across continents along trade routes.'"
+      },
+      {
+        "id": "bs-10-4",
+        "context": "What enabled multispectral imaging to recover the lost Greek treatise?",
+        "answer": "Ultraviolet wavelengths exposed faint ink that had faded over centuries.",
+        "correctSentence": "Ultraviolet wavelengths exposed faint ink that had faded over centuries.",
+        "words": ["exposed", "Ultraviolet", "ink", "centuries.", "wavelengths", "faded", "faint", "that", "had", "over"],
+        "scrambledWords": ["exposed", "Ultraviolet", "ink", "centuries.", "wavelengths", "faded", "faint", "that", "had", "over"],
+        "explanation": "'Ultraviolet wavelengths exposed faint ink' + relative clause 'that had faded over centuries.'"
+      },
+      {
+        "id": "bs-10-5",
+        "context": "Why did Renaissance architects study ancient Roman engineering treatises so closely?",
+        "answer": "Classical proportions inspired architects to design harmonious civic plazas.",
+        "correctSentence": "Classical proportions inspired architects to design harmonious civic plazas.",
+        "words": ["inspired", "Classical", "design", "plazas.", "proportions", "civic", "architects", "to", "harmonious"],
+        "scrambledWords": ["inspired", "Classical", "design", "plazas.", "proportions", "civic", "architects", "to", "harmonious"],
+        "explanation": "'Classical proportions inspired architects' + infinitive phrase 'to design harmonious civic plazas.'"
       }
     ]
   }

@@ -2,29 +2,39 @@
   {
     "id": "lr-curated-1",
     "title": "Laboratory Orientation and Chemical Safety Procedures",
-    "level": "intermediate",
+    "level": "beginner",
+    "difficulty": "beginner",
     "topic": "science-tech",
     "speakerName": "Sarah (Female)",
     "speakerGender": "female",
     "sentences": [
-      "The biochemistry research laboratory will remain closed during scheduled ventilation maintenance.",
-      "Undergraduate students must submit their complete research proposals by Friday noon.",
-      "Professor Jenkins explained the thermodynamic principles of exothermic reaction kinetics in yesterday lecture."
+      "All students must wear protective safety goggles.",
+      "Please store your personal backpacks inside the hallway lockers.",
+      "The chemistry laboratory will remain closed during Friday afternoon maintenance.",
+      "Undergraduate researchers must submit their signed safety forms before tomorrow morning.",
+      "Make sure to calibrate the digital balance carefully before weighing powdered reagents.",
+      "Organic solvents should always be handled inside the ventilated fume hood to prevent inhalation.",
+      "Professor Jenkins explained the thermodynamic principles of exothermic reaction kinetics during yesterday's introductory seminar."
     ],
-    "sampleAnswer": "Fluent Band 6.0 articulation maintains clear vowel elongation on stressed syllables such as biochemistry and thermodynamic, with a natural downward cadence on terminal punctuation.",
+    "sampleAnswer": "Fluent Band 6.0 articulation maintains clear vowel elongation on stressed syllables such as thermodynamic and exothermic, with a natural downward cadence on terminal punctuation.",
     "modelResponse": "A Band 6.0 performance reproduces the precise sentence phrasing with zero hesitation, accurate phonetic stress on multisyllabic terms, and smooth prosodic linking between consonant and vowel boundaries."
   },
   {
     "id": "lr-curated-2",
     "title": "University Library Digital Archives and Interlibrary Loans",
-    "level": "intermediate",
+    "level": "beginner",
+    "difficulty": "beginner",
     "topic": "campus-life",
     "speakerName": "David (Male)",
     "speakerGender": "male",
     "sentences": [
-      "Graduate students may borrow up to fifteen reference monographs for an entire academic term.",
-      "The special collections vault requires advance security registration and verified departmental sponsorship.",
-      "Electronic book reserves can be accessed remotely through the university virtual private network."
+      "The main library opens at eight o'clock.",
+      "You can reserve a quiet study room online.",
+      "Reference journals cannot be checked out from the reading room.",
+      "Graduate students may borrow up to fifteen monographs for the entire semester.",
+      "Electronic course reserves can be accessed remotely through the campus wireless network.",
+      "The special collections archive requires advance registration and written verification from your faculty advisor.",
+      "Interlibrary loan requests for rare historical periodicals typically arrive within five to seven business days."
     ],
     "sampleAnswer": "Band 6.0 mastery highlights clear aspiration on initial plosives and seamless elision across compound prepositional phrases.",
     "modelResponse": "Band 6.0 speech exhibits steady tempo of approximately 135 words per minute, clear phonological distinction between /b/ and /v/, and appropriate sentence-level intonational contour."
@@ -33,13 +43,18 @@
     "id": "lr-curated-3",
     "title": "Microeconomic Equilibrium and Consumer Price Elasticity",
     "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "topic": "business-economics",
     "speakerName": "Rachel (Female)",
     "speakerGender": "female",
     "sentences": [
-      "Consumer demand for essential commodities tends to exhibit relatively low price elasticity.",
+      "Supply and demand determine competitive market prices.",
+      "Higher interest rates typically reduce household borrowing levels.",
+      "Consumers often substitute affordable alternatives when luxury prices rise.",
+      "Consumer demand for essential household commodities tends to exhibit low price elasticity.",
       "Monopoly market structures frequently generate deadweight loss due to restricted aggregate production.",
-      "Central banking authorities evaluate core inflation figures before determining interest rate adjustments."
+      "Central banking authorities evaluate core inflation figures before announcing quarterly monetary policy adjustments.",
+      "Multinational corporations diversify their regional manufacturing supply chains to mitigate unexpected currency exchange volatility."
     ],
     "sampleAnswer": "Band 6.0 delivery delivers sharp enunciation of abstract economic nominalizations without stumbling or rhythm breakdown.",
     "modelResponse": "Band 6.0 pronunciation maintains consistent pitch modulation, natural pause groups after subject noun phrases, and flawless academic diction."
@@ -48,28 +63,38 @@
     "id": "lr-curated-4",
     "title": "Geological Plate Tectonics and Subduction Zone Seismology",
     "level": "advanced",
-    "topic": "science-tech",
+    "difficulty": "advanced",
+    "topic": "environment",
     "speakerName": "Marcus (Male)",
     "speakerGender": "male",
     "sentences": [
-      "Subduction boundaries generate high-magnitude earthquakes as oceanic lithosphere sinks into the upper mantle.",
+      "Tectonic plates move slowly across the mantle.",
+      "Deep ocean trenches form along active subduction zones.",
+      "Volcanic island arcs emerge parallel to convergent plate boundaries.",
       "Geophysicists deploy broadband seismometers along fault lines to record minute crustal displacements.",
-      "Volcanic island arcs form parallel to ocean trenches through partial melting of the mantle wedge."
+      "Subduction boundaries generate high-magnitude earthquakes as dense oceanic lithosphere sinks into the asthenosphere.",
+      "Hydrothermal vents along mid-ocean ridges release mineral-rich fluids that support unique chemosynthetic ecosystems.",
+      "Paleomagnetic stripes preserved in basaltic seafloor crust provide definitive empirical evidence for symmetrical seafloor spreading."
     ],
     "sampleAnswer": "Band 6.0 speakers execute compound scientific clauses with natural prosody, placing appropriate pitch accents on contrastive technical terms.",
     "modelResponse": "Band 6.0 delivery demonstrates immediate auditory retention, reproducing complex scientific sentence syntax with crisp articulation and confident pacing."
   },
   {
     "id": "lr-curated-5",
-    "title": "Renaissance Art History and Perspective Geometry",
+    "title": "Renaissance Art History and Linear Perspective Geometry",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "arts-humanities",
     "speakerName": "Elena (Female)",
     "speakerGender": "female",
     "sentences": [
-      "Fifteenth-century Florentine painters applied mathematical linear perspective to create optical illusions of depth.",
-      "Architectural drawings from the high Renaissance incorporated classical Roman proportional harmony.",
-      "Art historians analyze pigment composition using non-destructive X-ray fluorescence spectroscopy."
+      "Renaissance painters studied classical Greek marble sculptures.",
+      "Linear perspective creates a realistic illusion of depth.",
+      "Orthogonal lines converge at a single central vanishing point.",
+      "Fifteenth-century Florentine artists applied mathematical geometry to organize three-dimensional architectural spaces.",
+      "Oil pigments allowed Northern European portraitists to render subtle surface textures and luminous reflections.",
+      "Art conservators analyze underlying charcoal sketches using non-destructive infrared reflectography and X-ray fluorescence.",
+      "Civic patronage from wealthy merchant guilds transformed fifteenth-century Florence into an influential center of humanist scholarship."
     ],
     "sampleAnswer": "Band 6.0 execution sustains fluid phrasing across extended noun phrases like mathematical linear perspective.",
     "modelResponse": "Band 6.0 pronunciation accurately distinguishes complex syllables without dropping terminal consonants."
@@ -78,75 +103,100 @@
     "id": "lr-curated-6",
     "title": "Campus Registrar Enrollment and Course Drop Deadlines",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "campus-life",
     "speakerName": "James (Male)",
     "speakerGender": "male",
     "sentences": [
-      "Students wishing to audit a seminar must obtain written permission from the instructor.",
-      "The deadline for submitting internship credit documentation has been extended to next Monday.",
-      "Academic advisors schedule individual counseling sessions to review degree audit progress reports."
+      "Course registration opens next Monday at nine.",
+      "Please check your degree audit before meeting advisors.",
+      "Students wishing to audit a seminar must obtain instructor permission.",
+      "The deadline for adding or dropping autumn classes expires this Friday afternoon.",
+      "Undergraduate students completing a double major must submit a joint thesis proposal.",
+      "Academic counselors schedule individual advising appointments to verify upper-division graduation credit requirements.",
+      "Official transcripts from accredited summer exchange programs must be sent directly to the university registrar office."
     ],
     "sampleAnswer": "Band 6.0 speakers reproduce campus administrative instructions with native-like fluidity, linking function words smoothly to content words.",
     "modelResponse": "A Band 6.0 response captures all grammatical function words with precise rhythmic cadence."
   },
   {
     "id": "lr-curated-7",
-    "title": "Environmental Science and Wetland Biogeochemistry",
+    "title": "Coastal Wetland Ecology and Carbon Sequestration",
     "level": "advanced",
-    "topic": "science-tech",
+    "difficulty": "advanced",
+    "topic": "environment",
     "speakerName": "Sophia (Female)",
     "speakerGender": "female",
     "sentences": [
+      "Coastal wetlands protect shorelines from storm surges.",
+      "Mangrove roots trap nutrient-rich sediment along tropical coasts.",
+      "Estuarine marshes provide vital nursery habitats for juvenile marine fish.",
       "Coastal salt marshes sequester substantial quantities of atmospheric carbon within anaerobic peat sediments.",
-      "Anthropogenic runoff containing synthetic nitrates induces rapid eutrophication in downstream freshwater estuaries.",
-      "Restoration ecologists reintroduce native cordgrass species to stabilize eroding shoreline embankments."
+      "Restoration ecologists reintroduce native cordgrass species to stabilize eroding tidal creek embankments.",
+      "Agricultural runoff containing synthetic nitrogen fertilizers induces rapid algal blooms in downstream freshwater estuaries.",
+      "Preserving intact riparian buffer zones along river watersheds significantly reduces non-point source sediment pollution."
     ],
     "sampleAnswer": "Band 6.0 delivery balances complex biochemical terminology with effortless melodic phrasing and unhesitating delivery.",
     "modelResponse": "Band 6.0 performance achieves 100% acoustic clarity, impeccable lexical stress on sequester, anaerobic, and eutrophication, and natural breath group control."
   },
   {
     "id": "lr-curated-8",
-    "title": "Economics: Foreign Exchange and Trade Deficits",
+    "title": "International Macroeconomics and Exchange Rate Dynamics",
     "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "topic": "business-economics",
     "speakerName": "Arthur (Male)",
     "speakerGender": "male",
     "sentences": [
+      "Exchange rates fluctuate daily in global markets.",
+      "A weaker domestic currency makes exports more affordable.",
+      "Bilateral trade agreements reduce customs tariffs between partner nations.",
+      "Foreign direct investment accelerates technological transfer and infrastructure growth in emerging economies.",
       "Fluctuating foreign currency exchange rates substantially influence the competitive pricing of domestic industrial exports.",
-      "Persistent balance of trade deficits may trigger speculative pressure on sovereign sovereign debt obligations.",
-      "International trade agreements lower reciprocal tariff barriers to stimulate cross-border commercial investment."
+      "Persistent balance of payments deficits can trigger speculative pressure on sovereign bond yields.",
+      "Economists utilize purchasing power parity indices to compare living standards accurately across different national currencies."
     ],
-    "sampleAnswer": "Band 6.0 performance reproduces multisyllabic economic terms ('fluctuating', 'competitive', 'obligations') with accurate syllable timing and natural pitch cadence.",
+    "sampleAnswer": "Band 6.0 performance reproduces multisyllabic economic terms ('fluctuating', 'competitive', 'parity') with accurate syllable timing and natural pitch cadence.",
     "modelResponse": "Band 6.0 speech exhibits steady tempo of 130–140 words per minute, sharp dental enunciation, and natural intonation drops on clause boundaries."
   },
   {
     "id": "lr-curated-9",
-    "title": "Neurobiology: Synaptic Pruning and Adolescent Brain Development",
+    "title": "Neurobiology: Synaptic Pruning and Cognitive Development",
     "level": "advanced",
+    "difficulty": "advanced",
     "topic": "science-tech",
     "speakerName": "Dr. Evelyn (Female)",
     "speakerGender": "female",
     "sentences": [
-      "During late adolescence the prefrontal cortex undergoes extensive synaptic pruning to optimize cognitive processing efficiency.",
-      "Myelination of cerebral axonal pathways accelerates electrical signal transmission across distant functional brain regions.",
-      "Neuroplastic changes observed in adult learning challenge historic assumptions regarding static cortical architecture."
+      "Neurons communicate across microscopic junctions called synapses.",
+      "Chemical neurotransmitters bind to specialized receptor proteins.",
+      "Myelin sheaths insulate axons to accelerate electrical impulse conduction.",
+      "Functional magnetic resonance imaging measures localized blood oxygen changes across active brain regions.",
+      "During late adolescence the prefrontal cortex undergoes extensive synaptic pruning to optimize cognitive efficiency.",
+      "Neuroplastic modifications observed during adult skill acquisition challenge historical assumptions regarding static brain architecture.",
+      "Long-term potentiation strengthens synaptic transmission pathways that support declarative memory consolidation within the hippocampus."
     ],
-    "sampleAnswer": "Band 6.0 speakers handle dense neurological nominalizations ('adolescence', 'synaptic pruning', 'myelination') without stumbling or hesitations.",
+    "sampleAnswer": "Band 6.0 speakers handle dense neurological nominalizations ('adolescence', 'synaptic pruning', 'potentiation') without stumbling or hesitations.",
     "modelResponse": "A Band 6.0 response delivers effortless rhythmic linking, flawless stress placement on multisyllabic scientific terms, and natural respiratory pauses."
   },
   {
     "id": "lr-curated-10",
-    "title": "Campus Housing: Residential Policies and Room Condition Audits",
+    "title": "Anthropology: Linguistic Diversity and Oral Traditions",
     "level": "intermediate",
-    "topic": "campus-life",
-    "speakerName": "Marcus (Male)",
+    "difficulty": "intermediate",
+    "topic": "social-sciences",
+    "speakerName": "Dr. Mateo (Male)",
     "speakerGender": "male",
     "sentences": [
-      "Residents must report any pre-existing furniture damage on their digital room condition inventory forms.",
-      "Quiet hours will be strictly enforced throughout the residence halls during final examination week.",
-      "Subletting dormitory rooms to non-university guests constitutes a serious violation of student residential contracts."
+      "Human languages evolve continuously across successive generations.",
+      "Geographic isolation often produces distinct regional dialect variations.",
+      "Field linguists record oral histories from elderly community speakers.",
+      "Indigenous vocabularies frequently preserve detailed botanical classifications of local medicinal plants.",
+      "Bilingual education programs help young students maintain heritage fluency alongside national languages.",
+      "Archaeological inscriptions on clay tablets reveal how early writing systems emerged from trade accounting.",
+      "Collaborative digital archives allow anthropological researchers to preserve endangered phonetic grammars for future generations."
     ],
-    "sampleAnswer": "Band 6.0 delivery demonstrates natural conversational American cadence, precise consonant cluster resolution ('pre-existing', 'strictly enforced'), and smooth flow.",
+    "sampleAnswer": "Band 6.0 delivery demonstrates natural academic cadence, precise consonant cluster resolution, and smooth prosodic flow.",
     "modelResponse": "Band 6.0 speaker matches the native-like rate of delivery, showing zero grammatical omissions and natural vocal pitch modulation."
   }
 ]

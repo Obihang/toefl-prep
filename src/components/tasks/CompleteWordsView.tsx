@@ -4,6 +4,7 @@ import { CheckCircle2, RotateCcw, ArrowRight, Info, Keyboard } from 'lucide-reac
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { normalizeCompleteWordsTask } from '../../utils/taskNormalizer';
 
 interface Props {
   task: CompleteWordsTask;
@@ -25,9 +26,10 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Parse text formatted with [[missing_letters]]
+  // Parse text formatted with [[missing_letters]] after enforcing strict 2026 C-Test normalization
   useEffect(() => {
-    const parts = task.text.split(/\[\[(.+?)\]\]/);
+    const normalized = normalizeCompleteWordsTask(task);
+    const parts = normalized.text.split(/\[\[(.+?)\]\]/);
     const newBlanks: BlankItem[] = [];
     const newSegments: Array<{ type: 'text' | 'blank'; value: string; blankIndex?: number }> = [];
 

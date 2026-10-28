@@ -1,38 +1,44 @@
 [
   {
     "id": "we-curated-1",
-    "title": "Requesting Laboratory Equipment Access Extension",
-    "level": "upper-intermediate",
-    "topic": "science-tech",
-    "situation": "You are conducting empirical research for your undergraduate honors thesis in the biochemistry department. Due to an unexpected calibration failure in the spectroscopy centrifuge, your final data collection phase has been delayed by four days. Write an email to your faculty advisor, Professor Harrison, explaining the equipment delay and requesting an extension on the final data chapter submission.",
-    "recipient": "Professor Harrison",
+    "taskType": "write-email",
+    "title": "Scheduling an Academic Advising Appointment",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "campus-life",
+    "situation": "You are a first-year university student planning your course schedule for the upcoming spring semester. You need to meet with your academic advisor, Ms. Carter, to discuss your required introductory classes, but you have a biology lab during her regular Wednesday office hours. Write an email to Ms. Carter to request an appointment at a different time.",
+    "recipient": "Ms. Carter",
     "goals": [
-      "Politely explain the technical equipment malfunction in the laboratory",
-      "Request a 4-day extension for the final data chapter submission",
-      "Propose an updated timeline for draft review prior to graduation deadlines"
+      "Explain why you need to meet regarding your spring semester course schedule",
+      "Mention that your biology lab conflicts with her Wednesday office hours",
+      "Suggest two alternative times when you are available to meet this week"
     ],
-    "suggestedWordCount": "100-130 words",
-    "modelResponse": "Dear Professor Harrison,\n\nI am writing to update you on the progress of my undergraduate honors thesis in biochemistry. Unfortunately, the laboratory spectroscopy centrifuge experienced an unexpected calibration failure earlier this week, which halted our final sample analysis for four days while technicians repaired the optic sensors.\n\nBecause of this unforeseen equipment delay, I would like to respectfully request a four-day extension on my final data chapter submission, moving the deadline from this Friday to next Tuesday, October 28th. All physical laboratory assays have now concluded, and I am currently compiling the statistical variance graphs.\n\nI can deliver a complete revised draft to your office next Wednesday morning, leaving ample time for your review ahead of the committee deadline. Thank you very much for your understanding and continued guidance.\n\nBest regards,\nAlex Mercer"
+    "suggestedWordCount": "90-120 words",
+    "modelResponse": "Dear Ms. Carter,\n\nI hope you are having a great week. I am a first-year student in your advising group, and I would like to schedule a short meeting to review my course registration plan for the upcoming spring semester.\n\nUnfortunately, I am unable to attend your regular office hours on Wednesday afternoons because my introductory biology laboratory meets from 1:00 PM to 4:00 PM. Would it be possible for us to meet at an alternative time this week?\n\nI am completely free on Thursday between 10:00 AM and 1:00 PM, or on Friday morning before 11:30 AM. Please let me know if either of those times works for your schedule.\n\nThank you very much for your help.\n\nBest regards,\nJamie Park"
   },
   {
     "id": "we-curated-2",
-    "title": "Applying for Graduate Teaching Assistantship",
-    "level": "advanced",
-    "topic": "campus-life",
-    "situation": "The Department of Economics has announced an open Graduate Teaching Assistantship for the upcoming spring semester in Intermediate Microeconomics. Write an email to the department chair, Dr. Reynolds, expressing your interest in the position, summarizing your relevant academic coursework and tutoring experience, and requesting an interview.",
-    "recipient": "Dr. Reynolds",
+    "taskType": "write-email",
+    "title": "Joining the Campus Recycling and Sustainability Club",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "environment",
+    "situation": "You saw a poster in the student union inviting students to join the Campus Green Initiative, a student organization that manages residence hall recycling and campus tree planting. Write an email to the club coordinator, David Kim, expressing your interest in joining and asking how you can participate in this weekend's cleanup event.",
+    "recipient": "David Kim, Club Coordinator",
     "goals": [
-      "Express formal interest in the Intermediate Microeconomics Teaching Assistantship",
-      "Highlight your academic qualifications and previous peer-tutoring experience",
-      "Request a brief in-person or virtual interview to discuss your candidacy"
+      "Express your enthusiasm for joining the Campus Green Initiative",
+      "Ask for details about the time and meeting location for this weekend's cleanup event",
+      "Inquire whether volunteers need to bring any supplies or equipment"
     ],
-    "suggestedWordCount": "100-130 words",
-    "modelResponse": "Dear Dr. Reynolds,\n\nI am writing to formally submit my candidacy for the Graduate Teaching Assistantship in Intermediate Microeconomics for the forthcoming spring semester. Having thoroughly enjoyed your lecture series on consumer choice theory last year, I am eager to assist undergraduate students in mastering quantitative economic models.\n\nI completed Advanced Microeconomic Theory with an A grade and have served as a peer tutor at the campus Learning Center for the past three semesters. In that role, I conducted weekly problem-solving workshops and mentored students through complex calculus optimization problems. My background in both econometrics and student mentorship equips me to facilitate productive recitation sections.\n\nI have attached my academic transcript and curriculum vitae for your consideration. I would welcome the opportunity to meet with you for a brief interview. Thank you for your consideration.\n\nSincerely,\nSamantha Patel"
+    "suggestedWordCount": "90-120 words",
+    "modelResponse": "Dear David,\n\nI recently saw the Campus Green Initiative poster in the student union, and I would love to join the organization this semester. I participated in community recycling drives in high school and am eager to help promote sustainability on campus.\n\nI noticed on the flyer that the club is hosting a campus creek cleanup event this Saturday. Could you please let me know what time volunteers should arrive and where the group will meet?\n\nAdditionally, please let me know if I should bring my own work gloves or reusable water bottle, or if the club provides all necessary cleanup supplies. I look forward to meeting everyone this weekend.\n\nBest regards,\nTaylor Reed"
   },
   {
     "id": "we-curated-3",
+    "taskType": "write-email",
     "title": "Proposing a Field Trip for Art History Seminar",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "arts-humanities",
     "situation": "You are a student representative in an upper-level Art History seminar exploring European Renaissance portraiture. The Metropolitan Fine Arts Museum has just opened a temporary exhibition featuring rare works directly relevant to your midterm research syllabus. Write an email to your instructor, Professor Dupont, suggesting a class field trip and outlining logistics.",
     "recipient": "Professor Dupont",
@@ -46,9 +52,11 @@
   },
   {
     "id": "we-curated-4",
+    "taskType": "write-email",
     "title": "Inquiring About Missing Grade on Course Portal",
     "level": "intermediate",
-    "topic": "campus-life",
+    "difficulty": "intermediate",
+    "topic": "social-sciences",
     "situation": "You recently submitted your midterm analytical paper for Political Science 201 before the deadline via the online portal. However, while all your classmates have received their grades, your submission status displays an error message marked 'Not Evaluated.' Write a courteous email to your teaching assistant, Ms. Albright, inquiring about the issue.",
     "recipient": "Ms. Albright",
     "goals": [
@@ -61,38 +69,10 @@
   },
   {
     "id": "we-curated-5",
-    "title": "Requesting Guest Speaker for Student Business Association",
-    "level": "upper-intermediate",
-    "topic": "business-economics",
-    "situation": "You are the president of the Collegiate Entrepreneurship Society. Your student organization is hosting its annual Innovation Summit on startup incubation and venture financing next month. Write an email to Mr. Kenneth Wright, a prominent local venture capitalist and university alumnus, inviting him to deliver the keynote address.",
-    "recipient": "Mr. Kenneth Wright",
-    "goals": [
-      "Invite Mr. Wright to serve as the keynote speaker at the Innovation Summit",
-      "Provide event details regarding the summit date, attendee demographics, and theme",
-      "Explain why his entrepreneurial background would inspire aspiring student founders"
-    ],
-    "suggestedWordCount": "100-130 words",
-    "modelResponse": "Dear Mr. Wright,\n\nOn behalf of the Collegiate Entrepreneurship Society, I am honored to invite you to deliver the keynote address at our annual Innovation Summit, held on Saturday, November 14th, in the university auditorium.\n\nThis year's conference theme, 'Sustainable Venture Incubation,' will bring together over three hundred undergraduate business students, engineering majors, and local mentors. As an esteemed alumnus of our university and the founder of Horizon Ventures, your pioneering investments in clean technology companies embody the entrepreneurial vision we strive to instill in our members.\n\nThe keynote address is scheduled for forty minutes, followed by a brief interactive Q&A session with student founders. We would be immensely grateful to welcome you back to campus. Thank you for considering our invitation.\n\nSincerely,\nDaniel Morales"
-  },
-  {
-    "id": "we-curated-6",
-    "title": "Requesting Permission for Course Prerequisite Waiver",
-    "level": "advanced",
-    "topic": "campus-life",
-    "situation": "You wish to enroll in an advanced senior seminar titled 'Cognitive Neuropsychology' next semester. The registrar requires an introductory course prerequisite that you could not take due to a scheduling conflict; however, you completed equivalent laboratory coursework during an accredited summer institute. Write an email to the course instructor, Dr. Steinberg, requesting a prerequisite waiver.",
-    "recipient": "Dr. Steinberg",
-    "goals": [
-      "Request authorization to waive the formal prerequisite for Cognitive Neuropsychology",
-      "Detail your equivalent laboratory coursework completed at the summer institute",
-      "Offer to provide syllabi and transcripts to demonstrate academic readiness"
-    ],
-    "suggestedWordCount": "100-130 words",
-    "modelResponse": "Dear Dr. Steinberg,\n\nI am writing to respectfully request a prerequisite waiver to enroll in your senior seminar, Cognitive Neuropsychology (PSYC 440), for the upcoming spring term. Although I have not taken PSYC 210 on campus due to a recurring departmental timetable conflict, I completed an intensive eight-week Neurobiology and Synaptic Physiology course at the Woods Hole Summer Institute this past July.\n\nDuring that program, I completed forty hours of hands-on fMRI imaging analysis and electrophysiology laboratory experiments, covering the foundational concepts required for your advanced seminar. I have attached the official summer syllabus, grade verification, and my academic transcript for your evaluation.\n\nI am eager to engage with the advanced neuroimaging literature in your course and would welcome the opportunity to discuss my preparation in office hours. Thank you very much for your time.\n\nSincerely,\nClaire Chen"
-  },
-  {
-    "id": "we-curated-7",
+    "taskType": "write-email",
     "title": "Volunteering for Departmental Science Outreach Fair",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "science-tech",
     "situation": "The Department of Physics and Astronomy is organizing its annual Community STEM Discovery Fair for local middle and high school students. Write an email to the outreach coordinator, Dr. Larson, offering to volunteer as a demonstration facilitator, proposing a hands-on physics exhibit, and inquiring about preparatory orientation meetings.",
     "recipient": "Dr. Larson",
@@ -105,51 +85,88 @@
     "modelResponse": "Dear Dr. Larson,\n\nI am writing to volunteer as a student facilitator for the upcoming Community STEM Discovery Fair scheduled for Saturday, November 21st. As a second-year physics major, I am passionate about making experimental science accessible and exciting for young learners.\n\nI would love to manage an interactive optical demonstration station showcasing laser refraction, total internal reflection, and fiber-optic communication using water prisms and acrylic conduits. In high school, I facilitated similar demonstrations, and students responded with tremendous enthusiasm to these tactile experiments.\n\nCould you please let me know when the preparatory volunteer orientation sessions will take place so that I can schedule my laboratory shifts accordingly? I look forward to contributing to a successful and inspiring community outreach fair.\n\nBest regards,\nJordan Taylor"
   },
   {
-    "id": "we-curated-8",
-    "title": "Graduate Teaching Assistantship Application Inquiry",
-    "level": "advanced",
-    "topic": "campus-life",
-    "situation": "You are applying for a Graduate Teaching Assistantship in the Department of Economics for the upcoming academic year. You have completed all prerequisite microeconomics courses with honors, have previous tutoring experience, and wish to inquire about open positions and the faculty recommendation process.",
-    "recipient": "Dr. Catherine Miller, Graduate Director",
+    "id": "we-curated-6",
+    "taskType": "write-email",
+    "title": "Requesting Laboratory Equipment Access Extension",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "situation": "You are conducting empirical research for your undergraduate honors thesis in the biochemistry department. Due to an unexpected calibration failure in the spectroscopy centrifuge, your final data collection phase has been delayed by four days. Write an email to your faculty advisor, Professor Harrison, explaining the equipment delay and requesting an extension on the final data chapter submission.",
+    "recipient": "Professor Harrison",
     "goals": [
-      "Formally state your interest in the graduate teaching assistantship position",
-      "Highlight your academic qualifications and previous tutoring background",
-      "Inquire politely about application submission deadlines and required recommendation letters"
+      "Politely explain the technical equipment malfunction in the laboratory",
+      "Request a 4-day extension for the final data chapter submission",
+      "Propose an updated timeline for draft review prior to graduation deadlines"
     ],
     "suggestedWordCount": "100-130 words",
-    "modelResponse": "Dear Dr. Miller,\n\nI am writing to formally express my interest in applying for a Graduate Teaching Assistantship in the Department of Economics for the upcoming academic year.\n\nHaving recently completed intermediate microeconomics and econometrics with highest honors, I have developed a rigorous grasp of theoretical modeling. Furthermore, over the past three semesters, I served as a lead peer tutor at the University Academic Success Center, where I conducted weekly problem-solving workshops for over sixty undergraduate students. This experience solidified my ability to explain complex quantitative concepts with clarity and patience.\n\nCould you please clarify the application deadline for departmental assistantships? Additionally, I would appreciate guidance on whether faculty recommendation letters should be submitted directly via the online portal.\n\nThank you for your time and consideration.\n\nSincerely,\nMarcus Vance",
-    "sampleResponse": "Dear Dr. Miller,\n\nI am writing to express my strong enthusiasm for the Graduate Teaching Assistantship position within the Department of Economics for next year.\n\nHaving earned top marks in advanced macroeconomic theory and econometrics, I am eager to support undergraduate student learning. Over the past academic year, I worked as an economics departmental tutor, mentoring students through multivariate calculus and optimization problems. Through this role, I honed my pedagogical communication and gained valuable classroom management skills.\n\nCould you kindly confirm the final submission deadline for assistantship dossiers? Furthermore, please let me know if faculty letters of recommendation must be sent via email or through the university employment portal.\n\nThank you very much for your time and guidance.\n\nBest regards,\nElena Rostova"
+    "modelResponse": "Dear Professor Harrison,\n\nI am writing to update you on the progress of my undergraduate honors thesis in biochemistry. Unfortunately, the laboratory spectroscopy centrifuge experienced an unexpected calibration failure earlier this week, which halted our final sample analysis for four days while technicians repaired the optic sensors.\n\nBecause of this unforeseen equipment delay, I would like to respectfully request a four-day extension on my final data chapter submission, moving the deadline from this Friday to next Tuesday, October 28th. All physical laboratory assays have now concluded, and I am currently compiling the statistical variance graphs.\n\nI can deliver a complete revised draft to your office next Wednesday morning, leaving ample time for your review ahead of the committee deadline. Thank you very much for your understanding and continued guidance.\n\nBest regards,\nAlex Mercer"
+  },
+  {
+    "id": "we-curated-7",
+    "taskType": "write-email",
+    "title": "Requesting Guest Speaker for Student Business Association",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "business-economics",
+    "situation": "You are the president of the Collegiate Entrepreneurship Society. Your student organization is hosting its annual Innovation Summit on startup incubation and venture financing next month. Write an email to Mr. Kenneth Wright, a prominent local venture capitalist and university alumnus, inviting him to deliver the keynote address.",
+    "recipient": "Mr. Kenneth Wright",
+    "goals": [
+      "Invite Mr. Wright to serve as the keynote speaker at the Innovation Summit",
+      "Provide event details regarding the summit date, attendee demographics, and theme",
+      "Explain why his entrepreneurial background would inspire aspiring student founders"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Mr. Wright,\n\nOn behalf of the Collegiate Entrepreneurship Society, I am honored to invite you to deliver the keynote address at our annual Innovation Summit, held on Saturday, November 14th, in the university auditorium.\n\nThis year's conference theme, 'Sustainable Venture Incubation,' will bring together over three hundred undergraduate business students, engineering majors, and local mentors. As an esteemed alumnus of our university and the founder of Horizon Ventures, your pioneering investments in clean technology companies embody the entrepreneurial vision we strive to instill in our members.\n\nThe keynote address is scheduled for forty minutes, followed by a brief interactive Q&A session with student founders. We would be immensely grateful to welcome you back to campus. Thank you for considering our invitation.\n\nSincerely,\nDaniel Morales"
+  },
+  {
+    "id": "we-curated-8",
+    "taskType": "write-email",
+    "title": "Request for Interdisciplinary Urban Ecology Co-Advisorship",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "environment",
+    "situation": "You are an advanced undergraduate honors student preparing an interdisciplinary senior capstone thesis that examines municipal environmental justice and urban heat mitigation policies. Because your research bridges both urban ecology and local public policy, you wish to invite Professor Diana Evans to serve as your secondary faculty co-advisor.",
+    "recipient": "Professor Diana Evans",
+    "goals": [
+      "Introduce your interdisciplinary thesis topic connecting environmental science and urban policy",
+      "Explain specifically why Professor Evans's published research aligns with your proposal",
+      "Request a brief fifteen-minute meeting during office hours to discuss co-advisorship"
+    ],
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Professor Evans,\n\nMy name is Julian Hayes, and I am a junior majoring in Environmental Science with a minor in Public Policy. I am writing to inquire whether you might consider serving as a secondary co-advisor for my senior honors thesis.\n\nMy thesis investigates environmental justice and urban heat mitigation policies in marginalized municipal districts. Having thoroughly studied your recent publication on municipal tree canopy inequities, I believe your expertise on urban ecology would provide indispensable guidance for my case studies.\n\nWould you have fifteen minutes available during your office hours next Tuesday or Thursday to discuss this possibility? I have attached my preliminary thesis prospectus and bibliography for your review.\n\nThank you very much for your time and mentorship.\n\nWarm regards,\nJulian Hayes"
   },
   {
     "id": "we-curated-9",
-    "title": "University Laboratory Instrument Repair and Rescheduling",
-    "level": "upper-intermediate",
-    "topic": "science-tech",
-    "situation": "You are an undergraduate biology student conducting an independent laboratory research project for your senior honors thesis. The benchtop UV-Vis spectrophotometer in the molecular biology suite malfunctioned during your quantitative enzyme kinetics absorption trials this afternoon, threatening to disrupt your data collection schedule. Write a formal email to the laboratory operations manager explaining the issue and requesting assistance.",
-    "recipient": "Mr. Gregory Harris, Laboratory Operations Manager",
+    "taskType": "write-email",
+    "title": "Applying for Graduate Teaching Assistantship",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "business-economics",
+    "situation": "The Department of Economics has announced an open Graduate Teaching Assistantship for the upcoming spring semester in Intermediate Microeconomics. Write an email to the department chair, Dr. Reynolds, expressing your interest in the position, summarizing your relevant academic coursework and tutoring experience, and requesting an interview.",
+    "recipient": "Dr. Reynolds",
     "goals": [
-      "Report the specific technical malfunction encountered with the spectrophotometer",
-      "Explain the impact of the delay on your thesis data collection schedule",
-      "Request authorization to reserve an alternative instrument or reschedule bench hours"
+      "Express formal interest in the Intermediate Microeconomics Teaching Assistantship",
+      "Highlight your academic qualifications and previous peer-tutoring experience",
+      "Request a brief in-person or virtual interview to discuss your candidacy"
     ],
-    "suggestedWordCount": "90-120 words",
-    "modelResponse": "Dear Mr. Harris,\n\nI am writing to inform you of an unexpected technical issue with the UV-Vis spectrophotometer in Room 304 during my research session this afternoon.\n\nWhile calibrating the machine for my enzymatic assay, the optical sensor failed to initialize, displaying an error code regarding wavelength calibration drift. Although I attempted a system reboot as outlined in the lab manual, the baseline absorption continued to fluctuate erratically. Because my thesis data collection timeline depends on completing these spectrophotometric assays this week, this hardware stoppage presents a significant hurdle.\n\nCould you advise whether a technician can service this unit? Alternatively, would it be possible to reserve bench time on the secondary spectrophotometer in Room 308 tomorrow afternoon?\n\nThank you for your assistance.\n\nSincerely,\nSophia Lin",
-    "sampleResponse": "Dear Mr. Harris,\n\nI am writing to report a mechanical problem with the benchtop spectrophotometer in Lab 304.\n\nDuring my absorption trial today, the instrument repeatedly failed its baseline zero calibration, producing inconsistent absorbance readouts across identical control samples. As a result, I had to suspend my biochemical assay, which threatens to delay my undergraduate honors submission.\n\nCould you please inspect the instrument at your earliest convenience? If repairs will take several days, could you grant me permission to utilize the spectrophotometer located in the adjacent biochemistry suite?\n\nThank you for your help and understanding.\n\nBest regards,\nLiam Chen"
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Dr. Reynolds,\n\nI am writing to formally submit my candidacy for the Graduate Teaching Assistantship in Intermediate Microeconomics for the forthcoming spring semester. Having thoroughly enjoyed your lecture series on consumer choice theory last year, I am eager to assist undergraduate students in mastering quantitative economic models.\n\nI completed Advanced Microeconomic Theory with an A grade and have served as a peer tutor at the campus Learning Center for the past three semesters. In that role, I conducted weekly problem-solving workshops and mentored students through complex calculus optimization problems. My background in both econometrics and student mentorship equips me to facilitate productive recitation sections.\n\nI have attached my academic transcript and curriculum vitae for your consideration. I would welcome the opportunity to meet with you for a brief interview. Thank you for your consideration.\n\nSincerely,\nSamantha Patel"
   },
   {
     "id": "we-curated-10",
-    "title": "Request for Interdisciplinary Honors Thesis Co-Advisorship",
-    "level": "intermediate",
-    "topic": "arts-humanities",
-    "situation": "You are an advanced undergraduate honors student preparing an interdisciplinary senior capstone thesis that examines municipal environmental justice and urban heat mitigation policies. Because your research bridges both urban ecology and local public policy, you wish to invite a prominent sociology professor whose published scholarship aligns with your case studies to serve as your secondary faculty co-advisor.",
-    "recipient": "Professor Diana Evans, Department of Sociology",
+    "taskType": "write-email",
+    "title": "Requesting Permission for Course Prerequisite Waiver",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "campus-life",
+    "situation": "You wish to enroll in an advanced senior seminar titled 'Cognitive Neuropsychology' next semester. The registrar requires an introductory course prerequisite that you could not take due to a scheduling conflict; however, you completed equivalent laboratory coursework during an accredited summer institute. Write an email to the course instructor, Dr. Steinberg, requesting a prerequisite waiver.",
+    "recipient": "Dr. Steinberg",
     "goals": [
-      "Introduce your interdisciplinary thesis topic connecting environmental science and urban policy",
-      "Explain specifically why Professor Evans's academic research aligns with your proposal",
-      "Request a brief fifteen-minute meeting during office hours to discuss co-advisorship"
+      "Request authorization to waive the formal prerequisite for Cognitive Neuropsychology",
+      "Detail your equivalent laboratory coursework completed at the summer institute",
+      "Offer to provide syllabi and transcripts to demonstrate academic readiness"
     ],
-    "suggestedWordCount": "90-120 words",
-    "modelResponse": "Dear Professor Evans,\n\nMy name is Julian Hayes, and I am a junior majoring in Environmental Science with a minor in Public Policy. I am writing to inquire whether you might consider serving as a secondary co-advisor for my senior honors thesis.\n\nMy thesis investigates environmental justice and urban heat mitigation policies in marginalized municipal districts. Having thoroughly studied your recent publication on municipal zoning inequities, I believe your sociological expertise on community advocacy would provide indispensable theoretical guidance for my qualitative case studies.\n\nWould you have fifteen minutes available during your office hours next Tuesday or Thursday to discuss this possibility? I have attached my preliminary thesis prospectus and bibliography for your review.\n\nThank you very much for your time and mentorship.\n\nWarm regards,\nJulian Hayes",
-    "sampleResponse": "Dear Professor Evans,\n\nI hope this email finds you well. I am an undergraduate student drafting an honors thesis that bridges urban ecology and municipal social policy.\n\nMy proposed research analyzes equitable green canopy distribution across socioeconomic neighborhoods. Your extensive scholarship regarding sociological resource disparities inspired my analytical framework, and your perspective would be invaluable in refining my methodology.\n\nWould you be open to a brief fifteen-minute meeting during your office hours next week to discuss potential co-advisorship? I have attached my one-page research summary for your consideration.\n\nThank you for your time and scholarly support.\n\nRespectfully,\nChloe Adams"
+    "suggestedWordCount": "100-130 words",
+    "modelResponse": "Dear Dr. Steinberg,\n\nI am writing to respectfully request a prerequisite waiver to enroll in your senior seminar, Cognitive Neuropsychology (PSYC 440), for the upcoming spring term. Although I have not taken PSYC 210 on campus due to a recurring departmental timetable conflict, I completed an intensive eight-week Neurobiology and Synaptic Physiology course at the Woods Hole Summer Institute this past July.\n\nDuring that program, I completed forty hours of hands-on fMRI imaging analysis and electrophysiology laboratory experiments, covering the foundational concepts required for your advanced seminar. I have attached the official summer syllabus, grade verification, and my academic transcript for your evaluation.\n\nI am eager to engage with the advanced neuroimaging literature in your course and would welcome the opportunity to discuss my preparation in office hours. Thank you very much for your time.\n\nSincerely,\nClaire Chen"
   }
 ]

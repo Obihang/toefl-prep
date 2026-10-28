@@ -1,182 +1,202 @@
 [
   {
     "id": "ad-curated-1",
-    "title": "Remote Work and Urban Center Economies",
-    "level": "upper-intermediate",
-    "topic": "business-economics",
-    "professorName": "Professor Henderson",
-    "professorPrompt": "In our urban economics module this week, we have examined the persistent shift toward remote and hybrid knowledge work. While corporations report sustained productivity gains and employees enjoy reduced commuting friction, downtown commercial real estate districts and service-sector ecosystems face severe revenue contraction. Given these dynamics, should municipal governments incentivize companies to mandate in-office attendance, or should they accelerate the conversion of underutilized commercial towers into residential housing?",
+    "taskType": "academic-discussion",
+    "title": "First-Year Dormitory Residency Requirements",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "campus-life",
+    "professorName": "Professor Alvarez",
+    "professorPrompt": "In our higher education seminar today, we are discussing whether universities should require all first-year undergraduate students to live in on-campus dormitories. Supporters argue that living on campus helps new students make friends and access campus academic resources easily. Critics point out that dormitory fees can be expensive compared to commuting from home. Should universities require first-year students to live on campus?",
     "s1": {
-      "name": "Marcus",
-      "text": "Municipalities should aggressively rezone commercial districts for residential adaptive reuse. Mandating in-office attendance is an economically inefficient attempt to preserve outdated urban zoning models. Furthermore, converting vacant office towers into mixed-income housing directly addresses metropolitan housing affordability crises while establishing a resilient, 24-hour local customer base for neighborhood retail businesses."
+      "name": "Liam",
+      "text": "I believe living on campus during the first year is extremely beneficial. When students live in residence halls, they naturally form study groups, attend evening campus events, and feel connected to the university community right away."
     },
     "s2": {
-      "name": "Elena",
-      "text": "While housing conversion is beneficial long-term, ignoring the immediate fiscal devastation of downtown business districts is reckless. Service-sector workers who rely on foot traffic from office commuters face sudden job displacement. Therefore, city governments should implement tiered tax credits that encourage hybrid schedules, ensuring enough physical presence to sustain urban commerce during weekdays."
+      "name": "Maya",
+      "text": "While living in a dorm is fun, it should be optional rather than mandatory. Many students live close to campus with their families, and forcing them to pay thousands of dollars for room and board creates unnecessary financial stress."
     },
-    "question": "State your position on whether cities should prioritize commercial preservation or residential conversion, and explain your reasoning with specific economic examples.",
-    "modelResponse": "While Elena raises a valid concern regarding the immediate vulnerability of downtown retail workers, I strongly agree with Marcus that municipalities must prioritize converting vacant commercial towers into residential housing. Forcing employees back to offices through municipal mandates artificially subsidizes an obsolete commuter-based economic model. In contrast, residential conversion permanently revitalizes downtown districts by creating a constant, diverse population of local consumers who patronize neighborhood restaurants, grocery stores, and cultural venues throughout the entire week rather than merely during weekday lunch hours. Consequently, adaptive reuse addresses acute urban housing shortages while fostering enduring municipal economic resilience."
+    "question": "State whether you think universities should require first-year students to live on campus, and support your view with reasons and examples.",
+    "modelResponse": "While Liam makes a good point about the social advantages of dormitory life, I agree with Maya that living on campus should remain optional for first-year students. Requiring every student to pay for campus housing places a heavy financial burden on families who already live within commuting distance of the university. Instead of mandating dormitory residency, universities can help commuter students build friendships by organizing daytime orientation clubs, peer mentoring programs, and comfortable campus student lounges."
   },
   {
     "id": "ad-curated-2",
-    "title": "Artificial Intelligence in University Academic Integrity",
-    "level": "advanced",
-    "topic": "science-tech",
-    "professorName": "Professor Vance",
-    "professorPrompt": "Universities worldwide are grappling with the rapid proliferation of generative artificial intelligence tools capable of producing sophisticated essays and solving complex coding assignments. Some institutions have reinstated strict proctored pen-and-paper examinations to enforce academic rigor, whereas others advocate for redesigning curricula to mandate AI collaboration. How should modern higher education institutions adapt assessment methodologies to preserve authentic student learning?",
+    "taskType": "academic-discussion",
+    "title": "Banning Single-Use Plastics in Supermarkets",
+    "level": "beginner",
+    "difficulty": "beginner",
+    "topic": "environment",
+    "professorName": "Professor Green",
+    "professorPrompt": "Many cities are considering strict bans on single-use plastic shopping bags and plastic water bottles in grocery stores to reduce pollution. Some citizens support these bans because plastic waste harms oceans and wildlife. Others argue that charging small fees or encouraging voluntary recycling is fairer for busy shoppers. What is the best way for cities to reduce plastic waste?",
     "s1": {
-      "name": "Julian",
-      "text": "Banning generative AI is ultimately futile and counterproductive to professional preparation. Universities must redesign assessments around iterative project-based portfolios where students document their entire prompt engineering process, critical revisions, and oral defenses. By evaluating how effectively students interrogate and synthesize AI outputs rather than testing rote memorization, institutions foster genuine cognitive skill acquisition."
+      "name": "Noah",
+      "text": "Cities should completely ban single-use plastic bags and bottles. Voluntary programs move too slowly, and plastic litter continues to clog city drains and pollute rivers. Shoppers quickly adapt to bringing reusable cloth bags once a ban begins."
     },
     "s2": {
-      "name": "Sophia",
-      "text": "Project portfolios alone cannot replace foundational conceptual mastery. Without supervised, unassisted examinations, students fail to internalize core theoretical frameworks and critical reasoning skills. Universities must maintain rigorous closed-book examinations for introductory coursework to ensure basic competence, reserving collaborative AI integration for advanced capstone research seminars."
+      "name": "Sara",
+      "text": "A complete ban can be inconvenient and expensive for families when biodegradable alternatives cost more. Instead, grocery stores should offer small cash discounts to customers who bring reusable containers while expanding neighborhood recycling bins."
     },
-    "question": "Contribute to the forum by explaining whether you favor project-based AI integration or supervised traditional examinations, supported by your educational rationale.",
-    "modelResponse": "Although Sophia makes a compelling argument regarding the necessity of establishing baseline conceptual mastery through unassisted testing, I firmly side with Julian in advocating for project-based AI integration. In today's digital landscape, professional proficiency hinges on critical evaluation and prompt synthesis rather than isolated memory recall. When professors evaluate students through multi-stage portfolios and verbal defense presentations, learners must rigorously interrogate AI-generated assumptions and substantiate their logical progression. This pedagogical approach prevents academic dishonesty while cultivating higher-order analytical capabilities that prepare graduates for collaborative workplace technologies."
+    "question": "Share your opinion on whether cities should ban single-use plastics or use voluntary incentives, and explain your reasoning.",
+    "modelResponse": "Although Sara raises a reasonable concern about shopper convenience, I strongly agree with Noah that cities should implement direct bans on single-use plastic bags. Experience in many cities shows that voluntary recycling programs leave most thin plastic bags in landfills and waterways. When municipalities prohibit disposable plastic bags and provide affordable reusable totes at checkout counters, consumers form sustainable habits within just a few weeks, dramatically reducing urban litter and marine pollution."
   },
   {
     "id": "ad-curated-3",
+    "taskType": "academic-discussion",
     "title": "Public Funding for Renewable Energy Subsidies",
     "level": "intermediate",
-    "topic": "science-tech",
+    "difficulty": "intermediate",
+    "topic": "environment",
     "professorName": "Professor Alvarez",
-    "professorPrompt": "Today we are analyzing governmental fiscal strategies to accelerate national decarbonization goals. Transitioning to clean energy requires tremendous capital outlay for infrastructure, battery storage systems, and solar grids. Should governments subsidize private consumer purchases of electric vehicles and solar panels, or should public funding be concentrated exclusively on large-scale public transportation networks and grid-scale nuclear infrastructure?",
+    "professorPrompt": "Today we are analyzing governmental fiscal strategies to accelerate national decarbonization goals. Transitioning to clean energy requires tremendous capital outlay for infrastructure, battery storage systems, and solar grids. Should governments subsidize private consumer purchases of electric vehicles and solar panels, or should public funding be concentrated exclusively on large-scale public transportation networks?",
     "s1": {
       "name": "David",
-      "text": "Subsidizing individual consumer adoption democratizes renewable energy and creates rapid decentralized momentum. When households receive tax rebates for rooftop solar panels and electric cars, public awareness expands dramatically. Furthermore, residential solar installations alleviate strain on municipal transmission lines by generating electricity directly where it is consumed."
+      "text": "Subsidizing individual consumer adoption democratizes renewable energy and creates rapid decentralized momentum. When households receive tax rebates for rooftop solar panels and electric cars, public awareness expands dramatically and residential solar relieves strain on power lines."
     },
     "s2": {
       "name": "Claire",
-      "text": "Subsidizing private luxury goods like electric automobiles predominantly benefits high-income homeowners while doing little for disadvantaged demographics. Instead, public capital must be invested into modern high-speed electric commuter rail and clean public transit. Expanding municipal rail networks removes thousands of private automobiles from congested highways altogether."
+      "text": "Subsidizing private luxury goods like electric automobiles predominantly benefits high-income homeowners while doing little for low-income commuters. Instead, public capital must be invested into modern electric commuter rail and clean public transit."
     },
     "question": "Express your perspective on whether clean energy funds should support consumer subsidies or centralized transit networks, explaining your reasoning.",
-    "modelResponse": "While David highlights the psychological benefits of consumer solar adoption, Claire presents a far more equitable and scalable perspective. Directing billions of dollars in tax subsidies toward private electric vehicles largely subsidizes wealthy households without eliminating the substantial spatial and ecological footprint of personal automobile traffic. Conversely, investing public funds into centralized electric rail and regional transit grids benefits all socioeconomic strata while dramatically reducing aggregate carbon emissions. By prioritizing mass transit infrastructure, governments establish sustainable metropolitan mobility systems that curtail suburban highway congestion and energy consumption simultaneously."
+    "modelResponse": "While David highlights the benefits of residential solar adoption, Claire presents a far more equitable and scalable perspective. Directing billions of dollars in tax subsidies toward private electric vehicles largely benefits wealthy households without reducing traffic congestion. Conversely, investing public funds into electric rail and regional bus networks serves all income groups while substantially lowering total carbon emissions across metropolitan areas."
   },
   {
     "id": "ad-curated-4",
-    "title": "Corporate Sponsorship of University Research Facilities",
-    "level": "upper-intermediate",
-    "topic": "campus-life",
-    "professorName": "Professor Gallagher",
-    "professorPrompt": "As public budgetary allocations for higher education face ongoing constraints, research universities frequently enter lucrative partnership agreements with multinational corporations to fund state-of-the-art laboratories and faculty fellowships. While these corporate sponsorships provide cutting-edge scientific instrumentation, critics fear they compromise academic objectivity. Should universities restrict private corporate sponsorships, or are corporate research partnerships indispensable for modern scientific breakthroughs?",
-    "s1": {
-      "name": "Liam",
-      "text": "Universities must strictly limit corporate underwriting to safeguard objective inquiry. When pharmaceutical or fossil fuel conglomerates finance departmental laboratories, researcher bias inevitably creeps into trial design and publication outcomes. Academic institutions should remain autonomous sanctuaries devoted to disinterested truth rather than commercial product commercialization."
-    },
-    "s2": {
-      "name": "Hannah",
-      "text": "Restricting corporate collaboration would severely hamstring technological progress. Modern breakthroughs in quantum computing and bioengineering require billions of dollars in specialized hardware that public research grants simply cannot fund. Robust conflict-of-interest disclosures and peer-reviewed publication mandates adequately preserve scholarly integrity while providing students invaluable industry experience."
-    },
-    "question": "State your opinion on corporate research partnerships in academia and defend your reasoning with relevant examples.",
-    "modelResponse": "While Liam's concerns about corporate bias and selective publishing are grounded in historical precedent, Hannah correctly identifies that advanced technological inquiry requires financial resources far exceeding current government allocations. Stringent oversight protocols—such as mandatory pre-registration of trial designs, open-access data publishing, and binding faculty independence clauses—can effectively insulate research from commercial interference. For instance, collaborative biotechnology laboratories have yielded life-saving vaccines and genetic therapies precisely because academic theoretical rigor was paired with industry fabrication capabilities. Therefore, structured corporate partnerships should be embraced rather than prohibited."
-  },
-  {
-    "id": "ad-curated-5",
+    "taskType": "academic-discussion",
     "title": "Mandatory Arts Education in Secondary Curricula",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "arts-humanities",
     "professorName": "Professor Brooks",
     "professorPrompt": "Secondary school districts frequently debate how to allocate limited classroom hours and resources between STEM disciplines and the fine arts. Some school boards argue that curriculum standards should emphasize mathematics, software development, and scientific inquiry to ensure global economic competitiveness. Others argue that visual art, theater, and music instruction are equally vital. In your view, should high schools mandate arts coursework for all graduating students?",
     "s1": {
       "name": "Rachel",
-      "text": "Mandating comprehensive arts education is essential for cultivating creative divergent thinking and emotional resilience. Studies consistently demonstrate that students involved in music and visual design perform significantly better on abstract spatial problem-solving tests. Art education teaches adolescent students to communicate nuanced perspectives that standardized STEM tests cannot measure."
+      "text": "Mandating comprehensive arts education is essential for cultivating creative divergent thinking and emotional resilience. Studies consistently demonstrate that students involved in music and visual design perform significantly better on abstract spatial problem-solving tests."
     },
     "s2": {
       "name": "Ethan",
-      "text": "While fine arts enrich personal life, high school graduation requirements must reflect current labor market realities. Forcing students who intend to pursue careers in civil engineering or accounting to complete mandatory theater courses wastes critical instructional hours that could be dedicated to advanced calculus or computer programming. Moreover, elective arts programs already allow passionate students to explore creative fields without constraining general diploma pathways."
+      "text": "While fine arts enrich personal life, high school graduation requirements must reflect current labor market realities. Forcing students who intend to pursue careers in civil engineering or accounting to complete mandatory theater courses takes away time from advanced mathematics."
     },
     "question": "Provide your stance on whether arts education should be mandatory for high school graduation, explaining your reasoning.",
-    "modelResponse": "Although Ethan points to the undeniable demand for technical competency in today's digital workforce, I strongly concur with Rachel that mandatory arts coursework is indispensable for secondary school students. Exposure to disciplines such as music composition and visual design fosters cognitive flexibility, divergent thinking, and creative problem-solving—qualities that are increasingly vital in technical fields. Engineers and computer scientists who possess artistic training frequently design more intuitive user interfaces and inventive architectural structures. Consequently, requiring arts education does not diminish technical capability; rather, it enriches analytical students with creative innovation."
+    "modelResponse": "Although Ethan points to the demand for technical competency in today's workforce, I strongly concur with Rachel that mandatory arts coursework is indispensable for secondary school students. Exposure to disciplines such as music composition and visual design fosters cognitive flexibility and creative problem-solving—qualities that are increasingly vital in technical fields. Requiring arts education enriches analytical students with creative innovation."
   },
   {
-    "id": "ad-curated-6",
-    "title": "Preservation of Endangered Indigenous Languages",
-    "level": "advanced",
-    "topic": "social-sciences",
-    "professorName": "Professor Morales",
-    "professorPrompt": "Linguists estimate that more than half of the world's approximately seven thousand spoken languages may become extinct by the end of this century as younger generations assimilate into dominant global languages like English, Spanish, and Mandarin. Given limited governmental resources, should international bodies prioritize funding language revitalization programs, or should fiscal resources be concentrated on general poverty alleviation and basic education in globally dominant languages?",
-    "s1": {
-      "name": "Mateo",
-      "text": "Language revitalization is an imperative of human cultural heritage and scientific knowledge. Indigenous languages encode unique ecological frameworks, medicinal taxonomies, and philosophical perspectives developed over millennia. When a language vanishes, our collective understanding of biodiversity and human history is irreversibly impoverished."
-    },
-    "s2": {
-      "name": "Chloe",
-      "text": "Language preservation, while culturally romantic, must not eclipse immediate human welfare. Marginalized youths in developing nations desperately require fluency in globally dominant vehicular languages to access international employment and higher education. Concentrating scarce funding on basic literacy and vocational proficiency directly alleviates systemic generational poverty."
-    },
-    "question": "Discuss whether international funding should prioritize indigenous language preservation or vocational fluency in global languages, explaining your position.",
-    "modelResponse": "While Chloe appropriately emphasizes the practical economic utility of global language literacy for socioeconomic advancement, I firmly believe that Mateo is correct in asserting the irreplaceable value of endangered language preservation. Language is not merely a communicative tool; it is an irreplaceable repository of cultural identity and botanical knowledge accumulated over generations. Furthermore, linguistic research proves that bilingual education—where students achieve mother-tongue mastery alongside a global lingua franca—enhances overall cognitive flexibility and academic achievement. Therefore, international organizations must support dual-language pedagogical models rather than sacrificing indigenous linguistic heritage in the pursuit of economic utility."
-  },
-  {
-    "id": "ad-curated-7",
-    "title": "Universal Basic Income and Workplace Automation",
-    "level": "upper-intermediate",
-    "topic": "business-economics",
-    "professorName": "Professor Chen",
-    "professorPrompt": "Advancements in automated logistics, robotics, and artificial intelligence are anticipated to displace millions of blue-collar and administrative positions over the next decade. Economists have proposed a Universal Basic Income (UBI)—unconditional monthly cash payments to all citizens regardless of employment status. Proponents argue UBI provides an essential safety net, while critics warn it could disincentivize productive labor and trigger severe inflation. Is implementing a Universal Basic Income a viable long-term policy response?",
-    "s1": {
-      "name": "Gabriel",
-      "text": "Universal Basic Income is an essential mechanism for economic survival amid unprecedented automation. When machines outcompete human workers across routine sectors, consumer purchasing power collapses without direct cash transfers. A reliable income floor empowers individuals to retrain, care for dependents, and negotiate fair wages without the fear of immediate destitution."
-    },
-    "s2": {
-      "name": "Olivia",
-      "text": "UBI is a fiscally irresponsible proposal that would strain national treasuries and diminish workforce participation. Funding unconditional payments across an entire population requires astronomical tax increases that stifle corporate investment. A targeted program of subsidized job training and infrastructure employment vouchers offers a far more sustainable solution."
-    },
-    "question": "Share your viewpoint on whether Universal Basic Income is an effective response to technological automation, supported by economic reasoning.",
-    "modelResponse": "Although Olivia rightly questions the staggering fiscal cost of universal cash distribution, I agree with Gabriel that an unconditional Universal Basic Income represents the most effective structural safeguard against widespread technological displacement. Traditional unemployment benefits are fraught with bureaucratic friction and penalize recipients the moment they find part-time employment. Conversely, a guaranteed income floor sustains aggregate consumer demand, which is the foundational engine of modern capitalist economies. With their basic survival guaranteed, displaced workers can pursue entrepreneurship and educational retraining without being forced into exploitative wages. Thus, UBI provides the macroeconomic stability required in an automated economy."
-  },
-  {
-    "id": "ad-curated-8",
+    "id": "ad-curated-5",
+    "taskType": "academic-discussion",
     "title": "Remote Telemedicine vs Traditional In-Person Consultations",
     "level": "intermediate",
+    "difficulty": "intermediate",
     "topic": "science-tech",
     "professorName": "Dr. Richardson",
-    "professorPrompt": "Digital telemedicine platforms have proliferated rapidly, allowing patients to consult specialists remotely via video links and digital diagnostic monitors. Proponents argue that virtual care substantially reduces wait times, lowers transportation costs, and democratizes medical access for rural populations. Conversely, skeptics insist that virtual examinations cannot replace tactile physical diagnostics and empathetic bedside communication. In your perspective, does telemedicine offer an adequate substitute for routine healthcare?",
+    "professorPrompt": "Digital telemedicine platforms have proliferated rapidly, allowing patients to consult specialists remotely via video links and digital diagnostic monitors. Proponents argue that virtual care substantially reduces wait times, lowers transportation costs, and democratizes medical access for rural populations. Conversely, skeptics insist that virtual examinations cannot replace tactile physical diagnostics. Does telemedicine offer an adequate substitute for routine healthcare?",
     "s1": {
       "name": "Hannah",
-      "text": "Telemedicine is a revolutionary breakthrough that dismantles geographic barriers to quality care. Patients living in remote agrarian counties can consult world-class oncologists without traveling hundreds of miles. Furthermore, routine chronic prescription refills can be managed digitally without overcrowding hospital waiting rooms."
+      "text": "Telemedicine is a revolutionary breakthrough that dismantles geographic barriers to quality care. Patients living in remote rural counties can consult specialists without traveling hundreds of miles, and routine prescription refills can be managed digitally."
     },
     "s2": {
       "name": "Derek",
-      "text": "While virtual convenience sounds appealing, remote cameras cannot detect subtle physical abnormalities. A physician cannot palpate an abdominal mass or listen to faint cardiac murmurs through a digital screen. Consequently, over-reliance on telemedicine risks missing early diagnoses that require direct tactile examination."
+      "text": "While virtual convenience sounds appealing, remote cameras cannot detect subtle physical abnormalities. A physician cannot listen to faint cardiac murmurs through a digital screen, so over-reliance on telemedicine risks missing early diagnoses."
     },
     "question": "Provide your perspective on whether telemedicine is an adequate substitute for routine in-person healthcare, explaining your reasoning.",
-    "modelResponse": "Although Derek raises legitimate medical concerns regarding the diagnostic limitations of remote cameras, I firmly agree with Hannah that telemedicine represents an invaluable advancement for routine healthcare delivery. For minor ailments, post-operative follow-ups, and mental health counseling, virtual consultations eliminate unnecessary commutes and reduce viral transmission in clinic waiting rooms. Of course, acute conditions requiring physical palpation or emergency imaging must still occur in hospitals. However, by triaging routine appointments digitally, medical systems conserve critical in-person resources for complex cases. Therefore, telemedicine serves as an indispensable complement to modern healthcare infrastructure."
+    "modelResponse": "Although Derek raises legitimate medical concerns regarding the diagnostic limitations of remote cameras, I firmly agree with Hannah that telemedicine represents an invaluable advancement for routine healthcare delivery. For minor ailments, post-operative follow-ups, and mental health counseling, virtual consultations eliminate unnecessary commutes and reduce viral transmission in clinic waiting rooms, conserving hospital capacity for complex cases."
   },
   {
-    "id": "ad-curated-9",
-    "title": "Algorithmic Pricing in Consumer Retail Markets",
+    "id": "ad-curated-6",
+    "taskType": "academic-discussion",
+    "title": "Remote Work and Urban Center Economies",
     "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
     "topic": "business-economics",
+    "professorName": "Professor Henderson",
+    "professorPrompt": "In our urban economics module this week, we have examined the persistent shift toward remote and hybrid knowledge work. While corporations report sustained productivity gains and employees enjoy reduced commuting friction, downtown commercial real estate districts and service-sector ecosystems face severe revenue contraction. Should municipal governments incentivize companies to mandate in-office attendance, or accelerate converting commercial towers into residential housing?",
+    "s1": {
+      "name": "Marcus",
+      "text": "Municipalities should aggressively rezone commercial districts for residential adaptive reuse. Converting vacant office towers into mixed-income housing directly addresses metropolitan housing affordability crises while establishing a resilient 24-hour local customer base for neighborhood businesses."
+    },
+    "s2": {
+      "name": "Elena",
+      "text": "While housing conversion is beneficial long-term, ignoring the immediate fiscal devastation of downtown business districts is reckless. Service-sector workers who rely on foot traffic from office commuters face sudden job displacement without hybrid attendance incentives."
+    },
+    "question": "State your position on whether cities should prioritize commercial preservation or residential conversion, and explain your reasoning with specific economic examples.",
+    "modelResponse": "While Elena raises a valid concern regarding the immediate vulnerability of downtown retail workers, I strongly agree with Marcus that municipalities must prioritize converting vacant commercial towers into residential housing. Residential conversion permanently revitalizes downtown districts by creating a constant population of local consumers who patronize neighborhood restaurants, grocery stores, and cultural venues throughout the entire week."
+  },
+  {
+    "id": "ad-curated-7",
+    "taskType": "academic-discussion",
+    "title": "Corporate Sponsorship of University Research Facilities",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "campus-life",
+    "professorName": "Professor Gallagher",
+    "professorPrompt": "As public budgetary allocations for higher education face ongoing constraints, research universities frequently enter partnership agreements with multinational corporations to fund laboratories and faculty fellowships. While these sponsorships provide cutting-edge instrumentation, critics fear they compromise academic objectivity. Should universities restrict private corporate sponsorships, or are corporate partnerships indispensable?",
+    "s1": {
+      "name": "Liam",
+      "text": "Universities must strictly limit corporate underwriting to safeguard objective inquiry. When pharmaceutical or energy conglomerates finance departmental laboratories, researcher bias inevitably creeps into trial design and publication outcomes."
+    },
+    "s2": {
+      "name": "Hannah",
+      "text": "Restricting corporate collaboration would severely hamstring technological progress. Modern breakthroughs in quantum computing and bioengineering require specialized hardware that public grants cannot fund alone, and peer-review mandates preserve scholarly integrity."
+    },
+    "question": "State your opinion on corporate research partnerships in academia and defend your reasoning with relevant examples.",
+    "modelResponse": "While Liam's concerns about corporate bias are grounded in historical precedent, Hannah correctly identifies that advanced technological inquiry requires resources exceeding government allocations. Stringent oversight protocols—such as mandatory pre-registration of trial designs, open-access data publishing, and faculty independence clauses—can effectively insulate university research from commercial interference."
+  },
+  {
+    "id": "ad-curated-8",
+    "taskType": "academic-discussion",
+    "title": "Congestion Pricing in Metropolitan Centers",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "social-sciences",
     "professorName": "Professor Sterling",
-    "professorPrompt": "E-commerce retailers increasingly utilize automated dynamic pricing algorithms that adjust product prices continuously based on consumer browsing histories, regional supply constraints, and instantaneous demand spikes. Advocates contend that dynamic algorithmic pricing maximizes economic efficiency by clearing unsold inventories efficiently. Critics argue that dynamic pricing exploits vulnerable consumers during emergency shortages and creates price opacity. Should regulatory agencies restrict algorithmic pricing?",
+    "professorPrompt": "Several major metropolitan governments have introduced congestion pricing zones that charge drivers an electronic toll to enter central business districts during peak weekday hours. Urban planners argue that congestion fees reduce traffic gridlock and fund public transit upgrades, whereas critics contend that such tolls disproportionately burden working-class commuters who live in outer suburbs. Should more cities adopt congestion pricing?",
     "s1": {
       "name": "Chloe",
-      "text": "Algorithmic dynamic pricing simply reflects fundamental supply and demand mechanics at digital speed. Flexible pricing encourages consumers to purchase perishable goods during off-peak hours, thereby preventing massive inventory waste. Heavy-handed government price controls would inevitably create artificial shortages and distort competitive markets."
+      "text": "Congestion pricing is the most effective policy tool for reclaiming city streets from gridlock and smog. In cities like London and Stockholm, peak-hour tolls immediately reduced traffic volume by twenty percent while generating millions of dollars to expand bus rapid transit."
     },
     "s2": {
       "name": "Samuel",
-      "text": "Unregulated algorithmic pricing allows monopolistic platforms to extract unfair surplus from desperate consumers. During extreme weather events or flight cancellations, automated systems spike prices for bottled water and hotel rooms tenfold. Basic regulatory protections are necessary to prevent automated price gouging on essential commodities."
+      "text": "Congestion tolls function as a regressive tax on nurses, teachers, and service workers who cannot afford housing near downtown transit hubs. Unless a city first builds affordable suburban rail lines, charging entry tolls unfairly penalizes essential workers."
     },
-    "question": "Do you believe government agencies should regulate algorithmic dynamic pricing in retail markets? Support your stance with specific reasons.",
-    "modelResponse": "While Chloe correctly observes that dynamic price adjustments can optimize inventory distribution during normal commercial cycles, I share Samuel's view that regulatory guardrails are essential to prevent predatory pricing. When automated algorithms detect surging demand during crises, such as hurricanes or transportation breakdowns, prices often surge beyond fair market value. Without statutory oversight, algorithms exploit consumer desperation rather than reflecting genuine production costs. Therefore, governments should establish targeted regulations that prohibit predatory price surges on essential necessities while allowing reasonable algorithmic flexibility for non-essential discretionary goods."
+    "question": "Do you believe metropolitan governments should implement congestion pricing in downtown districts? Support your stance with specific reasons.",
+    "modelResponse": "While Samuel rightly emphasizes the financial pressure faced by suburban shift workers, I agree with Chloe that congestion pricing is essential for modern urban sustainability. To ensure fairness, cities can offer income-based toll exemptions for essential workers and dedicate one hundred percent of toll revenues to expanding suburban bus and rail frequency before peak charges take full effect."
+  },
+  {
+    "id": "ad-curated-9",
+    "taskType": "academic-discussion",
+    "title": "Artificial Intelligence in University Academic Integrity",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "science-tech",
+    "professorName": "Professor Vance",
+    "professorPrompt": "Universities worldwide are grappling with the rapid proliferation of generative artificial intelligence tools capable of producing sophisticated essays and solving complex coding assignments. Some institutions have reinstated strict proctored pen-and-paper examinations to enforce academic rigor, whereas others advocate for redesigning curricula to mandate AI collaboration. How should modern higher education institutions adapt assessment methodologies?",
+    "s1": {
+      "name": "Julian",
+      "text": "Banning generative AI is ultimately futile and counterproductive to professional preparation. Universities must redesign assessments around iterative project-based portfolios where students document their entire prompt engineering process, critical revisions, and oral defenses."
+    },
+    "s2": {
+      "name": "Sophia",
+      "text": "Project portfolios alone cannot replace foundational conceptual mastery. Without supervised, unassisted examinations, students fail to internalize core theoretical frameworks. Universities must maintain closed-book examinations for introductory coursework."
+    },
+    "question": "Contribute to the forum by explaining whether you favor project-based AI integration or supervised traditional examinations, supported by your educational rationale.",
+    "modelResponse": "Although Sophia makes a compelling argument regarding the necessity of establishing baseline conceptual mastery through unassisted testing, I firmly side with Julian in advocating for project-based AI integration. When professors evaluate students through multi-stage portfolios and verbal defense presentations, learners must rigorously interrogate AI-generated assumptions and substantiate their logical progression."
   },
   {
     "id": "ad-curated-10",
-    "title": "Public Preservation of Endangered Indigenous Languages",
+    "taskType": "academic-discussion",
+    "title": "Preservation of Endangered Indigenous Languages",
     "level": "advanced",
-    "topic": "arts-humanities",
-    "professorName": "Dr. Montoya",
-    "professorPrompt": "Linguists project that over half of the world's seven thousand spoken languages may become extinct by the end of this century. Some scholars advocate for substantial public tax funding to record elderly native speakers, develop school immersion curricula, and digitize endangered grammars. Other economists argue that public funds are better spent on STEM education and vocational training. To what extent should governments finance the preservation of endangered languages?",
+    "difficulty": "advanced",
+    "topic": "social-sciences",
+    "professorName": "Professor Morales",
+    "professorPrompt": "Linguists estimate that more than half of the world's approximately seven thousand spoken languages may become extinct by the end of this century as younger generations assimilate into dominant global languages. Given limited governmental resources, should international bodies prioritize funding language revitalization programs, or should fiscal resources be concentrated on vocational education in globally dominant languages?",
     "s1": {
-      "name": "Julian",
-      "text": "Language is not merely a communication tool; it is a repository of human ecological knowledge and cultural heritage. Indigenous dialects encode centuries of ethnobotanical insights and ancestral philosophy that cannot be translated into English. Losing these languages permanently diminishes our global cultural consciousness and scientific heritage."
+      "name": "Mateo",
+      "text": "Language revitalization is an imperative of human cultural heritage and scientific knowledge. Indigenous languages encode unique ecological frameworks, medicinal taxonomies, and philosophical perspectives developed over millennia."
     },
     "s2": {
-      "name": "Natalie",
-      "text": "While linguistic diversity is culturally fascinating, scarce educational budgets must prioritize practical economic survival. Equipping disadvantaged youth with fluent international languages and technical vocational skills offers a concrete pathway out of systemic poverty. Public spending should focus on scalable economic empowerment rather than archiving dying dialects."
+      "name": "Chloe",
+      "text": "Language preservation, while culturally important, must not eclipse immediate economic welfare. Marginalized youths require fluency in globally dominant languages to access international employment and higher education."
     },
-    "question": "Discuss your opinion on whether government funding should be dedicated to preserving endangered indigenous languages, providing justification.",
-    "modelResponse": "Although Natalie raises a pragmatic economic point regarding employment readiness, I strongly support Julian's position that governments must allocate public resources toward preserving endangered indigenous languages. A language encapsulates unique epistemological frameworks, ecological knowledge, and oral histories that cannot be replicated. For instance, indigenous Amazonian vocabularies often identify medicinal plant properties unknown to modern pharmacologists. Furthermore, linguistic preservation programs do not preclude vocational education; rather, dual-immersion schools demonstrate that bilingual indigenous students excel academically while retaining cultural self-esteem. Consequently, investing in linguistic conservation safeguards irreplaceable human knowledge for future generations."
+    "question": "Discuss whether international funding should prioritize indigenous language preservation or vocational fluency in global languages, explaining your position.",
+    "modelResponse": "While Chloe appropriately emphasizes the practical economic utility of global language literacy, I firmly believe that Mateo is correct in asserting the irreplaceable value of endangered language preservation. Linguistic research proves that bilingual education—where students achieve mother-tongue mastery alongside a global lingua franca—enhances overall cognitive flexibility and academic achievement while safeguarding irreplaceable human knowledge."
   }
 ]

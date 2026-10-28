@@ -1,526 +1,674 @@
-import { inferTopic } from './inferTopic';
-import { AcademicTopic, Level, isValidAcademicTopic, isValidLevel } from '../constants/filters';
+import {
+  LEVELS,
+  ACADEMIC_TOPICS,
+  Level,
+  AcademicTopic,
+  isValidLevel,
+  isValidAcademicTopic,
+} from '../constants/filters';
+import { TASK_DEFINITIONS, TaskTypeId } from '../types/taskTypes';
+import { inferGender } from './voices';
 
-/**
- * Normalizes any raw level / difficulty string (e.g., "Upper-Intermediate (B2-C1 · 80-100)",
- * "Intermediate (B1-B2 · 60-79)", "Advanced (C1 · 100-120)", "B2-C1", "upper_intermediate")
- * into a canonical Level ('beginner' | 'intermediate' | 'upper-intermediate' | 'advanced').
- */
-export function normalizeDifficultyLabel(rawLevel: any): Level {
-  if (!rawLevel || typeof rawLevel !== 'string') return 'intermediate';
-  const clean = rawLevel.trim().toLowerCase();
-  if (isValidLevel(clean)) return clean;
+const CANONICAL_TASK_IDS = new Set<string>(TASK_DEFINITIONS.map((t) => t.id));
 
-  if (
-    clean.includes('upper-intermediate') ||
-    clean.includes('upper_intermediate') ||
-    clean.includes('upper intermediate') ||
-    clean.includes('b2-c1') ||
-    clean.includes('80-100') ||
-    clean === 'b2'
-  ) {
-    return 'upper-intermediate';
+const TASK_TYPE_ALIASES: Record<string, TaskTypeId> = {
+  'complete-words': 'complete-words',
+  complete_words: 'complete-words',
+  completewords: 'complete-words',
+  'c-test': 'complete-words',
+  'reading-passage': 'reading-passage',
+  reading_passage: 'reading-passage',
+  reading_academic: 'reading-passage',
+  'reading-academic': 'reading-passage',
+  reading: 'reading-passage',
+  'listening-dialogue': 'listening-dialogue',
+  listening_dialogue: 'listening-dialogue',
+  'listening-lecture': 'listening-dialogue',
+  listening_lecture: 'listening-dialogue',
+  listening: 'listening-dialogue',
+  'listen-repeat': 'listen-repeat',
+  listen_repeat: 'listen-repeat',
+  'speaking-listen-repeat': 'listen-repeat',
+  speaking_listen_repeat: 'listen-repeat',
+  'speaking-interview': 'speaking-interview',
+  speaking_interview: 'speaking-interview',
+  interview: 'speaking-interview',
+  'build-sentence': 'build-sentence',
+  build_sentence: 'build-sentence',
+  'writing-build-sentence': 'build-sentence',
+  writing_build_sentence: 'build-sentence',
+  'write-email': 'write-email',
+  write_email: 'write-email',
+  'writing-email': 'write-email',
+  writing_email: 'write-email',
+  email: 'write-email',
+  'academic-discussion': 'academic-discussion',
+  academic_discussion: 'academic-discussion',
+  'writing-discussion': 'academic-discussion',
+  writing_discussion: 'academic-discussion',
+  discussion: 'academic-discussion',
+};
+
+const DIFFICULTY_ALIASES: Record<string, Level> = {
+  beginner: 'beginner',
+  easy: 'beginner',
+  basic: 'beginner',
+  foundation: 'beginner',
+  a1: 'beginner',
+  a2: 'beginner',
+  intermediate: 'intermediate',
+  medium: 'intermediate',
+  moderate: 'intermediate',
+  standard: 'intermediate',
+  b1: 'intermediate',
+  b2: 'intermediate',
+  'b1-b2': 'intermediate',
+  'upper-intermediate': 'upper-intermediate',
+  upper_intermediate: 'upper-intermediate',
+  upperintermediate: 'upper-intermediate',
+  'upper intermediate': 'upper-intermediate',
+  'b2-c1': 'upper-intermediate',
+  high: 'upper-intermediate',
+  advanced: 'advanced',
+  hard: 'advanced',
+  difficult: 'advanced',
+  expert: 'advanced',
+  c1: 'advanced',
+  c2: 'advanced',
+  'c1-c2': 'advanced',
+};
+
+const TOPIC_ALIASES: Record<string, AcademicTopic> = {
+  'science-tech': 'science-tech',
+  science_tech: 'science-tech',
+  'science & technology': 'science-tech',
+  science: 'science-tech',
+  technology: 'science-tech',
+  biology: 'science-tech',
+  chemistry: 'science-tech',
+  physics: 'science-tech',
+  astronomy: 'science-tech',
+  neuroscience: 'science-tech',
+  medicine: 'science-tech',
+  engineering: 'science-tech',
+  'computer-science': 'science-tech',
+  'campus-life': 'campus-life',
+  campus_life: 'campus-life',
+  'campus life': 'campus-life',
+  'campus life & academics': 'campus-life',
+  campus: 'campus-life',
+  education: 'campus-life',
+  university: 'campus-life',
+  academics: 'campus-life',
+  student: 'campus-life',
+  'social-sciences': 'social-sciences',
+  social_sciences: 'social-sciences',
+  'social sciences': 'social-sciences',
+  'social sciences & history': 'social-sciences',
+  psychology: 'social-sciences',
+  sociology: 'social-sciences',
+  anthropology: 'social-sciences',
+  history: 'social-sciences',
+  archaeology: 'social-sciences',
+  linguistics: 'social-sciences',
+  'political-science': 'social-sciences',
+  environment: 'environment',
+  'ecology & environment': 'environment',
+  ecology: 'environment',
+  climate: 'environment',
+  geology: 'environment',
+  earth: 'environment',
+  conservation: 'environment',
+  sustainability: 'environment',
+  'business-economics': 'business-economics',
+  business_economics: 'business-economics',
+  'business & economics': 'business-economics',
+  business: 'business-economics',
+  economics: 'business-economics',
+  finance: 'business-economics',
+  management: 'business-economics',
+  marketing: 'business-economics',
+  trade: 'business-economics',
+  'arts-humanities': 'arts-humanities',
+  arts_humanities: 'arts-humanities',
+  'arts & humanities': 'arts-humanities',
+  arts: 'arts-humanities',
+  humanities: 'arts-humanities',
+  literature: 'arts-humanities',
+  philosophy: 'arts-humanities',
+  art: 'arts-humanities',
+  music: 'arts-humanities',
+  architecture: 'arts-humanities',
+  theatrical: 'arts-humanities',
+};
+
+const TOPIC_KEYWORD_RULES: Array<{ topic: AcademicTopic; pattern: RegExp }> = [
+  {
+    topic: 'campus-life',
+    pattern:
+      /\b(registrar|dormitory|dormitories|syllabus|syllabi|semester|undergraduate|advisor|counselor|tuition|scholarship|library|librarian|internship|coursework|enrollment|campus|faculty|commencement|capstone|prerequisite|lecture hall|office hours|student union)\b/i,
+  },
+  {
+    topic: 'environment',
+    pattern:
+      /\b(ecosystem|biodiversity|deforestation|glacier|permafrost|climate|carbon dioxide|emission|acidification|coral|reef|wetland|estuary|pollution|drought|renewable|solar|hydrothermal|albedo|evapotranspiration|conservation|habitat|erosion|forestry|atmosphere)\b/i,
+  },
+  {
+    topic: 'business-economics',
+    pattern:
+      /\b(inflation|monetary|central bank|tariff|supply chain|monopoly|elasticity|utility|commodity|marginal|macroeconomic|microeconomic|entrepreneur|subsidy|subsidies|fiscal|revenue|market|consumer|investment|portfolio|recession|currency|trade deficit|pricing)\b/i,
+  },
+  {
+    topic: 'arts-humanities',
+    pattern:
+      /\b(renaissance|painting|sculpture|museum|curator|exhibition|symphony|acoustic|portrait|rhetoric|aristotelian|mythology|literary|poetry|avant-garde|surrealist|trompe|vanitas|fresco|architecture|classical|philosopher|aesthetic|manuscript)\b/i,
+  },
+  {
+    topic: 'social-sciences',
+    pattern:
+      /\b(archaeology|archaeological|mayan|mesopotamian|cuneiform|anthropology|ethnographic|indigenous|sociology|cognitive bias|kahneman|framing effect|demographic|urbanization|civilization|linguistic|dialect|bilingual|voter|questionnaire)\b/i,
+  },
+  {
+    topic: 'science-tech',
+    pattern:
+      /\b(neuron|synaptic|plasticity|dna|rna|histone|epigenetic|chloroplast|photosynthesis|quantum|algorithm|spectrophotometer|centrifuge|carbocation|peroxide|nucleosynthesis|supernova|seismometer|tectonic|cetacean|echolocation|avian|metabolism|enzyme)\b/i,
+  },
+];
+
+const CTEST_STOPWORDS = new Set([
+  'that',
+  'with',
+  'from',
+  'this',
+  'they',
+  'have',
+  'were',
+  'been',
+  'into',
+  'only',
+  'also',
+  'more',
+  'most',
+  'some',
+  'such',
+  'than',
+  'then',
+  'them',
+  'what',
+  'when',
+  'where',
+  'which',
+  'while',
+  'your',
+  'their',
+  'there',
+  'these',
+  'those',
+  'would',
+  'could',
+  'should',
+  'about',
+  'after',
+  'other',
+  'under',
+  'until',
+  'very',
+  'well',
+  'will',
+  'each',
+  'both',
+  'much',
+  'many',
+  'over',
+  'upon',
+  'even',
+  'does',
+  'done',
+  'made',
+  'make',
+  'like',
+]);
+
+const SENTENCE_ABBREVIATIONS = new Set([
+  'dr.',
+  'mr.',
+  'mrs.',
+  'ms.',
+  'prof.',
+  'st.',
+  'jr.',
+  'sr.',
+  'vs.',
+  'etc.',
+  'e.g.',
+  'i.e.',
+  'fig.',
+  'vol.',
+  'no.',
+]);
+
+export interface NormalizedBlankItem {
+  index: number;
+  prefix: string;
+  answer: string;
+  fullWord: string;
+}
+
+export function canonicalizeTaskType(rawType?: string): TaskTypeId {
+  const cleaned = String(rawType || '')
+    .trim()
+    .toLowerCase();
+  if (TASK_TYPE_ALIASES[cleaned]) {
+    return TASK_TYPE_ALIASES[cleaned];
   }
-  if (
-    clean.includes('advanced') ||
-    clean.includes('100-120') ||
-    clean.includes('c1-c2') ||
-    clean === 'c1' ||
-    clean === 'c2'
-  ) {
-    return 'advanced';
+  if (CANONICAL_TASK_IDS.has(cleaned)) {
+    return cleaned as TaskTypeId;
   }
-  if (
-    clean.includes('beginner') ||
-    clean.includes('elementary') ||
-    clean.includes('a1') ||
-    clean.includes('a2')
-  ) {
+  return 'academic-discussion';
+}
+
+export function normalizeDifficultyLabel(rawLevel?: any): Level {
+  const cleaned = String(rawLevel || '')
+    .trim()
+    .toLowerCase();
+  if (isValidLevel(cleaned)) {
+    return cleaned;
+  }
+  if (DIFFICULTY_ALIASES[cleaned]) {
+    return DIFFICULTY_ALIASES[cleaned];
+  }
+  if (cleaned.includes('upper')) return 'upper-intermediate';
+  if (cleaned.includes('adv') || cleaned.includes('c1') || cleaned.includes('hard')) return 'advanced';
+  if (cleaned.includes('beg') || cleaned.includes('easy') || cleaned.includes('a1') || cleaned.includes('a2')) {
     return 'beginner';
   }
-  if (
-    clean.includes('intermediate') ||
-    clean.includes('b1-b2') ||
-    clean.includes('60-79') ||
-    clean.includes('60-80') ||
-    clean === 'b1'
-  ) {
-    return 'intermediate';
-  }
-
   return 'intermediate';
 }
 
-/**
- * Normalizes any raw topic or sub-topic string (e.g., "Science & Technology",
- * "Environment & Nature", "Ecology & Environment", "Social Sciences & History",
- * "Campus Life & Academics", "Health & Medicine", or specific sub-topics)
- * into a canonical AcademicTopic.
- */
-export function normalizeTopicLabel(rawTopic: any, taskContent?: any): AcademicTopic {
-  if (typeof rawTopic === 'string' && rawTopic.trim()) {
-    const clean = rawTopic.trim().toLowerCase();
-    if (isValidAcademicTopic(clean)) return clean;
+export function normalizeTopicLabel(rawTopic?: any, fallbackContent?: any): AcademicTopic {
+  const cleaned = String(rawTopic || '')
+    .trim()
+    .toLowerCase();
+  if (isValidAcademicTopic(cleaned)) {
+    return cleaned;
+  }
+  if (TOPIC_ALIASES[cleaned]) {
+    return TOPIC_ALIASES[cleaned];
+  }
 
-    if (
-      /science|tech|health|medicin|medical|biolog|physic|chemist|astronom|computer|engineer|neuro|genet|nutriti|robot|quantum|algorithm|ai\b/.test(
-        clean
-      )
-    ) {
-      return 'science-tech';
-    }
-    if (
-      /environ|nature|ecolog|climat|sustainab|conservat|renewab|pollut|wildlife|forest|ocean|marine|agricult|solar|wind|transport|urban/.test(
-        clean
-      )
-    ) {
-      return 'environment';
-    }
-    if (
-      /business|econom|financ|market|manag|trade|commerc|entrepreneur|corporate|invest|workplace|supply chain|consumer/.test(
-        clean
-      )
-    ) {
-      return 'business-economics';
-    }
-    if (
-      /art|humanit|literat|philosoph|music|theater|theatre|paint|sculpt|architect|film|cinema|poet|novel|drama|renaissance/.test(
-        clean
-      )
-    ) {
-      return 'arts-humanities';
-    }
-    if (
-      /campus|universit|dorm|librar|registrar|professor|advisor|student|scholar|tuition|semester|syllabus|course|academic|lecture hall|cafeteria/.test(
-        clean
-      )
-    ) {
-      return 'campus-life';
-    }
-    if (
-      /social|psycholog|sociolog|histor|anthropolog|archaeolog|educat|pedagog|linguist|mental|politic|cultur|demograph|ethic|civilization/.test(
-        clean
-      )
-    ) {
-      return 'social-sciences';
+  const textBlob = JSON.stringify(fallbackContent || '').toLowerCase();
+  for (const rule of TOPIC_KEYWORD_RULES) {
+    if (rule.pattern.test(textBlob)) {
+      return rule.topic;
     }
   }
 
-  return inferTopic(taskContent || { topic: rawTopic });
+  return 'science-tech';
 }
 
 /**
- * Normalizes task data for a specific taskType, populating fallback stubs if missing or invalid.
+ * Deterministically normalizes any "Complete the Words" (C-Test) task according to
+ * strict 2026 TOEFL iBT specifications:
+ * 1. Reconstructs full unblanked words from any bracket placement ([penetr]ate, [[penetr]]ate,
+ *    integr[ation], [integration], etc.).
+ * 2. Keeps Sentence 1 (the first sentence) 100% intact with zero blanks.
+ * 3. Blanks ONLY the second half of each target word:
+ *    prefixLen = Math.floor(fullWord.length / 2)
+ *    prefix = fullWord.slice(0, prefixLen) (always >= 2 letters)
+ *    answer = fullWord.slice(prefixLen) (always >= 2 letters)
+ *    Formatted as `${prefix}[[${answer}]]` with ZERO trailing suffix letters.
+ * 4. Enforces exactly 10 blanks per passage.
  */
-export function normalizeTaskContent(task: any, taskType: string): any {
-  if (!task || typeof task !== 'object') {
-    return getFallbackTask(taskType);
+export function normalizeCompleteWordsTask(raw: any): {
+  title: string;
+  text: string;
+  totalBlanks: number;
+  blanks: NormalizedBlankItem[];
+  explanation?: string;
+} {
+  const fallbackText =
+    'Synaptic plasticity is the biological foundation of human learning and memory consolidation. Neurosc[[ientists]] have disco[[vered]] that syna[[pses]] stren[[gthen]] thr[[ough]] repe[[ated]] elect[[rical]] stimu[[lation]]. This pheno[[menon]] ena[[bles]] cere[[bral]] circ[[uits]] to retain complex information across decades.';
+
+  const title = String(raw?.title || 'Complete the Words').trim() || 'Complete the Words';
+  let rawText = String(raw?.text || raw?.passage || raw?.content?.text || '').trim();
+  if (!rawText || rawText.length < 40) {
+    rawText = fallbackText;
   }
 
-  const fallback = getFallbackTask(taskType);
+  // Normalize accidental space immediately before a closing suffix bracket or after a prefix bracket
+  // only when the bracketed segment is clearly a word fragment, or parse token by token.
+  const rawTokens = rawText.split(/(\s+)/);
 
-  const rawLevel = task.level || task.difficulty || task.content?.level || task.content?.difficulty || fallback.level || 'intermediate';
-  const validLevel = normalizeDifficultyLabel(rawLevel);
+  interface ParsedToken {
+    isWhitespace: boolean;
+    rawToken: string;
+    leadingPunct: string;
+    fullWord: string;
+    trailingPunct: string;
+    hadBracket: boolean;
+    isPureAlphaWord: boolean;
+    sentenceIndex: number;
+    shouldBlank: boolean;
+  }
 
-  const rawTopic = task.topic || task.academicTopic || task.content?.topic || task.content?.academicTopic;
-  const validTopic = normalizeTopicLabel(rawTopic, task);
+  const parsedTokens: ParsedToken[] = [];
+  let currentSentenceIndex = 0;
 
-  const result: any = {
-    ...task,
-    id: String(task.id || task.questionDocId || fallback.id),
-    title: String(task.title || fallback.title),
-    level: validLevel,
-    topic: validTopic,
-  };
+  for (let i = 0; i < rawTokens.length; i++) {
+    const tok = rawTokens[i];
+    if (/^\s+$/.test(tok) || tok === '') {
+      parsedTokens.push({
+        isWhitespace: true,
+        rawToken: tok,
+        leadingPunct: '',
+        fullWord: '',
+        trailingPunct: '',
+        hadBracket: false,
+        isPureAlphaWord: false,
+        sentenceIndex: currentSentenceIndex,
+        shouldBlank: false,
+      });
+      continue;
+    }
 
-  switch (taskType) {
-    case 'complete-words':
-      {
-        const t = String(task.text || task.passage || '');
-        result.text = (t && t.includes('[[')) ? t : fallback.text;
-        result.totalBlanks = Number(task.totalBlanks || fallback.totalBlanks || 10);
+    const hadBracket = tok.includes('[') && tok.includes(']');
+    // Strip all square brackets from the token to recover the full unbroken word
+    const stripped = tok.replace(/\[+|\]+/g, '');
+
+    // Separate leading punctuation, core word characters, and trailing punctuation
+    const match = stripped.match(/^([^a-zA-Z0-9]*)(.*?)([^a-zA-Z0-9]*)$/);
+    const leadingPunct = match ? match[1] : '';
+    const fullWord = match ? match[2] : stripped;
+    const trailingPunct = match ? match[3] : '';
+    const isPureAlphaWord = /^[a-zA-Z]+$/.test(fullWord);
+
+    const thisSentenceIdx = currentSentenceIndex;
+
+    // Detect end of sentence
+    const lowerWithTrailing = (fullWord + trailingPunct).toLowerCase();
+    if (
+      /[.!?]/.test(trailingPunct) &&
+      !SENTENCE_ABBREVIATIONS.has(lowerWithTrailing) &&
+      fullWord.length > 1
+    ) {
+      currentSentenceIndex++;
+    }
+
+    parsedTokens.push({
+      isWhitespace: false,
+      rawToken: tok,
+      leadingPunct,
+      fullWord,
+      trailingPunct,
+      hadBracket,
+      isPureAlphaWord,
+      sentenceIndex: thisSentenceIdx,
+      shouldBlank: false,
+    });
+  }
+
+  // If the entire passage was written as 1 giant sentence without periods, treat the first 12 words as Sentence 0
+  const hasSentence2 = parsedTokens.some((t) => !t.isWhitespace && t.sentenceIndex >= 1);
+  if (!hasSentence2) {
+    let wordCounter = 0;
+    for (const pt of parsedTokens) {
+      if (!pt.isWhitespace) {
+        wordCounter++;
+        if (wordCounter > 12) {
+          pt.sentenceIndex = 1;
+        }
       }
-      break;
+    }
+  }
 
-    case 'reading-passage':
-      result.passage = String(task.passage || task.text || fallback.passage);
-      result.questions = Array.isArray(task.questions) && task.questions.length > 0
-        ? task.questions.map((q: any) => ({
-            q: String(q?.q || q?.question || ''),
-            options: Array.isArray(q?.options) ? q.options.map((o: any) => String(o || '')) : ['A', 'B', 'C', 'D'],
-            answer: Number(q?.answer ?? 0),
-            why: String(q?.why || q?.explanation || ''),
-          }))
-        : fallback.questions;
-      break;
-
-    case 'listening-dialogue':
-      result.context = String(task.context || fallback.context);
-      result.script = String(task.script || task.text || fallback.script);
-      result.speakers = task.speakers && typeof task.speakers === 'object' ? task.speakers : fallback.speakers;
-      result.questions = Array.isArray(task.questions) && task.questions.length > 0
-        ? task.questions.map((q: any) => ({
-            q: String(q?.q || q?.question || ''),
-            options: Array.isArray(q?.options) ? q.options.map((o: any) => String(o || '')) : ['A', 'B', 'C', 'D'],
-            answer: Number(q?.answer ?? 0),
-            why: String(q?.why || q?.explanation || ''),
-          }))
-        : fallback.questions;
-      break;
-
-    case 'listen-repeat':
-      result.sentences = Array.isArray(task.sentences) && task.sentences.length > 0
-        ? task.sentences.map((s: any) => String(s || ''))
-        : fallback.sentences;
-      result.speakerName = String(task.speakerName || fallback.speakerName);
-      result.speakerGender = String(task.speakerGender || fallback.speakerGender);
-      break;
-
-    case 'speaking-interview':
-      result.context = String(task.context || fallback.context);
-      result.interviewerName = String(task.interviewerName || fallback.interviewerName);
-      result.interviewerGender = String(task.interviewerGender || fallback.interviewerGender);
-      result.questions = Array.isArray(task.questions) && task.questions.length > 0
-        ? task.questions.map((q: any) => ({
-            question: String(q?.question || q?.q || ''),
-            prepTimeSeconds: 2,
-            responseTimeSeconds: Number(q?.responseTimeSeconds || 45),
-            suggestedPoints: Array.isArray(q?.suggestedPoints) ? q.suggestedPoints.map((p: any) => String(p || '')) : [],
-          }))
-        : fallback.questions;
-      break;
-
-    case 'build-sentence':
-    case 'writing-build-sentence':
-    case 'writing_build_sentence':
-      {
-        const rawItems = Array.isArray(task.items)
-          ? task.items
-          : Array.isArray(task.questions)
-          ? task.questions
-          : Array.isArray(task.sentences)
-          ? task.sentences
-          : [];
-        result.items =
-          rawItems.length > 0
-            ? rawItems.map((i: any, idx: number) =>
-                normalizeBuildSentenceItem(i, idx, validTopic, result.title)
-              )
-            : fallback.items;
+  // Step 1: Mark existing valid bracketed words in Sentence 2+ (sentenceIndex >= 1)
+  const selectedIndices: number[] = [];
+  for (let i = 0; i < parsedTokens.length; i++) {
+    const pt = parsedTokens[i];
+    if (pt.isWhitespace) continue;
+    // Sentence 1 (sentenceIndex === 0) must NEVER have blanks
+    if (pt.sentenceIndex === 0) {
+      pt.shouldBlank = false;
+      continue;
+    }
+    if (
+      pt.hadBracket &&
+      pt.isPureAlphaWord &&
+      pt.fullWord.length >= 4 &&
+      !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
+    ) {
+      if (selectedIndices.length < 10) {
+        pt.shouldBlank = true;
+        selectedIndices.push(i);
       }
-      break;
-
-    case 'write-email':
-      result.situation = String(task.situation || fallback.situation);
-      result.recipient = String(task.recipient || fallback.recipient);
-      result.goals = Array.isArray(task.goals) && task.goals.length > 0 ? task.goals.map((g: any) => String(g || '')) : fallback.goals;
-      result.suggestedWordCount = String(task.suggestedWordCount || fallback.suggestedWordCount);
-      break;
-
-    case 'academic-discussion':
-      result.professorName = String(task.professorName || fallback.professorName);
-      result.professorPrompt = String(task.professorPrompt || task.prompt || fallback.professorPrompt);
-      result.s1 = task.s1 && typeof task.s1 === 'object' ? { name: String(task.s1.name || fallback.s1.name), text: String(task.s1.text || fallback.s1.text) } : fallback.s1;
-      result.s2 = task.s2 && typeof task.s2 === 'object' ? { name: String(task.s2.name || fallback.s2.name), text: String(task.s2.text || fallback.s2.text) } : fallback.s2;
-      result.question = String(task.question || fallback.question);
-      break;
+    }
   }
 
-  return result;
-}
+  // Step 2: If fewer than 10 blanks exist in Sentence 2+, auto-select additional content words
+  if (selectedIndices.length < 10) {
+    const needed = 10 - selectedIndices.length;
+    // Prefer pure alphabetic content words >= 5 letters not adjacent to already-blanked words
+    const candidateIndices: number[] = [];
+    for (let i = 0; i < parsedTokens.length; i++) {
+      const pt = parsedTokens[i];
+      if (pt.isWhitespace || pt.sentenceIndex === 0 || pt.shouldBlank) continue;
+      if (
+        pt.isPureAlphaWord &&
+        pt.fullWord.length >= 5 &&
+        !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
+      ) {
+        candidateIndices.push(i);
+      }
+    }
 
-/**
- * Consolidated normalizer: supports both normalizeTaskData(task, taskType) and normalizeTaskData(rawDoc).
- */
-export function normalizeTaskData(task: any, taskType: string): any;
-export function normalizeTaskData(raw: any): { taskType: string; level: string; topic: string; content: any } | null;
-export function normalizeTaskData(taskOrRaw: any, taskTypeParam?: string): any {
-  if (taskTypeParam !== undefined) {
-    const cleanType =
-      taskTypeParam === 'writing-build-sentence' || taskTypeParam === 'writing_build_sentence'
-        ? 'build-sentence'
-        : taskTypeParam;
-    return normalizeTaskContent(taskOrRaw, cleanType);
+    // Fallback to >= 4 letters if still not enough candidates
+    if (candidateIndices.length < needed) {
+      for (let i = 0; i < parsedTokens.length; i++) {
+        const pt = parsedTokens[i];
+        if (pt.isWhitespace || pt.sentenceIndex === 0 || pt.shouldBlank) continue;
+        if (
+          !candidateIndices.includes(i) &&
+          pt.isPureAlphaWord &&
+          pt.fullWord.length >= 4 &&
+          !CTEST_STOPWORDS.has(pt.fullWord.toLowerCase())
+        ) {
+          candidateIndices.push(i);
+        }
+      }
+    }
+
+    if (candidateIndices.length <= needed) {
+      for (const cIdx of candidateIndices) {
+        parsedTokens[cIdx].shouldBlank = true;
+        selectedIndices.push(cIdx);
+      }
+    } else {
+      // Space selections evenly across candidateIndices
+      for (let k = 0; k < needed; k++) {
+        const pickPos = Math.min(
+          candidateIndices.length - 1,
+          Math.floor(((k + 0.5) * candidateIndices.length) / needed)
+        );
+        let chosenTokenIdx = candidateIndices[pickPos];
+        // If already chosen, find nearest unchosen candidate
+        if (parsedTokens[chosenTokenIdx].shouldBlank) {
+          const alt = candidateIndices.find((idx) => !parsedTokens[idx].shouldBlank);
+          if (alt !== undefined) chosenTokenIdx = alt;
+        }
+        if (!parsedTokens[chosenTokenIdx].shouldBlank) {
+          parsedTokens[chosenTokenIdx].shouldBlank = true;
+          selectedIndices.push(chosenTokenIdx);
+        }
+      }
+    }
   }
 
-  if (!taskOrRaw || typeof taskOrRaw !== 'object') return null;
+  // Step 3: Build final normalized text and blanks array
+  const blanks: NormalizedBlankItem[] = [];
+  let blankCounter = 0;
 
-  let taskType = String(
-    taskOrRaw.taskType || taskOrRaw.type || taskOrRaw.section || taskOrRaw.taskId || taskOrRaw.category || 'academic-discussion'
-  ).toLowerCase().trim();
-  if (taskType === 'listening-lecture') {
-    taskType = 'listening-dialogue';
-  }
-  if (taskType === 'writing-build-sentence' || taskType === 'writing_build_sentence') {
-    taskType = 'build-sentence';
-  }
+  const rebuiltTokens = parsedTokens.map((pt) => {
+    if (pt.isWhitespace) return pt.rawToken;
+    if (!pt.shouldBlank || blankCounter >= 10) {
+      return `${pt.leadingPunct}${pt.fullWord}${pt.trailingPunct}`;
+    }
 
-  const rawContent = taskOrRaw.content && typeof taskOrRaw.content === 'object' ? taskOrRaw.content : taskOrRaw;
+    const fullWord = pt.fullWord;
+    const prefixLen = Math.floor(fullWord.length / 2);
+    const prefix = fullWord.slice(0, prefixLen);
+    const answer = fullWord.slice(prefixLen);
 
-  const rawLevel = taskOrRaw.level || taskOrRaw.proficiencyLevel || taskOrRaw.difficulty || rawContent.level || rawContent.difficulty || 'intermediate';
-  const level = normalizeDifficultyLabel(rawLevel);
+    blanks.push({
+      index: blankCounter,
+      prefix,
+      answer,
+      fullWord,
+    });
+    blankCounter++;
 
-  const rawTopic = taskOrRaw.topic || taskOrRaw.academicTopic || taskOrRaw.subject || rawContent.topic || rawContent.academicTopic;
-  const topic = normalizeTopicLabel(rawTopic, rawContent);
+    return `${pt.leadingPunct}${prefix}[[${answer}]]${pt.trailingPunct}`;
+  });
 
-  const normalizedInner =
-    taskType === 'build-sentence'
-      ? normalizeTaskContent({ ...rawContent, level, topic }, 'build-sentence')
-      : rawContent;
+  const normalizedText = rebuiltTokens.join('');
 
   return {
-    taskType,
-    level,
-    topic,
-    content: {
-      ...normalizedInner,
-      id: normalizedInner.id || taskOrRaw.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      level,
-      topic,
-    },
+    title,
+    text: normalizedText,
+    totalBlanks: blanks.length,
+    blanks,
+    ...(raw?.explanation ? { explanation: String(raw.explanation) } : {}),
   };
 }
 
-export function getFallbackTask(taskType: string): any {
-  switch (taskType) {
-    case 'complete-words':
-      return {
-        id: 'fallback-cw-1',
-        title: 'Cognitive Development and Linguistic Acquisition',
-        level: 'intermediate',
-        topic: 'science-tech',
-        text: 'Language acqui[[sition]] among you[[ng]] children demon[[strates]] remark[[able]] neurolo[[gical]] adaptab[[ility]]. Resear[[chers]] note th[[at]] early mu[[ltilingual]] exposure enhan[[ces]] cognit[[ive]] flexib[[ility]] across subse[[quent]] develo[[pmental]] stages.',
-        totalBlanks: 10,
-      };
-    case 'reading-passage':
-      return {
-        id: 'fallback-rp-1',
-        title: 'The Evolution of Avian Flight Mechanics',
-        level: 'upper-intermediate',
-        topic: 'science-tech',
-        passage: 'The transition from terrestrial locomotion to powered flight in avian species represents one of the most remarkable evolutionary milestones. Paleontological discoveries in recent decades indicate that proto-feathers initially served thermal insulation or display functions rather than aerodynamic lift. Over successive generations, morphological modifications transformed forelimbs into sophisticated airfoil structures capable of generating thrust and lift simultaneously.',
-        questions: [
-          {
-            q: 'According to the passage, what was the initial function of proto-feathers?',
-            options: ['Thermal insulation or display', 'Direct aerodynamic propulsion', 'Underwater swimming and steering', 'Camouflage against predators'],
-            answer: 0,
-            why: 'The passage explicitly states that proto-feathers initially served thermal insulation or display functions.',
-          },
-        ],
-      };
-    case 'listening-dialogue':
-      return {
-        id: 'fallback-ld-1',
-        title: 'Library Archive Access Discussion',
-        level: 'intermediate',
-        topic: 'campus-life',
-        context: 'A student speaks with a library staff member about accessing rare manuscript archives.',
-        speakers: { A: 'Sarah (Student)', B: 'Mr. Davis (Librarian)' },
-        script: 'Sarah (Female): Good afternoon, Mr. Davis. I am researching nineteenth-century periodicals for my history thesis.\nMr. Davis (Male): Welcome, Sarah. Those special collections require advance registration and faculty sponsorship.\nSarah (Female): My advisor Dr. Henderson already approved my access form.\nMr. Davis (Male): Excellent. Let me retrieve the digital keycard for the secure reading room.',
-        questions: [
-          {
-            q: 'Why does Sarah visit the library?',
-            options: ['To borrow a modern textbook', 'To research nineteenth-century periodicals', 'To apply for a student employment position', 'To return overdue archival manuscripts'],
-            answer: 1,
-            why: 'Sarah states she is researching nineteenth-century periodicals for her history thesis.',
-          },
-        ],
-      };
-    case 'listen-repeat':
-      return {
-        id: 'fallback-lr-1',
-        title: 'Academic Listening & Repeat Practice',
-        level: 'intermediate',
-        topic: 'science-tech',
-        speakerName: 'Sarah (Female)',
-        speakerGender: 'female',
-        sentences: [
-          'The research laboratory will remain closed during scheduled maintenance.',
-          'Students must submit their final research proposals by Friday noon.',
-          'Professor Jenkins explained the intricacies of quantum entanglement.',
-        ],
-      };
-    case 'speaking-interview':
-      return {
-        id: 'fallback-si-1',
-        title: 'University Campus Interview Simulation',
-        level: 'intermediate',
-        topic: 'campus-life',
-        context: 'An admissions interviewer asks about your academic background and future goals.',
-        interviewerName: 'Prof. Lee (Male)',
-        interviewerGender: 'male',
-        questions: [
-          {
-            question: 'Describe an academic subject that challenged your perspective and explain why.',
-            prepTimeSeconds: 2,
-            responseTimeSeconds: 45,
-            suggestedPoints: ['Name the subject', 'Explain the specific challenge', 'Describe your resolution or growth'],
-          },
-        ],
-      };
-    case 'build-sentence':
-      return {
-        id: 'fallback-bs-1',
-        title: 'Advanced Academic Sentence Structure',
-        level: 'advanced',
-        topic: 'science-tech',
-        items: [
-          {
-            context: 'Arrange the scrambled words into a grammatically correct academic sentence.',
-            words: ['Substantial', 'empirical', 'evidence', 'supports', 'the', 'hypothesis', 'regarding', 'neural', 'plasticity'],
-            answer: 'Substantial empirical evidence supports the hypothesis regarding neural plasticity.',
-            explanation: 'Subject + transitive verb + direct object + prepositional modifying phrase.',
-          },
-        ],
-      };
-    case 'write-email':
-      return {
-        id: 'fallback-we-1',
-        title: 'Requesting Extension from Professor',
-        level: 'intermediate',
-        topic: 'campus-life',
-        situation: 'You have contracted a flu virus and need a 48-hour extension on your research paper submission.',
-        recipient: 'Professor Vance',
-        goals: ['Politely explain the medical circumstance', 'Request a 48-hour deadline extension', 'Attach draft outline as provisional progress proof'],
-        suggestedWordCount: '80-120 words',
-      };
-    case 'academic-discussion':
-    default:
-      return {
-        id: 'fallback-ad-1',
-        title: 'Online Education vs Traditional Seminars',
-        level: 'intermediate',
-        topic: 'social-sciences',
-        professorName: 'Professor Henderson',
-        professorPrompt: 'Our discussion this week examines whether virtual online classes offer equivalent pedagogical value compared to traditional face-to-face seminars.',
-        s1: { name: 'Student A (Marcus)', text: 'Virtual classrooms democratize access for international learners.' },
-        s2: { name: 'Student B (Elena)', text: 'In-person seminars foster spontaneous interpersonal debate and mentorship.' },
-        question: 'State your position and contribute to the discussion board.',
-      };
-  }
+function tokenizeSentenceWords(sentence: string): string[] {
+  return (sentence || '')
+    .trim()
+    .replace(/[.!?;:,]+$/g, '')
+    .split(/\s+/)
+    .map((w) => w.replace(/^[,;:.!?()"']+|[.!?;:,()"']+$/g, ''))
+    .filter(Boolean);
 }
 
-export function shuffleWordsIfMatching(words: string[], answer: string): string[] {
-  if (!Array.isArray(words) || words.length <= 1) return [...(words || [])];
-  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-  const targetClean = answer ? clean(answer) : '';
-
-  const currentClean = clean(words.join(' '));
-  if (targetClean && !currentClean.startsWith(targetClean.slice(0, 15)) && currentClean !== targetClean) {
-    return [...words];
+function haveSameWordMultiset(wordsA: string[], wordsB: string[]): boolean {
+  if (wordsA.length !== wordsB.length || wordsA.length === 0) return false;
+  const countMap = new Map<string, number>();
+  for (const w of wordsA) {
+    const key = w.toLowerCase();
+    countMap.set(key, (countMap.get(key) || 0) + 1);
   }
+  for (const w of wordsB) {
+    const key = w.toLowerCase();
+    const prev = countMap.get(key) || 0;
+    if (prev <= 0) return false;
+    if (prev === 1) countMap.delete(key);
+    else countMap.set(key, prev - 1);
+  }
+  return countMap.size === 0;
+}
 
-  const shuffled = [...words];
-  let attempts = 0;
-  do {
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+function deterministicScrambleWords(targetWords: string[], seedStr: string): string[] {
+  if (targetWords.length <= 1) return [...targetWords];
+  const arr = [...targetWords];
+  let seed = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0;
+  }
+  for (let i = arr.length - 1; i > 0; i--) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const j = seed % (i + 1);
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  // Ensure scrambled order is never identical to original sentence order
+  const isIdentical = arr.every((w, idx) => w === targetWords[idx]);
+  if (isIdentical && arr.length >= 2) {
+    const first = arr[0];
+    arr[0] = arr[arr.length - 1];
+    arr[arr.length - 1] = first;
+    if (arr.every((w, idx) => w === targetWords[idx]) && arr.length >= 3) {
+      const mid = arr[1];
+      arr[1] = arr[0];
+      arr[0] = mid;
     }
-    attempts++;
-  } while (
-    attempts < 15 &&
-    targetClean &&
-    clean(shuffled.join(' ')).startsWith(targetClean.slice(0, 15))
-  );
-
-  if (targetClean && clean(shuffled.join(' ')) === targetClean && shuffled.length > 1) {
-    const mid = Math.floor(shuffled.length / 2);
-    [shuffled[0], shuffled[mid]] = [shuffled[mid], shuffled[0]];
   }
-
-  return shuffled;
+  return arr;
 }
 
-export function isContextLeakingAnswer(context: string, answer: string): boolean {
-  if (!context || !context.trim()) return true;
-  if (!answer || !answer.trim()) return false;
+function sanitizeBuildSentenceContext(rawContext: string, answerSentence: string, index: number): string {
+  const fallbackPrompts = [
+    'What did the faculty committee conclude after reviewing the departmental curriculum report?',
+    'How do researchers explain the unexpected outcome observed during the laboratory trial?',
+    'Why did the university administration revise the campus sustainability guidelines this semester?',
+    'What factor primarily influences student participation in interdisciplinary research seminars?',
+    'How does the new municipal policy affect public transit ridership during peak hours?',
+  ];
+  const cleanCtx = (rawContext || '').trim();
+  const cleanAns = (answerSentence || '').trim();
+  if (!cleanCtx || cleanCtx.length < 12) {
+    return fallbackPrompts[index % fallbackPrompts.length];
+  }
+  const normCtx = cleanCtx.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  const normAns = cleanAns.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  if (!normAns) return cleanCtx;
 
-  const tokenize = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter(Boolean);
-
-  const ctxTokens = tokenize(context);
-  const ansTokens = tokenize(answer);
-  if (ansTokens.length === 0) return false;
-
-  const ctxJoined = ctxTokens.join(' ');
-  const ansJoined = ansTokens.join(' ');
-  if (ctxJoined === ansJoined || ctxJoined.includes(ansJoined)) {
-    return true;
+  // Reject context if it contains or equals the answer sentence
+  if (normCtx === normAns || normCtx.includes(normAns) || normAns.includes(normCtx)) {
+    return fallbackPrompts[index % fallbackPrompts.length];
   }
 
-  const ctxSet = new Set(ctxTokens);
-  let matched = 0;
-  for (const w of ansTokens) {
-    if (ctxSet.has(w)) matched++;
+  // Also check word overlap ratio: if >= 70% of the answer content words appear in sequence in context, replace it
+  const ansWords = tokenizeSentenceWords(cleanAns).map((w) => w.toLowerCase());
+  const ctxWords = new Set(tokenizeSentenceWords(cleanCtx).map((w) => w.toLowerCase()));
+  const contentAnsWords = ansWords.filter((w) => w.length > 3);
+  if (contentAnsWords.length >= 4) {
+    const overlap = contentAnsWords.filter((w) => ctxWords.has(w)).length;
+    if (overlap / contentAnsWords.length >= 0.75) {
+      return fallbackPrompts[index % fallbackPrompts.length];
+    }
   }
 
-  return matched / ansTokens.length >= 0.75;
+  return cleanCtx;
 }
 
-export function generateContextualPromptForSentence(
-  answer: string,
-  topic?: string,
-  title?: string,
-  index: number = 0
-): string {
-  const cleanTitle = (title || '')
-    .replace(/^[^:]+:\s*/, '')
-    .trim();
-
-  const topicPrompts: Record<string, string[]> = {
-    'science-tech': [
-      'What did the researchers conclude from the experimental data?',
-      'How does this technological mechanism operate in practice?',
-      'What is the primary scientific implication of this discovery?',
-    ],
-    environment: [
-      'How do these ecological changes affect the surrounding environment?',
-      'What conservation strategy do environmental scientists recommend?',
-      'Why is this climate pattern significant for regional ecosystems?',
-    ],
-    'business-economics': [
-      'How do financial institutions respond to these market conditions?',
-      'What effect does this economic policy have on international trade?',
-      'How does consumer behavior shift during periods of market volatility?',
-    ],
-    'arts-humanities': [
-      'What guiding principle do specialists follow when examining historical works?',
-      'How does this analytical method assist art historians and conservators?',
-      'Why is this cultural movement considered a milestone in art history?',
-    ],
-    'campus-life': [
-      'What university policy must undergraduate students follow in this situation?',
-      'What did the academic advisor recommend regarding departmental procedures?',
-      'Which safety or administrative requirement applies to campus researchers?',
-    ],
-    'social-sciences': [
-      'How do sociologists explain the broader impact of this public policy?',
-      'What demographic trend has placed new pressures on public institutions?',
-      'How does urban infrastructure influence community development?',
-    ],
-  };
-
-  const pool =
-    (topic && topicPrompts[topic]) || topicPrompts['science-tech'];
-  const basePrompt = pool[index % pool.length];
-
-  if (cleanTitle && !isContextLeakingAnswer(cleanTitle, answer)) {
-    return `Regarding ${cleanTitle.toLowerCase()}, ${basePrompt.charAt(0).toLowerCase()}${basePrompt.slice(1)}`;
-  }
-
-  return basePrompt;
-}
+const FALLBACK_BUILD_SENTENCE_ITEMS = [
+  {
+    context: 'What did recent laboratory trials conclude about how neural networks adapt over time?',
+    answer: 'Substantial empirical evidence supports the hypothesis regarding synaptic plasticity.',
+    explanation:
+      'Subject noun phrase ("Substantial empirical evidence") + transitive verb ("supports") + direct object ("the hypothesis regarding synaptic plasticity").',
+  },
+  {
+    context: 'How can multinational manufacturers protect their operations against sudden supply disruptions?',
+    answer: 'Diversified sourcing strategies mitigate the financial impact of regional shortages.',
+    explanation:
+      'Plural subject ("Diversified sourcing strategies") + verb ("mitigate") + direct object ("the financial impact of regional shortages").',
+  },
+  {
+    context: 'Why did the university library extend its operating hours during the final examination period?',
+    answer: 'Undergraduate students requested additional quiet study spaces for collaborative projects.',
+    explanation:
+      'Subject ("Undergraduate students") + past verb ("requested") + object ("additional quiet study spaces for collaborative projects").',
+  },
+  {
+    context: 'How do coastal wetlands help mitigate the effects of rising atmospheric carbon levels?',
+    answer: 'Estuarine marshes sequester significant quantities of carbon within anaerobic sediments.',
+    explanation:
+      'Subject ("Estuarine marshes") + transitive verb ("sequester") + object ("significant quantities of carbon within anaerobic sediments").',
+  },
+  {
+    context: 'What requirement must students fulfill before registering for the advanced econometrics seminar?',
+    answer: 'Applicants must complete introductory statistical modeling before enrolling in econometrics.',
+    explanation:
+      'Subject ("Applicants") + modal verb phrase ("must complete") + object ("introductory statistical modeling") + temporal clause.',
+  },
+];
 
 export function normalizeBuildSentenceItem(
-  item: any,
-  index: number = 0,
-  topic?: string,
-  title?: string
+  it: any,
+  idx: number = 0,
+  _topic?: string,
+  _title?: string
 ): {
   context: string;
   words: string[];
@@ -529,68 +677,616 @@ export function normalizeBuildSentenceItem(
   correctSentence: string;
   explanation: string;
 } {
-  const rawAns = String(
-    item?.answer ||
-      item?.correctSentence ||
-      item?.targetSentence ||
-      item?.sentence ||
-      'Substantial empirical evidence supports the hypothesis regarding neural plasticity.'
-  ).trim();
+  const fb = FALLBACK_BUILD_SENTENCE_ITEMS[idx % FALLBACK_BUILD_SENTENCE_ITEMS.length];
+  const rawAns = String(it?.answer || it?.correctSentence || it?.targetSentence || it?.sentence || fb.answer).trim();
+  const cleanAnswer = /[.!?]$/.test(rawAns) ? rawAns : `${rawAns}.`;
+  const targetWords = tokenizeSentenceWords(cleanAnswer);
 
-  const finalAnswer = /[.?!]$/.test(rawAns) ? rawAns : `${rawAns}.`;
-  const cleanTarget = finalAnswer.replace(/[.?!]+$/, '').trim();
-  const targetWords = cleanTarget
-    .split(/\s+/)
-    .map((w) => w.replace(/[.?!]+$/, '').trim())
-    .filter(Boolean);
-
-  const rawCandidate = Array.isArray(item?.words)
-    ? item.words
-    : Array.isArray(item?.scrambledWords)
-    ? item.scrambledWords
-    : Array.isArray(item?.chunks)
-    ? item.chunks
+  const candidateWordsRaw = Array.isArray(it?.words)
+    ? it.words
+    : Array.isArray(it?.scrambledWords)
+    ? it.scrambledWords
+    : Array.isArray(it?.chunks)
+    ? it.chunks
     : [];
-
-  const candidateWords: string[] = rawCandidate
-    .map((w: any) => String(w || '').trim().replace(/[.?!]+$/, '').trim())
+  const candidateWords = candidateWordsRaw
+    .map((w: any) => String(w || '').replace(/^[,;:.!?()"']+|[.!?;:,()"']+$/g, '').trim())
     .filter(Boolean);
 
-  const normToken = (w: string) =>
-    w.toLowerCase().replace(/^[^a-z0-9']+|[^a-z0-9']+$/g, '');
+  const isExactMatch =
+    haveSameWordMultiset(candidateWords, targetWords) &&
+    !candidateWords.every((w: string, i: number) => w === targetWords[i]);
 
-  const hasMultiWordChip = candidateWords.some((w) => /\s+/.test(w));
-  const targetSorted = [...targetWords].map(normToken).filter(Boolean).sort().join('|');
-  const candidateSorted = [...candidateWords].map(normToken).filter(Boolean).sort().join('|');
+  const finalScrambled = isExactMatch
+    ? candidateWords
+    : deterministicScrambleWords(targetWords, `${cleanAnswer}-${idx}`);
 
-  const isExactMultiset =
-    !hasMultiWordChip &&
-    candidateWords.length === targetWords.length &&
-    targetSorted.length > 0 &&
-    targetSorted === candidateSorted;
-
-  const completeWords = isExactMultiset ? candidateWords : [...targetWords];
-  const shuffledWords = shuffleWordsIfMatching(completeWords, finalAnswer);
-
-  const rawContext = String(item?.context || item?.prompt || '').trim();
-  const safeContext = isContextLeakingAnswer(rawContext, finalAnswer)
-    ? generateContextualPromptForSentence(finalAnswer, topic, title, index)
-    : rawContext;
+  const cleanContext = sanitizeBuildSentenceContext(
+    String(it?.context || it?.prompt || ''),
+    cleanAnswer,
+    idx
+  );
 
   return {
-    context: safeContext,
-    words: shuffledWords,
-    scrambledWords: shuffledWords,
-    answer: finalAnswer,
-    correctSentence: finalAnswer,
+    context: cleanContext,
+    words: finalScrambled,
+    scrambledWords: finalScrambled,
+    answer: cleanAnswer,
+    correctSentence: cleanAnswer,
     explanation: String(
-      item?.explanation ||
-        'Arrange all scrambled words in the correct grammatical sequence to form a coherent academic sentence.'
-    ),
+      it?.explanation ||
+        it?.why ||
+        'Follow standard academic English subject-verb-object word order and modifier placement.'
+    ).trim(),
   };
 }
 
-export function normalizeBuildSentenceTask(task: any): any {
-  return normalizeTaskContent(task, 'build-sentence');
+export function normalizeBuildSentenceTask(raw: any): {
+  title: string;
+  items: Array<{
+    context: string;
+    words: string[];
+    scrambledWords: string[];
+    answer: string;
+    correctSentence: string;
+    explanation: string;
+  }>;
+} {
+  const title = String(raw?.title || 'Build a Sentence: Academic Syntax').trim() || 'Build a Sentence: Academic Syntax';
+  const rawItems: any[] = Array.isArray(raw?.items)
+    ? raw.items
+    : Array.isArray(raw?.questions)
+    ? raw.questions
+    : raw?.answer || raw?.correctSentence
+    ? [raw]
+    : [];
+
+  const normalizedItems: Array<{
+    context: string;
+    words: string[];
+    scrambledWords: string[];
+    answer: string;
+    correctSentence: string;
+    explanation: string;
+  }> = [];
+
+  for (let idx = 0; idx < rawItems.length; idx++) {
+    const it = rawItems[idx];
+    if (!it || typeof it !== 'object') continue;
+    const rawAns = String(it.answer || it.correctSentence || it.targetSentence || it.sentence || '').trim();
+    if (!rawAns || rawAns.length < 15) continue;
+
+    // Ensure terminal period
+    const cleanAnswer = /[.!?]$/.test(rawAns) ? rawAns : `${rawAns}.`;
+    const targetWords = tokenizeSentenceWords(cleanAnswer);
+    if (targetWords.length < 5) continue;
+
+    const candidateWordsRaw = Array.isArray(it.words)
+      ? it.words
+      : Array.isArray(it.scrambledWords)
+      ? it.scrambledWords
+      : Array.isArray(it.chunks)
+      ? it.chunks
+      : [];
+    const candidateWords = candidateWordsRaw
+      .map((w: any) => String(w || '').replace(/^[,;:.!?()"']+|[.!?;:,()"']+$/g, '').trim())
+      .filter(Boolean);
+
+    const isExactMatch =
+      haveSameWordMultiset(candidateWords, targetWords) &&
+      !candidateWords.every((w: string, i: number) => w === targetWords[i]);
+
+    const finalScrambled = isExactMatch
+      ? candidateWords
+      : deterministicScrambleWords(targetWords, `${cleanAnswer}-${idx}`);
+
+    const cleanContext = sanitizeBuildSentenceContext(
+      String(it.context || it.prompt || ''),
+      cleanAnswer,
+      idx
+    );
+
+    normalizedItems.push({
+      context: cleanContext,
+      words: finalScrambled,
+      scrambledWords: finalScrambled,
+      answer: cleanAnswer,
+      correctSentence: cleanAnswer,
+      explanation: String(
+        it.explanation ||
+          it.why ||
+          'Follow standard academic English subject-verb-object word order and modifier placement.'
+      ).trim(),
+    });
+  }
+
+  // Ensure every Build a Sentence task has 5 items
+  let fallbackIdx = 0;
+  while (normalizedItems.length < 5 && fallbackIdx < FALLBACK_BUILD_SENTENCE_ITEMS.length) {
+    const fb = FALLBACK_BUILD_SENTENCE_ITEMS[fallbackIdx++];
+    if (normalizedItems.some((existing) => existing.answer === fb.answer)) continue;
+    const targetWords = tokenizeSentenceWords(fb.answer);
+    const scrambled = deterministicScrambleWords(targetWords, fb.answer);
+    normalizedItems.push({
+      context: fb.context,
+      words: scrambled,
+      scrambledWords: scrambled,
+      answer: fb.answer,
+      correctSentence: fb.answer,
+      explanation: fb.explanation,
+    });
+  }
+
+  return {
+    title,
+    items: normalizedItems.slice(0, 5),
+  };
 }
 
+const FALLBACK_LISTEN_REPEAT_SENTENCES = [
+  'Please submit your laboratory safety forms before Friday afternoon.',
+  'The university library recently expanded its digital archive of historical manuscripts.',
+  'Undergraduate researchers must calibrate the optical spectrophotometer prior to analyzing chemical samples.',
+  'Microeconomic theory suggests that consumer price elasticity varies significantly across essential commodity markets.',
+  'Paleoclimatologists examine microscopic marine fossils within sediment cores to reconstruct prehistoric oceanic temperatures.',
+  'Interdisciplinary collaboration between structural engineers and urban ecologists fosters resilient metropolitan infrastructure design.',
+  'Neuroimaging studies demonstrate that sustained bilingual communication strengthens executive control networks across the prefrontal cortex.',
+];
+
+export function normalizeTaskContent(taskType: string, rawTask: any): any {
+  const canonicalType = canonicalizeTaskType(taskType);
+  const task = rawTask && typeof rawTask === 'object' ? (rawTask.content && typeof rawTask.content === 'object' && !rawTask.title ? { ...rawTask, ...rawTask.content } : rawTask) : {};
+
+  switch (canonicalType) {
+    case 'complete-words': {
+      const cw = normalizeCompleteWordsTask(task);
+      return {
+        ...task,
+        title: cw.title,
+        text: cw.text,
+        totalBlanks: cw.totalBlanks,
+        blanks: cw.blanks,
+      };
+    }
+
+    case 'build-sentence': {
+      const bs = normalizeBuildSentenceTask(task);
+      return {
+        ...task,
+        title: bs.title,
+        items: bs.items,
+      };
+    }
+
+    case 'listen-repeat': {
+      const title = String(task.title || 'Campus & Academic Listen and Repeat').trim();
+      const speakerName = String(task.speakerName || 'Dr. Evelyn Vance (Female)').trim();
+      const speakerGender =
+        task.speakerGender === 'male' || task.speakerGender === 'female'
+          ? task.speakerGender
+          : inferGender(speakerName);
+
+      let rawSentences: string[] = Array.isArray(task.sentences)
+        ? task.sentences.map((s: any) => String(typeof s === 'string' ? s : s?.sentence || s?.text || '').trim()).filter(Boolean)
+        : Array.isArray(task.items)
+        ? task.items.map((s: any) => String(typeof s === 'string' ? s : s?.sentence || s?.text || '').trim()).filter(Boolean)
+        : [];
+
+      // Filter out overly short fragments (< 5 words)
+      rawSentences = rawSentences.filter((s) => s.split(/\s+/).filter(Boolean).length >= 5);
+
+      let fbIdx = 0;
+      while (rawSentences.length < 7 && fbIdx < FALLBACK_LISTEN_REPEAT_SENTENCES.length) {
+        const candidate = FALLBACK_LISTEN_REPEAT_SENTENCES[fbIdx++];
+        if (!rawSentences.includes(candidate)) {
+          rawSentences.push(candidate);
+        }
+      }
+
+      return {
+        ...task,
+        title,
+        speakerName,
+        speakerGender,
+        sentences: rawSentences.slice(0, 7),
+      };
+    }
+
+    case 'speaking-interview': {
+      const title = String(task.title || 'Academic Research & Policy Interview').trim();
+      const context = String(
+        task.context ||
+          'You are participating in a structured academic interview regarding university policy and contemporary research.'
+      ).trim();
+      const interviewerName = String(task.interviewerName || 'Professor Arthur Miller (Male)').trim();
+      const interviewerGender =
+        task.interviewerGender === 'male' || task.interviewerGender === 'female'
+          ? task.interviewerGender
+          : inferGender(interviewerName);
+
+      const rawQs = Array.isArray(task.questions) ? task.questions : [];
+      const normalizedQs = rawQs
+        .map((q: any) => {
+          const qText = String(typeof q === 'string' ? q : q?.question || q?.prompt || '').trim();
+          if (!qText) return null;
+          return {
+            question: qText,
+            prepTimeSeconds: Number(q?.prepTimeSeconds) || 15,
+            responseTimeSeconds: Number(q?.responseTimeSeconds) || 45,
+            suggestedPoints:
+              Array.isArray(q?.suggestedPoints) && q.suggestedPoints.length > 0
+                ? q.suggestedPoints.map(String)
+                : [
+                    'State your primary position clearly',
+                    'Support your argument with a concrete academic or personal example',
+                    'Synthesize the broader implications of your view',
+                  ],
+          };
+        })
+        .filter(Boolean) as Array<{
+        question: string;
+        prepTimeSeconds: number;
+        responseTimeSeconds: number;
+        suggestedPoints: string[];
+      }>;
+
+      const defaultFollowUps = [
+        {
+          question: `Looking more broadly at ${title.toLowerCase()}, what practical challenges do students or institutions typically encounter first?`,
+          prepTimeSeconds: 15,
+          responseTimeSeconds: 45,
+          suggestedPoints: [
+            'Identify a specific logistical or resource obstacle',
+            'Explain how this obstacle affects daily academic work',
+            'Propose a realistic initial mitigation step',
+          ],
+        },
+        {
+          question:
+            'How should universities balance short-term financial constraints against long-term educational quality in this area?',
+          prepTimeSeconds: 15,
+          responseTimeSeconds: 45,
+          suggestedPoints: [
+            'Compare immediate budget pressures with long-term academic outcomes',
+            'Provide an example of a high-impact institutional investment',
+            'Explain how stakeholders benefit over time',
+          ],
+        },
+        {
+          question:
+            'Some critics argue that traditional institutional approaches are outdated. To what extent do you agree or disagree with that view?',
+          prepTimeSeconds: 15,
+          responseTimeSeconds: 45,
+          suggestedPoints: [
+            'Take a clear stance on traditional versus modern reforms',
+            'Acknowledge one valid point from the opposing perspective',
+            'Defend your conclusion with specific evidence',
+          ],
+        },
+        {
+          question:
+            'Looking ahead over the next decade, how do you expect technological and social shifts to transform this field?',
+          prepTimeSeconds: 15,
+          responseTimeSeconds: 45,
+          suggestedPoints: [
+            'Forecast a key technological or demographic trend',
+            'Evaluate potential risks and ethical considerations',
+            'Conclude with how future graduates should prepare',
+          ],
+        },
+      ];
+
+      let fIdx = 0;
+      while (normalizedQs.length < 4 && fIdx < defaultFollowUps.length) {
+        normalizedQs.push(defaultFollowUps[fIdx++]);
+      }
+
+      return {
+        ...task,
+        title,
+        context,
+        interviewerName,
+        interviewerGender,
+        questions: normalizedQs.slice(0, 4),
+      };
+    }
+
+    case 'reading-passage': {
+      const title = String(task.title || 'Academic Reading Comprehension').trim();
+      const passage = String(task.passage || task.text || '').trim();
+      const rawQs = Array.isArray(task.questions) ? task.questions : [];
+      const questions = rawQs
+        .map((q: any) => {
+          if (!q || typeof q !== 'object') return null;
+          const qText = String(q.q || q.question || '').trim();
+          const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+          if (!qText || options.length < 4) return null;
+          let answer = typeof q.answer === 'number' ? q.answer : Number(q.correctAnswer ?? 0);
+          if (isNaN(answer) || answer < 0 || answer > 3) answer = 0;
+          return {
+            q: qText,
+            options: options.slice(0, 4),
+            answer,
+            why: String(q.why || q.explanation || 'Supported directly by evidence in the reading passage.').trim(),
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        ...task,
+        title,
+        passage,
+        questions,
+      };
+    }
+
+    case 'listening-dialogue': {
+      const title = String(task.title || 'Campus Conversation & Lecture').trim();
+      const context = String(
+        task.context || task.situation || 'Listen to an academic discussion or university conversation.'
+      ).trim();
+      const script = String(task.script || task.dialogue || task.lecture || task.text || '').trim();
+
+      let speakers = task.speakers;
+      if (!speakers || typeof speakers !== 'object' || Array.isArray(speakers)) {
+        speakers = { A: 'Emma (Student)', B: 'Professor Miller' };
+      }
+
+      const speakerGenders = task.speakerGenders || {
+        A: inferGender(String(speakers.A || '')),
+        B: inferGender(String(speakers.B || '')),
+      };
+
+      const rawQs = Array.isArray(task.questions) ? task.questions : [];
+      const questions = rawQs
+        .map((q: any) => {
+          if (!q || typeof q !== 'object') return null;
+          const qText = String(q.q || q.question || '').trim();
+          const options = Array.isArray(q.options) ? q.options.map(String).filter(Boolean) : [];
+          if (!qText || options.length < 4) return null;
+          let answer = typeof q.answer === 'number' ? q.answer : Number(q.correctAnswer ?? 0);
+          if (isNaN(answer) || answer < 0 || answer > 3) answer = 0;
+          return {
+            q: qText,
+            options: options.slice(0, 4),
+            answer,
+            why: String(q.why || q.explanation || 'Directly stated in the audio passage.').trim(),
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        ...task,
+        title,
+        context,
+        speakers,
+        speakerGenders,
+        script,
+        questions,
+      };
+    }
+
+    case 'write-email': {
+      const title = String(task.title || 'Academic Campus Email').trim();
+      const situation = String(task.situation || task.context || task.prompt || '').trim();
+      const recipient = String(task.recipient || 'Professor Harrison').trim();
+      const goals = Array.isArray(task.goals)
+        ? task.goals.map(String).filter(Boolean)
+        : Array.isArray(task.bulletPoints)
+        ? task.bulletPoints.map(String).filter(Boolean)
+        : [];
+      const suggestedWordCount = String(task.suggestedWordCount || '100-130 words').trim();
+      return {
+        ...task,
+        title,
+        situation,
+        recipient,
+        goals,
+        suggestedWordCount,
+      };
+    }
+
+    case 'academic-discussion':
+    default: {
+      const title = String(task.title || 'Academic Course Discussion').trim();
+      const professorName = String(task.professorName || task.professor?.name || 'Professor Henderson').trim();
+      const professorPrompt = String(task.professorPrompt || task.prompt || task.professor?.prompt || '').trim();
+      const s1 = {
+        name: String(task.s1?.name || task.student1?.name || 'Marcus').trim(),
+        text: String(task.s1?.text || task.student1?.text || '').trim(),
+      };
+      const s2 = {
+        name: String(task.s2?.name || task.student2?.name || 'Elena').trim(),
+        text: String(task.s2?.text || task.student2?.text || '').trim(),
+      };
+      const question = String(
+        task.question ||
+          'Express and support your personal opinion in the academic discussion forum, contributing a distinct perspective.'
+      ).trim();
+
+      return {
+        ...task,
+        title,
+        professorName,
+        professorPrompt,
+        s1,
+        s2,
+        question,
+      };
+    }
+  }
+}
+
+/**
+ * Validates that a normalized task strictly meets 2026 TOEFL iBT structural and quality rules.
+ */
+export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedData?: any): boolean {
+  const isSingleArgObject = typeof taskTypeOrItem === 'object' && taskTypeOrItem !== null && normalizedData === undefined;
+  const rawType = isSingleArgObject ? taskTypeOrItem.taskType : taskTypeOrItem;
+  const targetObj = isSingleArgObject ? taskTypeOrItem : normalizedData;
+
+  if (!targetObj || typeof targetObj !== 'object') return false;
+  const canonicalType = canonicalizeTaskType(rawType);
+  const data =
+    targetObj.content && typeof targetObj.content === 'object' && !targetObj.title && !targetObj.text && !targetObj.items
+      ? targetObj.content
+      : targetObj;
+
+  switch (canonicalType) {
+    case 'complete-words': {
+      const text = String(data.text || '');
+      if (!text || text.length < 50) return false;
+      // Reject any backwards blank where ]] is followed immediately by letters (e.g. [[penetr]]ate)
+      if (/\]\][a-zA-Z]/.test(text)) return false;
+      // Reject any full-word blank where [[ is NOT preceded immediately by at least 2 letters
+      const parts = text.split(/\[\[(.+?)\]\]/);
+      if (parts.length < 17) return false; // At least 8 blanks (10 standard)
+      for (let i = 1; i < parts.length; i += 2) {
+        const solution = parts[i];
+        const prevText = parts[i - 1] || '';
+        const prefixMatch = prevText.match(/([a-zA-Z]+)$/);
+        if (!prefixMatch || prefixMatch[1].length < 2) return false;
+        if (!/^[a-zA-Z]{2,}$/.test(solution)) return false;
+      }
+      return true;
+    }
+
+    case 'build-sentence': {
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (items.length < 5) return false;
+      return items.every((item: any) => {
+        const ans = String(item.answer || item.correctSentence || '').trim();
+        const ctx = String(item.context || '').trim();
+        const words = Array.isArray(item.words) ? item.words : [];
+        const targetWords = tokenizeSentenceWords(ans);
+        if (targetWords.length < 5 || !ctx) return false;
+        if (ctx.toLowerCase().includes(ans.toLowerCase().replace(/[.!?]+$/, ''))) return false;
+        return haveSameWordMultiset(words, targetWords);
+      });
+    }
+
+    case 'reading-passage': {
+      const passage = String(data.passage || '');
+      const wordCount = passage.trim().split(/\s+/).filter(Boolean).length;
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (wordCount < 120 || questions.length < 3) return false;
+      return questions.every(
+        (q: any) =>
+          q.q &&
+          Array.isArray(q.options) &&
+          q.options.length === 4 &&
+          typeof q.answer === 'number' &&
+          q.answer >= 0 &&
+          q.answer <= 3
+      );
+    }
+
+    case 'listening-dialogue': {
+      const script = String(data.script || '');
+      const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (wordCount < 90 || questions.length < 3) return false;
+      return questions.every(
+        (q: any) =>
+          q.q &&
+          Array.isArray(q.options) &&
+          q.options.length === 4 &&
+          typeof q.answer === 'number' &&
+          q.answer >= 0 &&
+          q.answer <= 3
+      );
+    }
+
+    case 'listen-repeat': {
+      const sentences = Array.isArray(data.sentences) ? data.sentences : [];
+      if (sentences.length < 7) return false;
+      return sentences.every((s: string) => String(s || '').trim().split(/\s+/).filter(Boolean).length >= 5);
+    }
+
+    case 'speaking-interview': {
+      const questions = Array.isArray(data.questions) ? data.questions : [];
+      if (questions.length < 4) return false;
+      return questions.every((q: any) => String(q?.question || '').trim().length >= 15);
+    }
+
+    case 'write-email': {
+      const situation = String(data.situation || '').trim();
+      const recipient = String(data.recipient || '').trim();
+      const goals = Array.isArray(data.goals) ? data.goals : [];
+      return situation.length >= 30 && recipient.length >= 2 && goals.length >= 3;
+    }
+
+    case 'academic-discussion': {
+      const prompt = String(data.professorPrompt || '').trim();
+      const s1Text = String(data.s1?.text || '').trim();
+      const s2Text = String(data.s2?.text || '').trim();
+      return prompt.length >= 40 && s1Text.length >= 40 && s2Text.length >= 40;
+    }
+
+    default:
+      return false;
+  }
+}
+
+export function normalizeQuestionBankItem(rawItem: any, fallbackTaskType?: string): any {
+  if (!rawItem || typeof rawItem !== 'object') return null;
+
+  const taskType = canonicalizeTaskType(rawItem.taskType || fallbackTaskType);
+  const rawContent =
+    rawItem.content && typeof rawItem.content === 'object'
+      ? { ...rawItem, ...rawItem.content }
+      : { ...rawItem };
+
+  const level = normalizeDifficultyLabel(rawItem.level || rawContent.level || rawItem.difficulty);
+  const topic = normalizeTopicLabel(rawItem.topic || rawContent.topic, rawContent);
+
+  const normalizedContent = normalizeTaskContent(taskType, rawContent);
+
+  return {
+    ...normalizedContent,
+    id: String(rawItem.id || rawContent.id || `${taskType}-${Date.now()}`),
+    taskType,
+    level,
+    difficulty: level,
+    topic,
+    content: {
+      ...normalizedContent,
+      level,
+      difficulty: level,
+      topic,
+    },
+  };
+}
+
+export function normalizeTaskData(raw: any, fallbackTaskType?: string): any {
+  if (!raw || typeof raw !== 'object') return raw;
+  const taskType = canonicalizeTaskType(raw.taskType || fallbackTaskType);
+  const baseObj =
+    raw.content && typeof raw.content === 'object'
+      ? { ...raw, ...raw.content }
+      : { ...raw };
+
+  const level = normalizeDifficultyLabel(raw.level || baseObj.level || raw.difficulty);
+  const topic = normalizeTopicLabel(raw.topic || baseObj.topic, baseObj);
+  const normalizedContent = normalizeTaskContent(taskType, baseObj);
+
+  return {
+    ...raw,
+    ...normalizedContent,
+    taskType,
+    level,
+    difficulty: level,
+    topic,
+    ...(raw.content && typeof raw.content === 'object'
+      ? {
+          content: {
+            ...raw.content,
+            ...normalizedContent,
+            level,
+            difficulty: level,
+            topic,
+          },
+        }
+      : {}),
+  };
+}
