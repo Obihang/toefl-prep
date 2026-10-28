@@ -89,6 +89,7 @@ service cloud.firestore {
     function isValidQuestion(data) {
       return isValidTaskType(data.taskType)
         && data.content is map
+        && (!data.keys().hasAll(['schemaVersion']) || data.schemaVersion is number || data.schemaVersion is string)
         && (!data.keys().hasAll(['contentHash']) || (data.contentHash is string && data.contentHash.size() <= 200))
         && (!data.keys().hasAll(['useCount']) || (data.useCount is number && data.useCount >= 0))
         && (!data.keys().hasAll(['audioUrl']) || data.audioUrl == null || (data.audioUrl is string && isValidUrl(data.audioUrl)))

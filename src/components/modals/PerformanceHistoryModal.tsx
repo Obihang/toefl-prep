@@ -4,6 +4,9 @@ import {
   getPracticeHistory,
   clearPracticeHistory,
   calculateToeflEstimate,
+  convertScaledToBand6,
+  sanitizePracticeRecord,
+  getCurrentUserId,
   PracticeRecord,
 } from '../../utils/scoreTracker';
 import { PerformanceTrendChart } from './history/PerformanceTrendChart';
@@ -115,8 +118,9 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
         try {
           const parsed = JSON.parse(event.target?.result as string);
           if (Array.isArray(parsed)) {
-            localStorage.setItem('toefl_prep_history_v1', JSON.stringify(parsed));
-            setHistory(parsed);
+            const sanitized = parsed.map((item) => sanitizePracticeRecord(item).record);
+            localStorage.setItem(`toefl_prep_history_${getCurrentUserId()}`, JSON.stringify(sanitized));
+            setHistory(sanitized);
             showNotification('History imported successfully!', 'success');
           } else {
             showNotification('Invalid JSON format: expected an array of records.', 'error');
@@ -323,7 +327,8 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {history.map((rec) => {
-                    const band = rec.bandScore6 ?? (rec.scaledScore30 >= 29 ? 6.0 : rec.scaledScore30 >= 26 ? 5.5 : rec.scaledScore30 >= 23 ? 5.0 : rec.scaledScore30 >= 20 ? 4.5 : rec.scaledScore30 >= 17 ? 4.0 : rec.scaledScore30 >= 14 ? 3.5 : rec.scaledScore30 >= 11 ? 3.0 : 2.5);
+                    const scaled30 = typeof rec.scaledScore30 === 'number' ? rec.scaledScore30 : Math.min(30, Number(rec.score || 0));
+                    const band = rec.bandScore6 ?? convertScaledToBand6(scaled30, rec.section);
                     return (
                       <tr key={rec.id} className="hover:bg-slate-50/50">
                         <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">
@@ -337,7 +342,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
                           Band {band.toFixed(1)}
                         </td>
                         <td className="py-2 px-3 text-right font-mono font-medium text-slate-600">
-                          {rec.scaledScore30}/30
+                          {scaled30} / 30
                         </td>
                       </tr>
                     );

@@ -208,7 +208,7 @@ export const DashboardModal: React.FC<Props> = ({
             <Target className="w-4 h-4 text-teal-600" />
             <span>Study Goals</span>
             <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-full">
-              {totalBankCount > 0 ? String(totalBankCount) : '80'}
+              {totalBankCount > 0 ? String(totalBankCount) : '120'}
             </span>
           </button>
 

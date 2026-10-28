@@ -631,17 +631,6 @@ export default function App() {
           generatedBy: json.data.generatedBy || getScholarUsername(),
         };
 
-        await saveVerifiedQuestion({
-          taskType: type,
-          level: concreteLevel,
-          topic: concreteTopic,
-          content: prefetchedItem,
-          audioUrl: prefetchedItem.audioUrl || null,
-          audioClips: prefetchedItem.audioClips || null,
-          source: 'ai',
-          generatedBy: prefetchedItem.generatedBy,
-        });
-
         setPrefetchedQueue((prev) => {
           const currentItems = prev[type] || [];
           // Ensure we don't exceed 1 question per task type
@@ -653,7 +642,6 @@ export default function App() {
           savePrefetchQueueToStorage(nextQueue);
           return nextQueue;
         });
-        getQuestionBankStats().then(setBankStats).catch(() => {});
       } else {
         failedRecentlyRef.current[type] = Date.now() + 30 * 1000;
       }
@@ -721,9 +709,10 @@ export default function App() {
     });
   }, [level, topic, currentTaskType]);
 
-  // New sequential prefetch loop
+  // Sequential prefetch lock
   const inFlightLock = React.useRef(false);
-  const [prefetchProgress, setPrefetchProgress] = useState({ done: false, filled: 0, total: 8 });
+  const isBackgroundPrefetchLoopActiveRef = React.useRef(false);
+  const [prefetchProgress, setPrefetchProgress] = useState({ done: false, filled: 0, total: 12 });
   useEffect(() => {
     const el = sectionBarRef.current;
     if (!el) return;
@@ -742,46 +731,46 @@ export default function App() {
 
   useEffect(() => {
     if (!enablePrefetching || !hasAnyProviderKey()) return;
-    
+
     let isCancelled = false;
     let idleTimeout: any = null;
-    let lastActivityTime = Date.now();
-
-    const onUserActivity = () => { lastActivityTime = Date.now(); };
-    window.addEventListener('mousemove', onUserActivity, { passive: true });
-    window.addEventListener('keydown', onUserActivity, { passive: true });
-    window.addEventListener('scroll', onUserActivity, { passive: true });
 
     const runLoop = async () => {
-      if (isCancelled || inFlightLock.current || isGenerating || document.visibilityState !== 'visible') return;
-      if (Date.now() < quotaExhaustedUntilRef.current) return;
-      
-      const timeSinceActivity = Date.now() - lastActivityTime;
-      if (timeSinceActivity < 1500) {
-        idleTimeout = setTimeout(runLoop, 1500 - timeSinceActivity);
+      if (
+        isCancelled ||
+        isBackgroundPrefetchLoopActiveRef.current ||
+        inFlightLock.current ||
+        isGenerating ||
+        document.visibilityState !== 'visible'
+      ) {
         return;
       }
+      if (Date.now() < quotaExhaustedUntilRef.current) return;
 
-      const target = getNextTaskToPrefetch(currentTaskType, prefetchedQueueRef.current, level, topic, failedRecentlyRef.current, Date.now());
+      const target = getNextTaskToPrefetch(
+        currentTaskType,
+        prefetchedQueueRef.current,
+        level,
+        topic,
+        failedRecentlyRef.current,
+        Date.now(),
+        bankStats?.countsPerTaskType
+      );
       if (!target) return;
 
-      await prefetchTaskInBackground(target, level, topic);
-      if (!isCancelled) {
-        if (idleTimeout) clearTimeout(idleTimeout);
-        idleTimeout = setTimeout(runLoop, 1500);
+      isBackgroundPrefetchLoopActiveRef.current = true;
+      try {
+        await prefetchTaskInBackground(target, level, topic);
+      } finally {
+        isBackgroundPrefetchLoopActiveRef.current = false;
       }
     };
 
-    const interval = setInterval(runLoop, 5000);
-    runLoop();
+    idleTimeout = setTimeout(runLoop, 2500);
 
     return () => {
       isCancelled = true;
-      clearInterval(interval);
       clearTimeout(idleTimeout);
-      window.removeEventListener('mousemove', onUserActivity);
-      window.removeEventListener('keydown', onUserActivity);
-      window.removeEventListener('scroll', onUserActivity);
     };
   }, [currentTaskType, level, topic, isGenerating, enablePrefetching]);
 
@@ -825,16 +814,20 @@ export default function App() {
         setGenerationSuccess(true);
         setTimeout(() => setGenerationSuccess(false), 3000);
 
-        saveSharedQuestion({
+        saveVerifiedQuestion({
           taskType: currentTaskType,
           level: concreteLevel,
           topic: concreteTopic,
-          data: readyTask,
-          createdByName: displayName || 'Anonymous Scholar',
-          createdByUid: user?.uid || 'anonymous',
-        }).catch(() => {});
+          content: readyTask,
+          audioUrl: readyTask.audioUrl || null,
+          audioClips: readyTask.audioClips || null,
+          source: 'ai',
+          generatedBy: displayName || getScholarUsername(),
+        })
+          .then(() => getQuestionBankStats().then(setBankStats))
+          .catch(() => {});
 
-        // Immediately replenish the next question in the background if empty
+        // Immediately replenish 1 standby question for the active task in the background
         if (enablePrefetching && hasAnyProviderKey()) {
           setTimeout(() => {
             prefetchTaskInBackground(currentTaskType, concreteLevel, concreteTopic);

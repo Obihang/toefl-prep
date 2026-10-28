@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Trophy, Flame, CheckCircle2, Circle, ArrowRight, Play, Sparkles, Clock, AlertTriangle, BookOpen } from 'lucide-react';
-import { PracticeRecord, getUserStats } from '../../../utils/scoreTracker';
+import { PracticeRecord, getUserStats, convertScaledToBand6 } from '../../../utils/scoreTracker';
 import { streak } from '../../../utils/dashboardStats';
 import {
   generateDailyPlan,
@@ -349,14 +349,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {recentAttemptsList.map((att, idx) => (
-                  <tr key={att.id || idx} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-2.5 text-slate-500">{new Date(att.date || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                    <td className="py-2.5 font-semibold text-slate-800">{att.section}</td>
-                    <td className="py-2.5 text-slate-600 truncate max-w-xs">{att.taskTitle || att.taskType}</td>
-                    <td className="py-2.5 text-right font-bold text-teal-900">{att.scaledScore30 || att.score} / {att.maxScore || 30}</td>
-                  </tr>
-                ))}
+                {recentAttemptsList.map((att, idx) => {
+                  const scaled30 = typeof att.scaledScore30 === 'number' ? att.scaledScore30 : Math.min(30, Number(att.score || 0));
+                  const band6 = att.bandScore6 ?? convertScaledToBand6(scaled30, att.section);
+                  return (
+                    <tr key={att.id || idx} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-2.5 text-slate-500">{new Date(att.date || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="py-2.5 font-semibold text-slate-800">{att.section}</td>
+                      <td className="py-2.5 text-slate-600 truncate max-w-xs">{att.taskTitle || att.taskType}</td>
+                      <td className="py-2.5 text-right font-bold text-teal-900 font-mono">
+                        Band {band6.toFixed(1)} · {scaled30} / 30
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

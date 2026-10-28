@@ -42,14 +42,16 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const TOEFL_2026_PURGE_V9 = 'toefl_bank_purged_2026_v9';
-export const TOEFL_2026_PURGE_V8 = TOEFL_2026_PURGE_V9;
-export const TOEFL_2026_PURGE_V7 = TOEFL_2026_PURGE_V9;
-export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V9;
-export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V9;
-export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V9;
-export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V9;
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V9;
+export const CURRENT_BANK_SCHEMA_VERSION = 202605;
+export const TOEFL_2026_PURGE_V10 = 'toefl_bank_purged_2026_v10';
+export const TOEFL_2026_PURGE_V9 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V8 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V7 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V10;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V10;
 export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v20';
 
 export function canonicalizeTaskType(taskType: string): string {
@@ -242,6 +244,8 @@ export async function purgeLowQualityCache(): Promise<number> {
     const idsToDelete = allItems
       .filter((item) => {
         if (!item?.content) return true;
+        const itemSchema = item.schemaVersion ?? item.content?.schemaVersion;
+        if (itemSchema !== CURRENT_BANK_SCHEMA_VERSION) return true;
         const norm = normalizeQuestionBankItem(item.content, item.taskType);
         return !norm || !validateNormalizedTask(item.taskType, norm);
       })
@@ -308,7 +312,7 @@ export async function saveVerifiedQuestion(params: {
     difficulty: validLevel,
     topic: validTopic,
     source,
-    schemaVersion: '2026_v2',
+    schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
   };
@@ -342,6 +346,7 @@ export async function saveVerifiedQuestion(params: {
       audioUrl,
       audioClips,
       source,
+      schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
       generatedBy: enrichedContent.generatedBy,
       updatedAt: Date.now(),
     });
@@ -373,6 +378,7 @@ export async function saveVerifiedQuestion(params: {
             ? audioClips.filter((c) => isValidBlobUrl(c?.url)).slice(0, 10)
             : null,
           source,
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
           generatedBy: enrichedContent.generatedBy,
           createdAt: serverTimestamp(),
           createdBy: auth?.currentUser?.uid || 'anonymous',
@@ -467,6 +473,7 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
                 level: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
                 difficulty: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
                 topic: normalizeTopicLabel(rawItem.topic || rawItem.category, rawItem),
+                schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
               };
               const sig = getQuestionContentSignature(canonicalType, enriched);
               if (!seenSigs.has(sig) && !seenIds.has(qId)) {
@@ -495,6 +502,8 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
     });
 
     for (const row of all) {
+      const rowSchema = row.schemaVersion ?? row.content?.schemaVersion;
+      if (rowSchema !== CURRENT_BANK_SCHEMA_VERSION) continue;
       const rowType = canonicalizeTaskType(row.taskType);
       if (rowType === canonicalType && row.content) {
         const qId = String(row.content.id || row.id || '');
@@ -510,6 +519,7 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
           level: normalizeDifficultyLabel(row.level || row.content.level),
           difficulty: normalizeDifficultyLabel(row.level || row.content.level),
           topic: normalizeTopicLabel(row.topic || row.content.topic, row.content),
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
         };
         const sig = getQuestionContentSignature(canonicalType, enriched);
         if (!seenSigs.has(sig) && (!qId || !seenIds.has(qId))) {
@@ -612,10 +622,11 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     topic: string;
     content: any;
     isCurated: boolean;
+    schemaVersion: number;
     updatedAt: number;
   }> = [];
 
-  // 1. Fetch all 8 curated shards completely into memory first BEFORE opening IDB transaction
+  // 1. Fetch all 12 curated shards completely into memory first BEFORE opening IDB transaction
   for (const shard of SHARD_FILES) {
     const canonicalType = canonicalizeTaskType(shard);
     if (!tempCache[canonicalType]) {
@@ -647,6 +658,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               level: validLevel,
               difficulty: validLevel,
               topic: validTopic,
+              schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
             };
 
             const sig = getQuestionContentSignature(canonicalType, enrichedContent);
@@ -668,6 +680,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               topic: validTopic,
               content: enrichedContent,
               isCurated: true,
+              schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
               updatedAt: Date.now(),
             });
           }
@@ -678,7 +691,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     }
   }
 
-  // 2. Fetch and merge validated, deduplicated questions from Firestore
+  // 2. Fetch and merge validated, deduplicated questions from Firestore (ONLY CURRENT_BANK_SCHEMA_VERSION)
   try {
     if (db) {
       const qSnap = await getDocs(collection(db, 'questions'));
@@ -686,6 +699,8 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
         qSnap.forEach((docSnap) => {
           const rawDoc = docSnap.data();
           if ((rawDoc.reportCount || 0) >= 3) return;
+          const docSchema = rawDoc.schemaVersion ?? rawDoc.content?.schemaVersion;
+          if (docSchema !== CURRENT_BANK_SCHEMA_VERSION) return;
 
           const targetTaskType = canonicalizeTaskType(
             rawDoc.taskType || rawDoc.type || 'academic-discussion'
@@ -718,6 +733,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               level: validLevel,
               difficulty: validLevel,
               topic: validTopic,
+              schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
             };
 
             const sig = getQuestionContentSignature(targetTaskType, enrichedContent);
@@ -744,6 +760,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               topic: validTopic,
               content: enrichedContent,
               isCurated: false,
+              schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
               updatedAt: Date.now(),
             });
           }
@@ -754,8 +771,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     console.warn('Failed to sync questions from Firestore into local bank:', firestoreErr);
   }
 
-  // 3. Preserve any locally generated AI questions in IndexedDB that are not yet in Firestore,
-  // while replacing the store with the clean, deduplicated set.
+  // 3. Preserve any locally generated AI questions in IndexedDB that match CURRENT_BANK_SCHEMA_VERSION
   try {
     const dbInstance = await openIndexedDB();
     const existingRows = await new Promise<any[]>((resolve) => {
@@ -767,6 +783,8 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     });
 
     for (const row of existingRows) {
+      const rowSchema = row.schemaVersion ?? row.content?.schemaVersion;
+      if (rowSchema !== CURRENT_BANK_SCHEMA_VERSION) continue;
       const rowType = canonicalizeTaskType(row.taskType);
       const rawRowContent = row.content || row;
       const normalizedWrapper = normalizeQuestionBankItem(rawRowContent, rowType);
@@ -788,6 +806,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
           level: validLevel,
           difficulty: validLevel,
           topic: validTopic,
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
         };
         const sig = getQuestionContentSignature(rowType, enrichedContent);
         if (!seenSignatures.has(sig) && (!qId || !seenIds.has(qId))) {
@@ -803,6 +822,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
             topic: validTopic,
             content: enrichedContent,
             isCurated: Boolean(row.isCurated),
+            schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
             updatedAt: row.updatedAt || Date.now(),
           });
         }
@@ -871,9 +891,11 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
 
     const snap = await getDocs(collection(db, 'questions'));
     snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      const docSchema = d?.schemaVersion ?? d?.content?.schemaVersion;
+      if (docSchema !== CURRENT_BANK_SCHEMA_VERSION) return;
       existing++;
       existingIds.add(docSnap.id);
-      const d = docSnap.data();
       if (d?.contentHash) existingHashes.add(String(d.contentHash));
       const tType = canonicalizeTaskType(d?.taskType || d?.type || 'academic-discussion');
       const sig = getQuestionContentSignature(tType, d?.content || d);
@@ -937,6 +959,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
         level: cand.level,
         topic: cand.topic,
         source: cand.source,
+        schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
         generatedBy: cand.content.generatedBy || getScholarUsername(),
         createdAt: cand.content.createdAt || Date.now(),
       };
@@ -960,6 +983,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
           audioUrl: cleanAudioUrl,
           audioClips: cleanAudioClips && cleanAudioClips.length > 0 ? cleanAudioClips : null,
           source: cand.source,
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
           generatedBy: enrichedContent.generatedBy,
           createdAt: serverTimestamp(),
           createdBy: auth?.currentUser?.uid || 'anonymous',
@@ -1042,6 +1066,8 @@ export async function getQuestionBankStats(): Promise<{
       let curatedTotal = 0;
 
       for (const item of all) {
+        const itemSchema = item.schemaVersion ?? item.content?.schemaVersion;
+        if (itemSchema !== CURRENT_BANK_SCHEMA_VERSION) continue;
         const tType = canonicalizeTaskType(item.taskType);
         const contentObj = item.content || item;
         if (tType && counts[tType] !== undefined && contentObj) {
@@ -1281,6 +1307,7 @@ export interface SharedQuestionRecord {
   audioUrl?: string | null;
   audioClips?: Array<{ speaker: string; url: string }> | null;
   source?: string;
+  schemaVersion?: number | string;
   generatedBy?: string;
   createdAt?: any;
   createdBy: string;
@@ -1343,7 +1370,7 @@ export async function saveQuestionToBank(params: {
     difficulty: validatedLevel,
     topic: validatedTopic,
     source,
-    schemaVersion: '2026_v2',
+    schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
   };
@@ -1375,6 +1402,7 @@ export async function saveQuestionToBank(params: {
       audioUrl: cleanAudioUrl,
       audioClips: cleanAudioClips && cleanAudioClips.length > 0 ? cleanAudioClips : null,
       source,
+      schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
       generatedBy: enrichedContent.generatedBy,
       createdAt: serverTimestamp(),
       createdBy: auth?.currentUser?.uid || 'anonymous',
@@ -1553,6 +1581,12 @@ export async function fetchUnseenQuestion(
       for (const docSnap of snapshot.docs) {
         const data = docSnap.data();
 
+        // 0. Skip legacy pre-schemaVersion documents
+        const docSchema = data.schemaVersion ?? data.content?.schemaVersion;
+        if (docSchema !== CURRENT_BANK_SCHEMA_VERSION) {
+          continue;
+        }
+
         // 1. Skip reported questions (reportCount >= 3)
         if ((data.reportCount || 0) >= 3) {
           continue;
@@ -1664,7 +1698,12 @@ export async function getUnseenQuestionCount(
     let unseen = 0;
     snap.docs.forEach((d) => {
       const data = d.data();
-      if ((data.reportCount || 0) < 3 && !seenIds.includes(d.id)) {
+      const docSchema = data.schemaVersion ?? data.content?.schemaVersion;
+      if (
+        docSchema === CURRENT_BANK_SCHEMA_VERSION &&
+        (data.reportCount || 0) < 3 &&
+        !seenIds.includes(d.id)
+      ) {
         unseen++;
       }
     });

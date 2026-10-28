@@ -9,10 +9,76 @@ export interface PracticeRecord {
   date: string;
   score: number;
   maxScore: number;
+  rawScore?: number;
+  rawMaxScore?: number;
   scaledScore30: number;
   bandScore6?: number; // Official updated TOEFL 1.0 - 6.0 band scale
   timeSpentSeconds: number;
   feedbackSummary?: string;
+}
+
+export function band6ToScaled30(band6: number): number {
+  const b = Math.round((Number(band6) || 1) * 2) / 2;
+  if (b >= 6.0) return 30;
+  if (b >= 5.5) return 28;
+  if (b >= 5.0) return 25;
+  if (b >= 4.5) return 22;
+  if (b >= 4.0) return 19;
+  if (b >= 3.5) return 16;
+  if (b >= 3.0) return 13;
+  if (b >= 2.5) return 10;
+  if (b >= 2.0) return 7;
+  if (b >= 1.5) return 4;
+  return 2;
+}
+
+export function sanitizePracticeRecord(raw: any): { record: PracticeRecord; changed: boolean } {
+  const origScore = Number(raw?.score ?? 0);
+  const origMax = Number(raw?.maxScore ?? 30);
+  let scaled30: number;
+
+  if (typeof raw?.scaledScore30 === 'number' && !isNaN(raw.scaledScore30) && raw.scaledScore30 >= 0 && raw.scaledScore30 <= 30) {
+    scaled30 = Math.round(raw.scaledScore30);
+  } else if (typeof raw?.bandScore6 === 'number' && !isNaN(raw.bandScore6) && raw.bandScore6 >= 1 && raw.bandScore6 <= 6) {
+    scaled30 = band6ToScaled30(raw.bandScore6);
+  } else if (origScore > origMax && origScore <= 30) {
+    // Corrupted entry where scaled30 was stored in score alongside raw maxScore (e.g. 30/1, 28/10)
+    scaled30 = Math.round(origScore);
+  } else if (origMax > 0 && origMax !== 30 && origScore <= origMax) {
+    scaled30 = convertToScaledScore(origScore, origMax);
+  } else {
+    scaled30 = Math.min(30, Math.max(0, Math.round(origScore)));
+  }
+
+  const section = (raw?.section || 'Reading') as 'Reading' | 'Listening' | 'Speaking' | 'Writing';
+  const bandScore6 =
+    typeof raw?.bandScore6 === 'number' && !isNaN(raw.bandScore6) && raw.bandScore6 >= 1 && raw.bandScore6 <= 6
+      ? raw.bandScore6
+      : convertScaledToBand6(scaled30, section);
+
+  const changed =
+    raw?.score !== scaled30 ||
+    raw?.maxScore !== 30 ||
+    raw?.scaledScore30 !== scaled30 ||
+    raw?.bandScore6 !== bandScore6;
+
+  const record: PracticeRecord = {
+    ...raw,
+    id: raw?.id || 'rec-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    taskType: raw?.taskType || 'academic-discussion',
+    taskTitle: raw?.taskTitle || raw?.taskType || 'Practice Task',
+    section,
+    date: raw?.date || new Date().toISOString(),
+    rawScore: raw?.rawScore ?? (origMax !== 30 && origScore <= origMax ? origScore : undefined),
+    rawMaxScore: raw?.rawMaxScore ?? (origMax !== 30 ? origMax : undefined),
+    score: scaled30,
+    maxScore: 30,
+    scaledScore30: scaled30,
+    bandScore6,
+    timeSpentSeconds: Number(raw?.timeSpentSeconds || 60),
+  };
+
+  return { record, changed };
 }
 
 export function getCurrentUserId(): string {
@@ -35,23 +101,39 @@ const getStorageKey = () => `toefl_prep_history_${getCurrentUserId()}`;
 export function getPracticeHistory(): PracticeRecord[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(getStorageKey());
-    return raw ? JSON.parse(raw) : [];
+    const key = getStorageKey();
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    let anyRepaired = false;
+    const sanitized = parsed.map((item) => {
+      const { record, changed } = sanitizePracticeRecord(item);
+      if (changed) anyRepaired = true;
+      return record;
+    });
+
+    if (anyRepaired) {
+      try {
+        localStorage.setItem(key, JSON.stringify(sanitized));
+      } catch {}
+    }
+
+    return sanitized;
   } catch {
     return [];
   }
 }
 
 export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'date'>): Promise<PracticeRecord> {
-  const scaledScore30 = record.scaledScore30;
-  const bandScore6 = record.bandScore6 ?? convertScaledToBand6(scaledScore30);
-
-  const fullRecord: PracticeRecord = {
+  const { record: fullRecord } = sanitizePracticeRecord({
     ...record,
-    bandScore6,
+    rawScore: record.rawScore ?? record.score,
+    rawMaxScore: record.rawMaxScore ?? record.maxScore,
     id: 'rec-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
     date: new Date().toISOString(),
-  };
+  });
 
   try {
     const history = getPracticeHistory();
