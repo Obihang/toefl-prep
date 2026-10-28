@@ -418,7 +418,7 @@ export const DailyLifeView: React.FC<Props> = ({
                 </span>
                 <span aria-hidden="true" className="text-slate-300">·</span>
                 <span>
-                  Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total)).toFixed(1)} / 6.0</strong>
+                  Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total), 'Reading').toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
                 </span>
               </div>
             )}

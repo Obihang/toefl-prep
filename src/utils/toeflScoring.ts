@@ -67,15 +67,16 @@ export const TOEFL_CONCORDANCE_TABLE_2026: ConcordanceRow[] = [
 
 /**
  * Convert 0-30 scaled score to the new TOEFL 1.0 - 6.0 band scale using section-specific cutoffs from Table 3.
+ * Per Table 3 (Page 22), Reading 29-30 is Band 6.0 and Reading 27-28 (90%) is Band 5.5.
  */
 export function convertScaledToBand6(scaledScore30: number, section?: SectionType): number {
   const score = Math.max(0, Math.min(30, Math.round(scaledScore30)));
 
   if (!section) {
-    // Standard blended conversion fallback
+    // Default to Reading/Writing Table 3 cutoffs (29-30 -> 6.0, 27-28 -> 5.5) using rounded average cutoff
     for (const row of TOEFL_CONCORDANCE_TABLE_2026) {
       const avgMin = (row.reading[0] + row.listening[0] + row.writing[0] + row.speaking[0]) / 4;
-      if (score >= Math.floor(avgMin)) {
+      if (score >= Math.round(avgMin)) {
         return row.band;
       }
     }
@@ -91,6 +92,42 @@ export function convertScaledToBand6(scaledScore30: number, section?: SectionTyp
   }
 
   return 1.0;
+}
+
+/**
+ * Convert accuracy percentage (0-100 or 0-1) to TOEFL 1.0 - 6.0 band score per Table 3.
+ * 95-100% (29-30/30) -> Band 6.0; 90% (28/30) -> Band 5.5.
+ */
+export function percentageToBand6(percentage: number, section: SectionType = 'Reading'): number {
+  const ratio = percentage > 1 ? Math.min(1, Math.max(0, percentage / 100)) : Math.min(1, Math.max(0, percentage));
+  let scaled30: number;
+  if (ratio >= 0.95) scaled30 = 30;
+  else if (ratio >= 0.9) scaled30 = 28;
+  else if (ratio >= 0.8) scaled30 = 25;
+  else if (ratio >= 0.7) scaled30 = 22;
+  else if (ratio >= 0.6) scaled30 = 19;
+  else if (ratio >= 0.5) scaled30 = 16;
+  else if (ratio >= 0.4) scaled30 = 13;
+  else scaled30 = Math.max(8, Math.round(ratio * 30));
+  return convertScaledToBand6(scaled30, section);
+}
+
+/**
+ * Convert a 1.0 - 6.0 band score to a representative 0-30 scaled score per Table 3.
+ */
+export function band6ToScaled30(band6: number): number {
+  const b = Math.round((Number(band6) || 1) * 2) / 2;
+  if (b >= 6.0) return 30;
+  if (b >= 5.5) return 28;
+  if (b >= 5.0) return 25;
+  if (b >= 4.5) return 22;
+  if (b >= 4.0) return 19;
+  if (b >= 3.5) return 16;
+  if (b >= 3.0) return 13;
+  if (b >= 2.5) return 10;
+  if (b >= 2.0) return 7;
+  if (b >= 1.5) return 4;
+  return 2;
 }
 
 /**

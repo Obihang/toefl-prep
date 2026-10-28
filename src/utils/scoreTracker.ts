@@ -240,6 +240,7 @@ export {
   TOEFL_CONCORDANCE_TABLE_2026,
   OFFICIAL_TASK_RUBRICS,
   convertScaledToBand6,
+  percentageToBand6,
   convertOverall120ToBand6,
   getBandScoreRangeForSection,
   getCefrFromBand6,
