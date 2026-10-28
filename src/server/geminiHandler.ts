@@ -297,55 +297,17 @@ function normalizeCompleteWords(data: any) {
   const title = String(data.title || 'Complete the Words').trim();
   if (!title) throw new Error('Complete the Words missing title');
   let rawText = String(data.text || '').trim();
-  if (!rawText || !rawText.includes('[') || !rawText.includes(']')) {
-    throw new Error('AI response missing valid [[masked]] word blanks in text');
-  }
-  // Merge separated compound words like "[nano] particles" -> "[nano]particles"
-  rawText = rawText.replace(
-    /(\[+[a-zA-Z]{2,8}\]+)\s+(particles|particle|chemical|chemicals|chemistry|logical|biology|biological|diversity|systems|system|organisms|organism|synthesis|synthetic|scientists|scientist|science|economic|economics|disciplinary|graduates|graduate|structure|structures|conductors|conductor|dynamics|thermal|magnetic|climate|climatologists|sphere|spheres|technology|technologies|medicine|medical|mechanics|mechanical|analysis|analytics|network|networks|plasticity|vascular|cellular|molecular)\b/gi,
-    '$1$2'
-  );
-  rawText = rawText.replace(
-    /\b(nano|bio|neuro|eco|micro|macro|photo|chemo|inter|paleo|electro|socio|thermo|hydro|multi|semi|super|under|over|trans|infra|auto|cardio|geo|astro|cyber|radio)\s+(\[+[a-zA-Z]{3,}\]+)/gi,
-    '$1$2'
-  );
-
-  const initialBrackMatches = rawText.match(/\[+[^\]]+\]+/g) || [];
-  if (initialBrackMatches.length < 3) {
-    throw new Error(`Complete the Words generated insufficient blanks (${initialBrackMatches.length}), at least 3 required`);
+  if (!rawText || rawText.split(/\s+/).filter(Boolean).length < 25) {
+    throw new Error('AI response missing valid complete_words paragraph text');
   }
 
-  const wordCount = rawText.split(/\s+/).filter(Boolean).length;
-  if (wordCount >= 35) {
-    const normalized = normalizeCompleteWordsTask({ title, text: rawText });
-    return {
-      title: normalized.title,
-      text: normalized.text,
-      totalBlanks: normalized.totalBlanks,
-      blanks: normalized.blanks,
-    };
-  }
-
-  // For short unit-test snippets (< 35 words), repair each bracketed token in-place to second-half [[suffix]]
-  const repairedText = rawText
-    .split(/(\s+)/)
-    .map((tok) => {
-      if (!tok.includes('[') || !tok.includes(']')) return tok;
-      const stripped = tok.replace(/\[+|\]+/g, '');
-      const m = stripped.match(/^([^a-zA-Z0-9]*)(.*?)([^a-zA-Z0-9]*)$/);
-      if (!m) return tok;
-      const [, lead, fullWord, trail] = m;
-      if (fullWord.length < 2) return `${lead}${fullWord}${trail}`;
-      const prefixLen = Math.floor(fullWord.length / 2);
-      return `${lead}${fullWord.slice(0, prefixLen)}[${fullWord.slice(prefixLen)}]${trail}`;
-    })
-    .join('');
-
-  const blankMatches = repairedText.match(/\[+[^\]]+\]+/g) || [];
-  if (blankMatches.length < 3) {
-    throw new Error(`Complete the Words generated insufficient blanks (${blankMatches.length}), at least 3 required`);
-  }
-  return { title, text: repairedText, totalBlanks: blankMatches.length };
+  const normalized = normalizeCompleteWordsTask({ title, text: rawText });
+  return {
+    title: normalized.title,
+    text: normalized.text,
+    totalBlanks: normalized.totalBlanks,
+    blanks: normalized.blanks,
+  };
 }
 
 function normalizeReadingPassage(data: any) {
@@ -884,18 +846,18 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
       case 'complete_words':
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write a cohesive academic paragraph of 85-110 words (4 to 5 sentences).
-2. Sentence 1 (the FIRST sentence) MUST remain 100% intact with ZERO brackets.
-3. Sentences 2+ must contain EXACTLY 10 bracketed academic words, each 6 to 12 letters long (NEVER blank words shorter than 6 letters like "side", "into", or "nano").
-4. Format each blanked word strictly as \`prefix[[suffix]]\` where \`prefix\` is the first floor(L/2) letters (at least 3 visible starting letters) and \`suffix\` is the remaining ceil(L/2) letters (at least 3 hidden ending letters): e.g. "nanopar[[ticles]]", "penetr[[ate]]", "cell[[ular]]", "therap[[eutic]]", "integ[[ration]]".
-5. NEVER split compound words with a space (NEVER write "[nano] particles") and NEVER put brackets around the first half (NEVER write "[[penetr]]ate") or around the entire word (NEVER write "[[integration]]").
-Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 85-110 word paragraph with Sentence 1 intact and 10 words (6-12 letters each) formatted as prefix[[suffix]]", "totalBlanks": 10}`;
+1. Write a cohesive, natural, 100% plain-English academic paragraph of strictly 65 to 85 words (exactly 3 to 4 sentences total) with ZERO brackets [ ].
+2. Sentence 1 MUST be a clear introductory sentence (10-15 words).
+3. Sentences 2 to 4 MUST be crisp, clear university-textbook prose exploring the academic topic with rich academic vocabulary.
+4. FORBIDDEN: Do NOT insert any brackets [ ] or split any words into prefixes/suffixes! Return pure, pristine plain English text.
+5. FORBIDDEN: Do NOT write repetitive filler sentences, redundant concluding summaries, or artificial buzzword lists. Write natural, authentic ETS TOEFL prose.
+Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 65-85 word plain-English academic paragraph with ZERO brackets", "totalBlanks": 10}`;
       case 'daily-life':
       case 'daily_life':
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Reading "Read in Daily Life" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", or "invoice".
-2. Write a realistic text of 50-140 words (contentText) with relevant campus or everyday context.
+2. Write a realistic text of strictly 25 to 120 words (contentText) with relevant campus or everyday context. Avoid repetitive phrasing or filler text.
 3. Include 2 or 3 multiple choice questions based directly on the text. Each question must have 4 distinct options, verified answer index (0..3), why explanation, and questionType ('factual', 'negative_factual', 'inference', 'vocabulary', 'rhetorical_purpose').
 Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campus context description", "contentText": "Full text...", "questions": [{"q": "Question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "why": "Explanation...", "questionType": "factual"}]}`;
       case 'reading-passage':
@@ -907,10 +869,10 @@ Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campu
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL "Reading in an Academic Environment" passage with 5 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
 ${skillDirective}
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write a 200-250 word university-level academic passage (2-3 cohesive paragraphs).
+1. Write a 180-210 word university-level academic passage (2-3 focused, cohesive paragraphs). Avoid repetitive phrasing or redundant concluding summaries.
 2. Provide EXACTLY 5 multiple-choice questions representing TOEFL iBT question types (Factual, Vocabulary, Inference, Rhetorical Purpose, Negative Factual).
 3. Every question MUST have 4 distinct, unique options (\`options.length === 4\`), \`answer\` (0..3, varied across questions), \`questionType\` ('factual', 'negative_factual', 'inference', 'vocabulary', 'rhetorical_purpose'), and a detailed \`why\` explanation that explicitly verifies why the option at index \`answer\` is right.
-Return JSON format: {"title": "Passage Title", "passage": "200-250 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct...", "questionType": "inference"}]}`;
+Return JSON format: {"title": "Passage Title", "passage": "180-210 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct...", "questionType": "inference"}]}`;
       }
       case 'listening-choose-response':
       case 'listening_choose_response':
@@ -924,7 +886,7 @@ Return JSON format: {"title": "Campus Interaction Title", "audioPrompt": "Excuse
       case 'listening_announcement':
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Announcement" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write a 45-80 word spoken campus announcement (script) by 1 university official or professor (speakerName, speakerGender: 'male'|'female').
+1. Write a strictly 45 to 80 word spoken campus announcement (script) by 1 university official or professor (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or filler text.
 2. Follow with EXACTLY 2 comprehension questions. Each question must have 4 distinct options, answer index (0..3), and why explanation.
 Return JSON format: {"title": "Announcement Title", "context": "University announcement context", "speakerName": "Dean Williams", "speakerGender": "male", "script": "Attention all students...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "options": ["A", "B", "C", "D"], "answer": 2, "why": "Explanation 2..."}]}`;
       case 'listening-academic-talk':
@@ -933,7 +895,7 @@ Return JSON format: {"title": "Announcement Title", "context": "University annou
       case 'listening_lecture':
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Academic Talk" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write a 140-200 word academic talk or mini-lecture (script) by a university educator (speakerName, speakerGender: 'male'|'female').
+1. Write a strictly 140 to 200 word academic talk or mini-lecture (script) by a university educator (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or redundant concluding summaries.
 2. Follow with EXACTLY 4 comprehension questions covering main idea, detail, cause/effect, and speaker purpose.
 3. Each question must have 4 distinct options, answer index (0..3), and why explanation.
 Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName": "Dr. Angela Evans", "speakerGender": "female", "script": "Good morning class...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "..."}, {"q": "Question 2?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "..."}, {"q": "Question 3?", "options": ["A", "B", "C", "D"], "answer": 2, "why": "..."}, {"q": "Question 4?", "options": ["A", "B", "C", "D"], "answer": 3, "why": "..."}]}`;
@@ -1026,7 +988,7 @@ Return JSON format: {"title": "Academic Discussion Board", "professorName": "Pro
   };
 
   const prompt = getPrompt(taskType, level, topic);
-  const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
+  const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Write natural, authentic ETS TOEFL prose. Avoid repetitive phrasing, redundant concluding summaries, or artificial buzzword stuffing. Return valid JSON matching the schema only.';
   const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
 
   // Collect available providers and distribute via round-robin for question generation (high throughput)

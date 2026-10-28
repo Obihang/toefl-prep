@@ -418,6 +418,10 @@ export function normalizeCompleteWordsTask(raw: any): {
   rawText = rawText.replace(/[\[\]]+/g, '');
 
   let cleanParagraph = rawText.replace(/\s+/g, ' ').trim();
+  cleanParagraph = cleanParagraph
+    .replace(/\bquanties\b/gi, 'quantities')
+    .replace(/\bsupercondcut\b/gi, 'superconducting')
+    .replace(/\bsuperconduct\b/gi, 'superconducting');
 
   // Step 2: Keep Sentence 1 100% intact (up to first terminal punctuation followed by space)
   let s1EndIdx = -1;
@@ -542,6 +546,54 @@ export function normalizeCompleteWordsTask(raw: any): {
 
     return `${wi.lead}${prefix}[${answer}]${wi.trail}`;
   });
+
+  // Step 6: Strip any extra trailing sentences beyond 1 short concluding sentence after the 10th blank
+  if (blanks.length >= 10) {
+    let token10Idx = -1;
+    let bCount = 0;
+    for (let i = 0; i < tokens.length; i++) {
+      if (selectedTokenIndices.has(i)) {
+        bCount++;
+        if (bCount === 10) {
+          token10Idx = i;
+          break;
+        }
+      }
+    }
+
+    if (token10Idx !== -1) {
+      // Find end of sentence containing 10th blank
+      let sentence10EndIdx = token10Idx;
+      while (sentence10EndIdx < tokens.length) {
+        const tok = tokens[sentence10EndIdx];
+        if (/[.!?]/.test(tok)) {
+          const cleanTok = tok.replace(/[^a-zA-Z0-9.'’]/g, '').toLowerCase();
+          if (!SENTENCE_ABBREVIATIONS.has(cleanTok)) {
+            break;
+          }
+        }
+        sentence10EndIdx++;
+      }
+
+      // Allow at most 1 short concluding sentence after the 10th blank sentence
+      let maxKeptIdx = sentence10EndIdx;
+      let nextSentenceEndIdx = sentence10EndIdx + 1;
+      while (nextSentenceEndIdx < tokens.length) {
+        const tok = tokens[nextSentenceEndIdx];
+        if (/[.!?]/.test(tok)) {
+          const cleanTok = tok.replace(/[^a-zA-Z0-9.'’]/g, '').toLowerCase();
+          if (!SENTENCE_ABBREVIATIONS.has(cleanTok)) {
+            maxKeptIdx = nextSentenceEndIdx;
+            break;
+          }
+        }
+        nextSentenceEndIdx++;
+      }
+
+      // Truncate rebuiltTokens beyond maxKeptIdx
+      rebuiltTokens.splice(maxKeptIdx + 1);
+    }
+  }
 
   const normalizedText = `${sentence1} ${rebuiltTokens.join('')}`.replace(/\s+/g, ' ').trim();
 

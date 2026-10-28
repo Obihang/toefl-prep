@@ -42,12 +42,13 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const TOEFL_2026_PURGE_V6 = 'toefl_bank_purged_2026_v6';
-export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V6;
-export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V6;
-export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V6;
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V6;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v17';
+export const TOEFL_2026_PURGE_V7 = 'toefl_bank_purged_2026_v7';
+export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V7;
+export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V7;
+export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V7;
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V7;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V7;
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v18';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);

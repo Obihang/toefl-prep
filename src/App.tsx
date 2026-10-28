@@ -216,6 +216,11 @@ export default function App() {
 
   // Background question pre-fetch queue for instant generation
   const [prefetchedQueue, setPrefetchedQueue] = useState<PrefetchQueue>(() => loadPrefetchQueueFromStorage());
+  const prefetchedQueueRef = useRef<PrefetchQueue>(prefetchedQueue);
+  useEffect(() => {
+    prefetchedQueueRef.current = prefetchedQueue;
+  }, [prefetchedQueue]);
+
   const [isPrefetching, setIsPrefetching] = useState(false);
   const isPrefetchingRef = React.useRef<Record<string, boolean>>({});
   const failedRecentlyRef = React.useRef<Record<string, number>>({});
@@ -585,7 +590,7 @@ export default function App() {
 
   // Background question pre-fetch worker for any task type
   const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
-    const currentCount = prefetchedQueue[type]?.length || 0;
+    const currentCount = prefetchedQueueRef.current[type]?.length || 0;
     if (!hasAnyProviderKey()) { logEarlyExit('no key'); return; }
     if (document.visibilityState !== 'visible') { logEarlyExit('tab hidden'); return; }
     if (inFlightLock.current || isPrefetchingRef.current[type]) { logEarlyExit('lock held'); return; }
@@ -761,7 +766,7 @@ export default function App() {
         return;
       }
 
-      const target = getNextTaskToPrefetch(currentTaskType, prefetchedQueue, level, topic, failedRecentlyRef.current, Date.now());
+      const target = getNextTaskToPrefetch(currentTaskType, prefetchedQueueRef.current, level, topic, failedRecentlyRef.current, Date.now());
       if (!target) return;
 
       await prefetchTaskInBackground(target, level, topic);
@@ -782,7 +787,7 @@ export default function App() {
       window.removeEventListener('keydown', onUserActivity);
       window.removeEventListener('scroll', onUserActivity);
     };
-  }, [currentTaskType, level, topic, prefetchedQueue, isGenerating, enablePrefetching]);
+  }, [currentTaskType, level, topic, isGenerating, enablePrefetching]);
 
   useEffect(() => {
     setPrefetchProgress(getPrefetchProgress(prefetchedQueue, level, topic));
@@ -948,7 +953,7 @@ export default function App() {
   };
 
   // Resolve current active task data (hide questions with reportCount >= 3)
-  const getCurrentTaskData = () => {
+  const activeTask = React.useMemo(() => {
     let task = null;
     if (customTasks[currentTaskType]) {
       const t = customTasks[currentTaskType];
@@ -968,6 +973,7 @@ export default function App() {
             task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
             break;
           case 'reading-passage':
+          case 'reading-academic':
             task = CURATED_READING_PASSAGES[idx % CURATED_READING_PASSAGES.length];
             break;
           case 'listening-dialogue':
@@ -994,9 +1000,7 @@ export default function App() {
     }
 
     return normalizeTaskData(task, currentTaskType);
-  };
-
-  const activeTask = getCurrentTaskData();
+  }, [customTasks, currentTaskType, level, topic, curatedIndices]);
   const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
   const adaptiveRec = getRecommendedLevel(getPracticeHistory(), level as DifficultyLevel, currentTaskType);
 
