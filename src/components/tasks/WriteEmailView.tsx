@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WriteEmailTask } from '../../data/curatedQuestions';
-import { evaluateLocally } from '../../utils/localEvaluator';
+import { evaluateLocally, mergeAiAndLocalEvaluation } from '../../utils/localEvaluator';
 import { Send, Sparkles, AlertCircle, ArrowRight, Zap, Clock, Play, Pause, RotateCcw } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
@@ -16,6 +16,9 @@ interface Props {
   onOpenApiKeySettings?: () => void;
   spellCheck?: boolean;
   annotatedReviewTitle?: string;
+  localGraderLabel?: string;
+  aiGraderLabel?: string;
+  apiKeyPromptText?: string;
 }
 
 const OFFICIAL_EMAIL_TIME_SECONDS = 420; // 7 minutes official ETS timing (PDF Page 14)
@@ -73,8 +76,10 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
   const wordCount = body.trim() ? body.trim().split(/\s+/).filter(Boolean).length : 0;
   const isWithinTarget = wordCount >= 80 && wordCount <= 130;
 
-  const handleEvaluate = async () => {
-    markUserAiRequest();
+  const handleEvaluate = async (mode: 'local' | 'ai' = hasAnyStoredApiKey() ? 'ai' : 'local') => {
+    if (mode === 'ai') {
+      markUserAiRequest();
+    }
     if (wordCount < 40) {
       setEvalError('Please write at least 40 words before submitting for official TOEFL evaluation.');
       return;
@@ -83,21 +88,23 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
     setIsEvaluating(true);
     setEvalError(null);
 
+    const localBaseline = evaluateLocally(
+      'write-email',
+      {
+        title: task.title,
+        situation: task.situation,
+        recipient: task.recipient,
+        goals: task.goals,
+      },
+      `Subject: ${subject}\n\n${body}`,
+      { task }
+    );
+
     let evalData: any = null;
 
-    if (!hasAnyStoredApiKey()) {
+    if (mode === 'local' || !hasAnyStoredApiKey()) {
       // 100% Zero-API Local Offline Evaluation (Instant)
-      evalData = evaluateLocally(
-        'write-email',
-        {
-          title: task.title,
-          situation: task.situation,
-          recipient: task.recipient,
-          goals: task.goals,
-        },
-        `Subject: ${subject}\n\n${body}`,
-        { task }
-      );
+      evalData = localBaseline;
     } else {
       try {
         const json = await safeFetchJson('/api/evaluate-response', {
@@ -121,33 +128,13 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         });
 
         if (json.success && json.data) {
-          evalData = json.data;
+          evalData = mergeAiAndLocalEvaluation(json.data, localBaseline);
         } else {
-          evalData = evaluateLocally(
-            'write-email',
-            {
-              title: task.title,
-              situation: task.situation,
-              recipient: task.recipient,
-              goals: task.goals,
-            },
-            `Subject: ${subject}\n\n${body}`,
-            { task }
-          );
+          evalData = localBaseline;
         }
       } catch (err: any) {
         console.warn('[WriteEmail] Network/API error, running local rubric evaluator:', err);
-        evalData = evaluateLocally(
-          'write-email',
-          {
-            title: task.title,
-            situation: task.situation,
-            recipient: task.recipient,
-            goals: task.goals,
-          },
-          `Subject: ${subject}\n\n${body}`,
-          { task }
-        );
+        evalData = localBaseline;
       }
     }
 
@@ -325,29 +312,71 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
           />
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            <span className="text-xs text-slate-500">
-              {wordCount < 80 ? `Needs ${80 - wordCount} more words to reach target (80-120 words)` : 'Target length achieved.'}
-            </span>
+            <div className="space-y-1 text-left w-full sm:w-auto">
+              <span className="text-xs text-slate-500 block">
+                {wordCount < 80 ? `Needs ${80 - wordCount} more words to reach target (80-120 words)` : 'Target length achieved.'}
+              </span>
+              {!hasAnyStoredApiKey() && onOpenApiKeySettings && (
+                <button
+                  type="button"
+                  onClick={onOpenApiKeySettings}
+                  className="text-[11px] text-teal-700 hover:text-teal-900 underline font-medium cursor-pointer"
+                >
+                  Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings
+                </button>
+              )}
+            </div>
 
-            <button
-              onClick={handleEvaluate}
-              disabled={isEvaluating}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
-            >
-              {isEvaluating ? (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+              {hasAnyStoredApiKey() ? (
                 <>
-                  <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
-                </>
-              ) : !hasAnyStoredApiKey() ? (
-                <>
-                  <Zap className="w-4 h-4 text-amber-300" /> Evaluate Response (Instant Local Grader)
+                  <button
+                    type="button"
+                    onClick={() => handleEvaluate('local')}
+                    disabled={isEvaluating}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                    title="Grade instantly in 0ms using deterministic local rubric and mechanics scanner"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>⚡ Instant Local Grader</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEvaluate('ai')}
+                    disabled={isEvaluating}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    {isEvaluating ? (
+                      <>
+                        <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-teal-200" />
+                        <span>✨ Deep AI Grader</span>
+                      </>
+                    )}
+                  </button>
                 </>
               ) : (
-                <>
-                  <Send className="w-4 h-4" /> Evaluate with AI Rater
-                </>
+                <button
+                  type="button"
+                  onClick={() => handleEvaluate('local')}
+                  disabled={isEvaluating}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  {isEvaluating ? (
+                    <>
+                      <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 text-amber-300" /> Evaluate Response (Instant Local Grader)
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+            </div>
           </div>
         </div>
       </div>

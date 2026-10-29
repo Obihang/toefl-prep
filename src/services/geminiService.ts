@@ -13,7 +13,7 @@ import {
   ApiProvider,
 } from '../utils/apiKey';
 import { safeFetchJson } from '../utils/apiHelper';
-import { evaluateResponseLocally } from '../utils/localEvaluator';
+import { evaluateResponseLocally, mergeAiAndLocalEvaluation } from '../utils/localEvaluator';
 import { normalizeTaskData } from '../utils/taskNormalizer';
 
 export async function fetchDynamicModels(provider: ModelProvider, apiKey: string): Promise<string[]> {
@@ -234,9 +234,10 @@ export async function evaluateResponse(
   extraOptions?: Record<string, any>
 ): Promise<any> {
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
+  const localBaseline = evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
 
-  if (!hasAnyProviderKey() && !apiKey) {
-    return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+  if (extraOptions?.mode === 'local' || (!hasAnyProviderKey() && !apiKey)) {
+    return localBaseline;
   }
 
   const options = {
@@ -266,16 +267,12 @@ export async function evaluateResponse(
     });
 
     if (res && res.success === false) {
-      return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+      return localBaseline;
     }
     const rawEval = res?.data || res;
-    if (rawEval && !Array.isArray(rawEval.criteria)) {
-      const localFallback = evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
-      rawEval.criteria = localFallback.criteria;
-    }
-    return rawEval;
+    return mergeAiAndLocalEvaluation(rawEval, localBaseline);
   } catch (err) {
     console.warn('[geminiService] /api/evaluate-response failed, falling back to evaluateResponseLocally:', err);
-    return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+    return localBaseline;
   }
 }

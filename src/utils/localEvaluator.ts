@@ -853,12 +853,12 @@ export function detectGrammarAndMechanicsErrors(
   // 5d. Plural noun + "and its" ("classes and its requirement", "courses and its")
   const pluralItsRegex = /\b(classes|courses|lectures|seminars|labs|assignments|exams|projects)\s+and\s+its\s+(requirement(?:s)?|schedule|syllabus|deadline(?:s)?|workload|grade(?:s)?)\b/gi;
   while ((m = pluralItsRegex.exec(text)) !== null) {
-    const singularNoun = m[1].replace(/es$/i, '').replace(/s$/i, '');
+    const pluralNoun = m[1];
     const fixedReq = m[2].endsWith('s') ? m[2] : `${m[2]}s`;
     pushError(
       m[0],
-      `${singularNoun} and its ${fixedReq} (or "${m[1]} and their ${fixedReq}")`,
-      `Pronoun-antecedent agreement error: plural "${m[1]}" does not agree with singular possessive "its". Use singular "${singularNoun} and its ${fixedReq}" or plural "${m[1]} and their ${fixedReq}".`,
+      `${pluralNoun} and their ${fixedReq}`,
+      `Pronoun-antecedent agreement error: plural "${pluralNoun}" does not agree with singular possessive "its". Use "${pluralNoun} and their ${fixedReq}".`,
       'grammar'
     );
   }
@@ -1799,18 +1799,130 @@ export function evaluateLocally(
 
   // Build Band 6.0 Exemplar
   let exemplar = '';
-  if (canonicalType === 'write-email') {
+  const existingModelAnswer =
+    promptData?.modelAnswer ||
+    promptData?.modelResponse ||
+    promptData?.sampleAnswer ||
+    extra?.task?.modelAnswer ||
+    extra?.task?.modelResponse ||
+    extra?.task?.sampleAnswer;
+
+  if (typeof existingModelAnswer === 'string' && existingModelAnswer.trim().length > 40) {
+    exemplar = existingModelAnswer.trim();
+  } else if (canonicalType === 'write-email') {
     const recipient = promptData?.recipient || extra?.task?.recipient || 'Professor';
-    const goals: string[] = promptData?.goals || extra?.task?.goals || [
-      'explain the situation',
-      'propose a solution',
-      'confirm next steps',
-    ];
-    exemplar = `Subject: Inquiry Regarding ${promptData?.title || 'Academic Coursework'}\n\nDear ${recipient.split(',')[0]},\n\nI am writing to formally apologize for missing your scheduled office hours on Wednesday afternoon. Unfortunately, I had a mandatory biology laboratory session and course requirement that conflicted with that time slot.\n\nI was hoping to meet with you to discuss the introductory coursework and clarify several key concepts regarding "${goals[1] || 'our upcoming academic requirement'}." Because I want to ensure that I stay on track with your expectations, your guidance would be invaluable.\n\nWould it be possible for us to schedule a brief appointment at an alternative time this week? Specifically, I am available on Tuesday between 2:00 PM and 4:00 PM, or on Thursday morning at 10:00 AM. Please let me know if either of these times is convenient for you.\n\nThank you very much for your time and consideration.\n\nSincerely,\nAlex Morgan`;
+    const rawGoals: string[] = Array.isArray(promptData?.goals)
+      ? promptData.goals
+      : Array.isArray(extra?.task?.goals)
+      ? extra.task.goals
+      : [];
+
+    const convertImperativeGoalToFirstPerson = (rawGoal: string, idx: number): string => {
+      if (!rawGoal || typeof rawGoal !== 'string') return '';
+      let g = rawGoal.trim().replace(/^["']+|["']+$/g, '').replace(/[.!?]+$/, '').trim();
+
+      // Convert parenthetical "(to discuss ...)" into natural infinitive clause
+      g = g.replace(/\(\s*(to\s+[^)]+)\)/gi, '$1').replace(/\(\s*([^)]+)\)/gi, 'regarding $1');
+
+      // Convert pronouns from 2nd/3rd person prompt perspective to 1st-person student -> 2nd-person recipient
+      const swapPronouns = (str: string): string =>
+        str
+          .replace(/\byour\b/gi, 'my')
+          .replace(/\byou\s+are\b/gi, 'I am')
+          .replace(/\byou\s+were\b/gi, 'I was')
+          .replace(/\byou\s+have\b/gi, 'I have')
+          .replace(/\byou\s+had\b/gi, 'I had')
+          .replace(/\byou\s+want\b/gi, 'I would like')
+          .replace(/\byou\s+need\b/gi, 'I need')
+          .replace(/\byou\s+can\b/gi, 'I can')
+          .replace(/\byou\s+would\b/gi, 'I would')
+          .replace(/\bwith\s+(?:her|him)\b/gi, 'with you')
+          .replace(/\bfrom\s+(?:her|him)\b/gi, 'from you')
+          .replace(
+            /\b(?:her|his)\s+((?:monday|tuesday|wednesday|thursday|friday|weekly|scheduled|upcoming|introductory|advanced|two|three|morning|afternoon)?\s*(?:office\s+hours|class|classes|course|courses|seminar|seminars|lecture|lectures|lab|labs|syllabus|guidance|feedback|approval|permission|section|sections|meeting|session)s?)\b/gi,
+            'your $1'
+          )
+          .replace(/\b(?:her|his)\s+(office\s+hours|class|classes|course|courses|seminar|lecture|lab|syllabus|guidance|feedback)\b/gi, 'your $1');
+
+      if (/^explain\s+why\s+you\s+(?:want|need|would\s+like)\s+to\s+meet\b/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^explain\s+why\s+you\s+(?:want|need|would\s+like)\s+to\s+meet\s*/i, '').trim());
+        return rest
+          ? `I am writing because I would like to schedule a brief meeting with you ${rest} and clarify the course requirements.`
+          : 'I am writing because I would like to schedule a brief meeting with you to discuss the course requirements.';
+      }
+      if (/^explain\s+(?:why|that)\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^explain\s+(?:why|that)\s+/i, '').trim());
+        return `I am writing to explain that ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^explain\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^explain\s+/i, '').trim());
+        return `I am writing to provide details regarding ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^apologize\s+for\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^apologize\s+for\s+/i, '').trim());
+        return `I am writing to formally apologize for ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^mention\s+that\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^mention\s+that\s+/i, '').trim());
+        if (/conflict|unable|miss|cannot/i.test(rest)) {
+          return `Unfortunately, ${rest.charAt(0).toLowerCase() + rest.slice(1)}, which prevents me from attending during that scheduled window.`;
+        }
+        return `In addition, I wanted to mention that ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^state\s+that\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^state\s+that\s+/i, '').trim());
+        return `I would also like to note that ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^describe\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^describe\s+/i, '').trim());
+        return `Specifically, I would like to share details regarding ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^(?:suggest|propose)\s+two\s+alternative\s+times\b/i.test(g) || /alternative\s+times/i.test(g)) {
+        return 'Would it be possible for us to meet at an alternative time this week? Specifically, I am available on Tuesday between 2:00 PM and 4:00 PM, or on Thursday morning at 10:00 AM.';
+      }
+      if (/^(?:suggest|propose)\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^(?:suggest|propose)\s+(?:that\s+)?/i, '').trim());
+        return `To resolve this smoothly, I would like to propose ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^ask\s+(?:if|whether)\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^ask\s+(?:if|whether)\s+/i, '').trim());
+        return `Could you please let me know whether ${rest.charAt(0).toLowerCase() + rest.slice(1)}?`;
+      }
+      if (/^ask\s+(?:about|for)\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^ask\s+(?:about|for)\s+/i, '').trim());
+        return `I would also appreciate your guidance regarding ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+      if (/^request\s+/i.test(g)) {
+        const rest = swapPronouns(g.replace(/^request\s+(?:that\s+)?/i, '').trim());
+        return `I would like to formally request ${rest.charAt(0).toLowerCase() + rest.slice(1)}.`;
+      }
+
+      const converted = swapPronouns(g);
+      if (idx === 0) {
+        return `I am writing to reach out regarding ${converted.charAt(0).toLowerCase() + converted.slice(1)}.`;
+      }
+      return `Furthermore, I wanted to address ${converted.charAt(0).toLowerCase() + converted.slice(1)}.`;
+    };
+
+    const p1 = rawGoals[0]
+      ? convertImperativeGoalToFirstPerson(rawGoals[0], 0)
+      : 'I am writing to inquire about our upcoming academic coursework and clarify the syllabus requirements.';
+    const p2Core = rawGoals[1]
+      ? convertImperativeGoalToFirstPerson(rawGoals[1], 1)
+      : 'Unfortunately, my mandatory biology laboratory session conflicts with your scheduled Wednesday office hours, so I am unable to attend at that time.';
+    const p2 = `${p2Core} Because I want to ensure that I make a well-informed academic decision and stay on track with your expectations, your guidance would be invaluable.`;
+    const p3Core = rawGoals[2]
+      ? convertImperativeGoalToFirstPerson(rawGoals[2], 2)
+      : 'Would it be possible for us to schedule a brief appointment at an alternative time this week? Specifically, I am available on Tuesday between 2:00 PM and 4:00 PM, or on Thursday morning at 10:00 AM.';
+    const p3 = p3Core.includes('convenient for you')
+      ? p3Core
+      : `${p3Core} Please let me know if either of these options is convenient for you.`;
+
+    exemplar = `Subject: Inquiry Regarding ${promptData?.title || 'Academic Coursework'}\n\nDear ${recipient.split(',')[0]},\n\n${p1}\n\n${p2}\n\n${p3}\n\nThank you very much for your time and consideration.\n\nSincerely,\nAlex Morgan`;
   } else if (canonicalType === 'academic-discussion') {
     const s1Name = String(promptData?.s1?.name || promptData?.s1 || extra?.task?.s1?.name || 'my classmate').split(':')[0];
     const s2Name = String(promptData?.s2?.name || promptData?.s2 || extra?.task?.s2?.name || 'the other student').split(':')[0];
-    exemplar = `While ${s1Name} raises a valid point regarding immediate practical benefits, I strongly agree with ${s2Name}'s perspective that long-term institutional sustainability must take precedence. In my view, addressing "${promptData?.title || 'this policy issue'}" requires a balanced, evidence-based framework rather than short-term measures.\n\nSpecifically, empirical studies consistently demonstrate that when universities and policymakers invest in foundational infrastructure and transparent governance, both efficiency and equity improve significantly over time. Therefore, adopting a comprehensive strategy ensures lasting benefits for the entire academic community.`;
+    exemplar = `While ${s1Name} raises a valid point regarding immediate practical benefits, I strongly agree with ${s2Name}'s perspective that long-term institutional sustainability must take precedence. In my view, addressing ${promptData?.title ? promptData.title.toLowerCase() : 'this policy issue'} requires a balanced, evidence-based framework rather than short-term measures.\n\nSpecifically, empirical studies consistently demonstrate that when universities and policymakers invest in foundational infrastructure and transparent governance, both efficiency and equity improve significantly over time. Therefore, adopting a comprehensive strategy ensures lasting benefits for the entire academic community.`;
   } else {
     exemplar = `From my perspective, ${promptData?.title || 'this academic topic'} plays a pivotal role in modern higher education. First, when institutions prioritize structured, evidence-based practices, students develop stronger analytical and problem-solving capabilities. For instance, in my own academic coursework, collaborative seminars allowed us to synthesize theoretical models with real-world applications. Ultimately, balancing innovation with rigorous standards ensures long-term success.`;
   }
@@ -1936,3 +2048,85 @@ export function evaluateResponseLocally(
 ): LocalEvaluationResult {
   return evaluateLocally(taskType, promptData, studentResponse, extra);
 }
+
+/**
+ * Merges deterministic local error highlights, bullet-point completion checks,
+ * and criteria array fallbacks into an AI evaluation response so that mechanical/spelling/
+ * collocation errors (e.g. "disucss", "about about", lowercase "i", "you office hours",
+ * "classes and its requirement") are NEVER missed even when grading with an LLM.
+ */
+export function mergeAiAndLocalEvaluation(aiEval: any, localEval: LocalEvaluationResult): any {
+  if (!aiEval || typeof aiEval !== 'object') {
+    return localEval;
+  }
+
+  const aiCorrections: GrammarErrorItem[] = Array.isArray(aiEval.corrections)
+    ? aiEval.corrections
+    : Array.isArray(aiEval.grammarErrors)
+    ? aiEval.grammarErrors
+    : Array.isArray(aiEval.errors)
+    ? aiEval.errors
+    : [];
+
+  const mergedCorrections: GrammarErrorItem[] = [...aiCorrections];
+  const seenOriginals = new Set(
+    aiCorrections
+      .map((c) => String(c?.original || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  for (const localErr of localEval.corrections || []) {
+    const key = String(localErr?.original || '').trim().toLowerCase();
+    if (!key) continue;
+    const alreadyCovered = Array.from(seenOriginals).some(
+      (existing) => existing === key || existing.includes(key) || key.includes(existing)
+    );
+    if (!alreadyCovered) {
+      seenOriginals.add(key);
+      mergedCorrections.push(localErr);
+    }
+  }
+
+  const aiTopFixes: string[] = Array.isArray(aiEval.topFixes)
+    ? aiEval.topFixes
+    : Array.isArray(aiEval.improvements)
+    ? aiEval.improvements
+    : [];
+
+  const mergedTopFixes = [...aiTopFixes];
+  if (Array.isArray(localEval.bulletAnalysis)) {
+    for (const b of localEval.bulletAnalysis) {
+      if (!b.addressed && b.feedback && !mergedTopFixes.includes(b.feedback)) {
+        mergedTopFixes.unshift(b.feedback);
+      }
+    }
+  }
+
+  const validCriteria =
+    Array.isArray(aiEval.criteria) && aiEval.criteria.length > 0
+      ? aiEval.criteria
+      : localEval.criteria;
+
+  const cleanExemplar =
+    aiEval.modelBand6Rewrite ||
+    aiEval.exemplar ||
+    aiEval.exemplarResponse ||
+    localEval.modelBand6Rewrite;
+
+  return {
+    ...localEval,
+    ...aiEval,
+    criteria: validCriteria,
+    bulletAnalysis: aiEval.bulletAnalysis || localEval.bulletAnalysis,
+    corrections: mergedCorrections,
+    errors: mergedCorrections,
+    grammarErrors: mergedCorrections,
+    topFixes: mergedTopFixes.slice(0, 4),
+    improvements: mergedTopFixes.length > 0 ? mergedTopFixes : localEval.improvements,
+    exemplar: cleanExemplar,
+    exemplarResponse: cleanExemplar,
+    modelBand6Rewrite: cleanExemplar,
+    isLocalEvaluation: Boolean(aiEval.isLocalEvaluation),
+  };
+}
+

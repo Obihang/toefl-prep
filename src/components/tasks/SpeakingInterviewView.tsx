@@ -10,7 +10,7 @@ import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingM
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
-import { evaluateLocally } from '../../utils/localEvaluator';
+import { evaluateLocally, mergeAiAndLocalEvaluation } from '../../utils/localEvaluator';
 import { MicrophoneTestWidget } from '../shared/MicrophoneTestWidget';
 import { SpeakingControls } from '../views/speaking/SpeakingControls';
 import { SpeakingEvaluationCard } from '../views/speaking/SpeakingEvaluationCard';
@@ -20,6 +20,9 @@ interface Props {
   onNextTask?: () => void;
   onComplete?: (result: any) => void;
   onOpenApiKeySettings?: () => void;
+  localGraderLabel?: string;
+  aiGraderLabel?: string;
+  apiKeyPromptText?: string;
 }
 
 
@@ -640,8 +643,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     }
   };
 
-  const handleEvaluateAI = async () => {
-    markUserAiRequest();
+  const handleEvaluateAI = async (mode: 'local' | 'ai' = hasAnyStoredApiKey() ? 'ai' : 'local') => {
+    if (mode === 'ai') {
+      markUserAiRequest();
+    }
     if (voiceSessionRef.current) {
       await stopSimulation();
     }
@@ -655,9 +660,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       setIsTranscribing(false);
     }
 
-    const hasAnyAnswer = Object.values(answers).some((a) => a.trim().length > 0);
+    const hasAnyAnswer = Object.values(answers).some((a) => typeof a === 'string' && a.trim().length > 0);
     if (!hasAnyAnswer) {
-      setEvalError('Please provide a spoken or typed response to at least one question before requesting AI evaluation.');
+      setEvalError('Please provide a spoken or typed response to at least one question before requesting evaluation.');
       return;
     }
 
@@ -682,12 +687,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       };
     });
 
-    const evalStart = Date.now();
     console.log('[Audio Timing] Starting evaluation at', new Date().toISOString());
 
-    let evalData: any = null;
-
-    const combinedResponse = submissionData.map((s) => s.studentResponse).filter(Boolean).join('\n\n');
     const avgWpm = Math.round(
       submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
     );
@@ -701,25 +702,29 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
     );
     const totalFillers = submissionData.reduce((acc, s) => acc + (s.fillerCount || 0), 0);
 
-    if (!hasAnyStoredApiKey()) {
-      // 100% Zero-API Local Rubric Evaluation (Instant)
-      evalData = evaluateLocally(
-        'speaking-interview',
-        {
-          title: task.title,
-          context: task.context,
-          questions: task.questions.map((q) => q.question),
-        },
+    const localBaseline = evaluateLocally(
+      'speaking-interview',
+      {
+        title: task.title,
+        context: task.context,
+        questions: task.questions.map((q) => q.question),
+      },
+      submissionData,
+      {
+        task,
         submissionData,
-        {
-          task,
-          submissionData,
-          wpm: avgWpm,
-          pauseCount: totalPauses,
-          longestPause: maxPause,
-          fillerCount: totalFillers,
-        }
-      );
+        wpm: avgWpm,
+        pauseCount: totalPauses,
+        longestPause: maxPause,
+        fillerCount: totalFillers,
+      }
+    );
+
+    let evalData: any = null;
+
+    if (mode === 'local' || !hasAnyStoredApiKey()) {
+      // 100% Zero-API Local Rubric Evaluation (Instant)
+      evalData = localBaseline;
     } else {
       try {
         const json = await safeFetchJson('/api/evaluate-response', {
@@ -737,31 +742,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         });
 
         if (json.success && json.data) {
-          evalData = json.data;
+          evalData = mergeAiAndLocalEvaluation(json.data, localBaseline);
         } else {
-          evalData = evaluateLocally(
-            'speaking-interview',
-            {
-              title: task.title,
-              context: task.context,
-              questions: task.questions.map((q) => q.question),
-            },
-            submissionData,
-            { task, submissionData, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
-          );
+          evalData = localBaseline;
         }
       } catch (err: any) {
         console.warn('[SpeakingInterview] Network error, running local rubric evaluator:', err);
-        evalData = evaluateLocally(
-          'speaking-interview',
-          {
-            title: task.title,
-            context: task.context,
-            questions: task.questions.map((q) => q.question),
-          },
-          submissionData,
-          { task, submissionData, wpm: avgWpm, pauseCount: totalPauses, longestPause: maxPause, fillerCount: totalFillers }
-        );
+        evalData = localBaseline;
       }
     }
 
@@ -1082,35 +1069,75 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
 
       {/* Global Evaluation Trigger */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
+        <div className="space-y-1">
           <h4 className="text-sm font-semibold text-slate-900">TOEFL Speaking Diagnostic Evaluation</h4>
           <p className="text-xs text-slate-500 mt-0.5">
             Submit your responses across the 4 interview questions to receive official ETS rubric scores, grammar corrections, and an exemplar response.
           </p>
+          {!hasAnyStoredApiKey() && onOpenApiKeySettings && (
+            <button
+              type="button"
+              onClick={onOpenApiKeySettings}
+              className="text-[11px] text-teal-700 hover:text-teal-900 underline font-medium cursor-pointer"
+            >
+              Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings
+            </button>
+          )}
         </div>
 
-        <button
-          onClick={handleEvaluateAI}
-          disabled={isEvaluating}
-          className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-        >
-          {isEvaluating ? (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {hasAnyStoredApiKey() ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Scoring your answer... {evalSeconds}s</span>
-            </>
-          ) : !hasAnyStoredApiKey() ? (
-            <>
-              <Zap className="w-4 h-4 text-amber-300" />
-              <span>Evaluate Interview (Instant Local Grader)</span>
+              <button
+                type="button"
+                onClick={() => handleEvaluateAI('local')}
+                disabled={isEvaluating}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                title="Grade instantly in 0ms using deterministic local rubric and mechanics scanner"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                <span>⚡ Instant Local Grader</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleEvaluateAI('ai')}
+                disabled={isEvaluating}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                {isEvaluating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Scoring your answer... {evalSeconds}s</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-teal-200" />
+                    <span>✨ Deep AI Grader</span>
+                  </>
+                )}
+              </button>
             </>
           ) : (
-            <>
-              <Sparkles className="w-4 h-4" />
-              <span>Get AI Rater Feedback</span>
-            </>
+            <button
+              type="button"
+              onClick={() => handleEvaluateAI('local')}
+              disabled={isEvaluating}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              {isEvaluating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Scoring your answer... {evalSeconds}s</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 text-amber-300" />
+                  <span>Evaluate Interview (Instant Local Grader)</span>
+                </>
+              )}
+            </button>
           )}
-        </button>
+        </div>
       </div>
 
 

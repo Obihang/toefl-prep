@@ -1692,6 +1692,9 @@ export default function App() {
                   task={activeTask as WriteEmailTask}
                   spellCheck={false}
                   annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
+                  localGraderLabel="⚡ Instant Local Grader"
+                  aiGraderLabel="✨ Deep AI Grader"
+                  apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
@@ -1706,6 +1709,9 @@ export default function App() {
                   task={activeTask as AcademicDiscussionTask}
                   spellCheck={false}
                   annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
+                  localGraderLabel="⚡ Instant Local Grader"
+                  aiGraderLabel="✨ Deep AI Grader"
+                  apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
@@ -1726,6 +1732,9 @@ export default function App() {
                 <SpeakingInterviewView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as SpeakingInterviewTask}
+                  localGraderLabel="⚡ Instant Local Grader"
+                  aiGraderLabel="✨ Deep AI Grader"
+                  apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
                   onNextTask={() => handleNextQuestion('speaking-interview')}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
