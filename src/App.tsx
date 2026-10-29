@@ -1647,6 +1647,9 @@ export default function App() {
                 <ListeningDialogueView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListeningTask}
+                  leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+                  rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
+                  footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1655,6 +1658,9 @@ export default function App() {
                 <ListeningAnnouncementView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as any}
+                  leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+                  rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
+                  footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   onNextTask={() => handleNextQuestion('listening-announcement')}
                 />
               )}
@@ -1663,6 +1669,9 @@ export default function App() {
                 <ListeningAcademicTalkView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as any}
+                  leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
+                  rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
+                  footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}

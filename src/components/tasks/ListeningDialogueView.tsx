@@ -21,6 +21,9 @@ interface Props {
   task: ListeningTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
+  leftColumnClassName?: string;
+  rightColumnClassName?: string;
+  footerBarClassName?: string;
 }
 
 type CanonicalSpeakerRole = 'professor' | 'student';
@@ -99,7 +102,14 @@ function classifyCanonicalRole(
   return lineIndex % 2 === 0 ? 'professor' : 'student';
 }
 
-export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const ListeningDialogueView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+  leftColumnClassName = 'lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+  rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
+  footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -654,8 +664,11 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         </div>
       </div>
 
-      {/* Audio Player Deck */}
-      <div className="bg-slate-900 text-white rounded-xl p-6 shadow-md">
+      {/* 2-Column Split Layout: Sticky Audio Player Card on Left, Scrollable Comprehension Questions on Right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Left Column: Audio Player Deck */}
+        <div className={`space-y-4 ${leftColumnClassName}`}>
+          <div className="bg-slate-900 text-white rounded-xl p-6 shadow-md">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -778,30 +791,32 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
             })}
           </div>
         )}
-      </div>
+          </div>
+        </div>
 
-      {/* Comprehension Questions (Shown only after audio finishes playing or when skipped/submitted) */}
-      {!listeningAudioFinished && !submitted ? (
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <p className="text-sm text-slate-700 font-medium leading-relaxed">
-            🎧 Listen to the audio track completely. The comprehension questions will appear automatically once the audio finishes.
-          </p>
-          <button
-            type="button"
-            onClick={() => setListeningAudioFinished(true)}
-            className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            Skip Audio &amp; Show Questions
-          </button>
-        </div>
-      ) : (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-          <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Listening Comprehension</span>
-          <span className="text-xs text-slate-500 font-mono">
-            {Object.keys(selectedAnswers).length}/{total} Answered
-          </span>
-        </div>
+        {/* Right Column: Comprehension Questions (Shown only after audio finishes playing or when skipped/submitted) */}
+        <div className={`space-y-5 ${rightColumnClassName}`}>
+          {!listeningAudioFinished && !submitted ? (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                🎧 Listen to the audio track completely. The comprehension questions will appear automatically once the audio finishes.
+              </p>
+              <button
+                type="button"
+                onClick={() => setListeningAudioFinished(true)}
+                className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                Skip Audio &amp; Show Questions
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Comprehension Questions</span>
+                <span className="text-xs text-slate-500 font-mono">
+                  {Object.keys(selectedAnswers).length}/{total} Answered
+                </span>
+              </div>
 
         {task.questions.map((q, qIdx) => {
           const userChoice = selectedAnswers[qIdx];
@@ -880,7 +895,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         })}
 
         {/* Footer controls */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+        <div className={footerBarClassName}>
           {!submitted ? (
             <button
               onClick={handleSubmit}
@@ -891,7 +906,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               Check Listening Answers
             </button>
           ) : (
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
               <button
                 onClick={handleReset}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
@@ -916,7 +931,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
                   onClick={onNextTask}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
                 >
-                  Next Listening Track
+                  Next Conversation
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}
@@ -924,19 +939,21 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           )}
 
           {submitted && (
-            <div className="flex items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg">
-              <span>
+            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg whitespace-nowrap shrink-0">
+              <span className="whitespace-nowrap">
                 Score: <strong className="font-mono text-slate-900">{score}</strong>/{total}
               </span>
               <span aria-hidden="true" className="text-slate-300">·</span>
-              <span>
-                Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total)).toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
+              <span className="whitespace-nowrap">
+                Est. Scaled: <strong className="font-mono text-teal-800 whitespace-nowrap">Band {convertScaledToBand6(convertToScaledScore(score, total), 'Listening').toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
               </span>
             </div>
           )}
         </div>
       </div>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 };

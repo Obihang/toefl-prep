@@ -53,12 +53,18 @@ interface Props {
   task: ListeningAnnouncementTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
+  leftColumnClassName?: string;
+  rightColumnClassName?: string;
+  footerBarClassName?: string;
 }
 
 export const ListeningAnnouncementView: React.FC<Props> = ({
   task,
   onNextTask,
   onComplete,
+  leftColumnClassName = 'lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+  rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
+  footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
 }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -287,9 +293,9 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
       </div>
 
       {/* Grid: Audio Card on Left, Questions on Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Announcement Player */}
-        <div className="lg:col-span-6 space-y-4 lg:sticky lg:top-4">
+        <div className={`space-y-4 ${leftColumnClassName}`}>
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-md">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2.5 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
@@ -373,7 +379,7 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
         </div>
 
         {/* Right Column: Comprehension Questions */}
-        <div className="lg:col-span-6 space-y-5">
+        <div className={`space-y-5 ${rightColumnClassName}`}>
           {!listeningAudioFinished && !submitted ? (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <p className="text-sm text-slate-700 font-medium leading-relaxed">
@@ -476,21 +482,21 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
           })}
 
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div className={footerBarClassName}>
             {!submitted ? (
               <button
                 onClick={handleSubmit}
                 disabled={!allAnswered}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:hover:bg-teal-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:hover:bg-teal-700 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Submit Answers
               </button>
             ) : (
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Retake
@@ -498,7 +504,7 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
                 {onNextTask && (
                   <button
                     onClick={onNextTask}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     Next Announcement
                     <ArrowRight className="w-4 h-4" />
@@ -508,13 +514,13 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
             )}
 
             {submitted && (
-              <div className="flex items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg">
-                <span>
+              <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg whitespace-nowrap shrink-0">
+                <span className="whitespace-nowrap">
                   Score: <strong className="font-mono text-slate-900">{score}</strong>/{total}
                 </span>
                 <span aria-hidden="true" className="text-slate-300">·</span>
-                <span>
-                  Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total)).toFixed(1)} / 6.0</strong>
+                <span className="whitespace-nowrap">
+                  Est. Scaled: <strong className="font-mono text-teal-800 whitespace-nowrap">Band {convertScaledToBand6(convertToScaledScore(score, total), 'Listening').toFixed(1)} / 6.0</strong>
                 </span>
               </div>
             )}
