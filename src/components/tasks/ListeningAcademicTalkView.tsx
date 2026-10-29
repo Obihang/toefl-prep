@@ -26,6 +26,7 @@ import {
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { inferListeningQuestionType } from '../../utils/taskNormalizer';
 
 interface QuestionItem {
   q: string;
@@ -34,6 +35,7 @@ interface QuestionItem {
   why?: string;
   explanation?: string;
   questionType?: string;
+  audioExcerpt?: string;
 }
 
 export interface ListeningAcademicTalkTask {
@@ -58,6 +60,7 @@ interface Props {
   leftColumnClassName?: string;
   rightColumnClassName?: string;
   footerBarClassName?: string;
+  excerptBadgeLabel?: string;
 }
 
 export const ListeningAcademicTalkView: React.FC<Props> = ({
@@ -67,12 +70,15 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
   leftColumnClassName = 'lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
   rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
   footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
+  excerptBadgeLabel = '🎧 Listen again to part of the talk',
 }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [listeningAudioFinished, setListeningAudioFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [playingExcerptIdx, setPlayingExcerptIdx] = useState<number | null>(null);
+  const [loadingExcerptIdx, setLoadingExcerptIdx] = useState<number | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [notes, setNotes] = useState('');
   const [showNotes, setShowNotes] = useState(false);
@@ -87,7 +93,7 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
   const gender: 'male' | 'female' = task.speakerGender === 'female' ? 'female' : 'male';
   const voiceName = gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
 
-  // Reset state on task change and pre-warm lecture audio chunk on mount
+  // Reset state on task change and pre-warm lecture audio chunk + any audioExcerpt on mount
   useEffect(() => {
     setSelectedAnswers({});
     setSubmitted(false);
@@ -95,15 +101,88 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
     setShowTranscript(false);
     setIsPlaying(false);
     setIsLoadingAudio(false);
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(null);
     setPlayCount(0);
     setActiveQuestionIdx(0);
     if (cleanScript) {
       prefetchSpeechAudio(cleanScript, voiceName, gender).catch(() => {});
     }
+    task.questions?.forEach((q) => {
+      if (q?.audioExcerpt) {
+        const cleanEx = stripSpeakerAndFormatting(q.audioExcerpt);
+        if (cleanEx) {
+          prefetchSpeechAudio(cleanEx, voiceName, gender).catch(() => {});
+        }
+      }
+    });
     return () => {
       stopSpeaking();
     };
-  }, [task.id, task.title, cleanScript, voiceName, gender]);
+  }, [task.id, task.title, cleanScript, voiceName, gender, task.questions]);
+
+  const handlePlayExcerpt = async (qIdx: number, rawExcerpt: string) => {
+    const cleanEx = stripSpeakerAndFormatting(rawExcerpt);
+    if (!cleanEx) return;
+
+    if (playingExcerptIdx === qIdx) {
+      playbackSessionRef.current++;
+      stopSpeaking();
+      setPlayingExcerptIdx(null);
+      setLoadingExcerptIdx(null);
+      return;
+    }
+
+    const currentSession = ++playbackSessionRef.current;
+    stopSpeaking();
+    setIsPlaying(false);
+    setIsLoadingAudio(false);
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(qIdx);
+
+    try {
+      const chunks = chunkTextForTTS(cleanEx);
+      if (chunks.length > 0) {
+        await fetchCloudTtsAudio(chunks[0], gender, voiceName);
+      }
+      if (playbackSessionRef.current !== currentSession) return;
+
+      await speakWithCloudTTS(
+        cleanEx,
+        gender,
+        {
+          rate: 0.95,
+          voice: voiceName,
+          voiceName,
+          gender,
+          onStart: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setLoadingExcerptIdx(null);
+              setPlayingExcerptIdx(qIdx);
+            }
+          },
+          onEnd: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setPlayingExcerptIdx(null);
+              setLoadingExcerptIdx(null);
+            }
+          },
+          onError: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setPlayingExcerptIdx(null);
+              setLoadingExcerptIdx(null);
+            }
+          },
+        },
+        voiceName
+      );
+    } catch {
+      if (playbackSessionRef.current === currentSession) {
+        setPlayingExcerptIdx(null);
+        setLoadingExcerptIdx(null);
+      }
+    }
+  };
 
   const handlePlayAudio = async () => {
     if (isPlaying) {
@@ -115,6 +194,8 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
     }
 
     const currentSession = ++playbackSessionRef.current;
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(null);
     setIsLoadingAudio(true);
 
     try {

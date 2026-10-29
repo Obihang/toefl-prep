@@ -1236,7 +1236,11 @@ export type NormalizedQuestionType =
   | 'Negative Factual (EXCEPT/NOT)'
   | 'Vocabulary in Context'
   | 'Inference'
-  | 'Rhetorical Purpose';
+  | 'Rhetorical Purpose'
+  | 'Gist / Main Idea'
+  | 'Detail'
+  | "Speaker's Purpose / Function"
+  | 'Inference / Implied Meaning';
 
 export function inferReadingQuestionType(
   questionText: string
@@ -1280,6 +1284,238 @@ export function classifyReadingQuestionTypeBadge(
     default:
       return 'Factual Detail';
   }
+}
+
+export function inferListeningQuestionType(
+  questionText: string,
+  rawQType?: string,
+  hasAudioExcerpt?: boolean
+): 'Gist / Main Idea' | 'Detail' | "Speaker's Purpose / Function" | 'Inference / Implied Meaning' {
+  const cleanRaw = (rawQType || '').trim().toLowerCase();
+  if (
+    cleanRaw === "speaker's purpose / function" ||
+    cleanRaw === 'rhetorical_purpose' ||
+    cleanRaw === 'purpose' ||
+    cleanRaw === 'function' ||
+    cleanRaw === 'attitude' ||
+    cleanRaw === 'pragmatic'
+  ) {
+    return "Speaker's Purpose / Function";
+  }
+  if (
+    cleanRaw === 'inference / implied meaning' ||
+    cleanRaw === 'inference' ||
+    cleanRaw === 'implication' ||
+    cleanRaw === 'implied_meaning'
+  ) {
+    return 'Inference / Implied Meaning';
+  }
+  if (
+    cleanRaw === 'gist / main idea' ||
+    cleanRaw === 'main_idea' ||
+    cleanRaw === 'main_purpose' ||
+    cleanRaw === 'gist'
+  ) {
+    return 'Gist / Main Idea';
+  }
+
+  const qText = questionText || '';
+  const lower = qText.toLowerCase();
+
+  if (
+    /\b(why does the (?:professor|speaker|student|man|woman|librarian|advisor|coordinator|coach|manager|instructor) (?:say|mention|bring up|ask|discuss|refer|point out|express|advise|tell|decide)|what is the (?:speaker|professor)'s purpose|what is the primary rhetorical purpose|attitude|tone|mean when (?:he|she|they) say|say this)\b/i.test(
+      lower
+    )
+  ) {
+    return "Speaker's Purpose / Function";
+  }
+  if (
+    /\b(imply|implies|implied|infer|inferred|most likely do next|probably|can be concluded|suggest about|what will the student most likely|what does the .* suspect)\b/i.test(
+      lower
+    )
+  ) {
+    return 'Inference / Implied Meaning';
+  }
+  if (
+    /\b(main topic|mainly about|main purpose of the (?:lecture|talk|conversation|announcement)|primarily about|primary focus|mainly discuss)\b/i.test(
+      lower
+    )
+  ) {
+    return 'Gist / Main Idea';
+  }
+  if (hasAudioExcerpt) {
+    return "Speaker's Purpose / Function";
+  }
+  return 'Detail';
+}
+
+function extractRelevantScriptExcerpt(
+  script: string,
+  questionText: string,
+  whyText: string,
+  options: string[],
+  answerIdx: number,
+  isDialogue: boolean = false
+): string | undefined {
+  const cleanScript = (script || '').trim();
+  if (!cleanScript) return undefined;
+
+  const candidates: string[] = isDialogue
+    ? cleanScript
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter((line) => line.split(/\s+/).length >= 5)
+    : cleanScript
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter((s) => s.split(/\s+/).length >= 6);
+
+  if (candidates.length === 0) return undefined;
+
+  const stopWords = new Set([
+    'professor',
+    'student',
+    'speaker',
+    'lecture',
+    'conversation',
+    'talk',
+    'listen',
+    'again',
+    'part',
+    'what',
+    'does',
+    'when',
+    'this',
+    'that',
+    'with',
+    'from',
+    'have',
+    'will',
+    'about',
+    'which',
+    'their',
+    'there',
+    'would',
+    'could',
+    'should',
+    'because',
+    'option',
+    'correct',
+    'explains',
+    'states',
+    'mentions',
+    'according',
+    'imply',
+    'implies',
+    'inferred',
+  ]);
+
+  const correctOption = options[answerIdx] || '';
+  const searchSource = `${questionText} ${correctOption} ${whyText}`.toLowerCase();
+  const keywords = Array.from(
+    new Set(
+      searchSource
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 4 && !stopWords.has(w))
+    )
+  );
+
+  let bestCandidate = candidates[Math.min(1, candidates.length - 1)];
+  let bestScore = -1;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const cand = candidates[i];
+    const candLower = cand.toLowerCase();
+    let score = 0;
+    for (const kw of keywords) {
+      if (candLower.includes(kw)) {
+        score += 2;
+      }
+    }
+    // Slight preference for middle turns/sentences over the opening greeting
+    if (i > 0 && i < candidates.length - 1) {
+      score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCandidate = cand;
+    }
+  }
+
+  return bestCandidate;
+}
+
+function enrichListeningQuestionsWithExcerpt(
+  questions: Array<{
+    q: string;
+    question: string;
+    options: string[];
+    answer: number;
+    correctAnswer: number;
+    why: string;
+    explanation: string;
+    questionType: NormalizedQuestionType;
+    audioExcerpt?: string;
+  }>,
+  script: string,
+  isAcademicTalk: boolean
+) {
+  if (!Array.isArray(questions) || questions.length === 0) return questions;
+
+  const isDialogue = !isAcademicTalk;
+  const enriched = questions.map((q) => {
+    const existingExcerpt =
+      typeof q.audioExcerpt === 'string' && q.audioExcerpt.trim().length > 0
+        ? q.audioExcerpt.trim()
+        : undefined;
+    const inferredType = inferListeningQuestionType(q.q, q.questionType, Boolean(existingExcerpt));
+    return {
+      ...q,
+      ...(existingExcerpt ? { audioExcerpt: existingExcerpt } : {}),
+      questionType: inferredType as NormalizedQuestionType,
+    };
+  });
+
+  const hasAnyExcerpt = enriched.some((q) => Boolean(q.audioExcerpt));
+  if (!hasAnyExcerpt && script && script.trim().length >= 30) {
+    // Find a question testing Speaker's Purpose / Function or Inference / Implied Meaning
+    let targetIdx = enriched.findIndex(
+      (q) =>
+        q.questionType === "Speaker's Purpose / Function" ||
+        /\b(why does the|what does the .* imply|what is the .* purpose|mean when|say this)\b/i.test(q.q)
+    );
+    if (targetIdx === -1) {
+      targetIdx = enriched.findIndex((q) => q.questionType === 'Inference / Implied Meaning');
+    }
+    if (targetIdx === -1 && isAcademicTalk) {
+      targetIdx = enriched.length - 1;
+    }
+
+    if (targetIdx !== -1) {
+      const targetQ = enriched[targetIdx];
+      const excerpt = extractRelevantScriptExcerpt(
+        script,
+        targetQ.q,
+        targetQ.why,
+        targetQ.options,
+        targetQ.answer,
+        isDialogue
+      );
+      if (excerpt) {
+        enriched[targetIdx] = {
+          ...targetQ,
+          audioExcerpt: excerpt,
+          questionType:
+            targetQ.questionType === 'Inference / Implied Meaning'
+              ? 'Inference / Implied Meaning'
+              : "Speaker's Purpose / Function",
+        };
+      }
+    }
+  }
+
+  return enriched;
 }
 
 function deterministicShuffleQuestions<T extends { q: string }>(items: T[], seedStr: string): T[] {
@@ -1357,6 +1593,7 @@ export function verifyAndNormalizeMcqQuestions(
   why: string;
   explanation: string;
   questionType: NormalizedQuestionType;
+  audioExcerpt?: string;
 }> {
   if (!Array.isArray(rawQs)) return [];
 
@@ -1369,6 +1606,7 @@ export function verifyAndNormalizeMcqQuestions(
     why: string;
     explanation: string;
     questionType: NormalizedQuestionType;
+    audioExcerpt?: string;
   }> = [];
 
   for (let qIdx = 0; qIdx < rawQs.length; qIdx++) {
@@ -1447,7 +1685,8 @@ export function verifyAndNormalizeMcqQuestions(
     // Apply deterministic option balancing across A (0), B (1), C (2), D (3)
     const balanced = balanceMcqOptions(qText, uniqueOptions.slice(0, 4), answer, qIdx);
     const updatedWhy = updateExplanationOptionLetter(whyText, answer, balanced.correctAnswer);
-    const rawQType = String(q.questionType || q.type || '').trim().toLowerCase();
+    const rawQType = String(q.questionType || q.type || '').trim();
+    const rawQTypeLower = rawQType.toLowerCase();
     const validQType: NormalizedQuestionType = [
       'factual',
       'factual_detail',
@@ -1457,9 +1696,21 @@ export function verifyAndNormalizeMcqQuestions(
       'idiomatic_meaning',
       'rhetorical_purpose',
       'main_purpose',
-    ].includes(rawQType)
+    ].includes(rawQTypeLower)
+      ? (rawQTypeLower as NormalizedQuestionType)
+      : [
+          'Gist / Main Idea',
+          'Detail',
+          "Speaker's Purpose / Function",
+          'Inference / Implied Meaning',
+        ].includes(rawQType)
       ? (rawQType as NormalizedQuestionType)
       : inferReadingQuestionType(qText);
+
+    const audioExcerpt =
+      typeof q.audioExcerpt === 'string' && q.audioExcerpt.trim().length > 0
+        ? q.audioExcerpt.trim()
+        : undefined;
 
     result.push({
       q: qText,
@@ -1470,6 +1721,7 @@ export function verifyAndNormalizeMcqQuestions(
       why: updatedWhy,
       explanation: updatedWhy,
       questionType: validQType,
+      ...(audioExcerpt ? { audioExcerpt } : {}),
     });
   }
 
@@ -1529,7 +1781,8 @@ export function normalizeListeningDialogueTask(task: any, normalizedType?: strin
   };
 
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.').slice(0, 2);
+  const baseQuestions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.').slice(0, 2);
+  const questions = enrichListeningQuestionsWithExcerpt(baseQuestions, script, false);
 
   return {
     ...task,
@@ -1663,7 +1916,10 @@ export function normalizeListeningAnnouncementTask(task: any): any {
   const speakerGender = String(task?.speakerGender || inferGender(speakerName));
   const script = String(task?.script || task?.announcement || task?.text || '').trim();
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the announcement.');
+  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the announcement.').map((q) => ({
+    ...q,
+    questionType: inferListeningQuestionType(q.q, q.questionType, Boolean(q.audioExcerpt)) as NormalizedQuestionType,
+  }));
 
   return {
     ...task,
@@ -1683,7 +1939,8 @@ export function normalizeListeningAcademicTalkTask(task: any): any {
   const speakerGender = String(task?.speakerGender || inferGender(speakerName));
   const script = String(task?.script || task?.lecture || task?.text || '').trim();
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const questions = verifyAndNormalizeMcqQuestions(rawQs, 'Supported directly by the academic talk.');
+  const baseQuestions = verifyAndNormalizeMcqQuestions(rawQs, 'Supported directly by the academic talk.');
+  const questions = enrichListeningQuestionsWithExcerpt(baseQuestions, script, true);
 
   return {
     ...task,

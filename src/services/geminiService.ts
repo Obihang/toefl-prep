@@ -123,6 +123,14 @@ export const OFFICIAL_LISTENING_CONVERSATION_SPECS = {
   maxTurns: 10,
   wordsPerTurn: '5-15 words',
   questionsCount: 2,
+  requiresAudioExcerpt: true,
+} as const;
+
+export const OFFICIAL_LISTENING_ACADEMIC_TALK_SPECS = {
+  minWords: 140,
+  maxWords: 200,
+  questionsCount: 4,
+  requiresAudioExcerpt: true,
 } as const;
 
 export async function callBackendGenerate(
@@ -135,6 +143,15 @@ export async function callBackendGenerate(
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
   const isReadingAcademic =
     taskType === 'reading-academic' || taskType === 'reading_academic' || taskType === 'reading-passage';
+  const isListeningWithExcerpt =
+    taskType === 'listening-dialogue' ||
+    taskType === 'listening_dialogue' ||
+    taskType === 'listening-conversation' ||
+    taskType === 'listening_conversation' ||
+    taskType === 'listening-academic-talk' ||
+    taskType === 'listening_academic_talk' ||
+    taskType === 'listening-lecture' ||
+    taskType === 'listening_lecture';
   const readingQuestionFocus = promptData?.questionSkillFocus || promptData?.readingQuestionFocus || 'all';
   const enrichedPromptData = isReadingAcademic
     ? {
@@ -142,6 +159,11 @@ export async function callBackendGenerate(
         questionSkillFocus: readingQuestionFocus,
         readingQuestionFocus,
         requiredQuestionTypes: readingQuestionFocus === 'all' ? OFFICIAL_5_READING_QUESTION_TYPES : undefined,
+      }
+    : isListeningWithExcerpt
+    ? {
+        ...(promptData || {}),
+        requiresAudioExcerpt: true,
       }
     : promptData;
 

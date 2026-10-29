@@ -12,6 +12,8 @@ export interface ReadingQuestion {
   options: string[];
   answer: number;
   why: string;
+  audioExcerpt?: string;
+  questionType?: string;
 }
 
 export interface ReadingPassageTask {

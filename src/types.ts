@@ -86,4 +86,23 @@ export const READING_SKILL_OPTIONS: ReadingSkillOption[] = [
   },
 ];
 
+export type ListeningQuestionSkill =
+  | 'Gist / Main Idea'
+  | 'Detail'
+  | "Speaker's Purpose / Function"
+  | 'Inference / Implied Meaning';
+
+export interface ListeningComprehensionQuestion {
+  q: string;
+  question?: string;
+  options: string[];
+  answer: number;
+  correctAnswer?: number;
+  why: string;
+  explanation?: string;
+  audioExcerpt?: string;
+  questionType?: string;
+}
+
 export * from './types/taskTypes';
+

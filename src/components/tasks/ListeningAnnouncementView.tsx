@@ -25,6 +25,7 @@ import {
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { inferListeningQuestionType } from '../../utils/taskNormalizer';
 
 interface QuestionItem {
   q: string;
@@ -32,6 +33,8 @@ interface QuestionItem {
   answer: number;
   why?: string;
   explanation?: string;
+  questionType?: string;
+  audioExcerpt?: string;
 }
 
 export interface ListeningAnnouncementTask {
@@ -405,6 +408,7 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
+            const skillBadge = inferListeningQuestionType(q.q, q.questionType, Boolean(q.audioExcerpt));
 
             return (
               <div
@@ -417,10 +421,18 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
                     : 'border-slate-200'
                 }`}
               >
-                <div className="flex items-start gap-2.5 mb-3.5">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-bold shrink-0">
-                    {qIdx + 1}
-                  </span>
+                <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-bold shrink-0">
+                      {qIdx + 1}
+                    </span>
+                    <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                      {skillBadge}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-3.5">
                   <p className="text-sm font-semibold text-slate-900 leading-snug">{q.q}</p>
                 </div>
 

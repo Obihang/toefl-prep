@@ -1,7 +1,7 @@
 import { parseDialogueLine } from '../../utils/voices';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ListeningTask } from '../../data/curatedQuestions';
-import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, Eye, EyeOff, CheckCircle2, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import {
   playDialogue,
   stopSpeaking,
@@ -16,6 +16,7 @@ import {
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
+import { inferListeningQuestionType } from '../../utils/taskNormalizer';
 
 interface Props {
   task: ListeningTask;
@@ -24,6 +25,7 @@ interface Props {
   leftColumnClassName?: string;
   rightColumnClassName?: string;
   footerBarClassName?: string;
+  excerptBadgeLabel?: string;
 }
 
 type CanonicalSpeakerRole = 'professor' | 'student';
@@ -109,9 +111,12 @@ export const ListeningDialogueView: React.FC<Props> = ({
   leftColumnClassName = 'lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
   rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
   footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
+  excerptBadgeLabel = '🎧 Listen again to part of the conversation',
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeLine, setActiveLine] = useState<number | null>(null);
+  const [playingExcerptIdx, setPlayingExcerptIdx] = useState<number | null>(null);
+  const [loadingExcerptIdx, setLoadingExcerptIdx] = useState<number | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [playCount, setPlayCount] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
@@ -133,6 +138,8 @@ export const ListeningDialogueView: React.FC<Props> = ({
     setListeningAudioFinished(false);
     setIsPlaying(false);
     setActiveLine(null);
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(null);
     setPlayCount(0);
   }, [task.id, task.title]);
 
@@ -341,6 +348,8 @@ export const ListeningDialogueView: React.FC<Props> = ({
   const stopAllAudio = useCallback(() => {
     playbackSessionIdRef.current++;
     isPausedRef.current = true;
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(null);
     if (activeAudioRef.current) {
       try {
         activeAudioRef.current.pause();
@@ -351,6 +360,119 @@ export const ListeningDialogueView: React.FC<Props> = ({
     }
     stopSpeaking();
   }, []);
+
+  const resolveExcerptSpeakerAndText = useCallback(
+    (rawExcerpt: string, questionText: string) => {
+      const parsed = parseDialogueLine(rawExcerpt);
+      const cleanEx = (parsed.spokenText || stripSpeakerAndFormatting(rawExcerpt)).trim();
+      const cleanLower = cleanEx.toLowerCase();
+
+      // 1. Match directly against dialogueLines turns to use the exact turn's locked voiceId & gender
+      const matchedTurn = dialogueLines.find(
+        (turn) =>
+          turn.spokenText &&
+          (turn.spokenText.toLowerCase().includes(cleanLower) ||
+            cleanLower.includes(turn.spokenText.toLowerCase()))
+      );
+      if (matchedTurn) {
+        return {
+          spokenText: cleanEx || matchedTurn.spokenText,
+          voiceId: matchedTurn.voiceId,
+          gender: matchedTurn.gender,
+          speakerName: matchedTurn.speakerName,
+        };
+      }
+
+      // 2. If the excerpt has a speaker prefix (e.g. "Professor Miller: ..."), classify role
+      if (parsed.speakerName && !dialogueVoices.isSingleSpeaker) {
+        const labelA = task.speakers?.A || 'Professor';
+        const labelB = task.speakers?.B || 'Student';
+        const role = classifyCanonicalRole(parsed.speakerName, 0, labelA, labelB);
+        const locked = role === 'student' ? dialogueVoices.student : dialogueVoices.professor;
+        return {
+          spokenText: cleanEx,
+          voiceId: locked.voiceId,
+          gender: locked.gender,
+          speakerName: parsed.speakerName,
+        };
+      }
+
+      // 3. Fallback based on question subject or default to professor's locked voice
+      const asksStudent =
+        !dialogueVoices.isSingleSpeaker &&
+        /\bwhy does the student\b|\bwhat does the student (?:imply|mean)\b/i.test(questionText || '');
+      const fallbackVoice = asksStudent ? dialogueVoices.student : dialogueVoices.professor;
+      return {
+        spokenText: cleanEx,
+        voiceId: fallbackVoice.voiceId,
+        gender: fallbackVoice.gender,
+        speakerName: asksStudent ? task.speakers?.A || 'Student' : task.speakers?.B || 'Professor',
+      };
+    },
+    [dialogueLines, dialogueVoices, task.speakers]
+  );
+
+  const handlePlayExcerpt = async (qIdx: number, rawExcerpt: string, questionText: string) => {
+    const resolved = resolveExcerptSpeakerAndText(rawExcerpt, questionText);
+    if (!resolved.spokenText) return;
+
+    if (playingExcerptIdx === qIdx) {
+      stopAllAudio();
+      setIsPlaying(false);
+      setActiveLine(null);
+      return;
+    }
+
+    stopAllAudio();
+    setIsPlaying(false);
+    setActiveLine(null);
+    const currentSession = ++playbackSessionIdRef.current;
+    isPausedRef.current = false;
+    setLoadingExcerptIdx(qIdx);
+
+    try {
+      const chunks = chunkTextForTTS(resolved.spokenText);
+      if (chunks.length > 0) {
+        await fetchCloudTtsAudio(chunks[0], resolved.gender, resolved.voiceId);
+      }
+      if (playbackSessionIdRef.current !== currentSession) return;
+
+      await speakWithCloudTTS(
+        resolved.spokenText,
+        resolved.gender,
+        {
+          voice: resolved.voiceId,
+          voiceName: resolved.voiceId,
+          gender: resolved.gender,
+          speaker: resolved.speakerName,
+          onStart: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              setLoadingExcerptIdx(null);
+              setPlayingExcerptIdx(qIdx);
+            }
+          },
+          onEnd: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              setPlayingExcerptIdx(null);
+              setLoadingExcerptIdx(null);
+            }
+          },
+          onError: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              setPlayingExcerptIdx(null);
+              setLoadingExcerptIdx(null);
+            }
+          },
+        },
+        resolved.voiceId
+      );
+    } catch {
+      if (playbackSessionIdRef.current === currentSession) {
+        setPlayingExcerptIdx(null);
+        setLoadingExcerptIdx(null);
+      }
+    }
+  };
 
   useEffect(() => {
     if (dialogueLines.length === 0) return;
@@ -821,6 +943,9 @@ export const ListeningDialogueView: React.FC<Props> = ({
         {task.questions.map((q, qIdx) => {
           const userChoice = selectedAnswers[qIdx];
           const isCorrect = userChoice === q.answer;
+          const skillBadge = inferListeningQuestionType(q.q, q.questionType, Boolean(q.audioExcerpt));
+          const isExcerptPlaying = playingExcerptIdx === qIdx;
+          const isExcerptLoading = loadingExcerptIdx === qIdx;
 
           return (
             <div
@@ -834,10 +959,56 @@ export const ListeningDialogueView: React.FC<Props> = ({
                   : 'border-slate-200'
               }`}
             >
-              <div className="flex items-start gap-2.5 mb-3.5">
-                <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold shrink-0">
-                  {qIdx + 1}
-                </span>
+              <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold shrink-0">
+                    {qIdx + 1}
+                  </span>
+                  <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                    {skillBadge}
+                  </span>
+                </div>
+              </div>
+
+              {q.audioExcerpt && (
+                <div className="mb-3.5 p-3 rounded-xl bg-slate-900 text-white border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div className="space-y-1">
+                    <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
+                      <span>{excerptBadgeLabel}</span>
+                    </div>
+                    {submitted && (
+                      <p className="text-xs text-slate-300 italic leading-relaxed">
+                        &ldquo;{stripSpeakerAndFormatting(q.audioExcerpt)}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handlePlayExcerpt(qIdx, q.audioExcerpt!, q.q)}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      isExcerptPlaying
+                        ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                        : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                    }`}
+                  >
+                    {isExcerptLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Loading...</span>
+                      </>
+                    ) : isExcerptPlaying ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5 fill-current" />
+                        <span>Stop Excerpt</span>
+                      </>
+                    ) : (
+                      <span>▶️ Play Excerpt</span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              <div className="mb-3.5">
                 <p className="text-sm font-semibold text-slate-900 leading-snug">{q.q}</p>
               </div>
 

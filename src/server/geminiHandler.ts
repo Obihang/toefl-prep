@@ -22,6 +22,7 @@ import {
   normalizeListeningChooseResponseTask,
   normalizeListeningAnnouncementTask,
   normalizeListeningAcademicTalkTask,
+  normalizeListeningDialogueTask,
 } from '../utils/taskNormalizer';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
@@ -118,7 +119,14 @@ const Schemas = {
     speakers: z.record(z.string(), z.string()),
     speakerGenders: z.record(z.string(), z.string()).default({ A: 'female', B: 'male' }),
     script: z.string(),
-    questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+      audioExcerpt: z.string().optional(),
+      questionType: z.string().optional(),
+    })),
   }),
   listenRepeat: z.object({
     title: z.string(),
@@ -218,6 +226,8 @@ const Schemas = {
       options: z.array(z.string()),
       answer: z.number(),
       why: z.string(),
+      audioExcerpt: z.string().optional(),
+      questionType: z.string().optional(),
     })),
   }),
 };
@@ -430,19 +440,28 @@ function normalizeListeningDialogue(data: any) {
       options,
       answer,
       why: String(q.why || q.explanation || q.reason || 'Supported by dialogue.'),
+      ...(q.audioExcerpt ? { audioExcerpt: String(q.audioExcerpt).trim() } : {}),
+      ...(q.questionType ? { questionType: String(q.questionType).trim() } : {}),
     };
   });
 
-  const questions = verifyAndNormalizeMcqQuestions(preValidated, 'Supported by dialogue.')
-    .slice(0, 2)
-    .map((q) => ({
-      q: q.q,
-      options: q.options,
-      answer: q.answer,
-      why: q.why,
-    }));
+  const normalized = normalizeListeningDialogueTask({
+    title,
+    context,
+    speakers,
+    speakerGenders,
+    script,
+    questions: preValidated.slice(0, 2),
+  });
 
-  return { title, context, speakers, speakerGenders, script, questions };
+  return {
+    title: normalized.title,
+    context: normalized.context,
+    speakers: normalized.speakers,
+    speakerGenders: normalized.speakerGenders,
+    script: normalized.script,
+    questions: normalized.questions,
+  };
 }
 
 function normalizeListenRepeat(data: any) {
@@ -925,9 +944,13 @@ Return JSON format: {"title": "Announcement Title", "context": "University annou
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Academic Talk" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Write a strictly 140 to 200 word academic talk or mini-lecture (script) by a university educator (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or redundant concluding summaries.
-2. Follow with EXACTLY 4 comprehension questions covering main idea, detail, cause/effect, and speaker purpose.
-3. Each question must have 4 distinct options, answer index (0..3), and why explanation.
-Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName": "Dr. Angela Evans", "speakerGender": "female", "script": "Good morning class...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "..."}, {"q": "Question 2?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "..."}, {"q": "Question 3?", "options": ["A", "B", "C", "D"], "answer": 2, "why": "..."}, {"q": "Question 4?", "options": ["A", "B", "C", "D"], "answer": 3, "why": "..."}]}`;
+2. Follow with EXACTLY 4 comprehension questions covering:
+   - Gist / Main Idea ("questionType": "Gist / Main Idea")
+   - Detail ("questionType": "Detail")
+   - Inference / Implied Meaning ("questionType": "Inference / Implied Meaning")
+   - Pragmatic "Listen Again to an Excerpt" Function/Purpose question ("questionType": "Speaker's Purpose / Function"): On EXACTLY 1 of the 4 questions, include \`"audioExcerpt"\` containing an exact 1-sentence quote from the lecture \`script\`, and ask "Why does the professor say this?" or "What does the professor imply when saying this?".
+3. Each question must have 4 distinct options, answer index (0..3), questionType, and why explanation.
+Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName": "Dr. Angela Evans", "speakerGender": "female", "script": "Good morning class...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Exact 1-sentence quote from the script.", "questionType": "Speaker's Purpose / Function", "options": ["A", "B", "C", "D"], "answer": 0, "why": "..."}, {"q": "Question 2?", "questionType": "Detail", "options": ["A", "B", "C", "D"], "answer": 1, "why": "..."}, {"q": "Question 3?", "questionType": "Detail", "options": ["A", "B", "C", "D"], "answer": 2, "why": "..."}, {"q": "Question 4?", "questionType": "Inference / Implied Meaning", "options": ["A", "B", "C", "D"], "answer": 3, "why": "..."}]}`;
       case 'listening-dialogue':
       case 'listening_dialogue':
       case 'listening-conversation':
@@ -936,9 +959,11 @@ Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName":
 STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 9-10):
 1. Write a short, natural 8 to 10 turn conversation of strictly 75 to 110 words total (5 to 15 words per turn, like a real 30-second spoken campus exchange—NOT a long multi-sentence monologue!) between two distinct speakers (1 female and 1 male with clear names, e.g., "Emma (Student)" & "Professor Miller", or "Lucas (Student)" & "Ms. Rivera (Librarian)").
 2. Format every script line with the speaker name at the start of the line, e.g. "Emma: Professor Miller, do you have a minute to look at my survey design?\\nProfessor Miller: Sure, Emma. Did you narrow down your topic on sleep and memory?"
-3. Follow with EXACTLY 2 multiple-choice questions testing official TOEFL Listening skills (e.g. Question 1: Implied Meaning / Inference / Prediction of what a speaker will do next; Question 2: Main Purpose / Specific Detail / Speaker's Attitude).
-4. Every question MUST have 4 distinct options (\`options.length === 4\`), a verified \`answer\` index (0..3), and a clear \`why\` explanation confirming why that option is correct.
-Return JSON format: {"title": "Conversation Title", "context": "Listen to a conversation between a student and a professor.", "speakers": {"A": "Emma (Student)", "B": "Professor Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma: ...\\nProfessor Miller: ...", "questions": [{"q": "Question 1?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation 2..."}]}`;
+3. Follow with EXACTLY 2 multiple-choice questions testing official TOEFL Listening skills:
+   - Question 1 MUST be an official "Listen Again to an Excerpt" pragmatic/function/implication question: include \`"audioExcerpt"\` with an exact 1-sentence line from the conversation (including the speaker prefix, e.g. "Professor Miller: Relying only on self-reported sleep logs can be pretty inaccurate, though."), set \`"questionType"\` to \`"Speaker's Purpose / Function"\` or \`"Inference / Implied Meaning"\`, and ask "Why does the speaker say this?" or "What does the speaker imply when saying this?".
+   - Question 2 tests Detail or Gist / Main Idea (\`"questionType": "Detail"\` or \`"Gist / Main Idea"\`).
+4. Every question MUST have 4 distinct options (\`options.length === 4\`), a verified \`answer\` index (0..3), \`questionType\`, and a clear \`why\` explanation confirming why that option is correct.
+Return JSON format: {"title": "Conversation Title", "context": "Listen to a conversation between a student and a professor.", "speakers": {"A": "Emma (Student)", "B": "Professor Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma: ...\\nProfessor Miller: ...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Professor Miller: Exact 1-sentence turn from the script.", "questionType": "Speaker's Purpose / Function", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "questionType": "Detail", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation 2..."}]}`;
       case 'listen-repeat':
       case 'speaking_listen_repeat':
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}.
