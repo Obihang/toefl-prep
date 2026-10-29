@@ -400,8 +400,8 @@ function normalizeListeningDialogue(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length < 3 || rawQs.length > 5) {
-    throw new Error(`Listening comprehension requires 3 to 5 questions (received ${rawQs.length})`);
+  if (rawQs.length < 2 || rawQs.length > 5) {
+    throw new Error(`Listening conversation requires 2 to 5 questions (received ${rawQs.length})`);
   }
 
   const preValidated = rawQs.map((q: any, idx: number) => {
@@ -433,12 +433,14 @@ function normalizeListeningDialogue(data: any) {
     };
   });
 
-  const questions = verifyAndNormalizeMcqQuestions(preValidated, 'Supported by dialogue.').map((q) => ({
-    q: q.q,
-    options: q.options,
-    answer: q.answer,
-    why: q.why,
-  }));
+  const questions = verifyAndNormalizeMcqQuestions(preValidated, 'Supported by dialogue.')
+    .slice(0, 2)
+    .map((q) => ({
+      q: q.q,
+      options: q.options,
+      answer: q.answer,
+      why: q.why,
+    }));
 
   return { title, context, speakers, speakerGenders, script, questions };
 }
@@ -930,13 +932,13 @@ Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName":
       case 'listening_dialogue':
       case 'listening-conversation':
       case 'listening_conversation':
-        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}.
-STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. For Conversations: write 8-10 natural turns between a Student and a Professor/University Staff member with explicit gendered names (e.g., "Emma (Female)" & "Prof. Miller (Male)", or "Liam (Male)" & "Dr. Davis (Female)"). For Academic Talks/Lectures: write a 180-220 word university lecture by a professor with a brief student question.
-2. Format every script line with the speaker name at the start of the line, e.g. "Emma (Female): Hello Professor Miller.\\nProf. Miller (Male): Welcome, Emma."
-3. Follow with EXACTLY 4 TOEFL iBT Listening questions covering: (Q1) Gist-Purpose/Content, (Q2) Detail, (Q3) Speaker's Attitude/Function, and (Q4) Inference.
-4. Every question MUST have 4 distinct options (\`options.length === 4\`), a verified \`answer\` index (0..3), and a clear \`why\` explanation that confirms why the option at index \`answer\` is correct.
-Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Emma (Student)", "B": "Prof. Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma (Female): ...\\nProf. Miller (Male): ...", "questions": [{"q": "Question prompt?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation verifying why Option B (index 1) is correct..."}]}`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to a Conversation" task for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 9-10):
+1. Write a short, natural 8 to 10 turn conversation of strictly 75 to 110 words total (5 to 15 words per turn, like a real 30-second spoken campus exchange—NOT a long multi-sentence monologue!) between two distinct speakers (1 female and 1 male with clear names, e.g., "Emma (Student)" & "Professor Miller", or "Lucas (Student)" & "Ms. Rivera (Librarian)").
+2. Format every script line with the speaker name at the start of the line, e.g. "Emma: Professor Miller, do you have a minute to look at my survey design?\\nProfessor Miller: Sure, Emma. Did you narrow down your topic on sleep and memory?"
+3. Follow with EXACTLY 2 multiple-choice questions testing official TOEFL Listening skills (e.g. Question 1: Implied Meaning / Inference / Prediction of what a speaker will do next; Question 2: Main Purpose / Specific Detail / Speaker's Attitude).
+4. Every question MUST have 4 distinct options (\`options.length === 4\`), a verified \`answer\` index (0..3), and a clear \`why\` explanation confirming why that option is correct.
+Return JSON format: {"title": "Conversation Title", "context": "Listen to a conversation between a student and a professor.", "speakers": {"A": "Emma (Student)", "B": "Professor Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma: ...\\nProfessor Miller: ...", "questions": [{"q": "Question 1?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation 2..."}]}`;
       case 'listen-repeat':
       case 'speaking_listen_repeat':
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}.

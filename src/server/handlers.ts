@@ -392,15 +392,42 @@ function splitTextIntoSentences(text: string, maxLen = 180): string[] {
 
 async function synthesizeWithZeroKeyFetch(
   text: string,
-  speakerName: string,
-  gender: string,
-  voiceName?: string
+  speakerNameOrGender: string,
+  genderOrSelectedVoice?: string,
+  voiceNameArg?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
-  const isMale = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
-  const rawVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
-  const selectedVoice = ALLOWED_EDGE_VOICES.has(rawVoice)
-    ? rawVoice
-    : (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  // Support both 3-arg (text, gender, selectedVoice) and 4-arg (text, speakerName, gender, selectedVoice) signatures
+  let speakerName = '';
+  let gender = '';
+  let voiceName = '';
+
+  if (
+    voiceNameArg !== undefined ||
+    genderOrSelectedVoice === 'male' ||
+    genderOrSelectedVoice === 'female'
+  ) {
+    speakerName = speakerNameOrGender || '';
+    gender = (genderOrSelectedVoice || '').toLowerCase();
+    voiceName = (voiceNameArg || '').trim();
+  } else {
+    gender = (speakerNameOrGender || '').toLowerCase();
+    voiceName = (genderOrSelectedVoice || '').trim();
+  }
+
+  let selectedVoice = '';
+  if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
+    selectedVoice = voiceName;
+  } else {
+    const isMale =
+      gender === 'male' ||
+      (voiceName ? MALE_VOICES.includes(voiceName) : false) ||
+      (gender !== 'female' && Boolean(speakerName && detectSpeakerGender(speakerName) === 'male'));
+    const pool = isMale ? MALE_VOICES : FEMALE_VOICES;
+    const absHash = Math.abs(
+      text.split('').reduce((acc, ch) => ((acc << 5) - acc + ch.charCodeAt(0)) | 0, 0)
+    );
+    selectedVoice = pool[absHash % pool.length] || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  }
 
   try {
     const buffer = await synthesizeEdge(text, selectedVoice);
@@ -430,7 +457,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const text = body.text || '';
-    const voiceName = body.voiceName || '';
+    const customVoice = (body.voice || body.voiceName || '').toString().trim();
+    const voiceName = customVoice;
     const speaker = body.speaker || '';
     const rate = body.rate || 1.0;
 
@@ -455,23 +483,29 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const isTest = req.headers['x-tts-test'] === 'true';
 
-    const isMaleExplicit = body.isMale === true || body.gender === 'male';
-    let isMale = isMaleExplicit || /Male|Guy|Christopher|Eric|onyx|alloy|Puck/i.test(voiceName || speaker);
+    const reqGender = (body.gender || (body.isMale === true ? 'male' : body.isMale === false ? 'female' : '')).toString().toLowerCase();
+    const isMaleExplicit = body.isMale === true || reqGender === 'male';
+    const isFemaleExplicit = body.isMale === false || reqGender === 'female';
+    let isMale =
+      isMaleExplicit ||
+      (!isFemaleExplicit &&
+        (MALE_VOICES.includes(customVoice) ||
+          /Male|Guy|Christopher|Eric|Andrew|Brian|Ryan|Thomas|William|Roger|Steffan|onyx|alloy|Puck/i.test(voiceName || speaker)));
     let cleanText = text;
     const prefixMatch = text.match(/^\s*(?:\*\*|__)?([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?(?:\*\*|__)?\s*:/i);
     if (prefixMatch) {
       const pSpeakerName = prefixMatch[1].trim();
       const pSpeakerHint = prefixMatch[2] ? prefixMatch[2].trim() : '';
-      if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'male' || /male/i.test(pSpeakerHint)) {
+      if (!isFemaleExplicit && (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'male' || /\bmale\b/i.test(pSpeakerHint))) {
         isMale = true;
-      } else if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'female' || /female/i.test(pSpeakerHint)) {
+      } else if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'female' || /\bfemale\b/i.test(pSpeakerHint)) {
         if (!isMaleExplicit) isMale = false;
       }
       cleanText = text.replace(/^\s*(?:\*\*|__)?(?:[A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\([^)]+\))?(?:\*\*|__)?\s*:\s*/i, '').trim();
     }
     const speakerName = speaker || (prefixMatch ? prefixMatch[1].trim() : '');
     const speakerHint = body.speakerHint || (prefixMatch ? (prefixMatch[2] || '') : '');
-    if (!isMale && (detectSpeakerGender(speakerName, speakerHint) === 'male' || /male/i.test(speakerHint))) {
+    if (!isMale && !isFemaleExplicit && (detectSpeakerGender(speakerName, speakerHint) === 'male' || /\bmale\b/i.test(speakerHint))) {
       isMale = true;
     }
 
@@ -485,13 +519,13 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    const reqVoice = (body.voice || body.voiceName || voiceName || '').toString().trim();
-    const reqGender = (body.gender || (body.isMale === true ? 'male' : body.isMale === false ? 'female' : '')).toString().toLowerCase();
+    const reqVoice = customVoice;
 
     let selectedVoice = '';
     if (
       reqVoice &&
-      (FEMALE_VOICES.includes(reqVoice) ||
+      (ALLOWED_EDGE_VOICES.has(reqVoice) ||
+        FEMALE_VOICES.includes(reqVoice) ||
         MALE_VOICES.includes(reqVoice) ||
         /^en-[A-Z]{2}-[A-Za-z]+Neural$/.test(reqVoice))
     ) {
@@ -501,15 +535,11 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       selectedVoice = pool[0];
     } else {
       const gender = isMale ? 'male' : detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
-      if (gender === 'male' || gender === 'female') {
-        const pool = gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
-        selectedVoice = pool[0];
-      } else {
-        selectedVoice = ALL_EDGE_VOICES[0];
-      }
+      const pool = gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
+      selectedVoice = pool[0];
     }
 
-    isMale = MALE_VOICES.includes(selectedVoice) || reqGender === 'male';
+    isMale = MALE_VOICES.includes(selectedVoice) || (reqGender === 'male' && !FEMALE_VOICES.includes(selectedVoice));
 
     const pitch = (body.pitch || '0Hz').toString().trim();
     const ratePercent = Math.round((numRate - 1.0) * 100);
@@ -551,7 +581,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     let modelUsed = `Neural Stream (${selectedVoice})`;
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
-    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice);
+    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice || customVoice);
     if (zeroKeyRes) {
       audioBuffer = zeroKeyRes.buffer;
       mimeType = 'audio/mpeg';

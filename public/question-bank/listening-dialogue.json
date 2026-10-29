@@ -1,676 +1,482 @@
 [
   {
     "id": "ld-1",
-    "title": "Literature Office Hours: Victorian Social Realism Thesis",
-    "level": "intermediate",
-    "difficulty": "intermediate",
-    "topic": "campus-life",
-    "context": "A student speaks with her English literature professor about narrowing her thesis statement for an upcoming term paper.",
-    "speakers": {
-      "A": "Emma (Student)",
-      "B": "Prof. Miller (Professor)"
-    },
-    "speakerGenders": {
-      "A": "female",
-      "B": "male"
-    },
-    "script": "Emma (Female): Good afternoon, Professor Miller. Thank you for meeting with me during office hours. I wanted to discuss my proposed thesis statement for our Victorian literature term paper.\nProf. Miller (Male): Welcome, Emma. Come in and take a seat. I have your preliminary outline here. You are comparing social realism in George Eliot and Charles Dickens, correct?\nEmma (Female): Yes, exactly. But as I was reviewing primary sources in the library, I realized my initial scope was far too broad for a fifteen-page essay.\nProf. Miller (Male): That is a very common challenge with comparative literature topics. When a thesis tries to encompass entire novelistic canons, the analysis inevitably becomes superficial. How do you plan to narrow your focus?\nEmma (Female): I want to focus specifically on their contrasting depictions of provincial industrialization and child labor legislation in Middlemarch and Hard Times.\nProf. Miller (Male): That is a much sharper critical lens. You will be able to perform close textual readings of parliamentary report excerpts and show how both authors engaged with historical reform debates.\nEmma (Female): Would you recommend that I consult Victorian legislative records in the university digital archive, or should I stick primarily to literary commentaries?\nProf. Miller (Male): Definitely incorporate the primary parliamentary blue books from eighteen fifty-four. They will anchor your historical argument firmly. Just make sure to submit your annotated bibliography by next Tuesday so I can verify your citations.\nEmma (Female): That sounds wonderful. I will reserve an afternoon slot at the library microform lab and have the bibliography ready. Thank you so much for the guidance, Professor Miller!",
-    "questions": [
-      {
-        "q": "Why does Emma visit Professor Miller during office hours?",
-        "options": [
-          "To request an extension on her final Victorian literature essay deadline",
-          "To consult him about narrowing the scope of her term paper thesis",
-          "To ask for a letter of recommendation for graduate literature studies",
-          "To dispute a low grade she received on her previous draft outline"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "Emma explains that she realized her initial comparative scope was far too broad and wants guidance on narrowing her thesis statement."
+    "taskType": "listening-dialogue",
+    "level": "upper-intermediate",
+    "topic": "psychology",
+    "content": {
+      "id": "ld-1",
+      "type": "conversation",
+      "title": "Research Methodology Consultation",
+      "level": "upper-intermediate",
+      "topic": "psychology",
+      "context": "Listen to a conversation between a student and her psychology professor.",
+      "speakers": {
+        "A": "Emma (Student)",
+        "B": "Professor Miller"
       },
-      {
-        "q": "What specific focus does Emma choose to make her thesis manageable?",
-        "options": [
-          "Poetic meter and dramatic monologues in Victorian serialized journals",
-          "Biographical influences of London street life on Charles Dickens's early journalism",
-          "Philosophical comparisons between German idealism and George Eliot's translation work",
-          "Contrasting depictions of industrialization and child labor laws in two specific novels"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "Emma states she wants to focus specifically on depictions of provincial industrialization and child labor legislation in Middlemarch and Hard Times."
+      "speakerGenders": {
+        "A": "female",
+        "B": "male"
       },
-      {
-        "q": "Why does Professor Miller advise against Emma's original research plan?",
-        "options": [
-          "The library lacks sufficient primary source holdings for Victorian authors",
-          "Departmental policy prohibits comparing two different nineteenth-century novelists",
-          "Covering entire novelistic canons in a short essay results in superficial analysis",
-          "Charles Dickens and George Eliot wrote in mutually incompatible literary genres"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The professor warns that attempting to encompass entire novelistic canons makes the analysis inevitably superficial in a fifteen-page essay."
-      },
-      {
-        "q": "What task is Emma expected to complete by next Tuesday?",
-        "options": [
-          "Conduct an oral peer-review interview with a classmate in the library",
-          "Present her thesis argument to the weekly undergraduate literary colloquium",
-          "Submit an annotated bibliography citing primary parliamentary records",
-          "Deliver a complete fifteen-page draft of her comparative essay"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "Professor Miller instructs Emma to submit her annotated bibliography by next Tuesday so he can verify her citations."
-      }
-    ]
+      "script": "Emma: Professor Miller, do you have a minute to look at my survey design?\nProfessor Miller: Sure, Emma. Did you narrow down your topic on sleep and memory?\nEmma: Yes, I want to compare exam scores between freshmen and seniors.\nProfessor Miller: Relying only on self-reported sleep logs can be pretty inaccurate, though.\nEmma: Oh, I hadn't thought about students guessing their sleep hours.\nProfessor Miller: Why not pair the questionnaire with data from wearable fitness trackers?\nEmma: That's a great idea, and the wellness center lends them out.\nProfessor Miller: Exactly. Update your ethics form first, and I'll sign it tomorrow.",
+      "questions": [
+        {
+          "q": "Why does the professor express concern about the student's original research design?",
+          "options": [
+            "Freshmen and seniors take completely different types of exams.",
+            "Students often estimate their own sleep hours inaccurately on logs.",
+            "The psychology department has already funded a similar study.",
+            "Wearable fitness trackers are too expensive for undergraduate projects."
+          ],
+          "answer": 1,
+          "why": "Professor Miller points out that relying solely on self-reported sleep logs can be inaccurate because students estimate or guess their sleep hours."
+        },
+        {
+          "q": "What will the student most likely do next?",
+          "options": [
+            "Cancel her study and choose a new psychology topic.",
+            "Begin distributing paper questionnaires in the freshmen dormitories.",
+            "Revise her ethics approval form to include wearable tracker data.",
+            "Purchase fitness trackers from an off-campus electronics store."
+          ],
+          "answer": 2,
+          "why": "At the end of the conversation, the professor instructs Emma to update her ethics form first so he can sign it tomorrow."
+        }
+      ],
+      "difficulty": "upper-intermediate"
+    }
   },
   {
     "id": "ld-2",
-    "title": "Cellular Biology Lab: Molecular Genetics Research Assistantship",
-    "level": "upper-intermediate",
-    "difficulty": "upper-intermediate",
-    "topic": "science-tech",
-    "context": "An undergraduate student meets with a molecular genetics professor to apply for an assistant position in her research laboratory.",
-    "speakers": {
-      "A": "Liam (Student)",
-      "B": "Dr. Chen (Faculty Researcher)"
-    },
-    "speakerGenders": {
-      "A": "male",
-      "B": "female"
-    },
-    "script": "Liam (Male): Hi, Dr. Chen. I attended your departmental seminar on CRISPR Cas9 gene editing last week, and I am very interested in applying for an undergraduate assistantship in your molecular biology laboratory.\nDr. Chen (Female): Hello, Liam. I remember you asked a thoughtful question about off-target mutations during the Q and A session. Have you completed our department's prerequisite coursework in biochemistry and cellular genetics?\nLiam (Male): Yes, I completed Biochemistry two-ten with Dr. Harris last semester and received an A, and I am currently enrolled in Advanced Molecular Genetics.\nDr. Chen (Female): Excellent academic foundation. In our lab, student researchers assist with purifying recombinant proteins, preparing mammalian cell cultures, and running western blot assays. Have you worked with gel electrophoresis before?\nLiam (Male): Yes, we conducted several agarose gel electrophoresis trials in the prerequisite laboratory sessions, so I am familiar with micropipetting and calibrating the voltage chambers.\nDr. Chen (Female): That hands-on familiarity will definitely flatten your initial training curve. Our current project investigates epigenetic histone modification in drought-resistant crop strains, which requires meticulous sterile technique.\nLiam (Male): That sounds fascinating. How many hours per week do undergraduate assistants typically commit during the semester?\nDr. Chen (Female): We expect ten to twelve hours weekly, divided between lab benchwork and our Friday morning data presentation meetings. If that fits your academic schedule, please email me your unofficial transcript and two faculty references by Friday.\nLiam (Male): That schedule aligns perfectly with my course load. I will send over my transcript and references this afternoon. Thank you for the opportunity, Dr. Chen!",
-    "questions": [
-      {
-        "q": "What is the primary purpose of Liam's meeting with Dr. Chen?",
-        "options": [
-          "To report an equipment calibration malfunction in the teaching laboratory",
-          "To request permission to enroll in an advanced graduate seminar without prerequisites",
-          "To ask for financial assistance to attend an international biochemistry conference",
-          "To apply for an undergraduate research assistantship in her genetics laboratory"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "Liam explicitly states he is interested in applying for an undergraduate assistantship in Dr. Chen's molecular biology research laboratory."
+    "taskType": "listening-dialogue",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "content": {
+      "id": "ld-2",
+      "type": "conversation",
+      "title": "Library Reserve & Interlibrary Loan",
+      "level": "intermediate",
+      "topic": "campus-life",
+      "context": "Listen to a conversation between a student and a university librarian.",
+      "speakers": {
+        "A": "Lucas (Student)",
+        "B": "Ms. Rivera (Librarian)"
       },
-      {
-        "q": "What prior technical laboratory experience does Liam describe having?",
-        "options": [
-          "Performing agarose gel electrophoresis, micropipetting, and voltage calibration",
-          "Operating confocal laser scanning microscopes on live neural tissue",
-          "Synthesizing synthetic nucleotide primers for automated sequencing machines",
-          "Managing clinical trial patient documentation for pharmacology studies"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "Liam explains that he conducted several agarose gel electrophoresis trials and is familiar with micropipetting and voltage chambers."
+      "speakerGenders": {
+        "A": "male",
+        "B": "female"
       },
-      {
-        "q": "What does Dr. Chen imply when mentioning Liam's question at her guest lecture?",
-        "options": [
-          "She was impressed by his intellectual curiosity and comprehension of the subject",
-          "She felt his question was too elementary for a departmental research seminar",
-          "She was concerned that he lacked adequate background knowledge in genetics",
-          "She suspected he had memorized the question from an online biology forum"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "Dr. Chen notes that he asked a thoughtful question about off-target mutations, indicating she took favorable notice of his scientific engagement."
-      },
-      {
-        "q": "What must Liam submit by Friday to advance his application?",
-        "options": [
-          "A letter of recommendation from the university registrar verifying his class standing",
-          "A formal five-page research proposal outlining an independent CRISPR experiment",
-          "A certified laboratory safety certificate from the environmental health office",
-          "His unofficial academic transcript and two faculty reference contacts"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "Dr. Chen instructs Liam to email his unofficial transcript and two faculty references by Friday."
-      }
-    ]
+      "script": "Lucas: Excuse me, I'm looking for Dr. Chen's textbook on medieval architecture.\nMs. Rivera: Let me check our catalog. Both print copies are currently checked out.\nLucas: Oh no, my seminar summary is due this Wednesday morning.\nMs. Rivera: Professor Chen actually placed a copy at the course reserve desk.\nLucas: Great! Can I borrow it overnight to read at my apartment?\nMs. Rivera: Reserve books stay in the library for three-hour loans only.\nLucas: That's fine. Which chapter covers Gothic cathedral vaults?\nMs. Rivera: You can check the table of contents right over at Desk Two.",
+      "questions": [
+        {
+          "q": "What can be inferred about the textbook at the course reserve desk?",
+          "options": [
+            "It is missing several pages from the chapter on Gothic cathedrals.",
+            "It cannot be taken outside the library building.",
+            "It is only available to graduate students in architecture.",
+            "It must be requested through an interlibrary loan form."
+          ],
+          "answer": 1,
+          "why": "Ms. Rivera explains that course reserve books must stay inside the library for three-hour loans only and cannot be borrowed overnight."
+        },
+        {
+          "q": "Why does the student urgently need the textbook?",
+          "options": [
+            "He has to complete a seminar summary due on Wednesday morning.",
+            "He lost the copy he borrowed earlier in the semester.",
+            "He is preparing slides for a guest lecture on Friday.",
+            "He needs to photocopy the bibliography for Professor Chen."
+          ],
+          "answer": 0,
+          "why": "Lucas mentions that his seminar summary is due this Wednesday morning."
+        }
+      ],
+      "difficulty": "intermediate"
+    }
   },
   {
     "id": "ld-3",
-    "title": "Academic Advising: Environmental Science and Economics Double Major",
-    "level": "intermediate",
-    "difficulty": "intermediate",
-    "topic": "campus-life",
-    "context": "A sophomore consults an academic advisor about declaring a double major and planning her graduation timeline.",
-    "speakers": {
-      "A": "Sophia (Student)",
-      "B": "Advisor Ross (Academic Counselor)"
-    },
-    "speakerGenders": {
-      "A": "female",
-      "B": "male"
-    },
-    "script": "Sophia (Female): Good morning, Advisor Ross. I scheduled this appointment because I am considering declaring a double major in Environmental Science and Economics, and I need to review my degree audit.\nAdvisor Ross (Male): Good morning, Sophia. A double major in environmental science and economics is an increasingly popular interdisciplinary combination, especially for careers in sustainable resource management and public policy. Let me pull up your academic record on the terminal.\nSophia (Female): Thank you. According to my calculations, I have already fulfilled sixty credits, but I want to make sure I can still graduate within four academic years without taking summer courses.\nAdvisor Ross (Male): Looking at your completed coursework, you have already satisfied your general education distribution requirements. However, both programs have rigorous independent capstone seminar requirements that cannot be taken concurrently in the same semester.\nSophia (Female): Does that mean I would need to complete the environmental fieldwork seminar in the fall of my senior year and the econometrics thesis in the spring?\nAdvisor Ross (Male): Exactly. Staggering the two capstones prevents scheduling conflicts and ensures you are not overwhelmed by simultaneous senior research deliverables. Furthermore, eight of your advanced statistics credits can be cross-counted toward both majors.\nSophia (Female): That cross-counting policy saves me an entire semester of elective coursework! What paperwork do I need to finalize the declaration?\nAdvisor Ross (Male): You will need to fill out the double major declaration petition, obtain signed approvals from both department chairs, and return the packet to the registrar by Friday at five o'clock.\nSophia (Female): I have meetings scheduled with both department heads tomorrow afternoon, so I should easily meet the deadline. Thank you for clarifying the timeline, Advisor Ross!",
-    "questions": [
-      {
-        "q": "What is the main topic of Sophia's advising meeting?",
-        "options": [
-          "Appealing an academic probation status following an incomplete semester",
-          "Evaluating course requirements to declare a double major without delaying graduation",
-          "Applying for an off-campus study abroad program in environmental conservation",
-          "Requesting a waiver for undergraduate foreign language distribution requirements"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "Sophia meets with Advisor Ross to check her degree audit and confirm she can graduate within four years with a double major in Environmental Science and Economics."
+    "taskType": "listening-dialogue",
+    "level": "advanced",
+    "topic": "biology",
+    "content": {
+      "id": "ld-3",
+      "type": "conversation",
+      "title": "Coral Reef Bleaching Office Hours",
+      "level": "advanced",
+      "topic": "biology",
+      "context": "Listen to a conversation between a student and her marine biology professor.",
+      "speakers": {
+        "A": "Maya (Student)",
+        "B": "Dr. Vance"
       },
-      {
-        "q": "Why does Advisor Ross emphasize staggering the two senior capstones across separate semesters?",
-        "options": [
-          "Because university regulations prohibit students from taking more than twelve credits",
-          "To avoid scheduling conflicts and prevent overwhelming simultaneous research workloads",
-          "To ensure faculty advisors have sufficient time to grade oral defense presentations",
-          "Because the econometrics seminar is only offered during summer sessions"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "Advisor Ross explains that staggering the capstones prevents conflicts and ensures she is not overwhelmed by concurrent major deliverables."
+      "speakerGenders": {
+        "A": "female",
+        "B": "male"
       },
-      {
-        "q": "What university policy helps Sophia complete both degree tracks on schedule?",
-        "options": [
-          "Permitting students to substitute high school coursework for college electives",
-          "Exempting double majors from completing senior undergraduate capstone projects",
-          "Granting automatic tuition scholarships for interdisciplinary double majors",
-          "Allowing up to eight advanced statistics credits to count toward both departments"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "Advisor Ross explains that eight advanced statistics credits can be cross-counted toward both majors, saving her an entire semester."
-      },
-      {
-        "q": "What step must Sophia finish before Friday at five o'clock?",
-        "options": [
-          "Defend her proposed econometrics research thesis before a faculty committee",
-          "Obtain signatures from both department chairs and submit the petition to the registrar",
-          "Register for thirty credits of upper-division environmental chemistry courses",
-          "Complete an internship exit interview with the campus career development center"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The advisor states she must complete the petition, gather signed approvals from both department heads, and turn it in to the registrar by Friday at five."
-      }
-    ]
+      "script": "Maya: Dr. Vance, could you clarify something from today's lecture on coral bleaching?\nDr. Vance: Of course, Maya. Which part was unclear?\nMaya: When ocean temperatures rise, why do corals expel their symbiotic algae?\nDr. Vance: Heat stress damages the algae's photosynthesis, causing them to release toxic oxygen molecules.\nMaya: So the coral ejects the algae to protect its own tissue?\nDr. Vance: Exactly, though losing the algae also deprives the coral of its main food source.\nMaya: Does that mean bleached coral dies immediately?\nDr. Vance: Not right away. If water cools quickly, corals can absorb new algae and recover.",
+      "questions": [
+        {
+          "q": "According to the professor, why does a coral expel its symbiotic algae during heat stress?",
+          "options": [
+            "To make room for cold-water bacteria in its skeleton.",
+            "Because the heat-damaged algae begin producing toxic oxygen molecules.",
+            "To attract predatory fish that clean the reef surface.",
+            "Because the algae consume too much calcium carbonate."
+          ],
+          "answer": 1,
+          "why": "Dr. Vance explains that heat stress damages the algae's photosynthetic process, causing them to release toxic oxygen molecules that threaten the coral's tissue."
+        },
+        {
+          "q": "What does the professor imply about bleached corals?",
+          "options": [
+            "They are already dead and cannot be restored.",
+            "They can survive and recover if ocean temperatures drop in time.",
+            "They no longer require sunlight once they turn white.",
+            "They only occur in shallow freshwater lakes."
+          ],
+          "answer": 1,
+          "why": "Dr. Vance notes that bleached corals do not die right away and can absorb new algae and recover if the water cools quickly."
+        }
+      ],
+      "difficulty": "advanced"
+    }
   },
   {
     "id": "ld-4",
-    "title": "Library Reference Desk: Regional Cartographic Depository Access",
+    "taskType": "listening-dialogue",
     "level": "beginner",
-    "difficulty": "beginner",
     "topic": "campus-life",
-    "context": "A student speaks with a research librarian about finding historical eighteenth-century maps and gazetteers.",
-    "speakers": {
-      "A": "Noah (Student)",
-      "B": "Librarian Brooks (Research Librarian)"
-    },
-    "speakerGenders": {
-      "A": "male",
-      "B": "female"
-    },
-    "script": "Noah (Male): Excuse me, Librarian Brooks. I am searching for several eighteenth-century regional gazetteers for my urban geography seminar, but our catalog indicates our library only possesses digital microfilm reels.\nLibrarian Brooks (Female): Welcome to the research desk, Noah. Yes, our physical paper gazetteers were transferred to the climate-controlled regional depository five years ago to prevent paper degradation. However, all volumes are available on high-definition microform on the second floor.\nNoah (Male): I have never operated an archival microform scanner before. Is the equipment difficult to navigate?\nLibrarian Brooks (Female): Not at all. Our digital scanners connect directly to university workstations. You can load the film spool, zoom in with optical enhancement, adjust contrast, and export high-resolution PDFs directly to your cloud drive.\nNoah (Male): That sounds very convenient. What should I do if a particular county gazetteer from seventeen ninety-two is missing from our microfilm collection?\nLibrarian Brooks (Female): In that case, we can submit an expedited interlibrary loan request through our national consortium. We partner with seventeen research universities, and they typically send electronic scans of specific chapters within forty-eight hours.\nNoah (Male): Is there any service fee for interlibrary loan scans for undergraduate researchers?\nLibrarian Brooks (Female): No, interlibrary loan services are completely funded by university student library fees. Just be sure to log in with your campus portal credentials on the interlibrary loan page and include the exact publication year and volume number.\nNoah (Male): That is wonderful news. I will head upstairs to examine the available reels right now, and submit a loan request if any volumes are missing. Thank you for your assistance, Librarian Brooks!",
-    "questions": [
-      {
-        "q": "Why does Noah visit the library research reference desk?",
-        "options": [
-          "To report a damaged microfilm scanner in the second-floor computer lab",
-          "To apply for a part-time student assistant job at the circulation desk",
-          "To locate eighteenth-century regional gazetteers for his geography seminar",
-          "To request permission to check out reference encyclopedias overnight"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "Noah explains he is searching for eighteenth-century regional gazetteers for his urban geography seminar paper."
+    "content": {
+      "id": "ld-4",
+      "type": "conversation",
+      "title": "Dormitory Heating Maintenance Request",
+      "level": "beginner",
+      "topic": "campus-life",
+      "context": "Listen to a conversation between a student and a campus housing coordinator.",
+      "speakers": {
+        "A": "Daniel (Student)",
+        "B": "Ms. O'Connor (Housing Coordinator)"
       },
-      {
-        "q": "Why are the physical paper gazetteers no longer kept in the campus library?",
-        "options": [
-          "They were destroyed in an accidental warehouse flood several decades ago",
-          "They were permanently sold to an antique book auction house to raise funds",
-          "They were transferred to a climate-controlled depository to prevent paper deterioration",
-          "They were relocated to another university campus due to lack of student interest"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "Librarian Brooks states that physical paper volumes were moved to a climate-controlled depository five years ago to prevent paper degradation."
+      "speakerGenders": {
+        "A": "male",
+        "B": "female"
       },
-      {
-        "q": "How does Librarian Brooks reassure Noah about using the microform equipment?",
-        "options": [
-          "By explaining that modern digital scanners easily export high-resolution PDFs to cloud storage",
-          "By assigning a graduate assistant to operate the scanner on his behalf",
-          "By offering to print out all the microfilm reels onto archival parchment",
-          "By waiving all equipment rental fees for the entire semester"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "She reassures him by explaining that digital scanners connect directly to workstations and export high-resolution PDFs directly to cloud drives."
-      },
-      {
-        "q": "What does the librarian emphasize regarding interlibrary loan requests?",
-        "options": [
-          "They take between four to six weeks to arrive via postal express mail",
-          "They require advance written authorization from the dean of academic affairs",
-          "They are fully covered by student library fees and incur no additional charge",
-          "Undergraduate students are limited to ordering only one document per academic year"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "Librarian Brooks explains that interlibrary loan services are completely funded by student library fees, meaning there is zero charge."
-      }
-    ]
+      "script": "Daniel: Hi, Ms. O'Connor. The radiator in my dorm room stopped working last night.\nMs. O'Connor: Which residence hall and room number are you in, Daniel?\nDaniel: Oak Hall, Room 304, on the third floor.\nMs. O'Connor: Does the radiator make a clanging sound, or is it completely cold?\nDaniel: It's completely cold, even when I turn the valve all the way.\nMs. O'Connor: That usually means air is trapped inside the steam pipe.\nDaniel: Do I need to stay in my room for the technician?\nMs. O'Connor: No, just sign this entry waiver and they'll fix it before four.",
+      "questions": [
+        {
+          "q": "What does the housing coordinator suspect is wrong with the student's radiator?",
+          "options": [
+            "The main boiler in Oak Hall has been turned off for the season.",
+            "Trapped air in the steam pipe is blocking the heat.",
+            "The window above the radiator was left open overnight.",
+            "The thermostat on the third floor needs new batteries."
+          ],
+          "answer": 1,
+          "why": "Ms. O'Connor states that a completely cold radiator usually means air is trapped inside the steam pipe."
+        },
+        {
+          "q": "What must the student do before leaving the housing office?",
+          "options": [
+            "Pay a maintenance fee for the replacement valve.",
+            "Wait in his dorm room until four o'clock.",
+            "Sign an entry waiver allowing the technician into his room.",
+            "Borrow a portable space heater from the front desk."
+          ],
+          "answer": 2,
+          "why": "Ms. O'Connor tells Daniel that he does not need to stay in his room if he signs the entry waiver."
+        }
+      ],
+      "difficulty": "beginner"
+    }
   },
   {
     "id": "ld-5",
-    "title": "Sociology Advising: Urban Transit Survey Methodology and Ethics Addendum",
+    "taskType": "listening-dialogue",
     "level": "upper-intermediate",
-    "difficulty": "upper-intermediate",
-    "topic": "social-sciences",
-    "context": "A sociology student discusses her survey methodology and Institutional Review Board paperwork with her research supervisor.",
-    "speakers": {
-      "A": "Maya (Student)",
-      "B": "Prof. Anderson (Sociology Supervisor)"
-    },
-    "speakerGenders": {
-      "A": "female",
-      "B": "male"
-    },
-    "script": "Maya (Female): Hello, Professor Anderson. Thank you for meeting with me. I wanted to review my draft survey questionnaire for the urban sociological study on public transit accessibility.\nProf. Anderson (Male): Come in, Maya. I reviewed the survey draft you uploaded to the portal yesterday. Your research questions regarding transit deserts and commuter wait times are well formulated, but your sample selection method raises methodological concerns.\nMaya (Female): Are you referring to my plan to recruit survey participants exclusively at the downtown light rail station during morning rush hour?\nProf. Anderson (Male): Exactly. Surveying solely at the central rail depot introduces substantial selection bias. You would systematically exclude bus commuters, suburban transfers, and residents who work non-standard night shifts.\nMaya (Female): That is a great point. How can I ensure a more demographically representative sample across the metropolitan transit network?\nProf. Anderson (Male): I recommend stratifying your sampling protocol across three distinct neighborhood transfer hubs and conducting interviews across both peak morning and off-peak evening intervals.\nMaya (Female): That makes complete sense. Will altering the sampling protocol require me to amend my Institutional Review Board ethics application?\nProf. Anderson (Male): Since the survey questions themselves remain anonymous and non-invasive, you only need to submit a minor procedural addendum to the ethics board rather than a full re-application. That usually gets approved within three business days.\nMaya (Female): That is a huge relief. I will revise the sampling framework tonight, submit the IRB addendum tomorrow, and begin training my peer interviewers. Thank you, Professor Anderson!",
-    "questions": [
-      {
-        "q": "What is the primary objective of Maya's meeting with Professor Anderson?",
-        "options": [
-          "To review her transit accessibility survey draft and resolve sampling methodology issues",
-          "To request departmental grant funding to purchase transit ticket subsidies for participants",
-          "To ask for an extension on her sociology master's thesis submission deadline",
-          "To report interpersonal conflicts between student interviewers on her research team"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "Maya explains that she scheduled the meeting to review her draft survey questionnaire and discuss methodological refinements."
+    "topic": "art-humanities",
+    "content": {
+      "id": "ld-5",
+      "type": "conversation",
+      "title": "Renaissance Art History Paper Topic",
+      "level": "upper-intermediate",
+      "topic": "art-humanities",
+      "context": "Listen to a conversation between a student and her art history professor.",
+      "speakers": {
+        "A": "Hannah (Student)",
+        "B": "Professor Lindqvist"
       },
-      {
-        "q": "Why does Professor Anderson object to Maya's initial participant recruitment strategy?",
-        "options": [
-          "Downtown commuters are statistically known to provide unreliable survey responses",
-          "University insurance policies prohibit students from conducting off-campus interviews",
-          "Conducting interviews at a single downtown rail station introduces substantial selection bias",
-          "The municipal transit authority requires commercial filming permits for surveys"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The professor explains that surveying solely at the central rail station systematically excludes bus riders, suburban commuters, and night-shift workers."
+      "speakerGenders": {
+        "A": "female",
+        "B": "male"
       },
-      {
-        "q": "What revision does Professor Anderson suggest to improve sample representation?",
-        "options": [
-          "Stratifying interviews across three neighborhood transfer hubs during peak and off-peak hours",
-          "Replacing in-person street interviews with an automated telephone robocall questionnaire",
-          "Restricting the study exclusively to university faculty who commute via public transit",
-          "Limiting the survey to weekend tourists traveling between downtown museum districts"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "He recommends stratifying the protocol across three distinct neighborhood transfer hubs and collecting data during morning and evening intervals."
-      },
-      {
-        "q": "What does Professor Anderson say about the Institutional Review Board paperwork?",
-        "options": [
-          "She must withdraw her original study proposal and restart the full review process",
-          "Maya only needs to file a minor procedural addendum because the survey is anonymous",
-          "Ethics review boards do not have jurisdiction over undergraduate student surveys",
-          "Approval will take at least six months because public transit studies carry high risk"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "He clarifies that because the questions are anonymous and non-invasive, she only needs a minor procedural addendum that typically clears in three days."
-      }
-    ]
+      "script": "Hannah: Professor Lindqvist, I'd like to write my term paper on fifteenth-century Italian frescoes.\nProfessor Lindqvist: That's a fascinating period, Hannah, but it's far too broad for ten pages.\nHannah: What if I focus on how painters prepared mineral pigments in Florence?\nProfessor Lindqvist: Better, especially if you examine how trade with Venice changed their color palette.\nHannah: Like ultramarine blue imported from Afghanistan?\nProfessor Lindqvist: Precisely. Comparing ultramarine in two Florentine altarpieces would make a sharp argument.\nHannah: Where can I find chemical analyses of those specific paintings?\nProfessor Lindqvist: Check the museum conservation bulletins in our digital art archive.",
+      "questions": [
+        {
+          "q": "Why does the professor advise the student to change her initial paper topic?",
+          "options": [
+            "Fifteenth-century frescoes are not covered in the course syllabus.",
+            "The topic is too wide to cover thoroughly in a ten-page paper.",
+            "There are no translated sources on Italian frescoes in the library.",
+            "Another student in the seminar already selected the same painting."
+          ],
+          "answer": 1,
+          "why": "Professor Lindqvist tells Hannah that fifteenth-century Italian frescoes is far too broad a subject for a ten-page term paper."
+        },
+        {
+          "q": "What source does the professor recommend the student consult?",
+          "options": [
+            "Merchant shipping logs at the municipal courthouse.",
+            "Museum conservation bulletins in the digital art archive.",
+            "An introductory textbook on medieval oil painting.",
+            "Audio recordings from last semester's guest lecture."
+          ],
+          "answer": 1,
+          "why": "At the end of the conversation, Professor Lindqvist recommends checking the museum conservation bulletins in the digital art archive."
+        }
+      ],
+      "difficulty": "upper-intermediate"
+    }
   },
   {
     "id": "ld-6",
-    "title": "Biochemistry Lab: Spectrophotometer Calibration and Reaction Kinetics",
-    "level": "advanced",
-    "difficulty": "advanced",
-    "topic": "science-tech",
-    "context": "A student troubleshoots unexpected spectrophotometer readings from an enzyme assay with his biochemistry instructor.",
-    "speakers": {
-      "A": "Lucas (Student)",
-      "B": "Dr. Patel (Biochemistry Instructor)"
-    },
-    "speakerGenders": {
-      "A": "male",
-      "B": "female"
-    },
-    "script": "Lucas (Male): Good morning, Dr. Patel. I am checking in because my enzyme kinetics assay yesterday afternoon produced absorbance readings that deviated noticeably from our theoretical Michaelis-Menten curve.\nDr. Patel (Female): Good morning, Lucas. Kinetic deviations can occur for several technical reasons. Let us look at your raw spectrophotometer output. At what wavelength did you calibrate your optical baseline?\nLucas (Male): I zeroed the spectrophotometer at three hundred forty nanometers using deionized water, which matched the standard protocol manual.\nDr. Patel (Female): Ah, that explains the discrepancy right there. While deionized water is standard for baseline transmittance, our enzymatic reaction buffer contains cofactors that absorb light at three hundred forty nanometers. You must blank the instrument using the complete reaction buffer lacking only the substrate.\nLucas (Male): I see! Because the buffer itself absorbs light at that wavelength, my baseline zero was artificially low, inflating all subsequent substrate velocity measurements.\nDr. Patel (Female): Precisely. Furthermore, did you maintain the reaction cuvette temperature at thirty-seven degrees Celsius in the thermal jacket throughout the assay?\nLucas (Male): I did monitor the digital thermal readout, but the ambient room temperature was quite cold, so the first two trials might have experienced slight thermal fluctuations.\nDr. Patel (Female): Enzymatic reaction rates are exquisitely sensitive to temperature shifts. Even a two-degree drop can decrease turnover velocity by up to twenty percent. I suggest recalibrating the spectrophotometer with the proper buffer blank and repeating the trial using pre-equilibrated reagents.\nLucas (Male): I will prepare fresh buffer solutions immediately, ensure the incubator reaches thirty-seven degrees, and rerun the trial this afternoon. Thank you for troubleshooting this with me, Dr. Patel!",
-    "questions": [
-      {
-        "q": "What problem does Lucas discuss with Dr. Patel?",
-        "options": [
-          "His laboratory balance failed to register milligrams of powdered catalyst accurately",
-          "His spectrophotometric enzyme assay data deviated from the expected theoretical curve",
-          "His glass reaction cuvettes fractured inside the high-speed refrigerated centrifuge",
-          "His computer spreadsheet software corrupted his recorded experimental trial figures"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "Lucas explains that his enzyme kinetics assay produced absorbance measurements that deviated noticeably from the theoretical Michaelis-Menten curve."
+    "taskType": "listening-dialogue",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "content": {
+      "id": "ld-6",
+      "type": "conversation",
+      "title": "Academic Internship Resume Review",
+      "level": "intermediate",
+      "topic": "campus-life",
+      "context": "Listen to a conversation between a student and a university career advisor.",
+      "speakers": {
+        "A": "Alex (Student)",
+        "B": "Career Coach Brenda"
       },
-      {
-        "q": "Why was zeroing the spectrophotometer with deionized water incorrect?",
-        "options": [
-          "The reaction buffer contains chemical cofactors that absorb light at that wavelength",
-          "Deionized water corrodes the optical quartz lenses inside the instrument chamber",
-          "Water molecules evaporate too rapidly to provide an accurate baseline optical density",
-          "The protocol required testing absorbance in the infrared rather than ultraviolet spectrum"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "Dr. Patel explains that the reaction buffer contains cofactors that absorb light at 340 nm, requiring a blank with the full buffer minus substrate."
+      "speakerGenders": {
+        "A": "male",
+        "B": "female"
       },
-      {
-        "q": "What consequence did the ambient room temperature have on the early assay trials?",
-        "options": [
-          "Thermal fluctuations likely decreased enzyme turnover velocity by up to twenty percent",
-          "Cold temperatures caused the enzymatic protein chains to denature permanently",
-          "The temperature drop caused the aqueous solution to freeze solid inside the cuvette",
-          "Substrate molecules crystallized and precipitated out of the liquid suspension"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "Dr. Patel points out that enzymatic rates are exquisitely temperature-sensitive and a two-degree drop can decrease reaction velocity by twenty percent."
-      },
-      {
-        "q": "What corrective action does Lucas plan to take next?",
-        "options": [
-          "Switch to an entirely different biochemical protocol using radioactive isotope tracers",
-          "Discard the enzyme batch and request replacement stock from the departmental storeroom",
-          "Modify the mathematical equations in his lab report to match the aberrant readings",
-          "Recalibrate the instrument with a buffer blank and rerun the assay with pre-equilibrated reagents"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "Lucas agrees to prepare fresh solutions, zero the spectrophotometer with the proper buffer blank, ensure thermal equilibrium, and repeat the trial."
-      }
-    ]
+      "script": "Alex: Thanks for looking over my resume before Friday's environmental engineering career fair.\nCareer Coach Brenda: Happy to help, Alex. Why is your hydrology lab project buried at the bottom?\nAlex: Because it was an unpaid course project rather than a paid job.\nCareer Coach Brenda: Engineering recruiters care much more about technical skills than whether you were paid.\nAlex: Should I move it above my summer job at the campus bookstore?\nCareer Coach Brenda: Definitely, and mention the water-quality software you used to model runoff.\nAlex: I used GIS mapping tools to analyze fifteen local stream samples.\nCareer Coach Brenda: Put that exact number in your first bullet point before printing copies.",
+      "questions": [
+        {
+          "q": "Why did the student place his hydrology lab project at the bottom of his resume?",
+          "options": [
+            "He did not receive a high grade on the final lab report.",
+            "He assumed unpaid class projects were less important than paid work.",
+            "He had not finished analyzing the fifteen stream samples yet.",
+            "He was applying for a retail management position at the bookstore."
+          ],
+          "answer": 1,
+          "why": "Alex explains that he put the hydrology project at the bottom because it was an unpaid course project rather than a paid job."
+        },
+        {
+          "q": "What does the career advisor suggest the student include in his project description?",
+          "options": [
+            "The names of the other students in his lab group.",
+            "A letter of reference from his bookstore manager.",
+            "Specific details about the GIS software and number of stream samples analyzed.",
+            "A list of all introductory courses he took during freshman year."
+          ],
+          "answer": 2,
+          "why": "Career Coach Brenda advises him to mention the water-quality/GIS software and include the exact number of stream samples (fifteen) in his first bullet point."
+        }
+      ],
+      "difficulty": "intermediate"
+    }
   },
   {
     "id": "ld-7",
-    "title": "Astronomy Lecture: Stellar Nucleosynthesis and Supernova Mechanics",
-    "level": "advanced",
-    "difficulty": "advanced",
-    "topic": "science-tech",
-    "type": "academic_talk",
-    "context": "An astrophysics professor lectures on stellar nucleosynthesis, iron core collapse, and supernova elemental formation.",
-    "speakers": {
-      "A": "Professor Davis (Astrophysics)",
-      "B": "Professor Davis (Astrophysics)"
-    },
-    "speakerGenders": {
-      "A": "male",
-      "B": "male"
-    },
-    "script": "Professor Davis (Male): Today we explore how massive stars forge the chemical elements that constitute planetary bodies and living organisms. Throughout their main-sequence lifespans, stars fuse hydrogen into helium within their ultra-dense cores. In stars with masses exceeding eight solar masses, successive core contractions elevate temperatures to hundreds of millions of Kelvin, enabling the fusion of carbon, neon, oxygen, and silicon. This stellar nucleosynthesis creates concentric burning shells resembling the layers of an onion. However, this elemental fusion progression halts abruptly at iron-fifty-six. Iron has the highest binding energy per nucleon of any atomic nucleus, meaning fusing iron consumes kinetic energy rather than releasing it. When a massive star builds an inert iron core approaching the Chandrasekhar limit of one point four solar masses, outward radiation pressure drops below the inward pull of gravity. Electron degeneracy pressure fails catastrophically, and the core collapses within milliseconds. The resulting core-collapse supernova generates an outward shockwave with staggering neutron fluxes. Through rapid neutron capture, known as the r-process, this cataclysmic explosion synthesizes elements heavier than iron, including silver, gold, and uranium, dispersing them across the interstellar medium to seed future generations of solar systems.",
-    "questions": [
-      {
-        "q": "What is the central focus of the astrophysics lecture?",
-        "options": [
-          "The orbital dynamics of extrasolar gas giant planets in binary star systems",
-          "How core-collapse supernovae and nucleosynthesis synthesize heavy elements in the universe",
-          "The technological engineering required to construct space-based infrared telescopes",
-          "Comparing magnetic field variations between white dwarfs and main-sequence stars"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The professor introduces the lecture by explaining how massive stars forge the chemical elements through nucleosynthesis and supernova explosions."
+    "taskType": "listening-dialogue",
+    "level": "beginner",
+    "topic": "campus-life",
+    "content": {
+      "id": "ld-7",
+      "type": "conversation",
+      "title": "Dining Hall Meal Plan Adjustment",
+      "level": "beginner",
+      "topic": "campus-life",
+      "context": "Listen to a conversation between a student and a campus dining services coordinator.",
+      "speakers": {
+        "A": "Chloe (Student)",
+        "B": "Mr. Grant (Dining Services)"
       },
-      {
-        "q": "Why does nuclear fusion cease inside a massive star once iron-fifty-six is produced?",
-        "options": [
-          "Iron has the highest nuclear binding energy and consumes energy rather than releasing it during fusion",
-          "Iron molecules instantly decay into subatomic antineutrinos through radioactive beta emission",
-          "Iron produces an impenetrable magnetic field that repels all incoming protons from the core",
-          "Stellar convection currents transport iron outward to the cool surface layers of the photosphere"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "The lecture explains that iron has the highest binding energy per nucleon, meaning fusing iron absorbs thermal kinetic energy rather than releasing it."
+      "speakerGenders": {
+        "A": "female",
+        "B": "male"
       },
-      {
-        "q": "What physical event initiates the catastrophic millisecond collapse of the stellar core?",
-        "options": [
-          "The star's rapid rotational velocity tears the outer convective envelope apart",
-          "Helium flash reactions ignite uncontrollably inside the outer hydrogen atmosphere",
-          "Electron degeneracy pressure fails as the core mass approaches the Chandrasekhar limit",
-          "Interstellar gas clouds collide with the outer perimeter of the planetary nebula"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The professor states that when the iron core approaches the Chandrasekhar limit of 1.4 solar masses, radiation pressure fails and electron degeneracy collapses."
-      },
-      {
-        "q": "How are elements heavier than iron, such as gold and uranium, synthesized?",
-        "options": [
-          "Through gradual slow crystallization inside cooling white dwarf cores over billions of years",
-          "Through the rapid neutron capture r-process occurring within the supernova shockwave",
-          "Through cosmic ray collisions in the upper stratosphere of terrestrial planets",
-          "Through routine hydrogen fusion reactions inside low-mass red dwarf stars"
-        ],
-        "answer": 1,
-        "correctAnswer": 1,
-        "why": "The professor explains that supernova shockwaves generate staggering neutron fluxes that drive rapid neutron capture (the r-process), creating heavy elements."
-      }
-    ]
+      "script": "Chloe: Hi, I'd like to switch from the unlimited meal plan to the ten-meal plan.\nMr. Grant: Sure, Chloe. Have you found that you aren't using all your dining hall swipes?\nChloe: Yeah, I have morning biology labs, so I usually make breakfast in my suite.\nMr. Grant: Good timing—tomorrow is actually the final day to downgrade plans without a fee.\nChloe: Will the difference in cost be refunded to my bank account?\nMr. Grant: It goes onto your student ID card as Campus Flex Dollars.\nChloe: Can I spend Flex Dollars at the coffee cart in the science building?\nMr. Grant: Yes, at any campus café or the university market.",
+      "questions": [
+        {
+          "q": "Why does the student want to reduce her campus meal plan?",
+          "options": [
+            "The main dining hall is too far from her dormitory.",
+            "She eats breakfast in her suite before her morning biology labs.",
+            "She is moving off campus at the end of the month.",
+            "The dining hall stopped serving vegetarian options."
+          ],
+          "answer": 1,
+          "why": "Chloe explains that because of her morning biology labs, she usually prepares breakfast in her suite and does not use all her swipes."
+        },
+        {
+          "q": "What will happen to the price difference when the student changes her meal plan?",
+          "options": [
+            "It will be mailed to her parents as a paper check.",
+            "It will be forfeited because the semester has already started.",
+            "It will be added to her student ID card as Campus Flex Dollars.",
+            "It can only be used toward next semester's tuition bill."
+          ],
+          "answer": 2,
+          "why": "Mr. Grant states that the difference in cost goes onto her student ID card as Campus Flex Dollars usable at campus cafés and markets."
+        }
+      ],
+      "difficulty": "beginner"
+    }
   },
   {
     "id": "ld-8",
-    "title": "Archaeology Lecture: Paleoclimatology and Classic Maya Collapse",
-    "level": "upper-intermediate",
-    "difficulty": "upper-intermediate",
-    "topic": "social-sciences",
-    "type": "academic_talk",
-    "context": "An archaeology professor lectures on paleoclimatic proxies, karst hydrology, and the Classic Maya societal collapse.",
-    "speakers": {
-      "A": "Professor Martinez (Archaeology)",
-      "B": "Professor Martinez (Archaeology)"
-    },
-    "speakerGenders": {
-      "A": "female",
-      "B": "female"
-    },
-    "script": "Professor Martinez (Female): Today we examine the ninth-century collapse of Classic Maya civilization across the southern lowlands. For decades, Mesoamerican scholars debated whether endemic warfare, trade breakdown, or epidemic pathogens caused the sudden abandonment of monumental stone cities like Tikal, Calakmul, and Palenque. Recent advances in paleoclimatology, particularly isotope analysis of sediment cores from Lake Chichancanab and stalagmite records from regional caves, provide compelling evidence that a protracted megadrought devastated the region between eight hundred and one thousand CE. Why were the southern Maya lowlands uniquely vulnerable to rainfall deficits? Unlike the northern Yucatan peninsula, where underground limestone sinkholes called cenotes provided natural groundwater access, the southern lowlands rested on deep porous karst with no perennial river systems. The Maya depended entirely on massive plaster-lined municipal reservoirs designed to collect seasonal monsoon rainfall. When consecutive drought years occurred, these reservoirs completely dried up, decimating municipal drinking supplies and agricultural irrigation. Furthermore, human environmental modification severely exacerbated the climatic crisis. To manufacture plaster for monumental architecture, the Maya clear-cut immense swaths of tropical rainforest. Climate models indicate that this deforestation reduced regional evapotranspiration, suppressing local precipitation by an additional fifteen percent and creating an ecological tipping point.",
-    "questions": [
-      {
-        "q": "What is the primary objective of Professor Martinez's archaeology lecture?",
-        "options": [
-          "To evaluate trade routes between Mesoamerican coastal ports and highland obsidian mines",
-          "To decipher newly discovered hieroglyphic inscriptions describing ninth-century dynastic warfare",
-          "To compare agricultural terrace engineering between the Maya and Andean Inca civilizations",
-          "To demonstrate how paleoclimatic megadroughts and deforestation drove the Classic Maya collapse"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "The professor reviews paleoclimatic evidence showing that multi-year megadroughts compounded by anthropogenic deforestation triggered the southern lowland collapse."
+    "taskType": "listening-dialogue",
+    "level": "intermediate",
+    "topic": "environment",
+    "content": {
+      "id": "ld-8",
+      "type": "conversation",
+      "title": "Environmental Science Field Sampling Schedule",
+      "level": "intermediate",
+      "topic": "environment",
+      "context": "Listen to a conversation between a student and his environmental science professor.",
+      "speakers": {
+        "A": "Noah (Student)",
+        "B": "Dr. Patel"
       },
-      {
-        "q": "What scientific proxy provided definitive empirical proof of the ancient Mesoamerican megadrought?",
-        "options": [
-          "Radiocarbon dating of wooden defensive palisades excavated around rural farming hamlets",
-          "Pollen samples extracted from seventeenth-century Spanish colonial church foundations",
-          "Sediment core isotope records from Lake Chichancanab and cave stalagmite formations",
-          "Microscopic tooth enamel analysis of royal skeletal remains discovered in pyramid tombs"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The lecture highlights sediment cores from Lake Chichancanab and speleothem cave stalagmite records as conclusive empirical proof of the megadrought."
+      "speakerGenders": {
+        "A": "male",
+        "B": "female"
       },
-      {
-        "q": "Why were populations in the southern lowlands far more vulnerable to drought than northern Maya settlements?",
-        "options": [
-          "Northern kingdoms held a total monopoly on regional pottery water storage containers",
-          "Southern agricultural varieties required five times more water than northern desert succulents",
-          "Southern cities were situated along saltwater estuaries that frequently flooded farmland",
-          "The southern lowlands lacked natural groundwater cenotes and relied on artificial rainwater reservoirs"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "Unlike the northern peninsula with natural subterranean cenotes, the southern lowlands sat on porous karst with no rivers, requiring plaster reservoirs."
-      },
-      {
-        "q": "How did monumental temple construction worsen the regional environmental crisis?",
-        "options": [
-          "Burning huge quantities of timber to make architectural plaster caused severe deforestation",
-          "Carving stone blocks drained regional wetlands and poisoned freshwater fish habitats",
-          "Temple foundations blocked underground aquifers from replenishing surrounding soil moisture",
-          "Monumental stone courtyards trapped solar heat and elevated ambient city temperatures by ten degrees"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "The professor notes that burning timber to produce plaster led to widespread deforestation, reducing evapotranspiration and suppressing rainfall by 15%."
-      }
-    ]
+      "script": "Noah: Dr. Patel, my lab partner just dropped the course, and Saturday's wetland trip is coming up.\nDr. Patel: Thanks for letting me know, Noah. Soil core sampling definitely requires two people.\nNoah: Should I join one of the other pairs in our Friday lab section?\nDr. Patel: Three people per coring tube gets crowded on the narrow boardwalk.\nNoah: Is there anyone else working solo right now?\nDr. Patel: Actually, Priya from the Tuesday section also needs a partner for Saturday.\nNoah: Can we collect data together even though we're in different lab sections?\nDr. Patel: Yes, share the raw measurements, then write your lab reports independently.",
+      "questions": [
+        {
+          "q": "Why does the professor decide against placing the student into an existing pair?",
+          "options": [
+            "All of the other pairs have already completed their wetland sampling.",
+            "Working in a group of three is too crowded on the narrow boardwalk.",
+            "The department does not have enough protective boots for three students.",
+            "University rules prohibit groups larger than two in laboratory courses."
+          ],
+          "answer": 1,
+          "why": "Dr. Patel explains that having three people per coring tube gets too crowded on the narrow wetland boardwalk."
+        },
+        {
+          "q": "What does the professor allow Noah and Priya to do?",
+          "options": [
+            "Submit a single joint lab report for both sections.",
+            "Postpone their wetland trip until the following weekend.",
+            "Collect soil measurements together and write separate reports.",
+            "Analyze archived soil samples in the indoor lab instead."
+          ],
+          "answer": 2,
+          "why": "Dr. Patel tells Noah that he and Priya can collect and share the raw measurements on Saturday and then write their lab reports independently."
+        }
+      ],
+      "difficulty": "intermediate"
+    }
   },
   {
     "id": "ld-9",
-    "title": "Art History Lecture: Dutch Golden Age Vanitas Still Life",
+    "taskType": "listening-dialogue",
     "level": "intermediate",
-    "difficulty": "intermediate",
-    "topic": "arts-humanities",
-    "type": "academic_talk",
-    "context": "An art history professor discusses optical realism and moral symbolism in seventeenth-century Dutch vanitas still life paintings.",
-    "speakers": {
-      "A": "Professor Van Der Berg (Art History)",
-      "B": "Professor Van Der Berg (Art History)"
-    },
-    "speakerGenders": {
-      "A": "male",
-      "B": "male"
-    },
-    "script": "Professor Van Der Berg (Male): During the seventeenth-century Dutch Golden Age, maritime commerce generated extraordinary private wealth, fostering a burgeoning domestic art market. Among the most culturally revealing genres to emerge from university cities like Leiden and Delft was the vanitas still life. Derived from the biblical phrase in Ecclesiastes regarding earthly vanity, vanitas compositions juxtaposed emblems of worldly accomplishment against stark symbols of biological mortality and fleeting time. On one hand, artists demonstrated breathtaking technical mastery by rendering lavish material luxury: imported Chinese porcelain, rare velvet textiles, gilded musical instruments, and antique astronomical globes. On the other hand, painters subverted this material celebration by carefully incorporating sobering visual warnings: extinguished candle wicks emitting thin trails of smoke, human skulls resting beside open ledger books, overturned wine goblets, and decaying fruit infested with insects. These paintings catered to affluent Calvinist merchant patrons who experienced profound moral tension between worldly prosperity and spiritual piety. The subtle visual rhetoric functioned as a memento mori, reminding viewers that wealth, sensory pleasure, and secular academic knowledge are inherently transient, urging personal humility and ethical contemplation in the face of inevitable mortality.",
-    "questions": [
-      {
-        "q": "What is the overarching theme explored in seventeenth-century Dutch vanitas paintings?",
-        "options": [
-          "The political triumph of parliamentary democracy over monarchical governance",
-          "The technological superiority of Dutch maritime shipbuilding over Mediterranean galleys",
-          "The transience of worldly wealth and the inevitability of human mortality",
-          "The scientific categorization of newly imported botanical flora from overseas trade"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The professor explains that vanitas still lifes juxtaposed emblems of worldly success against symbols of mortality, reminding viewers of life's transience."
+    "topic": "art-humanities",
+    "content": {
+      "id": "ld-9",
+      "type": "conversation",
+      "title": "Campus Theater Lighting Crew Sign-Up",
+      "level": "intermediate",
+      "topic": "art-humanities",
+      "context": "Listen to a conversation between a student and the campus theater stage manager.",
+      "speakers": {
+        "A": "Sofia (Student)",
+        "B": "Mr. Brooks (Stage Manager)"
       },
-      {
-        "q": "Which visual motif in vanitas still lifes served as an explicit reminder of the passage of time?",
-        "options": [
-          "Extinguished smoking candle wicks, overturned wine goblets, and human skulls",
-          "Pristine imported porcelain bowls filled with unblemished tropical flowers",
-          "Polished brass terrestrial globes showing newly charted navigation routes",
-          "Embroidered silk banners representing prominent municipal civic guard guilds"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "The lecture details extinguished candle wicks, skulls, overturned goblets, and decaying fruit as deliberate visual warnings of mortality."
+      "speakerGenders": {
+        "A": "female",
+        "B": "male"
       },
-      {
-        "q": "What cultural tension characterized the Dutch merchant patrons who purchased vanitas works?",
-        "options": [
-          "Economic rivalry between domestic textile producers and foreign import merchants",
-          "Hostility between academic university faculties and working-class guild artisans",
-          "Frustration regarding royal censorship of secular landscape and maritime paintings",
-          "Anxiety reconciling commercial material prosperity with Calvinist spiritual modesty"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "The professor highlights the profound moral tension Calvinist merchants felt between their rapid wealth accumulation and religious calls for piety."
-      },
-      {
-        "q": "Why did vanitas painters showcase their ability to depict luxury objects with extreme photorealism?",
-        "options": [
-          "To heighten the poignant contrast between exquisite physical beauty and inevitable decay",
-          "To advertise commercial wares manufactured by their personal financial sponsors",
-          "Because guild regulations mandated that all painters include at least three luxury goods",
-          "To deceive foreign art collectors into purchasing counterfeit Flemish tapestries"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "Artists rendered lavish luxuries with technical mastery precisely to subvert them with symbols of decay, creating a powerful memento mori contrast."
-      }
-    ]
+      "script": "Sofia: Hi, Mr. Brooks. Are you still looking for volunteers for the autumn play?\nMr. Brooks: We sure are, Sofia. Our costume crew is full, but we need lighting assistants.\nSofia: I've never operated a theater lighting board before, though.\nMr. Brooks: That's completely fine—we run a hands-on training workshop this Thursday evening.\nSofia: What would I be doing during the actual performances?\nMr. Brooks: You'd program cue transitions on the console from the control booth.\nSofia: That sounds fun! Do I need to attend every rehearsal?\nMr. Brooks: Only the final dress rehearsals during tech week in November.",
+      "questions": [
+        {
+          "q": "What can be inferred about volunteering for the theater lighting crew?",
+          "options": [
+            "Only theater majors are permitted to operate the lighting console.",
+            "Prior experience is not required because training is provided.",
+            "Volunteers must purchase their own toolkits before Thursday.",
+            "Assistants must attend every rehearsal starting this week."
+          ],
+          "answer": 1,
+          "why": "When Sofia mentions she has never operated a lighting board, Mr. Brooks reassures her that it is fine because they run a training workshop on Thursday."
+        },
+        {
+          "q": "When will the student be required to attend rehearsals?",
+          "options": [
+            "Every Tuesday and Thursday afternoon throughout the semester.",
+            "Only on opening night of the autumn play.",
+            "During the final dress rehearsals in tech week in November.",
+            "Every weekend morning starting in October."
+          ],
+          "answer": 2,
+          "why": "Mr. Brooks specifies that she only needs to attend the final dress rehearsals during tech week in November."
+        }
+      ],
+      "difficulty": "intermediate"
+    }
   },
   {
     "id": "ld-10",
-    "title": "Marine Ecology Lecture: Coral Reef Symbiosis and Thermal Bleaching",
+    "taskType": "listening-dialogue",
     "level": "advanced",
-    "difficulty": "advanced",
-    "topic": "environment",
-    "type": "academic_talk",
-    "context": "A marine ecology professor lectures on the mutualistic symbiosis between corals and zooxanthellae, and the physiological mechanisms of bleaching.",
-    "speakers": {
-      "A": "Professor Simmons (Marine Ecology)",
-      "B": "Professor Simmons (Marine Ecology)"
-    },
-    "speakerGenders": {
-      "A": "female",
-      "B": "female"
-    },
-    "script": "Professor Simmons (Female): Coral reefs support over twenty-five percent of all marine species, yet they occupy less than one percent of the ocean floor. The architectural foundation of these biodiverse ecosystems relies on an obligate mutualistic symbiosis between scleractinian coral polyps and microscopic photosynthetic dinoflagellates called zooxanthellae. Residing within the gastrodermal cells of the coral host, zooxanthellae photosynthesize and translocate up to ninety percent of their metabolic carbon products, such as glucose and amino acids, to nourish the coral. In return, the coral provides protected shelter and essential inorganic nutrients, including nitrogen and phosphorus. However, this mutualistic relationship is exquisitely sensitive to elevated sea surface temperatures. When ocean water warms by just one to two degrees Celsius above historical summertime maximums, the photosynthetic apparatus of zooxanthellae malfunctions, generating harmful reactive oxygen species. To protect its own cellular tissues from oxidative stress, the coral host is forced to violently expel its algal symbionts. Deprived of the pigments produced by zooxanthellae, the coral's white calcium carbonate skeleton becomes visible, a phenomenon termed coral bleaching. If elevated thermal anomalies persist for more than several weeks, corals starve and succumb to opportunistic bacterial pathogens.",
-    "questions": [
-      {
-        "q": "What is the primary focus of Professor Simmons's marine ecology lecture?",
-        "options": [
-          "The biochemical mutualism between corals and zooxanthellae and the drivers of coral bleaching",
-          "The geological formation of subterranean volcanic atolls in the South Pacific basin",
-          "The historical commercial impact of international industrial overfishing on pelagic sharks",
-          "The evolutionary development of bioluminescence in deep-sea cephalopods and teleost fish"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "The professor discusses the obligate mutualistic symbiosis between coral polyps and zooxanthellae, and how thermal anomalies trigger bleaching."
+    "topic": "economics",
+    "content": {
+      "id": "ld-10",
+      "type": "conversation",
+      "title": "Economics Seminar Presentation Schedule",
+      "level": "advanced",
+      "topic": "economics",
+      "context": "Listen to a conversation between a student and his economics professor.",
+      "speakers": {
+        "A": "Ethan (Student)",
+        "B": "Professor Chen"
       },
-      {
-        "q": "What vital biological contribution do zooxanthellae dinoflagellates provide to coral polyps?",
-        "options": [
-          "They produce calcium carbonate crystals that directly construct the barrier reef wall",
-          "They secrete a toxic chemical slime that repels predatory crown-of-thorns starfish",
-          "They transfer up to ninety percent of their photosynthetic glucose and amino acid products",
-          "They filter harmful radioactive isotopes and microplastics from ambient seawater"
-        ],
-        "answer": 2,
-        "correctAnswer": 2,
-        "why": "The lecture explains that zooxanthellae translocate up to 90% of their metabolic carbon products (glucose and amino acids) to nourish the coral host."
+      "speakerGenders": {
+        "A": "male",
+        "B": "female"
       },
-      {
-        "q": "Why do coral polyps expel their algal symbionts during elevated sea surface temperatures?",
-        "options": [
-          "Elevated ocean acidity dissolves the outer protective lipid membrane of the zooxanthellae",
-          "The warming water causes zooxanthellae to mutate into predatory heterotrophic parasites",
-          "Thermal expansion forces the coral polyp gastrodermal cell walls to burst open mechanically",
-          "Malfuncting algal photosynthesis produces dangerous reactive oxygen species causing cellular stress"
-        ],
-        "answer": 3,
-        "correctAnswer": 3,
-        "why": "When ocean temperatures rise 1-2 degrees, the photosynthetic apparatus malfunctions and generates reactive oxygen species, forcing corals to expel them."
-      },
-      {
-        "q": "What typically occurs if high sea temperature anomalies continue for several consecutive weeks?",
-        "options": [
-          "Corals deplete their energy reserves, starve, and fall victim to opportunistic infections",
-          "Corals spontaneously switch to absorbing dissolved sulfur dioxide from volcanic hydrothermal vents",
-          "Corals detach from the seabed substrate and migrate toward cooler polar latitudes",
-          "Corals generate fluorescent proteins that reflect one hundred percent of incoming sunlight"
-        ],
-        "answer": 0,
-        "correctAnswer": 0,
-        "why": "The professor warns that if thermal anomalies persist for more than several weeks, the deprived corals starve and succumb to bacterial pathogens."
-      }
-    ]
+      "script": "Ethan: Professor Chen, would it be possible to move my seminar presentation from next Tuesday?\nProfessor Chen: Next Tuesday is our unit on central bank interest rates, Ethan. What's the conflict?\nEthan: Our debate team qualified for the regional tournament, and we travel Monday night.\nProfessor Chen: Congratulations! However, your presentation topic is tied directly to Tuesday's reading.\nEthan: What if I switch topics and present on microfinance in Week Eight instead?\nProfessor Chen: Rachel is scheduled for Week Eight, unless she agrees to swap dates with you.\nEthan: I spoke with Rachel before class, and she's ready to present on Tuesday.\nProfessor Chen: In that case, email me confirmation from both of you by five o'clock.",
+      "questions": [
+        {
+          "q": "Why is the professor initially hesitant to reschedule the student's presentation?",
+          "options": [
+            "The syllabus prohibits students from missing class for extracurricular events.",
+            "His original presentation topic matches the assigned reading for next Tuesday.",
+            "There are no remaining class sessions left in the semester.",
+            "He has already rescheduled his presentation once before."
+          ],
+          "answer": 1,
+          "why": "Professor Chen notes that Ethan's presentation topic is tied directly to next Tuesday's assigned reading on central bank interest rates."
+        },
+        {
+          "q": "How is the scheduling conflict resolved?",
+          "options": [
+            "Ethan will record a video of his presentation before leaving on Monday.",
+            "The debate tournament was moved to the following weekend.",
+            "Ethan will swap presentation dates and topics with his classmate Rachel.",
+            "Professor Chen will lecture on central bank rates in Ethan's place."
+          ],
+          "answer": 2,
+          "why": "Ethan explains that he spoke with Rachel, who agreed to swap dates and present on Tuesday while he presents on microfinance in Week Eight."
+        }
+      ],
+      "difficulty": "advanced"
+    }
   }
 ]

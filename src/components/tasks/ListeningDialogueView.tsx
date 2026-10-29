@@ -106,6 +106,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const [playCount, setPlayCount] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [listeningAudioFinished, setListeningAudioFinished] = useState(false);
 
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
@@ -119,6 +120,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     setShowTranscript(false);
     setSelectedAnswers({});
     setSubmitted(false);
+    setListeningAudioFinished(false);
     setIsPlaying(false);
     setActiveLine(null);
     setPlayCount(0);
@@ -210,15 +212,28 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
     const explicitGA = (task as any).speakerGenderA || (task as any).speakerGenders?.A;
     const explicitGB = (task as any).speakerGenderB || (task as any).speakerGenders?.B;
 
-    const inferredStudentGender =
-      explicitGB === 'male' || explicitGB === 'female'
-        ? explicitGB
-        : inferGenderFromSpeaker([...studentLabels, ...studentVocatives].join(' '));
+    const roleA = classifyCanonicalRole(labelA, 0, labelA, labelB);
+    const roleB = classifyCanonicalRole(labelB, 1, labelA, labelB);
 
-    const inferredProfGender =
-      explicitGA === 'male' || explicitGA === 'female'
+    const explicitStudentG =
+      roleA === 'student' && (explicitGA === 'male' || explicitGA === 'female')
         ? explicitGA
-        : inferGenderFromSpeaker([...profLabels, ...profVocatives].join(' '));
+        : roleB === 'student' && (explicitGB === 'male' || explicitGB === 'female')
+        ? explicitGB
+        : undefined;
+
+    const explicitProfG =
+      roleA === 'professor' && (explicitGA === 'male' || explicitGA === 'female')
+        ? explicitGA
+        : roleB === 'professor' && (explicitGB === 'male' || explicitGB === 'female')
+        ? explicitGB
+        : undefined;
+
+    const nameInferredStudentG = inferGenderFromSpeaker([...studentLabels, ...studentVocatives].join(' '));
+    const nameInferredProfG = inferGenderFromSpeaker([...profLabels, ...profVocatives].join(' '));
+
+    const inferredStudentGender = nameInferredStudentG || explicitStudentG;
+    const inferredProfGender = nameInferredProfG || explicitProfG;
 
     // If student gender is known (e.g. "Emma" -> female), lock student voice first and pick opposite gender for professor if professor's gender isn't explicitly known
     if (inferredStudentGender && !inferredProfGender) {
@@ -466,6 +481,9 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           );
         }
       }
+      if (playbackSessionIdRef.current === currentSession && !isPausedRef.current) {
+        setListeningAudioFinished(true);
+      }
     } catch {
       // Audio completed or stopped
     } finally {
@@ -551,6 +569,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
   const handleReset = () => {
     setSelectedAnswers({});
     setSubmitted(false);
+    setListeningAudioFinished(false);
     setActiveQuestionIdx(0);
   };
 
@@ -644,7 +663,20 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
               <span className="text-xs text-slate-400">· {task.context}</span>
             </div>
             <div className="text-sm text-slate-300">
-              Speakers: <strong className="text-slate-100">{task.speakers.A}</strong> & <strong className="text-slate-100">{task.speakers.B}</strong>
+              {(task as any).type === 'announcement' ||
+              (task as any).type === 'academic_talk' ||
+              (task as any).type === 'lecture' ||
+              !task.speakers?.B ||
+              task.speakers.A === task.speakers.B ? (
+                <>
+                  Speaker: <strong className="text-slate-100">{task.speakers?.A || 'Speaker'}</strong>
+                </>
+              ) : (
+                <>
+                  Speakers: <strong className="text-slate-100">{task.speakers.A}</strong> &amp;{' '}
+                  <strong className="text-slate-100">{task.speakers.B}</strong>
+                </>
+              )}
             </div>
           </div>
 
@@ -748,7 +780,21 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
         )}
       </div>
 
-      {/* Comprehension Questions */}
+      {/* Comprehension Questions (Shown only after audio finishes playing or when skipped/submitted) */}
+      {!listeningAudioFinished && !submitted ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <p className="text-sm text-slate-700 font-medium leading-relaxed">
+            🎧 Listen to the audio track completely. The comprehension questions will appear automatically once the audio finishes.
+          </p>
+          <button
+            type="button"
+            onClick={() => setListeningAudioFinished(true)}
+            className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            Skip Audio &amp; Show Questions
+          </button>
+        </div>
+      ) : (
       <div className="space-y-5">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
           <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Listening Comprehension</span>
@@ -890,6 +936,7 @@ export const ListeningDialogueView: React.FC<Props> = ({ task, onNextTask, onCom
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };

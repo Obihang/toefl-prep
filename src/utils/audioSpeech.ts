@@ -167,7 +167,7 @@ let currentDialogueSessionId = 0;
 let isAudioPlayingState = false;
 import { openDB } from 'idb';
 
-const DB_NAME = 'toefl_tts_cache_v4';
+const DB_NAME = 'toefl_tts_cache_v5';
 const DB_VERSION = 1;
 const STORE_NAME = 'audio_blobs';
 
@@ -178,6 +178,7 @@ if (typeof window !== 'undefined' && 'indexedDB' in window) {
     indexedDB.deleteDatabase('toefl_tts_cache_v1');
     indexedDB.deleteDatabase('toefl_tts_cache_v2');
     indexedDB.deleteDatabase('toefl_tts_cache_v3');
+    indexedDB.deleteDatabase('toefl_tts_cache_v4');
   } catch {}
 }
 
@@ -308,7 +309,7 @@ export function chunkTextForTTS(
 }
 
 function getCanonicalTtsCacheKey(voiceId: string, cleanChunk: string): string {
-  return `cache_v4_${voiceId || 'default'}_${cleanChunk}`;
+  return `cache_v5_${voiceId || 'default'}_${cleanChunk}`;
 }
 
 /**

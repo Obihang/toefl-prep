@@ -116,6 +116,15 @@ export const OFFICIAL_5_READING_QUESTION_TYPES = [
   'Rhetorical Purpose / Relationship ("Why does the author mention \'X\' in paragraph Y?" or "How do the ideas in paragraph 2 relate to the ideas in paragraph 1?")',
 ] as const;
 
+export const OFFICIAL_LISTENING_CONVERSATION_SPECS = {
+  minWords: 75,
+  maxWords: 110,
+  minTurns: 8,
+  maxTurns: 10,
+  wordsPerTurn: '5-15 words',
+  questionsCount: 2,
+} as const;
+
 export async function callBackendGenerate(
   taskType: string,
   level: string = 'intermediate',

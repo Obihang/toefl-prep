@@ -62,7 +62,7 @@ export function isHighQualityTask(task: any, taskType: string): boolean {
       const script = String(task.script || task.text || task.lecture || '');
       const scriptWords = countWords(script);
       const questions = Array.isArray(task.questions) ? task.questions : [];
-      return scriptWords >= 90 && questions.length >= 3 && validateNormalizedTask(canonicalType, task);
+      return scriptWords >= 60 && questions.length >= 2 && validateNormalizedTask(canonicalType, task);
     }
 
     case 'complete-words': {

@@ -62,6 +62,7 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
 }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [listeningAudioFinished, setListeningAudioFinished] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -76,15 +77,23 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
   const gender: 'male' | 'female' = task.speakerGender === 'female' ? 'female' : 'male';
   const voiceName = gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
 
-  // Pre-warm audio chunk on mount
+  // Reset state on task change and pre-warm audio chunk on mount
   useEffect(() => {
+    setSelectedAnswers({});
+    setSubmitted(false);
+    setListeningAudioFinished(false);
+    setShowTranscript(false);
+    setIsPlaying(false);
+    setIsLoadingAudio(false);
+    setPlayCount(0);
+    setActiveQuestionIdx(0);
     if (cleanScript) {
       prefetchSpeechAudio(cleanScript, voiceName, gender).catch(() => {});
     }
     return () => {
       stopSpeaking();
     };
-  }, [cleanScript, voiceName, gender]);
+  }, [task.id, task.title, cleanScript, voiceName, gender]);
 
   const handlePlayAudio = async () => {
     if (isPlaying) {
@@ -122,6 +131,7 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
           if (playbackSessionRef.current === currentSession) {
             setIsPlaying(false);
             setIsLoadingAudio(false);
+            setListeningAudioFinished(true);
           }
         },
         onError: () => {
@@ -193,6 +203,7 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
   const handleReset = () => {
     setSelectedAnswers({});
     setSubmitted(false);
+    setListeningAudioFinished(false);
     setShowTranscript(false);
     stopSpeaking();
     setIsPlaying(false);
@@ -329,15 +340,13 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
                 )}
               </button>
 
-              {(submitted || showTranscript) && (
-                <button
-                  onClick={() => setShowTranscript(!showTranscript)}
-                  className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 cursor-pointer"
-                >
-                  {showTranscript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  {showTranscript ? 'Hide Script' : 'View Script'}
-                </button>
-              )}
+              <button
+                onClick={() => setShowTranscript(!showTranscript)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-200 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-lg border border-slate-700/60 transition-colors cursor-pointer"
+              >
+                {showTranscript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showTranscript ? 'Hide Script' : 'Show Script'}
+              </button>
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-700/60 flex items-center gap-2 text-xs text-slate-400">
@@ -365,12 +374,27 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
 
         {/* Right Column: Comprehension Questions */}
         <div className="lg:col-span-6 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Comprehension Questions</span>
-            <span className="text-xs text-slate-500 font-mono">
-              {Object.keys(selectedAnswers).length}/{total} Answered
-            </span>
-          </div>
+          {!listeningAudioFinished && !submitted ? (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <p className="text-sm text-slate-700 font-medium leading-relaxed">
+                🎧 Listen to the audio track completely. The comprehension questions will appear automatically once the audio finishes.
+              </p>
+              <button
+                type="button"
+                onClick={() => setListeningAudioFinished(true)}
+                className="text-xs font-semibold text-teal-700 hover:text-teal-900 underline whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                Skip Audio &amp; Show Questions
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Comprehension Questions</span>
+                <span className="text-xs text-slate-500 font-mono">
+                  {Object.keys(selectedAnswers).length}/{total} Answered
+                </span>
+              </div>
 
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
@@ -495,6 +519,8 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

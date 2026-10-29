@@ -340,131 +340,92 @@ export const CURATED_LISTENING: ListeningTask[] = [
     title: 'Undergraduate Research Assistantship Application',
     level: 'intermediate',
     topic: 'campus-life',
-    context: 'A student visits Professor Alvarez during office hours to inquire about an undergraduate research assistant opening in her biochemistry laboratory.',
+    context: 'Listen to a conversation between a student and a biochemistry professor.',
     speakers: {
-      A: 'Student (Marcus)',
+      A: 'Marcus (Student)',
       B: 'Professor Alvarez',
     },
     speakerGenders: {
       A: 'male',
       B: 'female',
     },
-    script: `Speaker A: Good afternoon, Professor Alvarez. Do you have a few minutes? I saw the flyer posted outside the department office regarding the undergraduate research position in your biochemistry lab.
-Speaker B: Hello Marcus! Yes, certainly, take a seat. We are expanding our investigations into enzyme kinetics this term, specifically isolating recombinant alkaline phosphatase from bacterial cultures.
-Speaker A: That aligns perfectly with what I hope to study in graduate school. I took Biochemistry 301 last semester with an A-, and our lab sections covered spectrophotometric assays and SDS-PAGE gel electrophoresis.
-Speaker B: Having practical bench experience with gel electrophoresis is definitely advantageous. In this role, however, you would also be responsible for early-morning bacterial cell harvesting, high-speed centrifugation, and preparing Bradford protein assays before our graduate researchers begin their kinetic runs.
-Speaker A: I am very comfortable with pipetting and quantitative assays, and I understand the precision required when balancing centrifuge rotors.
-Speaker B: That is reassuring to hear. Now, the position requires ten hours per week, primarily on Tuesday and Thursday mornings starting at 7:30 AM. Would that conflict with your lecture schedule?
-Speaker A: Not at all. My Tuesday and Thursday lectures don't begin until 11:00 AM in the science building next door, so arriving by 7:30 fits my schedule well.
-Speaker B: Excellent. There is one additional administrative requirement. Our project works with genetically modified bacterial strains, which means university safety regulations require all laboratory personnel to hold active Biosafety Level 2 certification. Have you completed that module through Environmental Health and Safety?
-Speaker A: In my introductory biology course, we only completed the Level 1 general hazard training. Does the Level 2 certification take a long time to obtain?
-Speaker B: Not at all. It is a two-hour self-paced online module available through the campus EHS portal. If you can complete the module over the weekend, you will be cleared for wet-lab orientation by Monday.
-Speaker A: That sounds completely manageable. I will log onto the portal tonight and finish the modules.
-Speaker B: Great. Please email me your unofficial transcript, a brief summary of your prior lab techniques, and your Biosafety Level 2 certificate of completion by Friday afternoon. Once I review those, we can schedule your safety walkthrough.`,
+    script: `Marcus: Professor Alvarez, I saw the flyer for the undergraduate research position in your biochemistry lab.
+Professor Alvarez: Hello, Marcus! Did you take Biochemistry 301 last semester?
+Marcus: Yes, I earned an A-minus and practiced gel electrophoresis in every lab section.
+Professor Alvarez: Great, though this role also requires early-morning centrifuge runs on Tuesdays and Thursdays.
+Marcus: My Tuesday and Thursday classes don't start until eleven, so morning shifts work well.
+Professor Alvarez: Have you completed the Biosafety Level Two training module yet?
+Marcus: Only Level One so far. Does Level Two take long?
+Professor Alvarez: Just a two-hour online module—email me the certificate by Friday so we can start.`,
     questions: [
       {
-        q: 'Why does Marcus visit Professor Alvarez during office hours?',
+        q: 'Why is Marcus able to work the early-morning laboratory shifts?',
         options: [
-          'To request an extension on his Biochemistry 301 research paper.',
-          'To apply for an open undergraduate research assistant position in her laboratory.',
-          'To ask for a letter of recommendation for graduate school admission.',
-          'To dispute a grade he received on a protein purification exam.',
+          'He is only enrolled in evening courses this semester.',
+          'His Tuesday and Thursday lectures do not begin until eleven o’clock.',
+          'His dormitory is located inside the biochemistry building.',
+          'He has already finished all of his required science courses.',
         ],
         answer: 1,
-        why: 'Marcus states at the beginning that he saw the posted flyer and wants to inquire about the undergraduate research assistant position.',
+        why: 'Marcus states that his Tuesday and Thursday classes do not start until eleven, so morning shifts fit his schedule well.',
       },
       {
-        q: 'What laboratory duty will Marcus be expected to perform in the mornings?',
+        q: 'What must Marcus do before Friday?',
         options: [
-          'Synthesizing synthetic DNA sequences from chemical precursors.',
-          'Harvesting bacterial cells, running centrifuges, and setting up Bradford protein assays.',
-          'Grading introductory biology laboratory notebooks for underclassmen.',
-          'Calibrating electron microscopes for graduate researchers.',
+          'Retake the Biochemistry 301 final examination.',
+          'Complete an online Biosafety Level Two module and email the certificate.',
+          'Order replacement centrifuge rotors from the department office.',
+          'Submit two letters of recommendation from his previous instructors.',
         ],
         answer: 1,
-        why: 'Professor Alvarez specifies that he would be responsible for "early-morning bacterial cell harvesting, high-speed centrifugation, and preparing Bradford protein assays."',
-      },
-      {
-        q: 'Why does Professor Alvarez mention Biosafety Level 2 certification?',
-        options: [
-          'Because the university requires it for all students enrolling in Biochemistry 301.',
-          'Because Marcus received an incomplete grade in laboratory safety.',
-          'Because the research involves genetically modified bacterial strains that require specific safety compliance.',
-          'Because the campus EHS portal will be shutting down at the end of the term.',
-        ],
-        answer: 2,
-        why: 'Professor Alvarez clarifies that because the project works with "genetically modified bacterial strains," university regulations mandate active Biosafety Level 2 certification.',
-      },
-      {
-        q: 'What can be inferred about Marcus’s qualification for the position?',
-        options: [
-          'He has never performed laboratory work before applying.',
-          'His strong academic record in Biochemistry 301 and familiarity with gel electrophoresis make him a viable candidate.',
-          'He cannot meet the morning time commitment due to overlapping lectures.',
-          'He has already completed all graduate-level research certifications.',
-        ],
-        answer: 1,
-        why: 'Professor Alvarez notes that his A- in Biochemistry 301 and previous experience with spectrophotometry and gel electrophoresis are definite advantages.',
-      },
-      {
-        q: 'What three items must Marcus submit by Friday afternoon?',
-        options: [
-          'His formal diploma, tuition receipt, and financial aid application.',
-          'His unofficial transcript, a summary of lab techniques, and the Biosafety Level 2 completion certificate.',
-          'A faculty recommendation letter, a published manuscript, and a syllabus.',
-          'A revised course schedule signed by his major advisor.',
-        ],
-        answer: 1,
-        why: 'At the end of the conversation, Professor Alvarez instructs him to email his "unofficial transcript, a brief summary of your prior lab techniques, and your Biosafety Level 2 certificate of completion by Friday afternoon."',
+        why: 'Professor Alvarez instructs Marcus to complete the two-hour online Biosafety Level Two module and email her the certificate by Friday.',
       },
     ],
   },
   {
     id: 'lis-2',
-    title: 'Geology Lecture: Caldera Formation',
+    title: 'Geology Field Trip Equipment Check',
     level: 'upper-intermediate',
     topic: 'science-tech',
-    context: 'An excerpt from an introductory Earth Sciences lecture discussing volcanic calderas.',
+    context: 'Listen to a conversation between a student and her earth sciences professor.',
     speakers: {
-      A: 'Professor Vance (Lecturer)',
-      B: 'Student Question',
+      A: 'Elena (Student)',
+      B: 'Professor Vance',
     },
     speakerGenders: {
-      A: 'male',
-      B: 'female',
+      A: 'female',
+      B: 'male',
     },
-    script: `Speaker A: Today we will distinguish volcanic craters from calderas. While a crater is created by the explosive excavation of rock during an eruption, a caldera forms by structural collapse.
-Speaker B: Professor, does that mean a caldera is basically a crater that has caved in?
-Speaker A: In a sense, yes, but the scale and mechanism differ fundamentally. When a massive magma chamber empties rapidly during an explosive super-eruption, the unsupported roof above the reservoir can no longer withstand the immense weight of the overlying volcanic edifice.
-Speaker A: Consequently, the entire summit collapses inward along ring-shaped fractures. The resulting basin can span tens of kilometers in diameter, as seen in Crater Lake in Oregon or Yellowstone. Over thousands of years, these calderas often fill with rainwater, forming pristine crater lakes, or experience renewed resurgent doming from rising magma below.`,
+    script: `Elena: Professor Vance, I'm picking up my field kit for Sunday's trip to the volcanic basin.
+Professor Vance: Here's your hand lens and rock hammer, Elena. Did you bring hiking boots?
+Elena: I only have running sneakers at my dorm right now.
+Professor Vance: The basalt ridges around the caldera rim are sharp, so ankle-high boots are mandatory.
+Elena: Oh, I didn't realize the terrain was that rocky. Where can I get boots before Sunday?
+Professor Vance: The Campus Outdoor Recreation Center rents hiking gear to students for five dollars.
+Elena: Perfect, I'll stop by their desk before five o'clock today.
+Professor Vance: Also grab a waterproof field notebook while you're there in case it rains.`,
     questions: [
       {
-        q: 'What is the fundamental difference between a crater and a caldera according to the lecturer?',
+        q: 'Why does the professor tell the student she cannot wear running sneakers on the field trip?',
         options: [
-          'Craters are formed by water erosion, whereas calderas are created by wind.',
-          'Craters are formed by explosive excavation, while calderas result from structural roof collapse.',
-          'Calderas only occur in oceanic trenches, whereas craters occur on land.',
-          'Calderas are much smaller than traditional volcanic craters.',
+          'The university bus company requires leather footwear.',
+          'The sharp basalt ridges around the caldera require ankle-high boots.',
+          'The trail is covered in deep snow at this time of year.',
+          'Sneakers are not permitted inside the geology laboratory.',
         ],
         answer: 1,
-        why: 'The lecturer highlights that "a crater is created by explosive excavation of rock... while a caldera forms by structural collapse."',
+        why: 'Professor Vance explains that the basalt ridges around the caldera rim are sharp, making ankle-high hiking boots mandatory.',
       },
       {
-        q: 'Why does the summit of a volcano collapse into the magma chamber?',
+        q: 'What does the professor suggest the student get from the Campus Outdoor Recreation Center?',
         options: [
-          'Heavy rainfall increases the weight beyond the rock threshold.',
-          'Rapid evacuation of magma leaves the overlying volcanic edifice unsupported.',
-          'Tectonic plates collide directly beneath the crater rim.',
-          'Resurgent domes exert downward pressure on the chamber.',
+          'A rock hammer and a magnifying hand lens.',
+          'A topographic map of the volcanic basin.',
+          'Rental hiking boots and a waterproof field notebook.',
+          'A camping tent and a sleeping bag.',
         ],
-        answer: 1,
-        why: 'When the magma chamber empties rapidly, "the unsupported roof above the reservoir can no longer withstand the immense weight of the overlying volcanic edifice."',
-      },
-      {
-        q: 'What example does the professor provide of a caldera filled with water?',
-        options: ['Mount St. Helens', 'Crater Lake in Oregon', 'Mauna Loa in Hawaii', 'Mount Vesuvius in Italy'],
-        answer: 1,
-        why: 'The professor cites "Crater Lake in Oregon or Yellowstone" as prominent examples of calderas.',
+        answer: 2,
+        why: 'Professor Vance tells Elena she can rent hiking boots at the Campus Outdoor Recreation Center and advises her to grab a waterproof field notebook there as well.',
       },
     ],
   },
@@ -473,54 +434,45 @@ Speaker A: Consequently, the entire summit collapses inward along ring-shaped fr
     title: 'Academic Advising: Course Prerequisite Waiver',
     level: 'intermediate',
     topic: 'campus-life',
-    context: 'A student speaks with an academic advisor regarding registration for an advanced genetics course.',
+    context: 'Listen to a conversation between a student and an academic advisor.',
     speakers: {
-      A: 'Student (Chloe)',
-      B: 'Academic Advisor (Dr. Campbell)',
+      A: 'Chloe (Student)',
+      B: 'Dr. Campbell (Advisor)',
     },
     speakerGenders: {
       A: 'female',
       B: 'male',
     },
-    script: `Speaker A: Dr. Campbell, thank you for meeting with me. The registration portal blocked me from enrolling in Advanced Molecular Genetics 410 because I haven't taken Organic Chemistry Lab II.
-Speaker B: Yes, Chloe, that lab is listed as a mandatory prerequisite to ensure students are familiar with chromatography techniques before working with recombinant DNA.
-Speaker A: I understand, but I actually performed extensive column chromatography during my summer internship at the State Agricultural Biotechnology Institute. Here is the formal verification letter from my research supervisor.
-Speaker B: Oh, that is impressive! Working in a professional research facility often provides more hands-on bench experience than our undergraduate teaching labs.
-Speaker B: If Professor Martinez, who teaches the lecture, signs this departmental waiver form, I can override the prerequisite lock in the registrar's system today.
-Speaker A: Wonderful! Professor Martinez has office hours this afternoon, so I will take the waiver form directly to her office.`,
+    script: `Chloe: Dr. Campbell, the portal blocked me from enrolling in Molecular Genetics 410.
+Dr. Campbell: That's because Organic Chemistry Lab Two is listed as a mandatory prerequisite, Chloe.
+Chloe: Right, the course requires experience with column chromatography techniques.
+Dr. Campbell: Have you done chromatography outside of our regular undergraduate labs?
+Chloe: Yes, I ran chromatography daily during my summer internship at the Biotechnology Institute.
+Dr. Campbell: Did your research supervisor write an official verification letter?
+Chloe: I brought the signed letter right here in my folder.
+Dr. Campbell: Wonderful—ask Professor Martinez to sign this waiver form during her afternoon office hours.`,
     questions: [
       {
-        q: 'Why was Chloe unable to enroll in Advanced Molecular Genetics?',
+        q: 'How does Chloe show that she is prepared for Molecular Genetics 410?',
         options: [
-          'The course reached maximum enrollment capacity.',
-          'She had not satisfied the Organic Chemistry Lab II prerequisite.',
-          'Her academic transcript had not been submitted to the university.',
-          'She missed the initial course registration deadline.',
+          'She passed a departmental placement exam last week.',
+          'She provides a verification letter from her biotechnology summer internship.',
+          'She completed an online organic chemistry course at another college.',
+          'She worked as a teaching assistant for Dr. Campbell last semester.',
         ],
         answer: 1,
-        why: 'The registration system blocked her because she had not completed the required Organic Chemistry Lab II prerequisite.',
+        why: 'Chloe explains that she performed chromatography daily during her summer internship and brings a signed verification letter from her supervisor.',
       },
       {
-        q: 'How does Chloe demonstrate that she already possesses the required lab skills?',
+        q: 'What will Chloe most likely do this afternoon?',
         options: [
-          'She shows an official verification letter from her biotechnology summer internship.',
-          'She passes a credit-by-exam test administered by Dr. Campbell.',
-          'She presents a letter of recommendation from high school.',
-          'She agrees to co-author a paper with Professor Martinez.',
+          'Register for Organic Chemistry Lab Two instead.',
+          'Visit the Biotechnology Institute to request a transcript.',
+          'Have Professor Martinez sign a prerequisite waiver form during office hours.',
+          'Submit a tuition payment at the bursar’s office.',
         ],
-        answer: 0,
-        why: 'Chloe explains that she performed column chromatography during her summer internship and provides a formal verification letter from her supervisor.',
-      },
-      {
-        q: 'What must Chloe do before Dr. Campbell can override the registration system?',
-        options: [
-          'Pay an administrative late registration fee.',
-          'Obtain Professor Martinez’s signature on the departmental waiver form.',
-          'Complete an online safety orientation module.',
-          'Submit a petition to the academic dean.',
-        ],
-        answer: 1,
-        why: 'Dr. Campbell states that if Professor Martinez signs the departmental waiver form, he can override the lock.',
+        answer: 2,
+        why: 'Dr. Campbell instructs Chloe to take the waiver form to Professor Martinez during her afternoon office hours for a signature.',
       },
     ],
   },
