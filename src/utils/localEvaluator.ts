@@ -874,6 +874,256 @@ export function detectGrammarAndMechanicsErrors(
     );
   }
 
+  // Helper to singularize a plural English noun while preserving capitalization
+  const NON_PLURAL_S_WORDS = new Set([
+    'news', 'series', 'species', 'means', 'lens', 'corps', 'headquarters', 'crossroads',
+    'mathematics', 'economics', 'physics', 'politics', 'ethics', 'statistics', 'linguistics',
+    'genetics', 'mechanics', 'dynamics', 'acoustics', 'athletics', 'gymnastics', 'diabetes',
+    'towards', 'forwards', 'backwards', 'upwards', 'downwards', 'afterwards', 'besides',
+    'sometimes', 'always', 'nowadays', 'sideways', 'perhaps', 'whereas', 'unless', 'since',
+    'thus', 'plus', 'minus', 'versus', 'yes', 'this', 'his', 'its', 'ours', 'yours',
+    'theirs', 'hers', 'was', 'has', 'is', 'does', 'goes', 'as', 'us', 'bus', 'gas',
+    'bias', 'atlas', 'canvas', 'chaos', 'ethos', 'pathos', 'focus', 'status', 'campus',
+    'virus', 'bonus', 'consensus', 'syllabus', 'apparatus', 'census', 'prospectus',
+    'crisis', 'basis', 'thesis', 'analysis', 'hypothesis', 'emphasis', 'diagnosis', 'synopsis',
+  ]);
+
+  const isPluralNounCandidate = (word: string): boolean => {
+    const w = word.toLowerCase();
+    if (w === 'people' || w === 'children' || w === 'men' || w === 'women') return true;
+    if (w.length < 4 || !w.endsWith('s')) return false;
+    if (NON_PLURAL_S_WORDS.has(w)) return false;
+    if (/(?:ss|us|is|ics|ous|ess|as|os|ys)$/i.test(w)) {
+      // Allow -ies (e.g. universities), -ays/-eys/-oys (e.g. days, ways, keys, boys), and -sses/-uses/-ises (e.g. classes, campuses, courses)
+      if (!/(?:ies|[aeo]ys|sses|uses|ises|ases)$/i.test(w)) return false;
+    }
+    return true;
+  };
+
+  const singularizeNoun = (word: string): string => {
+    const lower = word.toLowerCase();
+    if (lower === 'people') return word[0] === 'P' ? 'Person' : 'person';
+    if (lower === 'children') return word[0] === 'C' ? 'Child' : 'child';
+    if (lower === 'men') return word[0] === 'M' ? 'Man' : 'man';
+    if (lower === 'women') return word[0] === 'W' ? 'Woman' : 'woman';
+    if (/ies$/i.test(word) && word.length > 4) {
+      return word.replace(/ies$/i, 'y');
+    }
+    if (/(?:ch|sh|x|z|ss)es$/i.test(word)) {
+      return word.replace(/es$/i, '');
+    }
+    return word.replace(/s$/i, '');
+  };
+
+  // 5f. Determiner-Noun Number Disagreement: "a/an" + optional adjective + plural noun ("a valid points", "a good reasons", "an important factors", "a different ways", "a new friends")
+  const COMMON_ADJECTIVES = new Set([
+    'valid', 'good', 'great', 'new', 'different', 'important', 'major', 'minor', 'key', 'main',
+    'significant', 'strong', 'clear', 'better', 'best', 'bad', 'worse', 'worst', 'small', 'large',
+    'big', 'high', 'low', 'long', 'short', 'full', 'whole', 'single', 'specific', 'certain',
+    'particular', 'similar', 'common', 'popular', 'positive', 'negative', 'useful', 'helpful',
+    'beneficial', 'effective', 'efficient', 'essential', 'crucial', 'vital', 'critical', 'serious',
+    'severe', 'complex', 'simple', 'basic', 'personal', 'social', 'academic', 'financial',
+    'economic', 'environmental', 'global', 'local', 'modern', 'traditional', 'natural', 'physical',
+    'mental', 'medical', 'scientific', 'technological', 'educational', 'cultural', 'political',
+    'historical', 'practical', 'theoretical', 'logical', 'reasonable', 'compelling', 'convincing',
+    'solid', 'sound', 'fair', 'real', 'true', 'huge', 'vast', 'wide', 'broad', 'deep', 'heavy',
+    'light', 'hard', 'difficult', 'easy', 'quick', 'fast', 'slow', 'early', 'late', 'young',
+    'old', 'fresh', 'recent', 'current', 'future', 'past', 'previous', 'next', 'final', 'last',
+    'first', 'second', 'third', 'special', 'unique', 'separate', 'distinct', 'valuable',
+    'meaningful', 'wonderful', 'terrible', 'horrible', 'interesting', 'challenging', 'exciting',
+  ]);
+
+  const isAdjectiveLike = (word: string): boolean => {
+    const w = word.toLowerCase();
+    if (COMMON_ADJECTIVES.has(w)) return true;
+    if (STOP_WORDS.has(w) || ['few', 'little', 'lot', 'number', 'variety', 'group', 'pair', 'couple', 'set', 'range', 'series', 'kind', 'sort', 'type'].includes(w)) {
+      return false;
+    }
+    return /(?:ive|ous|ful|less|able|ible|al|ic|ant|ent)$/i.test(w) && w.length >= 5;
+  };
+
+  // Direct "a/an + plural noun" (e.g., "a points", "a reasons", "a students", "an ideas")
+  const directArtPluralRegex = /\b(a|an)\s+([a-zA-Z]{4,}s)\b(?!')/g;
+  while ((m = directArtPluralRegex.exec(text)) !== null) {
+    const art = m[1];
+    const noun = m[2];
+    if (isPluralNounCandidate(noun) && !isAdjectiveLike(noun)) {
+      const sing = singularizeNoun(noun);
+      pushError(
+        m[0],
+        `${art} ${sing} (or "${noun}")`,
+        `Determiner-noun number disagreement: the singular indefinite article "${art}" cannot modify the plural noun "${noun}". Use singular "${art} ${sing}" or plural "${noun}".`,
+        'grammar'
+      );
+    }
+  }
+
+  // "a/an + adjective + plural noun" (e.g., "a valid points", "a good reasons", "an important factors", "a different ways", "a new friends")
+  const adjArtPluralRegex = /\b(a|an)\s+([a-zA-Z]{3,})\s+([a-zA-Z]{4,}s)\b(?!')/g;
+  while ((m = adjArtPluralRegex.exec(text)) !== null) {
+    const art = m[1];
+    const adj = m[2];
+    const noun = m[3];
+    if (isAdjectiveLike(adj) && isPluralNounCandidate(noun)) {
+      const sing = singularizeNoun(noun);
+      pushError(
+        m[0],
+        `${art} ${adj} ${sing} (or "${adj} ${noun}")`,
+        `Determiner-noun number disagreement: singular "${art}" does not agree with the plural noun "${noun}". Write "${art} ${adj} ${sing}" or "${adj} ${noun}".`,
+        'grammar'
+      );
+    }
+  }
+
+  // 5g. "every" / "each" + plural noun ("every students", "every people", "every universities", "each students", "each classes")
+  const everyEachPluralRegex = /\b(every|each)\s+(people|children|men|women|[a-zA-Z]{4,}s)\b(?!')/gi;
+  while ((m = everyEachPluralRegex.exec(text)) !== null) {
+    const quant = m[1];
+    const noun = m[2];
+    if (isPluralNounCandidate(noun)) {
+      const sing = singularizeNoun(noun);
+      pushError(
+        m[0],
+        `${quant} ${sing}`,
+        `Quantifier agreement error: "${quant}" always takes a singular countable noun ("${quant} ${sing}"), never the plural "${noun}".`,
+        'grammar'
+      );
+    }
+  }
+
+  // 5h. Idiom / Transition Pluralization Errors ("For instances", "In conclusions", "On the other hands", "For examples", "In additions", "As a results")
+  const transitionPluralRules: Array<{ pattern: RegExp; fix: string; note: string }> = [
+    {
+      pattern: /\bfor\s+instances\b/gi,
+      fix: 'For instance',
+      note: "Idiom / transition error: the fixed transitional phrase is singular ('For instance'), not plural.",
+    },
+    {
+      pattern: /\bfor\s+examples\b/gi,
+      fix: 'for example',
+      note: "Idiom / transition error: the fixed transitional phrase is singular ('for example'), not plural.",
+    },
+    {
+      pattern: /\bin\s+conclusions\b/gi,
+      fix: 'In conclusion',
+      note: "Idiom / transition error: the fixed concluding phrase is singular ('In conclusion'), not plural.",
+    },
+    {
+      pattern: /\bon\s+the\s+other\s+hands\b/gi,
+      fix: 'On the other hand',
+      note: "Idiom / transition error: the fixed contrastive idiom is singular ('On the other hand'), not plural.",
+    },
+    {
+      pattern: /\bin\s+additions\b/gi,
+      fix: 'In addition',
+      note: "Idiom / transition error: the fixed transitional phrase is singular ('In addition'), not plural.",
+    },
+    {
+      pattern: /\bas\s+a\s+results\b/gi,
+      fix: 'As a result',
+      note: "Idiom / transition error: the fixed transitional phrase is singular ('As a result'), not plural.",
+    },
+  ];
+  for (const tRule of transitionPluralRules) {
+    let tm: RegExpExecArray | null;
+    while ((tm = tRule.pattern.exec(text)) !== null) {
+      const matched = tm[0];
+      const isCap = matched[0] === matched[0].toUpperCase();
+      const fixed = isCap
+        ? tRule.fix.charAt(0).toUpperCase() + tRule.fix.slice(1)
+        : tRule.fix.charAt(0).toLowerCase() + tRule.fix.slice(1);
+      pushError(matched, fixed, tRule.note, 'grammar');
+    }
+  }
+
+  // 5i. Missing Article "a" Before "few" ("for few months/days/weeks/years/hours")
+  const missingAFewRegex = /\b(for|in|after|within|during|over)\s+few\s+(months|days|weeks|years|hours|minutes|semesters|terms|classes|courses|moments|people|students|friends)\b/gi;
+  while ((m = missingAFewRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      `${m[1]} a few ${m[2]}`,
+      `Missing article error: include the indefinite article "a" in "${m[1]} a few ${m[2]}" ("a few" means several; "few" without "a" means almost none).`,
+      'grammar'
+    );
+  }
+
+  // 5j. Missing Article Before Countable Singular Locations ("live in dorm", "stay in dorm", "stayed in dorm", "in dormitory")
+  const liveInDormRegex = /\b(live|lived|living|stay|stayed|staying|reside|resided|residing)\s+in\s+(dorm|dormitory)\b(?!\s+(?:room|rooms|building|buildings|hall|halls|life|facilities))/gi;
+  while ((m = liveInDormRegex.exec(text)) !== null) {
+    const verb = m[1];
+    const loc = m[2].toLowerCase();
+    const pluralLoc = loc === 'dormitory' ? 'dormitories' : 'dorms';
+    pushError(
+      m[0],
+      `${verb} in a ${loc} (or "${verb} in ${pluralLoc}")`,
+      `Missing article error: "${loc}" is a singular countable noun and requires an article ("${verb} in a ${loc}" or "${verb} in the ${loc}") or the plural form ("${verb} in ${pluralLoc}").`,
+      'grammar'
+    );
+  }
+
+  const standaloneInDormRegex = /\b(in|at|into|to)\s+(dorm|dormitory)\b(?!\s+(?:room|rooms|building|buildings|hall|halls|life|facilities))/gi;
+  while ((m = standaloneInDormRegex.exec(text)) !== null) {
+    const prep = m[1];
+    const loc = m[2].toLowerCase();
+    pushError(
+      m[0],
+      `${prep} a ${loc} (or "${prep} the ${loc}")`,
+      `Missing article error: countable singular noun "${loc}" requires a determiner ("${prep} a ${loc}" or "${prep} the ${loc}").`,
+      'grammar'
+    );
+  }
+
+  // 5k. Awkward Collocations & Register Upgrades ("during my senior college", "due to which", "went with my family to live", "I myself", "their family member")
+  const seniorCollegeRegex = /\b(during|in)\s+(my|his|her|their|our)\s+(freshman|sophomore|junior|senior)\s+(college|university|high\s+school)\b/gi;
+  while ((m = seniorCollegeRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      `${m[1]} ${m[2]} ${m[3]} year of ${m[4]}`,
+      `Collocation error: write "${m[1]} ${m[2]} ${m[3]} year of ${m[4]}" instead of "${m[0]}".`,
+      'grammar'
+    );
+  }
+
+  const dueToWhichRegex = /\bdue\s+to\s+which\b/gi;
+  while ((m = dueToWhichRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'as a result of which (or ", which caused me to...")',
+      'Better Wording (Academic Register): "due to which" is an awkward connector in formal academic prose; use "as a result of which", "consequently", or ", which caused me to...".',
+      'wording'
+    );
+  }
+
+  const wentWithFamilyToLiveRegex = /\b(went|go|gone|going)\s+with\s+(my|his|her|their)\s+(family|parents)\s+to\s+live\b/gi;
+  while ((m = wentWithFamilyToLiveRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      `moved back in with ${m[2]} ${m[3]}`,
+      `Better Wording (Collocation & Word Order): replace "${m[0]}" with natural idiomatic phrasing such as "moved back in with ${m[2]} ${m[3]}" or "went to live with ${m[2]} ${m[3]}".`,
+      'wording'
+    );
+  }
+
+  const iMyselfRegex = /\bI\s+myself\b/g;
+  while ((m = iMyselfRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'I',
+      'Better Wording (Conciseness): "I myself" uses a redundant reflexive pronoun; simply use "I" in formal academic writing.',
+      'wording'
+    );
+  }
+
+  const theirFamilyMemberRegex = /\btheir\s+family\s+member\b(?!s)/gi;
+  while ((m = theirFamilyMemberRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'their family members',
+      'Number agreement error: when referring to plural subjects (such as "students"), use the plural noun phrase "their family members" (or collective "their families").',
+      'grammar'
+    );
+  }
+
   // 6. Subject-verb agreement: "he/she/it have" or "he/she/it do"
   const svPronounRegex = /\b(he|she|it)\s+(have|do|are|were)\b/gi;
   while ((m = svPronounRegex.exec(text)) !== null) {

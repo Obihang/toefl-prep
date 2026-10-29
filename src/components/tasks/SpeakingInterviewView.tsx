@@ -76,12 +76,33 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   const timerIntervalRef = useRef<any>(null);
   const pendingTranscriptionsRef = useRef<Record<number, Promise<void>>>({});
 
-  // Reset completion guard & blobs on mount or task change
+  const draftStorageKey = `toefl_draft_speaking_interview_${task.id || task.title}`;
+
+  // Reset completion guard & blobs on mount or task change, and restore saved draft transcripts
   useEffect(() => {
     hasCompletedRef.current = false;
     blobsRef.current = {};
     setStep('idle');
-  }, [task.id]);
+    setEvaluationResult(null);
+    setEvalError(null);
+    try {
+      const rawDraft = localStorage.getItem(draftStorageKey);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft);
+        if (parsed && typeof parsed === 'object') {
+          setAnswers(parsed);
+          return;
+        }
+      }
+    } catch {}
+    setAnswers({});
+  }, [task.id, task.title]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify(answers));
+    } catch {}
+  }, [draftStorageKey, answers]);
 
   const stopAllAudio = () => {
     if (recordingAudioRef.current) {
@@ -759,6 +780,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
       const scaled = evalData.scaledScore || 24;
       const band6 = evalData.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
 
+      const formattedTranscript = submissionData
+        .map((s, idx) => `Q${idx + 1}: ${s.question}\nResponse: ${s.studentResponse?.trim() || '(No response recorded)'}`)
+        .join('\n\n');
+
       savePracticeRecord({
         taskType: 'speaking-interview',
         taskTitle: task.title,
@@ -768,7 +793,16 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         scaledScore30: scaled,
         bandScore6: band6,
         timeSpentSeconds: 240,
-        feedbackSummary: `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/4.0 (${evalData.performanceLevel})`,
+        studentResponse: formattedTranscript,
+        feedbackSummary:
+          evalData.summary ||
+          `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/4.0 (${evalData.performanceLevel})`,
+        grammarErrors: Array.isArray(evalData.corrections)
+          ? evalData.corrections
+          : Array.isArray(evalData.grammarErrors)
+          ? evalData.grammarErrors
+          : [],
+        modelAnswer: evalData.modelBand6Rewrite || evalData.exemplar || '',
       });
 
       if (!hasCompletedRef.current) {

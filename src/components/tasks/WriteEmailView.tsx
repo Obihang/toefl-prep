@@ -113,15 +113,37 @@ export const WriteEmailView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
+  const draftStorageKey = `toefl_draft_write_email_${task.id || task.title}`;
+
   React.useEffect(() => {
-    setSubject(`Inquiry regarding ${task.title}`);
-    setBody('');
+    let savedSubject = `Inquiry regarding ${task.title}`;
+    let savedBody = '';
+    try {
+      const rawDraft = localStorage.getItem(draftStorageKey);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft);
+        if (typeof parsed?.subject === 'string' && parsed.subject.trim()) {
+          savedSubject = parsed.subject;
+        }
+        if (typeof parsed?.body === 'string') {
+          savedBody = parsed.body;
+        }
+      }
+    } catch {}
+    setSubject(savedSubject);
+    setBody(savedBody);
     setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
     setIsWritingTimerRunning(isWritingTimerEnabled);
     setIsEvaluating(false);
     setEvalResult(null);
     setEvalError(null);
   }, [task.id, task.title]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify({ subject, body }));
+    } catch {}
+  }, [draftStorageKey, subject, body]);
 
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -224,7 +246,21 @@ export const WriteEmailView: React.FC<Props> = ({
         scaledScore30: scaled,
         bandScore6: band6,
         timeSpentSeconds: Math.max(10, OFFICIAL_EMAIL_TIME_SECONDS - timeLeft),
-        feedbackSummary: `Email Writing: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/5.0 (${evalData.performanceLevel})`,
+        studentResponse: `Subject: ${subject}\n\n${body}`,
+        feedbackSummary:
+          evalData.summary ||
+          `Email Writing: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/5.0 (${evalData.performanceLevel})`,
+        grammarErrors: Array.isArray(evalData.corrections)
+          ? evalData.corrections
+          : Array.isArray(evalData.grammarErrors)
+          ? evalData.grammarErrors
+          : [],
+        modelAnswer:
+          evalData.modelBand6Rewrite ||
+          evalData.exemplar ||
+          (task as any).modelResponse ||
+          (task as any).sampleAnswer ||
+          '',
       });
     }
     setIsEvaluating(false);
@@ -572,6 +608,9 @@ export const WriteEmailView: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => {
+              try {
+                localStorage.removeItem(draftStorageKey);
+              } catch {}
               setSubject(`Inquiry regarding ${task.title}`);
               setBody('');
               setEvalResult(null);

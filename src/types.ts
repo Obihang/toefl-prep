@@ -128,4 +128,23 @@ export interface BuildSentenceTask {
   items: BuildSentenceItem[];
 }
 
+export interface ScoreEntry {
+  id: string;
+  taskType: string;
+  taskTitle: string;
+  section: 'Reading' | 'Listening' | 'Speaking' | 'Writing';
+  date: string;
+  score: number;
+  maxScore: number;
+  rawScore?: number;
+  rawMaxScore?: number;
+  scaledScore30: number;
+  bandScore6?: number;
+  timeSpentSeconds: number;
+  studentResponse?: string;
+  feedbackSummary?: string;
+  grammarErrors?: Array<{ original: string; corrected: string; explanation: string; type?: string }>;
+  modelAnswer?: string;
+}
+
 export * from './types/taskTypes';

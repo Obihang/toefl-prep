@@ -14,8 +14,13 @@ export interface PracticeRecord {
   scaledScore30: number;
   bandScore6?: number; // Official updated TOEFL 1.0 - 6.0 band scale
   timeSpentSeconds: number;
+  studentResponse?: string;
   feedbackSummary?: string;
+  grammarErrors?: Array<{ original: string; corrected: string; explanation: string; type?: string }>;
+  modelAnswer?: string;
 }
+
+export type ScoreEntry = PracticeRecord;
 
 export function band6ToScaled30(band6: number): number {
   const b = Math.round((Number(band6) || 1) * 2) / 2;
@@ -76,6 +81,10 @@ export function sanitizePracticeRecord(raw: any): { record: PracticeRecord; chan
     scaledScore30: scaled30,
     bandScore6,
     timeSpentSeconds: Number(raw?.timeSpentSeconds || 60),
+    studentResponse: typeof raw?.studentResponse === 'string' ? raw.studentResponse : undefined,
+    feedbackSummary: typeof raw?.feedbackSummary === 'string' ? raw.feedbackSummary : (typeof raw?.feedback === 'string' ? raw.feedback : undefined),
+    grammarErrors: Array.isArray(raw?.grammarErrors) ? raw.grammarErrors : undefined,
+    modelAnswer: typeof raw?.modelAnswer === 'string' ? raw.modelAnswer : undefined,
   };
 
   return { record, changed };
@@ -102,7 +111,7 @@ export function getPracticeHistory(): PracticeRecord[] {
   if (typeof window === 'undefined') return [];
   try {
     const key = getStorageKey();
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(key) || localStorage.getItem('toefl_score_history');
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -117,6 +126,7 @@ export function getPracticeHistory(): PracticeRecord[] {
     if (anyRepaired) {
       try {
         localStorage.setItem(key, JSON.stringify(sanitized));
+        localStorage.setItem('toefl_score_history', JSON.stringify(sanitized));
       } catch {}
     }
 
@@ -138,10 +148,12 @@ export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'da
   try {
     const history = getPracticeHistory();
     history.unshift(fullRecord);
-    localStorage.setItem(getStorageKey(), JSON.stringify(history.slice(0, 100)));
+    const trimmed = history.slice(0, 100);
+    localStorage.setItem(getStorageKey(), JSON.stringify(trimmed));
+    localStorage.setItem('toefl_score_history', JSON.stringify(trimmed));
 
     if (auth.currentUser) {
-      await saveTaskCompletion(fullRecord.taskType);
+      await saveTaskCompletion(fullRecord.taskType, fullRecord);
     }
   } catch (e) {
     console.error('Failed to save score record', e);
@@ -150,17 +162,32 @@ export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'da
   return fullRecord;
 }
 
-export async function saveTaskCompletion(taskType: string) {
+export const saveScoreEntry = savePracticeRecord;
+
+export async function saveTaskCompletion(taskType: string, fullRecord?: PracticeRecord) {
   const userId = getCurrentUserId();
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. Save Completion
+  // 1. Save Completion (with optional saved response & evaluation details)
   try {
-    await addDoc(collection(db, 'completions'), {
+    const payload: Record<string, any> = {
       userId,
       taskType,
       completedAt: serverTimestamp(),
-    });
+    };
+    if (fullRecord) {
+      payload.taskTitle = fullRecord.taskTitle;
+      payload.section = fullRecord.section;
+      payload.scaledScore30 = fullRecord.scaledScore30;
+      payload.bandScore6 = fullRecord.bandScore6 ?? null;
+      if (fullRecord.studentResponse) payload.studentResponse = fullRecord.studentResponse;
+      if (fullRecord.feedbackSummary) payload.feedbackSummary = fullRecord.feedbackSummary;
+      if (Array.isArray(fullRecord.grammarErrors) && fullRecord.grammarErrors.length > 0) {
+        payload.grammarErrors = fullRecord.grammarErrors.slice(0, 20);
+      }
+      if (fullRecord.modelAnswer) payload.modelAnswer = fullRecord.modelAnswer;
+    }
+    await addDoc(collection(db, 'completions'), payload);
   } catch (err) {
     console.error('Failed to save completion record:', err);
   }
@@ -230,6 +257,7 @@ export async function getCompletedDays() {
 export function clearPracticeHistory() {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(getStorageKey());
+    localStorage.removeItem('toefl_score_history');
   }
 }
 

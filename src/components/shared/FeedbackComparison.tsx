@@ -38,7 +38,7 @@ function escapeRegExp(str: string): string {
 }
 
 // Word-boundary-aware inline highlighter showing red strikethrough error + green correction badge
-const HighlightedText: React.FC<{ text: string; corrections: Correction[] }> = ({ text, corrections }) => {
+export const HighlightedText: React.FC<{ text: string; corrections: Correction[] }> = ({ text, corrections }) => {
   const safeCorrections = Array.isArray(corrections) ? corrections.filter((c) => c && c.original) : [];
   if (!text || safeCorrections.length === 0) {
     return <>{text}</>;
@@ -165,13 +165,11 @@ export const FeedbackComparison: React.FC<Props> = ({
   corrections,
   topFixes,
   modelBand6Rewrite,
-  benchmarkAnalysis,
   notice,
   subScores,
   bulletAnalysis,
 }) => {
   const displayExemplar = modelBand6Rewrite || exemplarResponse;
-  const [isBenchmarkOpen, setIsBenchmarkOpen] = useState(true);
   const safeCorrections = Array.isArray(corrections) ? corrections : [];
   const safeTopFixes = Array.isArray(topFixes) ? topFixes : [];
   const safeBullets = Array.isArray(bulletAnalysis) ? bulletAnalysis : [];
@@ -366,67 +364,6 @@ export const FeedbackComparison: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Interactive Band 6.0 Benchmark Accordion */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
-        <button
-          type="button"
-          onClick={() => setIsBenchmarkOpen(!isBenchmarkOpen)}
-          className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100/80 flex items-center justify-between text-left transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-teal-700" />
-            <span className="text-xs font-bold text-slate-800">
-              Compare with Band 6.0 Benchmark: Rhetorical Devices &amp; Discourse Markers
-            </span>
-          </div>
-          {isBenchmarkOpen ? (
-            <ChevronUp className="w-4 h-4 text-slate-500" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-slate-500" />
-          )}
-        </button>
-
-        {isBenchmarkOpen && (
-          <div className="p-4 space-y-3.5 text-xs text-slate-700 border-t border-slate-200 bg-white">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1.5">
-                <span className="font-bold text-slate-900 block flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-teal-600" />
-                  Key Rhetorical Devices
-                </span>
-                <ul className="list-disc list-inside space-y-1 text-slate-600">
-                  {(Array.isArray(benchmarkAnalysis?.rhetoricalDevices)
-                    ? benchmarkAnalysis.rhetoricalDevices
-                    : [
-                        'Nuanced concession acknowledging counterarguments before asserting position',
-                        'Direct thesis statement with clear causal connectors',
-                        'Specific academic exemplification avoiding generic assertions',
-                      ]
-                  ).map((dev, i) => (
-                    <li key={i}>{dev}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="bg-teal-50/60 p-3 rounded-lg border border-teal-200 space-y-1.5">
-                <span className="font-bold text-teal-950 block flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-teal-700" />
-                  Why This Achieves Band 6.0
-                </span>
-                <p className="text-teal-900 leading-relaxed">
-                  {benchmarkAnalysis?.whyBand6 ||
-                    'Demonstrates syntactic variety by alternating compound and complex sentences, utilizes domain-specific vocabulary, and maintains seamless cohesion across all discourse units without grammatical ambiguity.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-1 text-[11px] text-slate-500 flex items-center gap-2">
-              <span className="inline-block w-2.5 h-2.5 bg-teal-100 border border-teal-300 rounded-xs"></span>
-              <span>Highlighted words indicate high-scoring discourse transitions that signal clear organizational logic to ETS scoring raters.</span>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 };

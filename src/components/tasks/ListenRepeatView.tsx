@@ -613,6 +613,17 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
           task.sentences.length
       );
       const scaled = convertToScaledScore(avgPercent, 100);
+      const formattedRepetition = task.sentences
+        .map((sent, i) => {
+          const spoken = i === index ? user : states[i]?.userInput || '';
+          const pct = i === index ? percentage : states[i]?.scorePercent ?? 0;
+          return `Sentence ${i + 1} (${pct}%): "${spoken.trim() || '(No response)'}"`;
+        })
+        .join('\n');
+      const targetModelText = task.sentences
+        .map((sent, i) => `Sentence ${i + 1}: "${sent}"`)
+        .join('\n');
+
       savePracticeRecord({
         taskType: 'listen-repeat',
         taskTitle: task.title,
@@ -621,7 +632,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         maxScore: 100,
         scaledScore30: scaled,
         timeSpentSeconds: 120,
+        studentResponse: formattedRepetition,
         feedbackSummary: `Listen & Repeat: Average accuracy of ${avgPercent}% across ${task.sentences.length} sentences`,
+        modelAnswer: targetModelText,
       });
       onComplete?.({ blobs: { ...blobsRef.current }, scaledScore: scaled, avgPercent });
     } else if (autoStart && index + 1 < task.sentences.length) {

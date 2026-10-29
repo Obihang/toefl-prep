@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Award, BarChart3, TrendingUp, Calendar, Download, Upload, Target } from 'lucide-react';
+import { X, Trash2, Award, BarChart3, TrendingUp, Calendar, Download, Upload, Target, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   getPracticeHistory,
   clearPracticeHistory,
@@ -10,6 +10,7 @@ import {
   PracticeRecord,
 } from '../../utils/scoreTracker';
 import { PerformanceTrendChart } from './history/PerformanceTrendChart';
+import { HighlightedText } from '../shared/FeedbackComparison';
 
 interface Props {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -314,37 +316,118 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
               No completed exercises yet. Select a task above and complete it to see your score analysis here!
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-3">Section</th>
                     <th className="py-2.5 px-3">Task Title</th>
                     <th className="py-2.5 px-3 text-center">Band (1-6)</th>
                     <th className="py-2.5 px-3 text-right">Scaled (0-30)</th>
+                    <th className="py-2.5 px-3 text-right">Saved Response</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {history.map((rec) => {
                     const scaled30 = typeof rec.scaledScore30 === 'number' ? rec.scaledScore30 : Math.min(30, Number(rec.score || 0));
                     const band = rec.bandScore6 ?? convertScaledToBand6(scaled30, rec.section);
+                    const hasSavedResponse = Boolean(rec.studentResponse && rec.studentResponse.trim().length > 0);
+                    const isExpanded = expandedRecordId === rec.id;
+                    const grammarErrors = Array.isArray(rec.grammarErrors) ? rec.grammarErrors : [];
                     return (
-                      <tr key={rec.id} className="hover:bg-slate-50/50">
-                        <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">
-                          {new Date(rec.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="py-2 px-3">
-                          <span className="font-medium text-slate-900">{rec.section}</span>
-                        </td>
-                        <td className="py-2 px-3 text-slate-800 truncate max-w-xs">{rec.taskTitle}</td>
-                        <td className="py-2 px-3 text-center font-mono font-bold text-teal-700">
-                          Band {band.toFixed(1)}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-medium text-slate-600">
-                          {scaled30} / 30
-                        </td>
-                      </tr>
+                      <React.Fragment key={rec.id}>
+                        <tr className="hover:bg-slate-50/50">
+                          <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">
+                            {new Date(rec.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="font-medium text-slate-900">{rec.section}</span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-800 truncate max-w-xs">{rec.taskTitle}</td>
+                          <td className="py-2 px-3 text-center font-mono font-bold text-teal-700">
+                            Band {band.toFixed(1)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-medium text-slate-600">
+                            {scaled30} / 30
+                          </td>
+                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                            {hasSavedResponse ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedRecordId(isExpanded ? null : rec.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3 h-3 text-teal-700" />
+                                <span>{isExpanded ? 'Hide Saved Response' : '📄 View Saved Response'}</span>
+                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-300">—</span>
+                            )}
+                          </td>
+                        </tr>
+                        {hasSavedResponse && isExpanded && (
+                          <tr className="bg-slate-50/80">
+                            <td colSpan={6} className="p-4 border-t border-slate-200">
+                              <div className="space-y-4">
+                                {rec.feedbackSummary && (
+                                  <div className="text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-3 leading-relaxed">
+                                    <span className="font-bold text-slate-900 mr-1.5">Evaluation Summary:</span>
+                                    {rec.feedbackSummary}
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                                        Your Saved Response {grammarErrors.length > 0 ? `(${grammarErrors.length} Highlighted Fixes)` : ''}
+                                      </h4>
+                                    </div>
+                                    <div className="p-3.5 bg-white border border-slate-200 rounded-lg text-xs leading-relaxed text-slate-900 whitespace-pre-line">
+                                      <HighlightedText text={rec.studentResponse || ''} corrections={grammarErrors as any} />
+                                    </div>
+                                  </div>
+                                  {rec.modelAnswer && (
+                                    <div className="space-y-1.5">
+                                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1">
+                                        <Award className="w-3.5 h-3.5 text-teal-600" />
+                                        <span>Band 6.0 Model Answer</span>
+                                      </h4>
+                                      <div className="p-3.5 bg-teal-50/50 border border-teal-200 rounded-lg text-xs leading-relaxed text-teal-950 whitespace-pre-line">
+                                        {rec.modelAnswer}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {grammarErrors.length > 0 && (
+                                  <div className="space-y-2">
+                                    <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                                      Grammar &amp; Wording Fixes ({grammarErrors.length})
+                                    </h5>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {grammarErrors.map((err, i) => (
+                                        <div key={i} className="p-2.5 bg-white border border-slate-200 rounded-lg text-xs space-y-1">
+                                          <div className="flex items-baseline flex-wrap gap-1.5">
+                                            <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-900 line-through font-semibold">
+                                              &ldquo;{err.original}&rdquo;
+                                            </span>
+                                            <span className="text-slate-400 font-bold">→</span>
+                                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-bold">
+                                              &ldquo;{err.corrected}&rdquo;
+                                            </span>
+                                          </div>
+                                          <p className="text-[11px] text-slate-600 leading-snug">{err.explanation}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
