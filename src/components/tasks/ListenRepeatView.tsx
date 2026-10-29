@@ -21,6 +21,7 @@ interface Props {
   onNextTask?: () => void;
   onComplete?: (result: any) => void;
   keyboardShortcutHint?: string;
+  activeCardHighlightClass?: string;
 }
 
 interface SentenceState {
@@ -196,6 +197,13 @@ export const ListenRepeatView: React.FC<Props> = ({
   }, [micStatus]);
 
   const handlePlay = async (index: number) => {
+    setCurrentIndex(index);
+    setTimeout(() => {
+      document.getElementById(`listen-repeat-item-${index}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 80);
     const itemKey = `sentence_${index}`;
     const wasPlayingThis = activePlayingKeyRef.current === itemKey;
     stopAllAudio();
@@ -637,13 +645,43 @@ export const ListenRepeatView: React.FC<Props> = ({
         avgScore5: sessionResult.avgScore5,
         avgPercent: sessionResult.overallAccuracyPercent,
       });
+      setTimeout(() => {
+        document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 150);
     } else if (autoStart && index + 1 < task.sentences.length) {
       // Auto-advance to the next sentence when Auto-Flow is active
+      const nextIdx = index + 1;
+      setCurrentIndex(nextIdx);
       setTimeout(() => {
-        handlePlay(index + 1);
+        document.getElementById(`listen-repeat-item-${nextIdx}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+        handlePlay(nextIdx);
       }, 500);
+    } else if (index === task.sentences.length - 1) {
+      setTimeout(() => {
+        document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 150);
     }
   };
+
+  // Auto-scroll to the active sentence card whenever currentIndex or activeMicIdx changes
+  useEffect(() => {
+    const activeIdx = activeMicIdx !== null ? activeMicIdx : activeAudioIdx !== null ? activeAudioIdx : currentIndex;
+    if (activeIdx > 0 || activeMicIdx !== null || activeAudioIdx !== null) {
+      document.getElementById(`listen-repeat-item-${activeIdx}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [currentIndex, activeMicIdx, activeAudioIdx]);
 
   // Press Enter while recording to immediately stop recording, transcribe, and evaluate
   const handleToggleMicRef = useRef(handleToggleMic);
@@ -868,6 +906,8 @@ export const ListenRepeatView: React.FC<Props> = ({
           const isAudioPlaying = activeAudioIdx === idx;
           const isRecordingThis = activeMicIdx === idx && micStatus === 'listening';
           const isTranscribingThis = activeMicIdx === idx && micStatus === 'transcribing';
+          const isActiveCard =
+            currentIndex === idx || isAudioPlaying || isRecordingThis || isTranscribingThis;
           const wordCount = targetSentence.split(/\s+/).length;
           const sentenceRubric = state.checked
             ? scoreListenRepeatSentence(state.scorePercent ?? 0, state.wordBreakdown)
@@ -879,13 +919,19 @@ export const ListenRepeatView: React.FC<Props> = ({
           return (
             <div
               key={idx}
-              className={`bg-white border rounded-xl p-5 shadow-xs transition-all ${
+              id={`listen-repeat-item-${idx}`}
+              onClick={() => setCurrentIndex(idx)}
+              className={`bg-white border rounded-xl p-5 transition-all ${
+                isActiveCard
+                  ? 'ring-2 ring-emerald-500 shadow-md border-emerald-400'
+                  : 'shadow-xs'
+              } ${
                 state.checked
                   ? itemScore5 >= 4
                     ? 'border-emerald-200 bg-emerald-50/20'
                     : 'border-amber-200 bg-amber-50/20'
                   : isRecordingThis
-                  ? 'border-rose-300 ring-2 ring-rose-100'
+                  ? 'border-rose-300'
                   : 'border-slate-200'
               }`}
             >
@@ -1183,7 +1229,10 @@ export const ListenRepeatView: React.FC<Props> = ({
 
       {/* Cumulative Listen & Repeat Session Result Card */}
       {completedCount > 0 && (
-        <div className="bg-white border-2 border-teal-200 rounded-xl p-6 shadow-xs space-y-4">
+        <div
+          id="listen-repeat-cumulative-result"
+          className="bg-white border-2 border-teal-200 rounded-xl p-6 shadow-xs space-y-4"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">

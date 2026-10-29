@@ -24,6 +24,7 @@ interface Props {
   aiGraderLabel?: string;
   apiKeyPromptText?: string;
   keyboardShortcutHint?: string;
+  activeCardHighlightClass?: string;
 }
 
 
@@ -520,6 +521,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({
       const nextIdx = qIndex + 1;
       setCurrentQIndex(nextIdx);
       setTimeout(() => {
+        document.getElementById(`interview-question-${nextIdx}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
         playQuestionAudio(`question_${nextIdx}`, nextIdx).then(() => {
           startSimulation(nextIdx);
         }).catch(() => {});
@@ -528,6 +533,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({
       hasCompletedRef.current = true;
       setStep('done');
       onComplete?.({ blobs: { ...blobsRef.current }, answers });
+      if (autoStart) {
+        setTimeout(() => {
+          handleEvaluateAI(hasAnyStoredApiKey() ? 'ai' : 'local');
+        }, 300);
+      } else {
+        setTimeout(() => {
+          document.getElementById('interview-evaluation-result')?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }, 200);
+      }
     }
   };
 
@@ -1240,12 +1257,14 @@ export const SpeakingInterviewView: React.FC<Props> = ({
       )}
 
       {/* AI Evaluation Diagnostic Card */}
-      <SpeakingEvaluationCard
-        evaluationResult={evaluationResult}
-        task={task}
-        isBenchmarkOpen={isBenchmarkOpen}
-        onToggleBenchmark={() => setIsBenchmarkOpen(!isBenchmarkOpen)}
-      />
+      <div id="interview-evaluation-result">
+        <SpeakingEvaluationCard
+          evaluationResult={evaluationResult}
+          task={task}
+          isBenchmarkOpen={isBenchmarkOpen}
+          onToggleBenchmark={() => setIsBenchmarkOpen(!isBenchmarkOpen)}
+        />
+      </div>
 
       {onNextTask && (
         <div className="pt-2 flex justify-end">

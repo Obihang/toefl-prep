@@ -1794,6 +1794,13 @@ export default function App() {
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListenRepeatTask}
                   keyboardShortcutHint="⌨️ Enter: Stop Recording & Transcribe"
+                  activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
+                  onComplete={() => {
+                    document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    });
+                  }}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1803,9 +1810,16 @@ export default function App() {
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as SpeakingInterviewTask}
                   keyboardShortcutHint="⌨️ Enter: Stop Recording & Transcribe"
+                  activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   localGraderLabel="⚡ Instant Local Grader"
                   aiGraderLabel="✨ Deep AI Grader"
                   apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
+                  onComplete={() => {
+                    document.getElementById('interview-evaluation-result')?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'center',
+                    });
+                  }}
                   onNextTask={() => handleNextQuestion('speaking-interview')}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
