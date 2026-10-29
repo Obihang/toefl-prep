@@ -746,8 +746,75 @@ const GRAMMATICAL_DISTRACTOR_MAP: Record<string, string> = {
   unless: 'despite',
 };
 
-function groupWordsIntoTargetChunks(words: string[], targetSlotCount: number = 5): string[] {
-  const cleanWords = words.map((w) => normalizeTileChunk(w)).filter(Boolean);
+function enforceSingleWordDominantChunks(rawChunks: string[]): string[] {
+  // First normalize each chunk and split any overly long phrase (> 3 words)
+  let chunks: string[] = [];
+  for (const raw of rawChunks) {
+    const clean = normalizeTileChunk(raw);
+    if (!clean) continue;
+    const parts = clean.split(' ').filter(Boolean);
+    if (parts.length > 3) {
+      chunks.push(...parts.slice(0, parts.length - 2), parts.slice(-2).join(' '));
+    } else {
+      chunks.push(clean);
+    }
+  }
+
+  // Official ETS Tile Balance Rule:
+  // At most 2 multi-word phrase tiles (2-3 words each), and at least 4-5 single-word tiles!
+  let safety = 0;
+  while (safety < 20) {
+    safety++;
+    const multiIndices: number[] = [];
+    let singleCount = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      if (chunks[i].includes(' ')) {
+        multiIndices.push(i);
+      } else {
+        singleCount++;
+      }
+    }
+
+    if (multiIndices.length <= 2 && (singleCount >= 4 || multiIndices.length === 0)) {
+      break;
+    }
+
+    // Choose a multi-word chunk to split, prioritizing chunks that contain structural/function words
+    let splitIdx = multiIndices[0];
+    for (const idx of multiIndices) {
+      const words = chunks[idx].split(' ');
+      if (words.some((w) => SINGLE_STRUCTURAL_WORDS.has(w))) {
+        splitIdx = idx;
+        break;
+      }
+    }
+
+    const wordsToSplit = chunks[splitIdx].split(' ');
+    if (wordsToSplit.length === 2) {
+      chunks.splice(splitIdx, 1, wordsToSplit[0], wordsToSplit[1]);
+    } else if (wordsToSplit.length >= 3) {
+      if (SINGLE_STRUCTURAL_WORDS.has(wordsToSplit[0])) {
+        chunks.splice(splitIdx, 1, wordsToSplit[0], wordsToSplit.slice(1).join(' '));
+      } else if (SINGLE_STRUCTURAL_WORDS.has(wordsToSplit[wordsToSplit.length - 1])) {
+        chunks.splice(
+          splitIdx,
+          1,
+          wordsToSplit.slice(0, wordsToSplit.length - 1).join(' '),
+          wordsToSplit[wordsToSplit.length - 1]
+        );
+      } else {
+        chunks.splice(splitIdx, 1, ...wordsToSplit);
+      }
+    }
+  }
+
+  return chunks;
+}
+
+function groupWordsIntoTargetChunks(words: string[], targetSlotCount: number = 6): string[] {
+  const cleanWords = words
+    .flatMap((w) => normalizeTileChunk(w).split(' '))
+    .filter(Boolean);
   if (cleanWords.length === 0) return [];
   if (cleanWords.length <= targetSlotCount) {
     return cleanWords;
@@ -755,34 +822,36 @@ function groupWordsIntoTargetChunks(words: string[], targetSlotCount: number = 5
 
   const chunks: string[] = [...cleanWords];
   let safety = 0;
-  while (chunks.length > 6 && safety < 30) {
+  // Merge at most 2 pairs of non-structural content words so that 4-5+ tiles remain single words
+  while (chunks.length > 7 && safety < 20) {
     safety++;
+    const currentMultiCount = chunks.filter((c) => c.includes(' ')).length;
+    if (currentMultiCount >= 2) break;
+
     let merged = false;
-    for (let i = 0; i < chunks.length - 1; i++) {
+    for (let i = chunks.length - 2; i >= 0; i--) {
       const a = chunks[i];
       const b = chunks[i + 1];
-      const aWordCount = a.split(' ').length;
-      const bWordCount = b.split(' ').length;
-      if (aWordCount + bWordCount <= 3 && (!SINGLE_STRUCTURAL_WORDS.has(a) || a === 'the' || a === 'a' || a === 'to')) {
+      if (!a.includes(' ') && !b.includes(' ') && !SINGLE_STRUCTURAL_WORDS.has(a) && !SINGLE_STRUCTURAL_WORDS.has(b)) {
         chunks.splice(i, 2, `${a} ${b}`);
         merged = true;
         break;
       }
     }
     if (!merged) {
-      let bestIdx = 0;
-      let minLen = 999;
-      for (let i = 0; i < chunks.length - 1; i++) {
-        const combinedLen = chunks[i].split(' ').length + chunks[i + 1].split(' ').length;
-        if (combinedLen < minLen) {
-          minLen = combinedLen;
-          bestIdx = i;
+      for (let i = chunks.length - 2; i >= 0; i--) {
+        const a = chunks[i];
+        const b = chunks[i + 1];
+        if (!a.includes(' ') && !b.includes(' ') && (a === 'the' || a === 'a' || a === 'to') && !SINGLE_STRUCTURAL_WORDS.has(b)) {
+          chunks.splice(i, 2, `${a} ${b}`);
+          merged = true;
+          break;
         }
       }
-      chunks.splice(bestIdx, 2, `${chunks[bestIdx]} ${chunks[bestIdx + 1]}`);
     }
+    if (!merged) break;
   }
-  return chunks;
+  return enforceSingleWordDominantChunks(chunks);
 }
 
 function deriveFrameAndChunksFromSentence(
@@ -827,7 +896,7 @@ function deriveFrameAndChunksFromSentence(
     }
   }
 
-  const targetChunks = groupWordsIntoTargetChunks(middleTokens, 5);
+  const targetChunks = groupWordsIntoTargetChunks(middleTokens, 6);
   const distractorChunks: string[] = [];
   if (idx % 2 === 0) {
     for (const chunk of targetChunks) {
@@ -852,7 +921,7 @@ const FALLBACK_BUILD_SENTENCE_ITEMS = [
     context: 'What did you think of the guided tour of the historical district?',
     framePrefix: 'The',
     frameSuffix: 'fantastic.',
-    targetChunks: ['tour guides', 'who', 'showed us around', 'the', 'old city', 'were'],
+    targetChunks: ['tour guides', 'who', 'showed us around', 'the', 'old', 'city', 'were'],
     distractorChunks: ['was'],
     answer: 'The tour guides who showed us around the old city were fantastic.',
     explanation:
@@ -861,19 +930,19 @@ const FALLBACK_BUILD_SENTENCE_ITEMS = [
   {
     context: 'I tried studying in the science library last night, but the doors were locked at eight.',
     framePrefix: '',
-    frameSuffix: '?',
-    targetChunks: ['how long', 'has', 'the science library', 'been closing', 'so early', 'on weeknights'],
+    frameSuffix: 'so early on weeknights?',
+    targetChunks: ['how', 'long', 'has', 'the', 'science library', 'been', 'closing'],
     distractorChunks: ['have'],
     answer: 'How long has the science library been closing so early on weeknights?',
     explanation:
-      'Direct wh-interrogative in present perfect continuous: "How long + has + singular subject (the science library) + been closing + modifiers?".',
+      'Direct wh-interrogative in present perfect continuous: "How + long + has + singular subject (the science library) + been + closing + modifiers?".',
   },
   {
-    context: 'Has the department chair approved the budget for next month\'s robotics symposium?',
+    context: "Has the department chair approved the budget for next month's robotics symposium?",
     framePrefix: "I'm not sure",
-    frameSuffix: '.',
-    targetChunks: ['whether', 'the revised budget', 'has been', 'approved', 'by the committee'],
-    distractorChunks: ['have been'],
+    frameSuffix: 'by the committee.',
+    targetChunks: ['whether', 'the', 'revised budget', 'has', 'been', 'approved'],
+    distractorChunks: ['have'],
     answer: "I'm not sure whether the revised budget has been approved by the committee.",
     explanation:
       'Embedded indirect question: "whether" is followed by statement word order ("the revised budget has been approved") without auxiliary inversion.',
@@ -882,19 +951,19 @@ const FALLBACK_BUILD_SENTENCE_ITEMS = [
     context: 'Where are the guest lecturers staying during the environmental policy conference?',
     framePrefix: '',
     frameSuffix: 'near the main gate?',
-    targetChunks: ["aren't", 'most of', 'the visiting speakers', 'staying at', 'the campus hotel'],
+    targetChunks: ["aren't", 'most', 'of', 'the', 'visiting speakers', 'staying', 'at the hotel'],
     distractorChunks: ["isn't"],
-    answer: "Aren't most of the visiting speakers staying at the campus hotel near the main gate?",
+    answer: "Aren't most of the visiting speakers staying at the hotel near the main gate?",
     explanation:
       'Negative interrogative question: plural subject "most of the visiting speakers" agrees with the plural auxiliary "aren\'t" rather than "isn\'t".',
   },
   {
     context: 'Can undergraduate students borrow these high-resolution cameras for weekend projects?',
     framePrefix: '',
-    frameSuffix: '.',
-    targetChunks: ['the equipment', 'cannot be', 'checked out', 'unless', 'you have', 'written permission'],
+    frameSuffix: 'written permission.',
+    targetChunks: ['the', 'cameras', 'cannot', 'be', 'checked out', 'unless', 'you have'],
     distractorChunks: [],
-    answer: 'The equipment cannot be checked out unless you have written permission.',
+    answer: 'The cameras cannot be checked out unless you have written permission.',
     explanation:
       'Passive modal construction ("cannot be checked out") followed by a conditional "unless" clause ("unless you have written permission").',
   },
@@ -940,7 +1009,7 @@ export function normalizeBuildSentenceItem(
   let distractorChunks: string[] = [];
 
   if (rawTargetChunks.length >= 3) {
-    targetChunks = rawTargetChunks;
+    targetChunks = enforceSingleWordDominantChunks(rawTargetChunks);
     if (!frameSuffix) {
       frameSuffix = terminalPunct;
     } else if (!/[.!?]$/.test(frameSuffix)) {

@@ -139,6 +139,9 @@ export const OFFICIAL_BUILD_SENTENCE_SPEC = {
   frameTypes: ['prefix_and_suffix', 'prefix_only', 'suffix_only', 'all_blanks'],
   includesInterrogativeQuestions: true,
   includesMultiWordPhraseChunks: true,
+  minSingleWordTilesPerItem: 4,
+  maxMultiWordPhraseTilesPerItem: 2,
+  maxWordsPerPhraseTile: 3,
   includesGrammaticalDistractors: true,
 } as const;
 

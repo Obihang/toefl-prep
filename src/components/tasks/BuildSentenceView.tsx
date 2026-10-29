@@ -317,16 +317,6 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask }) => {
                     Conversational Exchange {idx + 1} of {normalizedItems.length}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                  <span>
-                    Blanks Filled: <strong className="font-mono text-slate-700">{filledCount}/{totalSlots}</strong>
-                  </span>
-                  {item.distractorChunks && item.distractorChunks.length > 0 && (
-                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-medium">
-                      +1 Distractor Tile
-                    </span>
-                  )}
-                </div>
               </div>
 
               {/* Row 1: Speaker 1 Avatar + Speech Bubble */}
@@ -344,11 +334,6 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask }) => {
               <div className="pl-0 sm:pl-6 space-y-1.5">
                 <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                   <span>Word &amp; Phrase Bank (Click tiles in order to fill blanks below)</span>
-                  {allSlotsFilled && state.bankWords.length > totalSlots && !state.checked && (
-                    <span className="text-amber-700 font-medium normal-case">
-                      All {totalSlots} blanks filled (1 extra tile remains unused)
-                    </span>
-                  )}
                 </div>
                 <div className="flex flex-wrap gap-2 p-3 bg-slate-50/90 rounded-xl border border-slate-200 min-h-[48px] items-center">
                   {state.bankWords.map((tileText, bIdx) => {
