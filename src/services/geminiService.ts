@@ -133,6 +133,15 @@ export const OFFICIAL_LISTENING_ACADEMIC_TALK_SPECS = {
   requiresAudioExcerpt: true,
 } as const;
 
+export const OFFICIAL_BUILD_SENTENCE_SPEC = {
+  itemsPerSet: 5,
+  lowercaseTilesOnly: true,
+  frameTypes: ['prefix_and_suffix', 'prefix_only', 'suffix_only', 'all_blanks'],
+  includesInterrogativeQuestions: true,
+  includesMultiWordPhraseChunks: true,
+  includesGrammaticalDistractors: true,
+} as const;
+
 export async function callBackendGenerate(
   taskType: string,
   level: string = 'intermediate',
@@ -152,6 +161,10 @@ export async function callBackendGenerate(
     taskType === 'listening_academic_talk' ||
     taskType === 'listening-lecture' ||
     taskType === 'listening_lecture';
+  const isBuildSentence =
+    taskType === 'build-sentence' ||
+    taskType === 'writing_build_sentence' ||
+    taskType === 'writing-build-sentence';
   const readingQuestionFocus = promptData?.questionSkillFocus || promptData?.readingQuestionFocus || 'all';
   const enrichedPromptData = isReadingAcademic
     ? {
@@ -164,6 +177,11 @@ export async function callBackendGenerate(
     ? {
         ...(promptData || {}),
         requiresAudioExcerpt: true,
+      }
+    : isBuildSentence
+    ? {
+        ...(promptData || {}),
+        ...OFFICIAL_BUILD_SENTENCE_SPEC,
       }
     : promptData;
 

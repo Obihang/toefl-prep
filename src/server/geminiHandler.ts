@@ -143,7 +143,20 @@ const Schemas = {
   }),
   buildSentence: z.object({
     title: z.string(),
-    items: z.array(z.object({ context: z.string(), words: z.array(z.string()), answer: z.string(), explanation: z.string() })),
+    items: z.array(
+      z.object({
+        context: z.string(),
+        framePrefix: z.string().optional().default(''),
+        frameSuffix: z.string().optional().default('.'),
+        targetChunks: z.array(z.string()),
+        distractorChunks: z.array(z.string()).optional().default([]),
+        words: z.array(z.string()),
+        targetSentence: z.string().optional(),
+        answer: z.string(),
+        grammarRule: z.string().optional(),
+        explanation: z.string(),
+      })
+    ),
   }),
   writeEmail: z.object({
     title: z.string(),
@@ -536,15 +549,11 @@ function normalizeBuildSentence(data: any) {
     if (!it || typeof it !== 'object') throw new Error(`Build sentence item ${idx + 1} is invalid`);
     const context = String(it.context || '').trim();
     if (!context) throw new Error(`Build sentence item ${idx + 1} missing context`);
-    const words = Array.isArray(it.words) ? it.words.map(String).filter(Boolean) : [];
-    if (words.length < 2) {
-      throw new Error(`Build sentence item ${idx + 1} must have at least 2 words`);
-    }
-    const answer = String(it.answer || it.targetSentence || it.correctSentence || '').trim();
+    const answer = String(it.targetSentence || it.answer || it.correctSentence || '').trim();
     if (!answer) {
       throw new Error(`Build sentence item ${idx + 1} missing correct sentence answer`);
     }
-    const explanation = String(it.explanation || it.grammarRule || '').trim();
+    const explanation = String(it.grammarRule || it.explanation || '').trim();
     if (!explanation) {
       throw new Error(`Build sentence item ${idx + 1} missing explanation`);
     }
@@ -554,8 +563,14 @@ function normalizeBuildSentence(data: any) {
     title: normalized.title,
     items: normalized.items.map((it) => ({
       context: it.context,
+      framePrefix: it.framePrefix,
+      frameSuffix: it.frameSuffix,
+      targetChunks: it.targetChunks,
+      distractorChunks: it.distractorChunks,
       words: it.words,
+      targetSentence: it.targetSentence,
       answer: it.answer,
+      grammarRule: it.grammarRule,
       explanation: it.explanation,
     })),
   };
@@ -985,14 +1000,26 @@ STRICT 2026 TOEFL iBT SPECIFICATIONS:
 Return JSON format: {"title": "University Interview Simulation", "context": "Brief interviewer introduction to the topic", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Q1...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q2...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q3...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q4...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
       case 'build-sentence':
       case 'writing_build_sentence':
-        return `You are an official ETS 2026 TOEFL iBT test creator. Create 5 TOEFL Writing "Build a Sentence" items for level: ${levelDesc}. Topic: ${top}.
-STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Provide EXACTLY 5 items per set.
-2. Each item MUST have a Speaker A \`context\` (a question or conversational statement that sets up the situation WITHOUT containing any part of the target \`answer\` sentence!).
-3. \`answer\` must be a grammatically complete target sentence (7 to 11 words).
-4. \`words\` must contain the EXACT shuffled words of \`answer\`. Do NOT omit or add any words!
-5. Include a clear \`explanation\` of the grammar rule tested.
-Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Speaker A conversational question?", "words": ["scrambled", "exact", "words", "of", "answer."], "answer": "The exact complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create a 5-item TOEFL Writing "Build a Sentence" set for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 ETS TOEFL iBT "BUILD A SENTENCE" SPECIFICATIONS:
+1. Provide EXACTLY 5 conversational exchanges in the \`items\` array.
+2. NEVER CAPITALIZE TILES IN THE WORD BANK: Every single word or phrase tile in \`targetChunks\`, \`distractorChunks\`, and \`words\` MUST be 100% lowercase (except the standalone pronoun "I"—avoid proper nouns in movable tiles so capitalization never gives away which tile goes first!).
+3. RANDOMIZE SENTENCE FRAME TYPES ACROSS THE 5 ITEMS: Mix these 4 official ETS frame layouts in randomized order across the 5 items:
+   - Frame Type 1 (Fixed Beginning + Fixed Ending): e.g., \`"framePrefix": "The", "frameSuffix": "fantastic."\`
+   - Frame Type 2 (Fixed Beginning Only): e.g., \`"framePrefix": "I'm not sure", "frameSuffix": "."\`
+   - Frame Type 3 (Fixed Ending Only): e.g., \`"framePrefix": "", "frameSuffix": "by tomorrow afternoon?"\`
+   - Frame Type 4 (No Fixed Words — All Blanks + Final Punctuation \`.\` or \`?\`): e.g., \`"framePrefix": "", "frameSuffix": "?"\` or \`"."\`
+4. INCLUDE INTERROGATIVE (QUESTION) SENTENCES & DIVERSE GRAMMAR: Across the 5 items (in randomized order), include:
+   - Direct Interrogative / Question Sentences where Speaker 2 responds with a question ending in \`?\` (e.g., "How long has the library been closing early on weekends?", "Wasn't the gallery reservation canceled earlier this week?")
+   - Embedded / Indirect Questions ("whether/what/where/when + subject + verb" without auxiliary inversion)
+   - Subject/Object Relative Clauses ("who", "which", "that", "whose")
+   - Passive Voice & Causatives ("has been approved", "cannot be checked out")
+   - Conditionals & Comparisons ("unless", "provided that", "far more efficient than")
+5. MIX SINGLE WORDS AND 2-3 WORD PHRASE TILES + DISTRACTOR TILES:
+   - \`targetChunks\` MUST contain 5 to 6 ordered lowercase chunks that fill the blanks between \`framePrefix\` and \`frameSuffix\`, combining single structural words ("who", "were", "the", "whether", "has") and 2-3 word phrases ("tour guides", "showed us around", "old city").
+   - On 2 to 3 items in the set, include 1 grammatical distractor tile in \`distractorChunks\` (e.g., \`["was"]\`, \`["have"]\`, \`["weren't"]\`, \`["which"]\`) so \`words\` has 1 more tile than blank slots.
+   - \`words\` MUST be the shuffled array of \`[...targetChunks, ...distractorChunks]\`, 100% lowercase (except "I").
+Return JSON format: {"title": "Build a Sentence: Campus & Academic Syntax", "items": [{"context": "What did you think of the guided tour of the historical district?", "framePrefix": "The", "frameSuffix": "fantastic.", "targetChunks": ["tour guides", "who", "showed us around", "the", "old city", "were"], "distractorChunks": ["was"], "words": ["old city", "were", "who", "was", "tour guides", "the", "showed us around"], "targetSentence": "The tour guides who showed us around the old city were fantastic.", "answer": "The tour guides who showed us around the old city were fantastic.", "grammarRule": "Subject relative clause ('who showed us around the old city') modifying plural 'tour guides', requiring plural verb 'were' instead of 'was'.", "explanation": "Subject relative clause ('who showed us around the old city') modifying plural 'tour guides', requiring plural verb 'were' instead of 'was'."}]}`;
       case 'write-email':
       case 'writing_email':
         return `You are an official ETS 2026 TOEFL iBT Writing test designer. Create a 7-minute TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}.

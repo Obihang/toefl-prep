@@ -697,190 +697,366 @@ function sanitizeBuildSentenceContext(rawContext: string, answerSentence: string
   return cleanCtx;
 }
 
+export function normalizeTileChunk(rawChunk: string): string {
+  const stripped = String(rawChunk || '')
+    .trim()
+    .replace(/^[,;:.!?()"']+|[.!?;:,()"']+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!stripped) return '';
+  return stripped
+    .split(' ')
+    .map((w) => {
+      const lower = w.toLowerCase();
+      if (lower === 'i') return 'I';
+      if (lower === "i'm" || lower === 'i’m') return "I'm";
+      if (lower === "i've" || lower === 'i’ve') return "I've";
+      if (lower === "i'd" || lower === 'i’d') return "I'd";
+      if (lower === "i'll" || lower === 'i’ll') return "I'll";
+      return lower;
+    })
+    .join(' ');
+}
+
+const SINGLE_STRUCTURAL_WORDS = new Set([
+  'who', 'whom', 'whose', 'which', 'that', 'where', 'when', 'why', 'how',
+  'whether', 'if', 'unless', 'although', 'though', 'because', 'since', 'while',
+  'was', 'were', 'is', 'are', 'has', 'have', 'had', 'did', 'do', 'does',
+  'can', 'could', 'will', 'would', 'should', 'must', 'may', 'might',
+  'the', 'a', 'an', 'to', 'by', 'in', 'on', 'at', 'for', 'from', 'with', 'without',
+  'not', 'never', 'rarely', 'seldom', 'only', 'than', 'as', 'been', 'being',
+]);
+
+const GRAMMATICAL_DISTRACTOR_MAP: Record<string, string> = {
+  were: 'was',
+  was: 'were',
+  has: 'have',
+  have: 'has',
+  'has been': 'have been',
+  'have been': 'has been',
+  "wasn't": "weren't",
+  "weren't": "wasn't",
+  who: 'which',
+  which: 'who',
+  whether: 'what',
+  is: 'are',
+  are: 'is',
+  did: 'do',
+  does: 'do',
+  unless: 'despite',
+};
+
+function groupWordsIntoTargetChunks(words: string[], targetSlotCount: number = 5): string[] {
+  const cleanWords = words.map((w) => normalizeTileChunk(w)).filter(Boolean);
+  if (cleanWords.length === 0) return [];
+  if (cleanWords.length <= targetSlotCount) {
+    return cleanWords;
+  }
+
+  const chunks: string[] = [...cleanWords];
+  let safety = 0;
+  while (chunks.length > 6 && safety < 30) {
+    safety++;
+    let merged = false;
+    for (let i = 0; i < chunks.length - 1; i++) {
+      const a = chunks[i];
+      const b = chunks[i + 1];
+      const aWordCount = a.split(' ').length;
+      const bWordCount = b.split(' ').length;
+      if (aWordCount + bWordCount <= 3 && (!SINGLE_STRUCTURAL_WORDS.has(a) || a === 'the' || a === 'a' || a === 'to')) {
+        chunks.splice(i, 2, `${a} ${b}`);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      let bestIdx = 0;
+      let minLen = 999;
+      for (let i = 0; i < chunks.length - 1; i++) {
+        const combinedLen = chunks[i].split(' ').length + chunks[i + 1].split(' ').length;
+        if (combinedLen < minLen) {
+          minLen = combinedLen;
+          bestIdx = i;
+        }
+      }
+      chunks.splice(bestIdx, 2, `${chunks[bestIdx]} ${chunks[bestIdx + 1]}`);
+    }
+  }
+  return chunks;
+}
+
+function deriveFrameAndChunksFromSentence(
+  cleanAnswer: string,
+  idx: number
+): {
+  framePrefix: string;
+  frameSuffix: string;
+  targetChunks: string[];
+  distractorChunks: string[];
+} {
+  const terminalPunctMatch = cleanAnswer.match(/([.!?]+)$/);
+  const punct = terminalPunctMatch ? terminalPunctMatch[1][0] : '.';
+  const rawTokens = cleanAnswer
+    .replace(/[.!?]+$/, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const styleIdx = (hashString(cleanAnswer) + idx) % 4;
+  let framePrefix = '';
+  let frameSuffix = punct;
+  let middleTokens = [...rawTokens];
+
+  if (rawTokens.length >= 8) {
+    if (styleIdx === 0) {
+      framePrefix = rawTokens[0];
+      frameSuffix = `${rawTokens[rawTokens.length - 1]}${punct}`;
+      middleTokens = rawTokens.slice(1, rawTokens.length - 1);
+    } else if (styleIdx === 1) {
+      framePrefix = rawTokens.slice(0, 2).join(' ');
+      frameSuffix = punct;
+      middleTokens = rawTokens.slice(2);
+    } else if (styleIdx === 2) {
+      framePrefix = '';
+      frameSuffix = `${rawTokens.slice(-2).join(' ')}${punct}`;
+      middleTokens = rawTokens.slice(0, rawTokens.length - 2);
+    } else {
+      framePrefix = '';
+      frameSuffix = punct;
+      middleTokens = [...rawTokens];
+    }
+  }
+
+  const targetChunks = groupWordsIntoTargetChunks(middleTokens, 5);
+  const distractorChunks: string[] = [];
+  if (idx % 2 === 0) {
+    for (const chunk of targetChunks) {
+      const dist = GRAMMATICAL_DISTRACTOR_MAP[chunk];
+      if (dist && !targetChunks.includes(dist)) {
+        distractorChunks.push(dist);
+        break;
+      }
+    }
+  }
+
+  return {
+    framePrefix,
+    frameSuffix,
+    targetChunks,
+    distractorChunks,
+  };
+}
+
 const FALLBACK_BUILD_SENTENCE_ITEMS = [
   {
-    context: 'What did recent laboratory trials conclude about how neural networks adapt over time?',
-    answer: 'Substantial empirical evidence supports the hypothesis regarding synaptic plasticity.',
+    context: 'What did you think of the guided tour of the historical district?',
+    framePrefix: 'The',
+    frameSuffix: 'fantastic.',
+    targetChunks: ['tour guides', 'who', 'showed us around', 'the', 'old city', 'were'],
+    distractorChunks: ['was'],
+    answer: 'The tour guides who showed us around the old city were fantastic.',
     explanation:
-      'Subject noun phrase ("Substantial empirical evidence") + transitive verb ("supports") + direct object ("the hypothesis regarding synaptic plasticity").',
+      'Subject relative clause ("who showed us around the old city") modifying plural "tour guides", requiring the plural verb "were" rather than "was".',
   },
   {
-    context: 'How can multinational manufacturers protect their operations against sudden supply disruptions?',
-    answer: 'Diversified sourcing strategies mitigate the financial impact of regional shortages.',
+    context: 'I tried studying in the science library last night, but the doors were locked at eight.',
+    framePrefix: '',
+    frameSuffix: '?',
+    targetChunks: ['how long', 'has', 'the science library', 'been closing', 'so early', 'on weeknights'],
+    distractorChunks: ['have'],
+    answer: 'How long has the science library been closing so early on weeknights?',
     explanation:
-      'Plural subject ("Diversified sourcing strategies") + verb ("mitigate") + direct object ("the financial impact of regional shortages").',
+      'Direct wh-interrogative in present perfect continuous: "How long + has + singular subject (the science library) + been closing + modifiers?".',
   },
   {
-    context: 'Why did the university library extend its operating hours during the final examination period?',
-    answer: 'Undergraduate students requested additional quiet study spaces for collaborative projects.',
+    context: 'Has the department chair approved the budget for next month\'s robotics symposium?',
+    framePrefix: "I'm not sure",
+    frameSuffix: '.',
+    targetChunks: ['whether', 'the revised budget', 'has been', 'approved', 'by the committee'],
+    distractorChunks: ['have been'],
+    answer: "I'm not sure whether the revised budget has been approved by the committee.",
     explanation:
-      'Subject ("Undergraduate students") + past verb ("requested") + object ("additional quiet study spaces for collaborative projects").',
+      'Embedded indirect question: "whether" is followed by statement word order ("the revised budget has been approved") without auxiliary inversion.',
   },
   {
-    context: 'How do coastal wetlands help mitigate the effects of rising atmospheric carbon levels?',
-    answer: 'Estuarine marshes sequester significant quantities of carbon within anaerobic sediments.',
+    context: 'Where are the guest lecturers staying during the environmental policy conference?',
+    framePrefix: '',
+    frameSuffix: 'near the main gate?',
+    targetChunks: ["aren't", 'most of', 'the visiting speakers', 'staying at', 'the campus hotel'],
+    distractorChunks: ["isn't"],
+    answer: "Aren't most of the visiting speakers staying at the campus hotel near the main gate?",
     explanation:
-      'Subject ("Estuarine marshes") + transitive verb ("sequester") + object ("significant quantities of carbon within anaerobic sediments").',
+      'Negative interrogative question: plural subject "most of the visiting speakers" agrees with the plural auxiliary "aren\'t" rather than "isn\'t".',
   },
   {
-    context: 'What requirement must students fulfill before registering for the advanced econometrics seminar?',
-    answer: 'Applicants must complete introductory statistical modeling before enrolling in econometrics.',
+    context: 'Can undergraduate students borrow these high-resolution cameras for weekend projects?',
+    framePrefix: '',
+    frameSuffix: '.',
+    targetChunks: ['the equipment', 'cannot be', 'checked out', 'unless', 'you have', 'written permission'],
+    distractorChunks: [],
+    answer: 'The equipment cannot be checked out unless you have written permission.',
     explanation:
-      'Subject ("Applicants") + modal verb phrase ("must complete") + object ("introductory statistical modeling") + temporal clause.',
+      'Passive modal construction ("cannot be checked out") followed by a conditional "unless" clause ("unless you have written permission").',
   },
 ];
+
+export interface NormalizedBuildSentenceItem {
+  id?: string;
+  context: string;
+  framePrefix: string;
+  frameSuffix: string;
+  targetChunks: string[];
+  distractorChunks: string[];
+  words: string[];
+  scrambledWords: string[];
+  targetSentence: string;
+  answer: string;
+  correctSentence: string;
+  grammarRule: string;
+  explanation: string;
+}
 
 export function normalizeBuildSentenceItem(
   it: any,
   idx: number = 0,
   _topic?: string,
   _title?: string
-): {
-  context: string;
-  words: string[];
-  scrambledWords: string[];
-  answer: string;
-  correctSentence: string;
-  explanation: string;
-} {
+): NormalizedBuildSentenceItem {
   const fb = FALLBACK_BUILD_SENTENCE_ITEMS[idx % FALLBACK_BUILD_SENTENCE_ITEMS.length];
-  const rawAns = String(it?.answer || it?.correctSentence || it?.targetSentence || it?.sentence || fb.answer).trim();
+  const rawAns = String(
+    it?.targetSentence || it?.answer || it?.correctSentence || it?.sentence || fb.answer
+  ).trim();
   const cleanAnswer = /[.!?]$/.test(rawAns) ? rawAns : `${rawAns}.`;
-  const targetWords = tokenizeSentenceWords(cleanAnswer);
+  const terminalPunct = cleanAnswer.endsWith('?') ? '?' : '.';
 
+  let framePrefix = typeof it?.framePrefix === 'string' ? it.framePrefix.trim() : '';
+  let frameSuffix = typeof it?.frameSuffix === 'string' ? it.frameSuffix.trim() : '';
+
+  const rawTargetChunks = Array.isArray(it?.targetChunks)
+    ? it.targetChunks.map((c: any) => normalizeTileChunk(c)).filter(Boolean)
+    : [];
+
+  let targetChunks: string[] = [];
+  let distractorChunks: string[] = [];
+
+  if (rawTargetChunks.length >= 3) {
+    targetChunks = rawTargetChunks;
+    if (!frameSuffix) {
+      frameSuffix = terminalPunct;
+    } else if (!/[.!?]$/.test(frameSuffix)) {
+      frameSuffix = `${frameSuffix}${terminalPunct}`;
+    }
+    if (Array.isArray(it?.distractorChunks)) {
+      distractorChunks = it.distractorChunks
+        .map((c: any) => normalizeTileChunk(c))
+        .filter((c: string) => Boolean(c) && !targetChunks.includes(c));
+    }
+  } else {
+    const derived = deriveFrameAndChunksFromSentence(cleanAnswer, idx);
+    framePrefix = derived.framePrefix;
+    frameSuffix = derived.frameSuffix;
+    targetChunks = derived.targetChunks;
+    distractorChunks = derived.distractorChunks;
+  }
+
+  if (distractorChunks.length === 0 && Array.isArray(it?.words)) {
+    const normalizedBankWords = it.words.map((w: any) => normalizeTileChunk(w)).filter(Boolean);
+    if (
+      normalizedBankWords.length === targetChunks.length + 1 &&
+      targetChunks.every((tc) => normalizedBankWords.includes(tc))
+    ) {
+      const targetMultiset = [...targetChunks];
+      for (const bw of normalizedBankWords) {
+        const foundIdx = targetMultiset.indexOf(bw);
+        if (foundIdx !== -1) {
+          targetMultiset.splice(foundIdx, 1);
+        } else {
+          distractorChunks.push(bw);
+        }
+      }
+    }
+  }
+
+  const combinedPool = [...targetChunks, ...distractorChunks];
   const candidateWordsRaw = Array.isArray(it?.words)
     ? it.words
     : Array.isArray(it?.scrambledWords)
     ? it.scrambledWords
-    : Array.isArray(it?.chunks)
-    ? it.chunks
     : [];
   const candidateWords = candidateWordsRaw
-    .map((w: any) => String(w || '').replace(/^[,;:.!?()"']+|[.!?;:,()"']+$/g, '').trim())
+    .map((w: any) => normalizeTileChunk(w))
     .filter(Boolean);
 
-  const isExactMatch =
-    haveSameWordMultiset(candidateWords, targetWords) &&
-    !candidateWords.every((w: string, i: number) => w === targetWords[i]);
+  const isValidBank =
+    haveSameWordMultiset(candidateWords, combinedPool) &&
+    !candidateWords.slice(0, targetChunks.length).every((w: string, i: number) => w === targetChunks[i]);
 
-  const finalScrambled = isExactMatch
+  const finalScrambled = isValidBank
     ? candidateWords
-    : deterministicScrambleWords(targetWords, `${cleanAnswer}-${idx}`);
+    : deterministicScrambleWords(combinedPool, `${cleanAnswer}-${idx}`);
 
   const cleanContext = sanitizeBuildSentenceContext(
-    String(it?.context || it?.prompt || ''),
+    String(it?.context || it?.prompt || fb.context),
     cleanAnswer,
     idx
   );
 
+  const grammarRule = String(
+    it?.grammarRule ||
+      it?.explanation ||
+      it?.why ||
+      fb.explanation ||
+      'Follow standard academic English subject-verb-object word order and clause structure.'
+  ).trim();
+
   return {
+    ...(it?.id ? { id: String(it.id) } : {}),
     context: cleanContext,
+    framePrefix,
+    frameSuffix,
+    targetChunks,
+    distractorChunks,
     words: finalScrambled,
     scrambledWords: finalScrambled,
+    targetSentence: cleanAnswer,
     answer: cleanAnswer,
     correctSentence: cleanAnswer,
-    explanation: String(
-      it?.explanation ||
-        it?.why ||
-        'Follow standard academic English subject-verb-object word order and modifier placement.'
-    ).trim(),
+    grammarRule,
+    explanation: grammarRule,
   };
 }
 
 export function normalizeBuildSentenceTask(raw: any): {
   title: string;
-  items: Array<{
-    context: string;
-    words: string[];
-    scrambledWords: string[];
-    answer: string;
-    correctSentence: string;
-    explanation: string;
-  }>;
+  items: NormalizedBuildSentenceItem[];
 } {
-  const title = String(raw?.title || 'Build a Sentence: Academic Syntax').trim() || 'Build a Sentence: Academic Syntax';
+  const title =
+    String(raw?.title || 'Build a Sentence: Academic & Campus Syntax').trim() ||
+    'Build a Sentence: Academic & Campus Syntax';
   const rawItems: any[] = Array.isArray(raw?.items)
     ? raw.items
     : Array.isArray(raw?.questions)
     ? raw.questions
-    : raw?.answer || raw?.correctSentence
+    : raw?.answer || raw?.correctSentence || raw?.targetSentence
     ? [raw]
     : [];
 
-  const normalizedItems: Array<{
-    context: string;
-    words: string[];
-    scrambledWords: string[];
-    answer: string;
-    correctSentence: string;
-    explanation: string;
-  }> = [];
+  const normalizedItems: NormalizedBuildSentenceItem[] = [];
 
   for (let idx = 0; idx < rawItems.length; idx++) {
     const it = rawItems[idx];
     if (!it || typeof it !== 'object') continue;
-    const rawAns = String(it.answer || it.correctSentence || it.targetSentence || it.sentence || '').trim();
-    if (!rawAns || rawAns.length < 15) continue;
+    const rawAns = String(it.targetSentence || it.answer || it.correctSentence || it.sentence || '').trim();
+    if (!rawAns && (!Array.isArray(it.targetChunks) || it.targetChunks.length < 3)) continue;
 
-    // Ensure terminal period
-    const cleanAnswer = /[.!?]$/.test(rawAns) ? rawAns : `${rawAns}.`;
-    const targetWords = tokenizeSentenceWords(cleanAnswer);
-    if (targetWords.length < 5) continue;
-
-    const candidateWordsRaw = Array.isArray(it.words)
-      ? it.words
-      : Array.isArray(it.scrambledWords)
-      ? it.scrambledWords
-      : Array.isArray(it.chunks)
-      ? it.chunks
-      : [];
-    const candidateWords = candidateWordsRaw
-      .map((w: any) => String(w || '').replace(/^[,;:.!?()"']+|[.!?;:,()"']+$/g, '').trim())
-      .filter(Boolean);
-
-    const isExactMatch =
-      haveSameWordMultiset(candidateWords, targetWords) &&
-      !candidateWords.every((w: string, i: number) => w === targetWords[i]);
-
-    const finalScrambled = isExactMatch
-      ? candidateWords
-      : deterministicScrambleWords(targetWords, `${cleanAnswer}-${idx}`);
-
-    const cleanContext = sanitizeBuildSentenceContext(
-      String(it.context || it.prompt || ''),
-      cleanAnswer,
-      idx
-    );
-
-    normalizedItems.push({
-      context: cleanContext,
-      words: finalScrambled,
-      scrambledWords: finalScrambled,
-      answer: cleanAnswer,
-      correctSentence: cleanAnswer,
-      explanation: String(
-        it.explanation ||
-          it.why ||
-          'Follow standard academic English subject-verb-object word order and modifier placement.'
-      ).trim(),
-    });
+    normalizedItems.push(normalizeBuildSentenceItem(it, idx, raw?.topic, title));
   }
 
-  // Ensure every Build a Sentence task has 5 items
   let fallbackIdx = 0;
   while (normalizedItems.length < 5 && fallbackIdx < FALLBACK_BUILD_SENTENCE_ITEMS.length) {
     const fb = FALLBACK_BUILD_SENTENCE_ITEMS[fallbackIdx++];
     if (normalizedItems.some((existing) => existing.answer === fb.answer)) continue;
-    const targetWords = tokenizeSentenceWords(fb.answer);
-    const scrambled = deterministicScrambleWords(targetWords, fb.answer);
-    normalizedItems.push({
-      context: fb.context,
-      words: scrambled,
-      scrambledWords: scrambled,
-      answer: fb.answer,
-      correctSentence: fb.answer,
-      explanation: fb.explanation,
-    });
+    normalizedItems.push(normalizeBuildSentenceItem(fb, normalizedItems.length, raw?.topic, title));
   }
 
   return {
@@ -1991,13 +2167,21 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
       const items = Array.isArray(data.items) ? data.items : [];
       if (items.length < 5) return false;
       return items.every((item: any) => {
-        const ans = String(item.answer || item.correctSentence || '').trim();
+        const ans = String(item.targetSentence || item.answer || item.correctSentence || '').trim();
         const ctx = String(item.context || '').trim();
         const words = Array.isArray(item.words) ? item.words : [];
-        const targetWords = tokenizeSentenceWords(ans);
-        if (targetWords.length < 5 || !ctx) return false;
+        const targetChunks = Array.isArray(item.targetChunks) ? item.targetChunks : [];
+        if (!ans || !ctx || words.length < 3) return false;
         if (ctx.toLowerCase().includes(ans.toLowerCase().replace(/[.!?]+$/, ''))) return false;
-        return haveSameWordMultiset(words, targetWords);
+        if (targetChunks.length >= 3) {
+          const bankLower = words.map((w: any) => String(w || '').toLowerCase().trim());
+          return (
+            words.length >= targetChunks.length &&
+            targetChunks.every((tc: any) => bankLower.includes(String(tc || '').toLowerCase().trim()))
+          );
+        }
+        const targetWords = tokenizeSentenceWords(ans);
+        return targetWords.length >= 5 && haveSameWordMultiset(words, targetWords);
       });
     }
 

@@ -73,9 +73,18 @@ export interface SpeakingInterviewTask {
 }
 
 export interface BuildSentenceItem {
+  id?: string;
   context: string;
+  framePrefix?: string;
+  frameSuffix?: string;
+  targetChunks: string[];
+  distractorChunks?: string[];
   words: string[];
+  scrambledWords?: string[];
+  targetSentence: string;
   answer: string;
+  correctSentence?: string;
+  grammarRule?: string;
   explanation: string;
 }
 
@@ -574,39 +583,82 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
 export const CURATED_BUILD_SENTENCES: BuildSentenceTask[] = [
   {
     id: 'bs-1',
-    title: 'Academic Syntax & Inversions',
+    title: 'Campus & Academic Sentence Building',
     level: 'upper-intermediate',
     topic: 'science-tech',
     items: [
       {
-        context: 'What did the environmental researchers observe in the coastal wetlands?',
-        words: ['scientists', 'did', 'habitat', 'the', 'Rarely', 'rapid', 'loss', 'observe', 'such'],
-        answer: 'Rarely did the scientists observe such rapid habitat loss.',
-        explanation: 'Negative inversion: When a sentence begins with a negative adverbial like "Rarely", subject-auxiliary inversion is required ("did the scientists observe").',
+        id: 'bs-1-1',
+        context: 'What did you think of the guided tour of the historical district?',
+        framePrefix: 'The',
+        frameSuffix: 'fantastic.',
+        targetChunks: ['tour guides', 'who', 'showed us around', 'the', 'old city', 'were'],
+        distractorChunks: ['was'],
+        words: ['old city', 'were', 'who', 'was', 'tour guides', 'the', 'showed us around'],
+        scrambledWords: ['old city', 'were', 'who', 'was', 'tour guides', 'the', 'showed us around'],
+        targetSentence: 'The tour guides who showed us around the old city were fantastic.',
+        answer: 'The tour guides who showed us around the old city were fantastic.',
+        correctSentence: 'The tour guides who showed us around the old city were fantastic.',
+        grammarRule: 'Subject relative clause ("who showed us around the old city") modifying the plural noun "tour guides", which requires the plural verb "were" rather than "was".',
+        explanation: 'Subject relative clause ("who showed us around the old city") modifying the plural noun "tour guides", which requires the plural verb "were" rather than "was".',
       },
       {
-        context: 'Why is peer review considered essential in scholarly publishing?',
-        words: ['methodologies', 'that', 'ensures', 'accepted', 'only', 'for', 'rigorous', 'It', 'publication', 'are'],
-        answer: 'It ensures that only rigorous methodologies are accepted for publication.',
-        explanation: 'Noun clause with passive voice: "It ensures that [noun clause: subject + passive verb + prepositional phrase]".',
+        id: 'bs-1-2',
+        context: 'Why was the student art exhibition moved to the main auditorium?',
+        framePrefix: '',
+        frameSuffix: 'by the facilities office?',
+        targetChunks: ['wasn\'t', 'the gallery reservation', 'canceled', 'earlier this week', 'without notice'],
+        distractorChunks: ['weren\'t'],
+        words: ['earlier this week', 'canceled', 'weren\'t', 'the gallery reservation', 'without notice', 'wasn\'t'],
+        scrambledWords: ['earlier this week', 'canceled', 'weren\'t', 'the gallery reservation', 'without notice', 'wasn\'t'],
+        targetSentence: 'Wasn\'t the gallery reservation canceled earlier this week without notice by the facilities office?',
+        answer: 'Wasn\'t the gallery reservation canceled earlier this week without notice by the facilities office?',
+        correctSentence: 'Wasn\'t the gallery reservation canceled earlier this week without notice by the facilities office?',
+        grammarRule: 'Negative passive interrogative: singular subject "the gallery reservation" takes the auxiliary "wasn\'t" (not "weren\'t") + past participle "canceled".',
+        explanation: 'Negative passive interrogative: singular subject "the gallery reservation" takes the auxiliary "wasn\'t" (not "weren\'t") + past participle "canceled".',
       },
       {
-        context: 'How does high inflation affect everyday consumer spending habits?',
-        words: ['reduce', 'tend', 'discretionary', 'Consumers', 'significantly', 'their', 'to', 'purchases'],
-        answer: 'Consumers tend to reduce their discretionary purchases significantly.',
-        explanation: 'Subject + verb phrase + object + adverb: "Consumers tend to reduce [object] [adverb]".',
+        id: 'bs-1-3',
+        context: 'Has Professor Miller posted the revised laboratory schedule yet?',
+        framePrefix: 'I\'m not sure',
+        frameSuffix: '.',
+        targetChunks: ['whether', 'the new schedule', 'has been', 'uploaded', 'to the course portal'],
+        distractorChunks: ['have been'],
+        words: ['uploaded', 'whether', 'have been', 'to the course portal', 'the new schedule', 'has been'],
+        scrambledWords: ['uploaded', 'whether', 'have been', 'to the course portal', 'the new schedule', 'has been'],
+        targetSentence: 'I\'m not sure whether the new schedule has been uploaded to the course portal.',
+        answer: 'I\'m not sure whether the new schedule has been uploaded to the course portal.',
+        correctSentence: 'I\'m not sure whether the new schedule has been uploaded to the course portal.',
+        grammarRule: 'Embedded indirect question: "whether" is followed by statement word order ("the new schedule has been uploaded") with singular auxiliary "has been".',
+        explanation: 'Embedded indirect question: "whether" is followed by statement word order ("the new schedule has been uploaded") with singular auxiliary "has been".',
       },
       {
-        context: 'What happened after the university modernized its digital library system?',
-        words: ['increase', 'did', 'student', 'only', 'usage', 'also', 'Not', 'satisfaction', 'improved', 'but'],
-        answer: 'Not only did usage increase but student satisfaction also improved.',
-        explanation: 'Correlative conjunction with inversion: "Not only did [subject] [verb], but [subject] also [verb]".',
+        id: 'bs-1-4',
+        context: 'I tried studying in the science library last night, but the doors were locked at eight.',
+        framePrefix: '',
+        frameSuffix: '?',
+        targetChunks: ['how long', 'has', 'the science library', 'been closing', 'so early', 'on weeknights'],
+        words: ['been closing', 'the science library', 'how long', 'on weeknights', 'has', 'so early'],
+        scrambledWords: ['been closing', 'the science library', 'how long', 'on weeknights', 'has', 'so early'],
+        targetSentence: 'How long has the science library been closing so early on weeknights?',
+        answer: 'How long has the science library been closing so early on weeknights?',
+        correctSentence: 'How long has the science library been closing so early on weeknights?',
+        grammarRule: 'Direct wh-interrogative in present perfect continuous: "How long + has + subject (the science library) + been closing + modifiers?".',
+        explanation: 'Direct wh-interrogative in present perfect continuous: "How long + has + subject (the science library) + been closing + modifiers?".',
       },
       {
-        context: 'Why was the chemical synthesis experiment conducted under strict temperature controls?',
-        words: ['fluctuated', 'the', 'compounds', 'Had', 'broken', 'delicate', 'temperature', 'have', 'the', 'down', 'would'],
-        answer: 'Had the temperature fluctuated the delicate compounds would have broken down.',
-        explanation: 'Inverted third conditional: "Had + subject + past participle" replaces "If the temperature had fluctuated".',
+        id: 'bs-1-5',
+        context: 'Can undergraduates use the electron microscope without a lab supervisor present?',
+        framePrefix: '',
+        frameSuffix: '.',
+        targetChunks: ['no one', 'is permitted', 'to operate', 'the microscope', 'unless', 'they have completed training'],
+        words: ['the microscope', 'unless', 'no one', 'they have completed training', 'to operate', 'is permitted'],
+        scrambledWords: ['the microscope', 'unless', 'no one', 'they have completed training', 'to operate', 'is permitted'],
+        targetSentence: 'No one is permitted to operate the microscope unless they have completed training.',
+        answer: 'No one is permitted to operate the microscope unless they have completed training.',
+        correctSentence: 'No one is permitted to operate the microscope unless they have completed training.',
+        grammarRule: 'Passive permission ("is permitted to operate") combined with a conditional "unless" clause ("unless they have completed training").',
+        explanation: 'Passive permission ("is permitted to operate") combined with a conditional "unless" clause ("unless they have completed training").',
       },
     ],
   },

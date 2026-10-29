@@ -104,5 +104,28 @@ export interface ListeningComprehensionQuestion {
   questionType?: string;
 }
 
-export * from './types/taskTypes';
+export interface BuildSentenceItem {
+  id?: string;
+  context: string;
+  framePrefix?: string;
+  frameSuffix?: string;
+  targetChunks: string[];
+  distractorChunks?: string[];
+  words: string[];
+  scrambledWords?: string[];
+  targetSentence: string;
+  answer: string;
+  correctSentence?: string;
+  grammarRule?: string;
+  explanation: string;
+}
 
+export interface BuildSentenceTask {
+  id: string;
+  title: string;
+  level: string;
+  topic: string;
+  items: BuildSentenceItem[];
+}
+
+export * from './types/taskTypes';
