@@ -19,11 +19,27 @@ interface Props {
   localGraderLabel?: string;
   aiGraderLabel?: string;
   apiKeyPromptText?: string;
+  isWritingTimerEnabled?: boolean;
+  onToggleWritingTimer?: (enabled: boolean) => void;
+  isWritingTimerRunning?: boolean;
+  onChangeWritingTimerRunning?: (running: boolean) => void;
+  writingTimerSeconds?: number;
+  onChangeWritingTimerSeconds?: (seconds: number) => void;
 }
 
 const OFFICIAL_EMAIL_TIME_SECONDS = 420; // 7 minutes official ETS timing (PDF Page 14)
 
-export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKeySettings }) => {
+export const WriteEmailView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onOpenApiKeySettings,
+  isWritingTimerEnabled: externalTimerEnabled,
+  onToggleWritingTimer,
+  isWritingTimerRunning: externalTimerRunning,
+  onChangeWritingTimerRunning,
+  writingTimerSeconds: externalTimerSeconds,
+  onChangeWritingTimerSeconds,
+}) => {
   const defaultSubject = `Inquiry regarding ${task.title}`;
   const [subject, setSubject] = useState(defaultSubject);
   const [body, setBody] = useState('');
@@ -32,19 +48,59 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
 
-  // Official 7-Minute Timer
-  const [timeLeft, setTimeLeft] = useState(OFFICIAL_EMAIL_TIME_SECONDS);
-  const [timerRunning, setTimerRunning] = useState(false);
+  // Official 7-Minute Timer (auto-starts by default unless user toggled Timer Off)
+  const [localTimerEnabled, setLocalTimerEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('toefl_writing_timer_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const isWritingTimerEnabled = externalTimerEnabled ?? localTimerEnabled;
+
+  const [localTimeLeft, setLocalTimeLeft] = useState(OFFICIAL_EMAIL_TIME_SECONDS);
+  const [localTimerRunning, setLocalTimerRunning] = useState<boolean>(() => isWritingTimerEnabled);
+
+  const timeLeft = externalTimerSeconds ?? localTimeLeft;
+  const isWritingTimerRunning = externalTimerRunning ?? localTimerRunning;
+
+  const setTimeLeft = (val: number | ((prev: number) => number)) => {
+    const nextVal = typeof val === 'function' ? val(timeLeft) : val;
+    setLocalTimeLeft(nextVal);
+    onChangeWritingTimerSeconds?.(nextVal);
+  };
+
+  const setIsWritingTimerRunning = (val: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof val === 'function' ? val(isWritingTimerRunning) : val;
+    setLocalTimerRunning(nextVal);
+    onChangeWritingTimerRunning?.(nextVal);
+  };
+
+  const handleToggleTimerEnabled = (enabled: boolean) => {
+    setLocalTimerEnabled(enabled);
+    try {
+      localStorage.setItem('toefl_writing_timer_enabled', enabled ? 'true' : 'false');
+    } catch {}
+    onToggleWritingTimer?.(enabled);
+    if (enabled) {
+      if (timeLeft <= 0) {
+        setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
+      }
+      setIsWritingTimerRunning(true);
+    } else {
+      setIsWritingTimerRunning(false);
+    }
+  };
 
   useEffect(() => {
     let timer: any = null;
-    if (timerRunning && timeLeft > 0) {
+    if (isWritingTimerEnabled && isWritingTimerRunning && timeLeft > 0 && externalTimerSeconds === undefined) {
       timer = setInterval(() => {
-        setTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+        setLocalTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [timerRunning, timeLeft]);
+  }, [isWritingTimerEnabled, isWritingTimerRunning, timeLeft, externalTimerSeconds]);
 
   useEffect(() => {
     let interval: any = null;
@@ -61,7 +117,7 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
     setSubject(`Inquiry regarding ${task.title}`);
     setBody('');
     setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
-    setTimerRunning(false);
+    setIsWritingTimerRunning(isWritingTimerEnabled);
     setIsEvaluating(false);
     setEvalResult(null);
     setEvalError(null);
@@ -77,6 +133,9 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
   const isWithinTarget = wordCount >= 80 && wordCount <= 130;
 
   const handleEvaluate = async (mode: 'local' | 'ai' = hasAnyStoredApiKey() ? 'ai' : 'local') => {
+    // Automatically stop the countdown timer as soon as Evaluate Response is clicked
+    setIsWritingTimerRunning(false);
+
     if (mode === 'ai') {
       markUserAiRequest();
     }
@@ -164,7 +223,7 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         maxScore: 30,
         scaledScore30: scaled,
         bandScore6: band6,
-        timeSpentSeconds: 300,
+        timeSpentSeconds: Math.max(10, OFFICIAL_EMAIL_TIME_SECONDS - timeLeft),
         feedbackSummary: `Email Writing: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/5.0 (${evalData.performanceLevel})`,
       });
     }
@@ -190,32 +249,55 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         </div>
 
         <div className="flex items-center gap-3 text-xs flex-wrap">
-          {/* Official 7-Minute Timer */}
-          <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
-            <Clock className="w-3.5 h-3.5 text-slate-500" />
-            <span className={`font-mono font-bold ${timeLeft <= 60 ? 'text-rose-600 animate-pulse' : 'text-slate-800'}`}>
-              {formatTimer(timeLeft)}
-            </span>
-            <button
-              type="button"
-              onClick={() => setTimerRunning((r) => !r)}
-              className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
-              title={timerRunning ? 'Pause official timer' : 'Start 7-minute countdown'}
-            >
-              {timerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTimerRunning(false);
-                setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
-              }}
-              className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
-              title="Reset timer to 7:00"
-            >
-              <RotateCcw className="w-3 h-3" />
-            </button>
-          </div>
+          {/* Official 7-Minute Countdown Timer with Auto-Start & Timer Off/On Toggle */}
+          {isWritingTimerEnabled ? (
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+              <Clock className={`w-3.5 h-3.5 ${isWritingTimerRunning ? 'text-teal-600' : 'text-slate-500'}`} />
+              <span className={`font-mono font-bold ${timeLeft <= 60 ? 'text-rose-600 animate-pulse' : 'text-slate-800'}`}>
+                {formatTimer(timeLeft)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsWritingTimerRunning((r) => !r)}
+                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                title={isWritingTimerRunning ? 'Pause official timer' : 'Resume 7-minute countdown'}
+              >
+                {isWritingTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
+                  setIsWritingTimerRunning(true);
+                }}
+                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                title="Reset timer to 07:00"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+              <span className="text-slate-300 select-none">|</span>
+              <button
+                type="button"
+                onClick={() => handleToggleTimerEnabled(false)}
+                className="px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded transition-colors cursor-pointer"
+                title="Turn off countdown timer for untimed practice"
+              >
+                ⏱️ Timer Off
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">
+              <span className="text-[11px] font-medium">Untimed Practice — Timer Off</span>
+              <button
+                type="button"
+                onClick={() => handleToggleTimerEnabled(true)}
+                className="px-2 py-0.5 text-[11px] font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded transition-colors cursor-pointer"
+                title="Turn on 07:00 official countdown timer"
+              >
+                ⏱️ Timer On
+              </button>
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5">
             <span className="text-slate-500">Word Count:</span>
@@ -485,17 +567,34 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
         </div>
       )}
 
-      {onNextTask && (
-        <div className="pt-2 flex justify-end">
+      <div className="pt-2 flex items-center justify-end gap-3">
+        {(evalResult || body.trim().length > 0) && (
+          <button
+            type="button"
+            onClick={() => {
+              setSubject(`Inquiry regarding ${task.title}`);
+              setBody('');
+              setEvalResult(null);
+              setEvalError(null);
+              setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
+              setIsWritingTimerRunning(isWritingTimerEnabled);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Try Again</span>
+          </button>
+        )}
+        {onNextTask && (
           <button
             onClick={onNextTask}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             Next Email Prompt
             <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

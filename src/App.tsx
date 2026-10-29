@@ -283,6 +283,47 @@ export default function App() {
   const [isExamMode, setIsExamMode] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
+
+  // Writing Task Countdown Timer (Write an Email = 07:00 [420s], Academic Discussion = 10:00 [600s])
+  const [isWritingTimerEnabled, setIsWritingTimerEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('toefl_writing_timer_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [isWritingTimerRunning, setIsWritingTimerRunning] = useState<boolean>(() => isWritingTimerEnabled);
+  const [writingTimerSeconds, setWritingTimerSeconds] = useState<number>(420);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('toefl_writing_timer_enabled', isWritingTimerEnabled ? 'true' : 'false');
+    } catch {}
+  }, [isWritingTimerEnabled]);
+
+  // Auto-start Writing countdown timer whenever switching to Write an Email or Academic Discussion
+  useEffect(() => {
+    if (currentTaskType === 'write-email') {
+      setWritingTimerSeconds(420);
+      setIsWritingTimerRunning(isWritingTimerEnabled);
+    } else if (currentTaskType === 'academic-discussion') {
+      setWritingTimerSeconds(600);
+      setIsWritingTimerRunning(isWritingTimerEnabled);
+    } else {
+      setIsWritingTimerRunning(false);
+    }
+  }, [currentTaskType, isWritingTimerEnabled]);
+
+  useEffect(() => {
+    let timer: any = null;
+    const isTimedWritingTask = currentTaskType === 'write-email' || currentTaskType === 'academic-discussion';
+    if (isTimedWritingTask && isWritingTimerEnabled && isWritingTimerRunning && writingTimerSeconds > 0) {
+      timer = setInterval(() => {
+        setWritingTimerSeconds((prev) => (prev <= 1 ? 0 : prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [currentTaskType, isWritingTimerEnabled, isWritingTimerRunning, writingTimerSeconds]);
   
   // Settings
 
@@ -1695,6 +1736,20 @@ export default function App() {
                   localGraderLabel="⚡ Instant Local Grader"
                   aiGraderLabel="✨ Deep AI Grader"
                   apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
+                  isWritingTimerEnabled={isWritingTimerEnabled}
+                  onToggleWritingTimer={(enabled) => {
+                    setIsWritingTimerEnabled(enabled);
+                    if (enabled) {
+                      if (writingTimerSeconds <= 0) setWritingTimerSeconds(420);
+                      setIsWritingTimerRunning(true);
+                    } else {
+                      setIsWritingTimerRunning(false);
+                    }
+                  }}
+                  isWritingTimerRunning={isWritingTimerRunning}
+                  onChangeWritingTimerRunning={setIsWritingTimerRunning}
+                  writingTimerSeconds={writingTimerSeconds}
+                  onChangeWritingTimerSeconds={setWritingTimerSeconds}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
@@ -1712,6 +1767,20 @@ export default function App() {
                   localGraderLabel="⚡ Instant Local Grader"
                   aiGraderLabel="✨ Deep AI Grader"
                   apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
+                  isWritingTimerEnabled={isWritingTimerEnabled}
+                  onToggleWritingTimer={(enabled) => {
+                    setIsWritingTimerEnabled(enabled);
+                    if (enabled) {
+                      if (writingTimerSeconds <= 0) setWritingTimerSeconds(600);
+                      setIsWritingTimerRunning(true);
+                    } else {
+                      setIsWritingTimerRunning(false);
+                    }
+                  }}
+                  isWritingTimerRunning={isWritingTimerRunning}
+                  onChangeWritingTimerRunning={setIsWritingTimerRunning}
+                  writingTimerSeconds={writingTimerSeconds}
+                  onChangeWritingTimerSeconds={setWritingTimerSeconds}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
