@@ -921,6 +921,13 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                       type="text"
                       value={state.userInput}
                       disabled={isTranscribingThis}
+                      spellCheck={false}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      autoComplete="off"
+                      data-gramm="false"
+                      data-gramm_editor="false"
+                      data-enable-grammarly="false"
                       onChange={(e) =>
                         setStates((prev) => {
                           const next = [...prev];

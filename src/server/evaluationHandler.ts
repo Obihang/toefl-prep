@@ -1,258 +1,550 @@
+import { Request, Response } from 'express';
 import { GoogleGenAI } from '@google/genai';
-import { resolveModelChains } from './modelRoles';
-import { generateWithFallback } from './geminiUtils';
-import { isKeyError, getStatus, isQuotaExhaustedError } from './geminiErrors';
-import { callChatWithHealing } from './chatHealing';
-import { getAiClient, getModelThinkingConfig, cleanAndExtractJson, type ApiCallOptions } from './geminiHandler';
-import { collectAvailableProviders, prioritizeForEvaluation } from './providerRouter';
-import { evaluateResponseLocally } from '../utils/localEvaluator';
+import {
+  evaluateResponseLocally,
+  LocalEvaluationResult,
+  buildCriteriaArray,
+  CriterionItem,
+  GrammarErrorItem,
+} from '../utils/localEvaluator';
 
-export async function handleEvaluateResponse(
-  taskType: string,
-  promptData: any,
-  studentResponse: any,
-  options?: ApiCallOptions
-) {
-  try {
-    const evaluationPrompt = `You are a strict, objective ETS 2026 TOEFL iBT grader. Grade the user's response on a strict 1.0 to 6.0 Band scale using these exact anchors. DO NOT inflate scores.
-- BAND 6.0 (Advanced - 29-30/30): Flawless or near-flawless. Uses highly complex academic syntax, precise vocabulary, and perfectly natural transitions. Fully develops the argument with concrete, specific details. Minor slips are extremely rare and do not obscure meaning.
-- BAND 4.5 to 5.0 (High Intermediate - 21-26/30): Addresses the prompt well. Generally good control of grammar and vocabulary, but relies on some repetitive or generic structures. Contains occasional noticeable grammatical or lexical errors that do not interfere with meaning.
-- BAND 3.0 to 4.0 (Low Intermediate - 13-20/30): Partially develops the topic. Uses basic sentence structures. Noticeable and frequent errors in grammar, word choice, or hesitation. May lack detail or fail to fully address all parts of the prompt.
-- BAND 1.0 to 2.5 (Basic - 0-12/30): Fragmented ideas, severe grammar/vocabulary limitations that obscure meaning, or fails to address the prompt.
+type AIProvider = 'gemini' | 'groq' | 'openrouter' | 'nvidia';
 
-MANDATORY COMPLETENESS, RELEVANCE, FLUENCY & ANTI-PLAGIARISM CHECKS:
-1. Prompt Copying / Plagiarism: If the student copied large portions (> 45%) of the prompt, passage, or classmate posts verbatim, you MUST score 1.0 to 1.5 and explicitly instruct them to use their own words.
-2. Off-Topic Check: If the response does not address the specific prompt topic or required bullet points, cap the score at 1.5 to 2.0.
-3. Natural Conversational Fillers (Speaking Interview): Per ETS 2026 Guidelines (PDF Pages 27-28), do NOT penalize natural conversational fillers ('um', 'uh') unless excessive (> 8% of total spoken words). Evaluate idea development, conversational rhythm, and communicative effectiveness.
-4. Task-Specific Completeness Rules:
-   - speaking_interview / speaking-interview: Check how many of the 4 interview questions (Q1..Q4) the student actually answered in studentResponse. If only k out of 4 questions have real answers (e.g., 1 of 4), multiply/cap the final band score by (k / 4) rounded to the nearest 0.5 (minimum 1.0).
-   - speaking_listen_repeat / listen-repeat: Base the score strictly on sequential word-order accuracy across all 7 sentences (unanswered sentences count as 0%).
-   - writing_email / write-email: Verify whether all 3 required bullet points (goals) in promptData were addressed, whether the tone/register matches the recipient, and evaluate against the official 7-minute target length (80-130 words for Band 5.0-6.0; do NOT penalize a 90-130 word email for length).
-   - writing_discussion / academic-discussion: Verify whether the student expressed a clear opinion on the professor's question, contributed a new point beyond the 2 existing student posts, and wrote at least 100+ words with strong syntactic variety for Band 5.0-6.0.
-
-Task Type: "${taskType}"
-
-Task Prompt and Requirements:
-${JSON.stringify(promptData, null, 2)}
-
-Student's Submission:
-${JSON.stringify(studentResponse, null, 2)}
-
-Scoring Scale Reference:
-- bandScore6: Official section Band Score on the 1.0 to 6.0 scale in 0.5 increments (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0).
-- rawRubricScore: Official ETS 2026 raw task rubric score out of 5.0 (for ALL tasks: Write an Email, Academic Discussion, Listen & Repeat, and Take an Interview).
-- scaledScore: Legacy scaled score out of 30 (Band 6.0 = 29-30, Band 5.5 = 27-28, Band 5.0 = 24-26, Band 4.5 = 21-23, Band 4.0 = 17-20, Band 3.0-3.5 = 13-16, Band 2.0-2.5 = 7-12, Band 1.0-1.5 = 0-6).
-- performanceLevel: "Advanced" (5.5-6.0), "High-Intermediate" (4.0-5.0), "Low-Intermediate" (2.5-3.5), or "Basic" (1.0-2.0).
-
-Strict Rubric Justification & Feedback Rules:
-You must explicitly justify your score based on the rubric before assigning the number:
-1. Identify 2 specific grammatical or lexical weaknesses with exact quotations and corrections.
-2. Identify 1 structural or developmental weakness (e.g., lack of concrete examples, abrupt transitions, or unelaborated points).
-3. Only assign a Band 6.0 if there are NO structural weaknesses and complex academic vocabulary is actively used.
-
-Required Feedback Elements in Output:
-1. feedbackSummary: Balanced, rigorous qualitative feedback paragraph explicitly justifying the assigned Band score based on the rubric anchors above.
-2. errors: Specific language, syntax, or word-choice errors with original text, corrected text, and brief pedagogical explanation (include at least 2 distinct errors).
-3. topFixes: Exactly 2 highly specific, prioritized corrections the student must make next time to reach the next Band.
-4. modelBand6Rewrite: A complete, natural exemplar response demonstrating how an Advanced (Band 6.0) candidate would address the exact same prompt with sophisticated transitions, precise vocabulary, and cohesion without structural weaknesses.
-
-Return valid JSON format matching this schema:
-{
-  "bandScore6": 5.0,
-  "rawRubricScore": 4.0,
-  "scaledScore": 25,
-  "performanceLevel": "High-Intermediate",
-  "feedbackSummary": "Detailed qualitative feedback paragraph explicitly justifying the score based on the rubric...",
-  "topFixes": [
-    "1. Top actionable fix...",
-    "2. Second actionable fix..."
-  ],
-  "modelBand6Rewrite": "Model Band 6.0 Exemplar response...",
-  "exemplarResponse": "Model Band 6.0 Exemplar response...",
-  "errors": [
-    {"original": "...", "corrected": "...", "explanation": "..."},
-    {"original": "...", "corrected": "...", "explanation": "..."}
-  ],
-  "tips": ["Tip 1", "Tip 2", "Tip 3"]
-}`;
-
-    const normalizeEvalResult = (parsed: any, modelUsed: string) => {
-      let rawBand = typeof parsed?.bandScore6 === 'number'
-        ? parsed.bandScore6
-        : typeof parsed?.overallBand === 'number'
-        ? parsed.overallBand
-        : typeof parsed?.bandScore === 'number'
-        ? parsed.bandScore
-        : 4.5;
-
-      // Run deterministic guardrail check for speaking_interview k/4 completeness and prompt-copying
-      const localGuard = evaluateResponseLocally(promptData, studentResponse, taskType);
-      if (localGuard?.copiedPromptDetected) {
-        rawBand = Math.min(rawBand, 1.5);
-      } else if (localGuard?.offTopicDetected) {
-        rawBand = Math.min(rawBand, 2.0);
-      }
-      if (
-        (taskType === 'speaking-interview' || taskType === 'speaking_interview') &&
-        typeof localGuard?.answeredQuestionsCount === 'number' &&
-        localGuard.answeredQuestionsCount < 4
-      ) {
-        const k = Math.max(0, localGuard.answeredQuestionsCount);
-        const maxPossibleForK = Math.max(1.0, Math.round((6.0 * (k / 4)) * 2) / 2);
-        rawBand = Math.min(rawBand, maxPossibleForK);
-      }
-
-      const bandScore6 = Math.max(1.0, Math.min(6.0, Math.round(rawBand * 2) / 2));
-      const rawRubric = typeof parsed?.rawRubricScore === 'number'
-        ? Math.min(rawBand <= 2.0 ? 2.0 : 5.0, parsed.rawRubricScore)
-        : Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
-      const scaled = bandScore6 >= 6.0
-        ? 30
-        : bandScore6 >= 5.5
-        ? 28
-        : bandScore6 >= 5.0
-        ? 25
-        : bandScore6 >= 4.5
-        ? 22
-        : bandScore6 >= 4.0
-        ? 19
-        : bandScore6 >= 3.5
-        ? 16
-        : bandScore6 >= 3.0
-        ? 14
-        : bandScore6 >= 2.5
-        ? 11
-        : bandScore6 >= 2.0
-        ? 9
-        : bandScore6 >= 1.5
-        ? 6
-        : 4;
-
-      const performanceLevel =
-        bandScore6 >= 5.5
-          ? 'Advanced'
-          : bandScore6 >= 4.0
-          ? 'High-Intermediate'
-          : bandScore6 >= 2.5
-          ? 'Low-Intermediate'
-          : 'Basic';
-      const summary = String(parsed?.feedbackSummary || parsed?.summary || localGuard.summary || '').trim();
-      const rewrite = String(parsed?.modelBand6Rewrite || parsed?.exemplarResponse || parsed?.exemplar || localGuard.exemplar || '').trim();
-
-      let topFixes: string[] = [];
-      if (Array.isArray(parsed?.topFixes) && parsed.topFixes.length > 0) {
-        topFixes = parsed.topFixes.map((f: any) => String(f).trim()).filter(Boolean).slice(0, 3);
-      } else if (Array.isArray(parsed?.tips) && parsed.tips.length > 0) {
-        topFixes = parsed.tips.map((t: any) => String(t).trim()).filter(Boolean).slice(0, 3);
-      }
-      if (localGuard?.copiedPromptDetected && !topFixes.some((f) => f.toLowerCase().includes('copy'))) {
-        topFixes.unshift('Avoid copying sentences directly from the prompt; use your own words.');
-      }
-      if (localGuard?.offTopicDetected && !topFixes.some((f) => f.toLowerCase().includes('off-topic'))) {
-        topFixes.unshift('Your response appears off-topic and does not address the prompt requirements.');
-      }
-
-      const aiErrors = Array.isArray(parsed?.errors)
-        ? parsed.errors.map((e: any) => ({
-            original: String(e.original || '').trim(),
-            corrected: String(e.corrected || '').trim(),
-            explanation: String(e.explanation || '').trim(),
-          }))
-        : Array.isArray(parsed?.corrections)
-        ? parsed.corrections.map((e: any) => ({
-            original: String(e.original || '').trim(),
-            corrected: String(e.corrected || '').trim(),
-            explanation: String(e.explanation || '').trim(),
-          }))
-        : [];
-      const errorsList = aiErrors.length > 0 ? aiErrors : localGuard.corrections || [];
-
-      const tipsList = Array.isArray(parsed?.tips) ? parsed.tips.map((t: any) => String(t).trim()).filter(Boolean) : topFixes;
-
-      return {
-        bandScore6,
-        overallBand: bandScore6,
-        bandScore: bandScore6,
-        rawRubricScore: rawRubric,
-        scaledScore: scaled,
-        performanceLevel,
-        feedbackSummary: summary,
-        summary,
-        topFixes,
-        areasForImprovement: topFixes,
-        improvements: topFixes,
-        modelBand6Rewrite: rewrite,
-        exemplarResponse: rewrite,
-        exemplar: rewrite,
-        errors: errorsList,
-        corrections: errorsList,
-        grammarErrors: errorsList,
-        tips: tipsList,
-        modelUsed,
-      };
-    };
-
-    // 1. Collect all available providers and prioritize for evaluation (Reasoning priority: gemini -> openai -> anthropic -> openrouter -> groq -> nvidia)
-    const candidates = collectAvailableProviders(options);
-    const prioritized = prioritizeForEvaluation(candidates);
-
-    // 2. Dynamic Fallback Loop
-    for (const candidate of prioritized) {
-      try {
-        if (candidate.provider === 'gemini') {
-          const ai = getAiClient(candidate.apiKey);
-          if (!ai) continue;
-
-          const chains = await resolveModelChains('gemini', candidate.apiKey);
-          const evalChain = chains.evaluation.length > 0 ? chains.evaluation : chains.generation;
-
-          const { result, modelUsed } = await generateWithFallback(ai, evalChain, async (model) => {
-            const thinkingConfig = getModelThinkingConfig(model, 'evaluation');
-            const response = await ai.models.generateContent({
-              model,
-              contents: evaluationPrompt,
-              config: {
-                responseMimeType: 'application/json',
-                temperature: 0.3,
-                ...(thinkingConfig ? { thinkingConfig } : {}),
-              } as any,
-            });
-
-            const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
-            const parsed = cleanAndExtractJson(rawText);
-            return normalizeEvalResult(parsed, model);
-          });
-
-          return { ...result, modelUsed };
-        } else {
-          const { text, modelUsed } = await callChatWithHealing({
-            provider: candidate.provider,
-            apiKey: candidate.apiKey,
-            baseUrl: candidate.baseUrl,
-            model: candidate.model,
-            purpose: 'evaluation',
-            prompt: evaluationPrompt,
-            systemInstruction: "You are a strict, objective ETS TOEFL iBT grader. Grade the user's response on a strict 1.0 to 6.0 Band scale using official ETS anchors without score inflation. Return valid JSON only.",
-            responseJson: true,
-            temperature: 0.3,
-          });
-
-          const parsed = cleanAndExtractJson(text);
-          return normalizeEvalResult(parsed, modelUsed);
-        }
-      } catch (candidateErr: any) {
-        const status = getStatus(candidateErr);
-        const isQuota = isQuotaExhaustedError(candidateErr) || status === 429;
-        const isUnavailable = status === 503;
-        console.warn(`Evaluation provider [${candidate.provider}] failed (${isQuota ? '429 Quota Exceeded' : isUnavailable ? '503 Unavailable' : candidateErr?.message || candidateErr}), continuing to next provider in chain...`);
-        continue;
-      }
-    }
-  } catch (err: any) {
-    console.warn('All evaluation providers failed or error encountered, falling back to local scoring engine:', err?.message || err);
-  }
-
-  // Graceful Local Heuristic Fallback
-  return evaluateResponseLocally(promptData, studentResponse, taskType);
+interface FallbackStep {
+  provider: AIProvider;
+  modelId: string;
+  apiKey: string;
 }
 
+function extractJsonObject(raw: string): any {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced ? fenced[1].trim() : text;
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(candidate.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function resolveAvailableKeys(options: any): Partial<Record<AIProvider, string>> {
+  const keys: Partial<Record<AIProvider, string>> = {};
+  const pk = options?.providerKeys || options?.availableKeys || {};
+  const headers = options?.headers || {};
+
+  const gemini =
+    pk.gemini ||
+    headers['x-gemini-key'] ||
+    (options?.provider === 'gemini' ? options?.apiKey || options?.customApiKey : '') ||
+    process.env.GEMINI_API_KEY ||
+    '';
+  const groq =
+    pk.groq ||
+    options?.groqKey ||
+    headers['x-groq-key'] ||
+    (options?.provider === 'groq' ? options?.apiKey || options?.customApiKey : '') ||
+    process.env.GROQ_API_KEY ||
+    '';
+  const openrouter =
+    pk.openrouter ||
+    headers['x-openrouter-key'] ||
+    (options?.provider === 'openrouter' ? options?.apiKey || options?.customApiKey : '') ||
+    process.env.OPENROUTER_API_KEY ||
+    '';
+  const nvidia =
+    pk.nvidia ||
+    headers['x-nvidia-key'] ||
+    (options?.provider === 'nvidia' ? options?.apiKey || options?.customApiKey : '') ||
+    process.env.NVIDIA_API_KEY ||
+    '';
+
+  if (gemini && String(gemini).trim()) keys.gemini = String(gemini).trim();
+  if (groq && String(groq).trim()) keys.groq = String(groq).trim();
+  if (openrouter && String(openrouter).trim()) keys.openrouter = String(openrouter).trim();
+  if (nvidia && String(nvidia).trim()) keys.nvidia = String(nvidia).trim();
+
+  // If a generic apiKey was passed without explicit provider
+  const rawKey = String(options?.apiKey || options?.customApiKey || headers['x-api-key'] || '').trim();
+  if (rawKey && Object.keys(keys).length === 0) {
+    if (rawKey.startsWith('gsk_')) keys.groq = rawKey;
+    else if (rawKey.startsWith('sk-or-')) keys.openrouter = rawKey;
+    else if (rawKey.startsWith('nvapi-')) keys.nvidia = rawKey;
+    else keys.gemini = rawKey;
+  }
+
+  return keys;
+}
+
+function buildFallbackChain(
+  preferredProvider: string | undefined,
+  keys: Partial<Record<AIProvider, string>>
+): FallbackStep[] {
+  const modelsByProvider: Record<AIProvider, string[]> = {
+    gemini: ['gemini-2.5-flash', 'gemini-3-flash-preview'],
+    groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+    openrouter: ['meta-llama/llama-3.3-70b-instruct:free', 'google/gemini-2.0-flash-exp:free'],
+    nvidia: ['meta/llama-3.1-70b-instruct'],
+  };
+
+  const order: AIProvider[] = ['gemini', 'groq', 'openrouter', 'nvidia'];
+  if (preferredProvider && order.includes(preferredProvider as AIProvider)) {
+    const idx = order.indexOf(preferredProvider as AIProvider);
+    order.splice(idx, 1);
+    order.unshift(preferredProvider as AIProvider);
+  }
+
+  const steps: FallbackStep[] = [];
+  for (const p of order) {
+    const k = keys[p];
+    if (!k) continue;
+    for (const m of modelsByProvider[p]) {
+      steps.push({ provider: p, modelId: m, apiKey: k });
+    }
+  }
+  return steps;
+}
+
+function buildEvaluationPrompt(taskType: string, promptData: any, studentResponse: any): string {
+  const promptJson = JSON.stringify(promptData || {}, null, 2);
+  const responseStr =
+    typeof studentResponse === 'string'
+      ? studentResponse
+      : JSON.stringify(studentResponse || {}, null, 2);
+
+  return `You are an official 2026 ETS TOEFL iBT Senior Rater. Evaluate the student's response strictly using the 2026 ETS 1.0–6.0 Band Scale (half-point increments: 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0) and the 0–5 Task Rubric Scale.
+
+Task Type: ${taskType}
+
+Prompt / Task Context:
+${promptJson}
+
+Student Response:
+${responseStr}
+
+CRITICAL ETS 2026 SCORING & DIAGNOSTIC RULES:
+1. For "write-email" (7-minute task): Full length credit is achieved at 85–130+ words. Verify all 3 required bullet points/goals in the prompt! Specifically, if a bullet point asks the student to "suggest two alternative times" (or propose specific days/times) and the student only writes vague text like "another time whenever you are free" without naming two specific days or time slots (e.g. Tuesday at 2:00 PM or Thursday morning), mark that objective as incomplete, deduct from Task Fulfillment, and cap the score accordingly.
+2. For "academic-discussion" (10-minute task): Full length credit is achieved at 105–150+ words. Check clear stance, engagement with classmates, and academic register.
+3. For "speaking-interview" (4 x 45s questions): Score each of the 4 questions individually and average across all 4. If only k of 4 questions are answered, cap the overall band score at 6.0 * (k / 4).
+4. Spelling, Capitalization, Grammar & Wording Detection:
+   - Flag EVERY spelling mistake (e.g., "disucss" -> "discuss", "introdutory" -> "introductory"), capitalization error (including standalone lowercase "i" -> "I"), repeated consecutive words (e.g., "about about" -> "about"), preposition/collocation errors (e.g., "discuss about" -> "discuss", "during Wednesday" -> "on Wednesday", "you office hours" -> "your office hours", "have by biology" -> "had my biology", "classes and its requirement" -> "class and its requirements"), and missing commas after sign-offs ("Sincerely" -> "Sincerely,").
+   - Also identify informal or clunky phrasing and suggest formal academic wording upgrades (type: "wording"), such as replacing "I am writing to tell you that I couldn't manage to meet you" with "I am writing to inform you that I was unable to attend your scheduled office hours", or replacing "whenever you are free" with specific proposed times.
+   - Deduct appropriately from Grammar & Mechanics and the overall score when multiple spelling, capitalization, and grammar errors are present.
+5. Prompt-Copying & Off-Topic Guard:
+   - If > 45% of words are copied verbatim from the prompt, cap bandScore6 at <= 1.5.
+   - If the response is off-topic, cap bandScore6 at <= 2.0.
+
+Return ONLY a valid JSON object matching this exact schema:
+{
+  "bandScore6": 4.5,
+  "rawRubricScore": 3.8,
+  "scaledScore": 23,
+  "performanceLevel": "High-Intermediate",
+  "criteria": [
+    {
+      "name": "Task Fulfillment & Elaboration",
+      "score": 3.8,
+      "feedback": "Detailed feedback on objective completion and elaboration."
+    },
+    {
+      "name": "Organization & Coherence",
+      "score": 4.0,
+      "feedback": "Detailed feedback on paragraphing and transitions."
+    },
+    {
+      "name": "Vocabulary & Academic Register",
+      "score": 3.5,
+      "feedback": "Detailed feedback on lexical precision and formal tone."
+    },
+    {
+      "name": "Grammar & Mechanics (Spelling/Punctuation/Capitalization)",
+      "score": 3.0,
+      "feedback": "Detailed feedback on grammar, spelling, capitalization, and punctuation."
+    }
+  ],
+  "summary": "2-3 sentence holistic assessment referencing specific strengths, missing objectives, and error patterns.",
+  "strengths": ["Specific strength 1", "Specific strength 2"],
+  "improvements": ["Specific actionable improvement 1", "Specific actionable improvement 2"],
+  "topFixes": ["Priority fix 1", "Priority fix 2"],
+  "exemplar": "A complete Band 6.0 model response to this exact prompt.",
+  "corrections": [
+    {
+      "original": "exact substring from student response",
+      "corrected": "corrected academic phrasing",
+      "explanation": "Clear explanation of the grammar, spelling, capitalization, or wording rule.",
+      "type": "spelling"
+    }
+  ]
+}`;
+}
+
+async function callProviderForEvaluation(
+  provider: AIProvider,
+  modelId: string,
+  apiKey: string,
+  prompt: string
+): Promise<string> {
+  if (provider === 'gemini') {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      },
+    });
+    return response.text || '';
+  }
+
+  let endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${apiKey}`,
+  };
+
+  if (provider === 'groq') {
+    endpoint = 'https://api.groq.com/openai/v1/chat/completions';
+  } else if (provider === 'nvidia') {
+    endpoint = 'https://integrate.api.nvidia.com/v1/chat/completions';
+  } else if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://toefl-prep-studio.app';
+    headers['X-Title'] = 'TOEFL Prep Studio';
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: modelId,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an official ETS TOEFL iBT Evaluator. Always output valid JSON only.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`${provider} HTTP ${res.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data: any = await res.json();
+    return data?.choices?.[0]?.message?.content || '';
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function normalizeCriteriaField(
+  rawCriteria: any,
+  localGuard?: LocalEvaluationResult
+): CriterionItem[] {
+  if (Array.isArray(rawCriteria) && rawCriteria.length > 0) {
+    const mapped: CriterionItem[] = rawCriteria.map((c: any, idx: number) => {
+      const fallbackItem = localGuard?.criteria?.[idx];
+      const rawScore = Number(c?.score ?? fallbackItem?.score ?? 4.0);
+      const score5 = rawScore > 5 ? Number(((rawScore / 100) * 5.0).toFixed(1)) : Number(rawScore.toFixed(1));
+      const text = String(c?.feedback || c?.comment || fallbackItem?.feedback || 'Evaluated against ETS rubric descriptors.');
+      return {
+        name: String(c?.name || fallbackItem?.name || `Criterion ${idx + 1}`),
+        score: score5,
+        maxScore: 5.0,
+        displayScore: c?.displayScore || `${score5.toFixed(1)} / 5.0`,
+        feedback: text,
+        comment: text,
+      };
+    });
+    return buildCriteriaArray(
+      mapped,
+      localGuard?.criteriaBreakdown || {
+        taskFulfillment: 80,
+        coherence: 80,
+        vocabulary: 80,
+        grammar: 80,
+      }
+    );
+  }
+
+  if (rawCriteria && typeof rawCriteria === 'object' && !Array.isArray(rawCriteria)) {
+    const tf = Number(rawCriteria.taskFulfillment ?? localGuard?.criteriaBreakdown?.taskFulfillment ?? 78);
+    const coh = Number(rawCriteria.coherence ?? localGuard?.criteriaBreakdown?.coherence ?? 78);
+    const voc = Number(rawCriteria.vocabulary ?? localGuard?.criteriaBreakdown?.vocabulary ?? 78);
+    const gram = Number(rawCriteria.grammar ?? localGuard?.criteriaBreakdown?.grammar ?? 78);
+
+    const toFive = (v: number) => (v > 5 ? Number(((v / 100) * 5.0).toFixed(1)) : Number(v.toFixed(1)));
+    const items: CriterionItem[] = [
+      {
+        name: 'Task Fulfillment & Elaboration',
+        score: toFive(tf),
+        maxScore: 5.0,
+        displayScore: `${toFive(tf).toFixed(1)} / 5.0`,
+        feedback: localGuard?.criteria?.[0]?.feedback || 'Evaluated on communicative task completion and elaboration.',
+        comment: localGuard?.criteria?.[0]?.comment || 'Evaluated on communicative task completion and elaboration.',
+      },
+      {
+        name: 'Organization & Coherence',
+        score: toFive(coh),
+        maxScore: 5.0,
+        displayScore: `${toFive(coh).toFixed(1)} / 5.0`,
+        feedback: localGuard?.criteria?.[1]?.feedback || 'Evaluated on paragraph unity, progression, and discourse markers.',
+        comment: localGuard?.criteria?.[1]?.comment || 'Evaluated on paragraph unity, progression, and discourse markers.',
+      },
+      {
+        name: 'Vocabulary & Academic Register',
+        score: toFive(voc),
+        maxScore: 5.0,
+        displayScore: `${toFive(voc).toFixed(1)} / 5.0`,
+        feedback: localGuard?.criteria?.[2]?.feedback || 'Evaluated on lexical variety, collocations, and academic register.',
+        comment: localGuard?.criteria?.[2]?.comment || 'Evaluated on lexical variety, collocations, and academic register.',
+      },
+      {
+        name: 'Grammar & Mechanics (Spelling/Punctuation/Capitalization)',
+        score: toFive(gram),
+        maxScore: 5.0,
+        displayScore: `${toFive(gram).toFixed(1)} / 5.0`,
+        feedback: localGuard?.criteria?.[3]?.feedback || 'Evaluated on syntactic variety, spelling, capitalization, and punctuation.',
+        comment: localGuard?.criteria?.[3]?.comment || 'Evaluated on syntactic variety, spelling, capitalization, and punctuation.',
+      },
+    ];
+    return buildCriteriaArray(items, {
+      taskFulfillment: tf,
+      coherence: coh,
+      vocabulary: voc,
+      grammar: gram,
+    });
+  }
+
+  return localGuard?.criteria || [];
+}
+
+function mergeCorrections(
+  aiCorrections: any[],
+  localCorrections: GrammarErrorItem[]
+): GrammarErrorItem[] {
+  const merged: GrammarErrorItem[] = [];
+  const seen = new Set<string>();
+
+  const addOne = (item: any) => {
+    const orig = String(item?.original || '').trim();
+    const corr = String(item?.corrected || '').trim();
+    if (!orig || !corr) return;
+    const key = orig.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push({
+      original: orig,
+      corrected: corr,
+      explanation: String(item?.explanation || 'Improve grammatical accuracy and academic register.'),
+      type: item?.type || 'grammar',
+    });
+  };
+
+  for (const lc of localCorrections || []) {
+    addOne(lc);
+  }
+  for (const ac of Array.isArray(aiCorrections) ? aiCorrections : []) {
+    addOne(ac);
+  }
+
+  return merged.slice(0, 18);
+}
+
+function normalizeEvalResult(parsed: any, localGuard: LocalEvaluationResult): any {
+  let bandScore6 = Number(parsed?.bandScore6 ?? parsed?.overallBand ?? parsed?.bandScore ?? localGuard.bandScore6);
+  if (isNaN(bandScore6) || bandScore6 < 1.0) bandScore6 = localGuard.bandScore6;
+  bandScore6 = Math.min(6.0, Math.max(1.0, Math.round(bandScore6 * 2) / 2));
+
+  if (localGuard.copiedPromptDetected) {
+    bandScore6 = Math.min(bandScore6, 1.5);
+  }
+  if (localGuard.offTopicDetected) {
+    bandScore6 = Math.min(bandScore6, 2.0);
+  }
+  if (typeof localGuard.answeredQuestionsCount === 'number' && localGuard.answeredQuestionsCount < 4) {
+    const cap = Math.max(1.0, Math.round(6.0 * (localGuard.answeredQuestionsCount / 4) * 2) / 2);
+    bandScore6 = Math.min(bandScore6, cap);
+  }
+
+  const localHardErrors = (localGuard.corrections || []).filter((c) => c.type !== 'wording');
+  if (localHardErrors.length >= 6) {
+    bandScore6 = Math.min(bandScore6, 3.5);
+  } else if (localHardErrors.length >= 4) {
+    bandScore6 = Math.min(bandScore6, 4.0);
+  }
+  if (localGuard.bulletAnalysis && localGuard.bulletAnalysis.some((b) => !b.addressed)) {
+    bandScore6 = Math.min(bandScore6, 4.0);
+  }
+
+  const scaledScore = Math.round((bandScore6 / 6.0) * 30);
+  const rawRubricScore = Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
+  const performanceLevel =
+    bandScore6 >= 5.5
+      ? 'Advanced'
+      : bandScore6 >= 4.0
+      ? 'High-Intermediate'
+      : bandScore6 >= 2.5
+      ? 'Low-Intermediate'
+      : 'Basic';
+
+  const criteria = normalizeCriteriaField(parsed?.criteria, localGuard);
+  const corrections = mergeCorrections(
+    parsed?.corrections || parsed?.errors || parsed?.grammarErrors || [],
+    localGuard.corrections || []
+  );
+
+  const aiImprovements = Array.isArray(parsed?.improvements) && parsed.improvements.length > 0
+    ? parsed.improvements.map(String)
+    : [];
+  const missingBulletNotes = (localGuard.bulletAnalysis || [])
+    .filter((b) => !b.addressed)
+    .map((b) => b.feedback);
+
+  const combinedImprovements = [
+    ...missingBulletNotes,
+    ...aiImprovements.filter((imp: string) => !missingBulletNotes.includes(imp)),
+    ...localGuard.improvements.filter((imp) => !aiImprovements.includes(imp) && !missingBulletNotes.includes(imp)),
+  ].slice(0, 6);
+
+  const strengths =
+    Array.isArray(parsed?.strengths) && parsed.strengths.length > 0
+      ? parsed.strengths.map(String)
+      : localGuard.strengths;
+
+  const topFixes =
+    missingBulletNotes.length > 0
+      ? [...missingBulletNotes, ...(Array.isArray(parsed?.topFixes) ? parsed.topFixes.map(String) : combinedImprovements)].slice(0, 3)
+      : Array.isArray(parsed?.topFixes) && parsed.topFixes.length > 0
+      ? parsed.topFixes.map(String).slice(0, 3)
+      : combinedImprovements.slice(0, 3);
+
+  const exemplar = parsed?.exemplar || parsed?.exemplarResponse || parsed?.modelBand6Rewrite || localGuard.exemplar;
+  const summary = parsed?.summary || parsed?.feedbackSummary || localGuard.summary;
+
+  return {
+    ...localGuard,
+    ...parsed,
+    bandScore6,
+    overallBand: bandScore6,
+    bandScore: bandScore6,
+    rawRubricScore,
+    scaledScore,
+    performanceLevel,
+    criteria,
+    criteriaBreakdown: localGuard.criteriaBreakdown,
+    subScores: parsed?.subScores || localGuard.subScores,
+    bulletAnalysis: localGuard.bulletAnalysis,
+    summary,
+    feedbackSummary: summary,
+    strengths,
+    improvements: combinedImprovements,
+    areasForImprovement: combinedImprovements,
+    topFixes,
+    tips: combinedImprovements,
+    exemplar,
+    exemplarResponse: exemplar,
+    modelBand6Rewrite: exemplar,
+    corrections,
+    errors: corrections,
+    grammarErrors: corrections,
+  };
+}
+
+export async function evaluateResponseCore(
+  taskType: string = 'academic-discussion',
+  promptData: any = {},
+  studentResponse: any = '',
+  options: any = {}
+): Promise<any> {
+  const localGuard = evaluateResponseLocally(promptData, studentResponse, taskType, options);
+
+  if (String(taskType).toLowerCase().includes('repeat')) {
+    return {
+      ...localGuard,
+      isLocalEvaluation: true,
+      modelUsed: 'Local Rubric Engine (Zero-API)',
+    };
+  }
+
+  const availableKeys = resolveAvailableKeys(options);
+  const chain = buildFallbackChain(options?.provider, availableKeys);
+  if (chain.length === 0) {
+    return {
+      ...localGuard,
+      isLocalEvaluation: true,
+      modelUsed: 'Local Rubric Engine (Zero-API)',
+    };
+  }
+
+  const prompt = buildEvaluationPrompt(taskType, promptData, studentResponse);
+
+  for (const step of chain) {
+    try {
+      const rawText = await callProviderForEvaluation(step.provider, step.modelId, step.apiKey, prompt);
+      const parsed = extractJsonObject(rawText);
+      if (parsed && typeof parsed === 'object') {
+        const normalized = normalizeEvalResult(parsed, localGuard);
+        return {
+          ...normalized,
+          isLocalEvaluation: false,
+          modelUsed: step.modelId,
+          providerUsed: step.provider,
+        };
+      }
+    } catch (err: any) {
+      console.warn(`[EvalChain] ${step.provider}/${step.modelId} failed:`, err?.message || err);
+    }
+  }
+
+  return {
+    ...localGuard,
+    isLocalEvaluation: true,
+    modelUsed: 'Local Rubric Engine (Fallback)',
+  };
+}
+
+/**
+ * Supports both:
+ * 1) Express route handler: handleEvaluateResponse(req, res)
+ * 2) Direct helper call: handleEvaluateResponse(taskType, promptData, studentResponse, config)
+ */
+export async function handleEvaluateResponse(
+  arg1: Request | string,
+  arg2?: Response | any,
+  arg3?: any,
+  arg4?: any
+): Promise<any> {
+  if (arg1 && typeof arg1 === 'object' && 'body' in arg1 && arg2 && typeof arg2.status === 'function') {
+    const req = arg1 as Request;
+    const res = arg2 as Response;
+    const { taskType = 'academic-discussion', promptData = {}, studentResponse = '', options = {} } = req.body || {};
+    const mergedOptions = { ...req.body, ...options, headers: req.headers };
+    const data = await evaluateResponseCore(taskType, promptData, studentResponse, mergedOptions);
+    return res.status(200).json({
+      success: true,
+      data,
+      isLocalEvaluation: data.isLocalEvaluation,
+      modelUsed: data.modelUsed,
+    });
+  }
+
+  return evaluateResponseCore(String(arg1 || 'academic-discussion'), arg2, arg3, arg4);
+}

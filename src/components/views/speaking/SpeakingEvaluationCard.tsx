@@ -104,28 +104,30 @@ export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
       </div>
 
       {/* Criteria Grid */}
-      {evaluationResult.criteria && (
+      {Array.isArray(evaluationResult.criteria) && evaluationResult.criteria.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {evaluationResult.criteria.map((crit: any, i: number) => (
             <div key={i} className="border border-slate-200 rounded-lg p-3.5 bg-white">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-semibold text-slate-900">{crit.name}</span>
-                <span className="text-xs font-mono font-bold text-teal-800">{crit.score}</span>
+                <span className="text-xs font-mono font-bold text-teal-800">
+                  {crit.displayScore || (typeof crit.score === 'number' && crit.score <= 5 ? `${crit.score.toFixed(1)} / 5.0` : crit.score)}
+                </span>
               </div>
-              <p className="text-xs text-slate-600 leading-snug">{crit.comment}</p>
+              <p className="text-xs text-slate-600 leading-snug">{crit.feedback || crit.comment}</p>
             </div>
           ))}
         </div>
       )}
 
       {/* Metrics per Question */}
-      {evaluationResult.submissionData && (
+      {Array.isArray(evaluationResult.submissionData) && evaluationResult.submissionData.length > 0 && (
         <div className="space-y-3 pt-2">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">Speaking Analytics</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {evaluationResult.submissionData.map((sub: any, i: number) => (
               <div key={i} className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
-                <div className="font-semibold text-slate-800 mb-1">Q{i + 1}: {sub.question.substring(0, 30)}...</div>
+                <div className="font-semibold text-slate-800 mb-1">Q{i + 1}: {String(sub.question || '').substring(0, 30)}...</div>
                 <div className="flex gap-4 text-slate-600">
                   <div>Fillers: <span className="font-mono font-bold text-amber-700">{sub.fillerCount}</span></div>
                   <div>WPM: <span className="font-mono font-bold text-teal-700">{sub.wpm}</span></div>
@@ -137,7 +139,7 @@ export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
       )}
 
       {/* Grammar & Language Corrections */}
-      {evaluationResult.corrections && evaluationResult.corrections.length > 0 && (
+      {Array.isArray(evaluationResult.corrections) && evaluationResult.corrections.length > 0 && (
         <div className="space-y-2.5">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
             Key Language &amp; Syntax Improvements
@@ -157,7 +159,7 @@ export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
       )}
 
       {/* Top 2 Actionable Fixes */}
-      {evaluationResult.topFixes && evaluationResult.topFixes.length > 0 && (
+      {Array.isArray(evaluationResult.topFixes) && evaluationResult.topFixes.length > 0 && (
         <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[11px] font-bold text-white">
@@ -173,7 +175,7 @@ export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 font-bold text-xs mt-0.5">
                   {idx + 1}
                 </span>
-                <span className="leading-snug">{fix.replace(/^[0-9]+[.)]\s*/, '')}</span>
+                <span className="leading-snug">{String(fix).replace(/^[0-9]+[.)]\s*/, '')}</span>
               </div>
             ))}
           </div>

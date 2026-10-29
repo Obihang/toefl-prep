@@ -14,6 +14,8 @@ interface Props {
   task: WriteEmailTask;
   onNextTask?: () => void;
   onOpenApiKeySettings?: () => void;
+  spellCheck?: boolean;
+  annotatedReviewTitle?: string;
 }
 
 const OFFICIAL_EMAIL_TIME_SECONDS = 420; // 7 minutes official ETS timing (PDF Page 14)
@@ -294,6 +296,13 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
+                autoComplete="off"
+                data-gramm="false"
+                data-gramm_editor="false"
+                data-enable-grammarly="false"
                 placeholder="e.g., Extension Request for Lab Paper (Marcus Vance)"
                 className="flex-1 px-2.5 py-1 text-xs border border-slate-200 rounded-md bg-slate-50 focus:bg-white focus:border-teal-600 outline-hidden font-medium text-slate-900"
               />
@@ -304,6 +313,13 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
             rows={10}
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            data-gramm="false"
+            data-gramm_editor="false"
+            data-enable-grammarly="false"
             placeholder={`Dear ${task.recipient.split(',')[0]},\n\nI am writing to...`}
             className="w-full p-3.5 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-hidden leading-relaxed font-normal"
           />
@@ -407,15 +423,17 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
           </div>
 
           {/* Criteria Grid */}
-          {evalResult.criteria && (
+          {Array.isArray(evalResult.criteria) && evalResult.criteria.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {evalResult.criteria.map((crit: any, i: number) => (
                 <div key={i} className="border border-slate-200 rounded-lg p-3.5 bg-white">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-semibold text-slate-900">{crit.name}</span>
-                    <span className="text-xs font-mono font-bold text-teal-800">{crit.score}</span>
+                    <span className="text-xs font-mono font-bold text-teal-800">
+                      {crit.displayScore || (typeof crit.score === 'number' && crit.score <= 5 ? `${crit.score.toFixed(1)} / 5.0` : crit.score)}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-snug">{crit.comment}</p>
+                  <p className="text-xs text-slate-600 leading-snug">{crit.feedback || crit.comment}</p>
                 </div>
               ))}
             </div>
@@ -426,12 +444,13 @@ export const WriteEmailView: React.FC<Props> = ({ task, onNextTask, onOpenApiKey
             <FeedbackComparison
               userResponse={body}
               exemplarResponse={evalResult.modelBand6Rewrite || evalResult.exemplar || (task as any).modelResponse || (task as any).sampleAnswer}
-              corrections={evalResult.corrections || []}
-              topFixes={evalResult.topFixes}
+              corrections={Array.isArray(evalResult.corrections) ? evalResult.corrections : Array.isArray(evalResult.grammarErrors) ? evalResult.grammarErrors : []}
+              topFixes={Array.isArray(evalResult.topFixes) ? evalResult.topFixes : []}
               modelBand6Rewrite={evalResult.modelBand6Rewrite || (task as any).modelResponse}
               benchmarkAnalysis={evalResult.benchmarkAnalysis}
               notice={evalResult.notice}
               subScores={evalResult.subScores}
+              bulletAnalysis={evalResult.bulletAnalysis}
             />
           )}
         </div>

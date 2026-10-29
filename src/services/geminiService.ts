@@ -268,7 +268,12 @@ export async function evaluateResponse(
     if (res && res.success === false) {
       return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
     }
-    return res?.data || res;
+    const rawEval = res?.data || res;
+    if (rawEval && !Array.isArray(rawEval.criteria)) {
+      const localFallback = evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);
+      rawEval.criteria = localFallback.criteria;
+    }
+    return rawEval;
   } catch (err) {
     console.warn('[geminiService] /api/evaluate-response failed, falling back to evaluateResponseLocally:', err);
     return evaluateResponseLocally(promptData, studentResponse, taskType, extraOptions);

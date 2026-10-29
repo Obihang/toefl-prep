@@ -989,6 +989,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
             rows={4}
             value={currentAnswer}
             disabled={isTranscribing}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            data-gramm="false"
+            data-gramm_editor="false"
+            data-enable-grammarly="false"
             onChange={(e) =>
               setAnswers((prev) => ({
                 ...prev,

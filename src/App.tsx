@@ -1690,6 +1690,8 @@ export default function App() {
                 <WriteEmailView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as WriteEmailTask}
+                  spellCheck={false}
+                  annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
@@ -1702,6 +1704,8 @@ export default function App() {
                 <AcademicDiscussionView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as AcademicDiscussionTask}
+                  spellCheck={false}
+                  annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');

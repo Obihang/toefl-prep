@@ -5,7 +5,31 @@ export interface GrammarErrorItem {
   original: string;
   corrected: string;
   explanation: string;
+  type?: 'grammar' | 'spelling' | 'mechanics' | 'wording';
 }
+
+export interface CriterionItem {
+  name: string;
+  score: number;
+  maxScore?: number;
+  displayScore?: string;
+  feedback: string;
+  comment: string;
+}
+
+export interface BulletAnalysisItem {
+  goal: string;
+  addressed: boolean;
+  status: 'complete' | 'partial' | 'missing';
+  feedback: string;
+}
+
+export type CriteriaArrayWithLegacyProps = CriterionItem[] & {
+  taskFulfillment: number;
+  coherence: number;
+  vocabulary: number;
+  grammar: number;
+};
 
 export interface LocalEvaluationResult {
   bandScore6: number;
@@ -14,12 +38,19 @@ export interface LocalEvaluationResult {
   rawRubricScore: number;
   scaledScore: number;
   performanceLevel: 'Advanced' | 'High-Intermediate' | 'Low-Intermediate' | 'Basic';
-  criteria: {
+  criteria: CriteriaArrayWithLegacyProps;
+  criteriaBreakdown: {
     taskFulfillment: number;
     coherence: number;
     vocabulary: number;
     grammar: number;
   };
+  subScores: {
+    taskFulfillment: number;
+    languageUse: number;
+    topicDevelopment: number;
+  };
+  bulletAnalysis?: BulletAnalysisItem[];
   summary: string;
   feedbackSummary: string;
   strengths: string[];
@@ -33,6 +64,7 @@ export interface LocalEvaluationResult {
   corrections: GrammarErrorItem[];
   errors: GrammarErrorItem[];
   grammarErrors: GrammarErrorItem[];
+  wordingImprovements?: GrammarErrorItem[];
   copiedPromptDetected?: boolean;
   offTopicDetected?: boolean;
   answeredQuestionsCount?: number;
@@ -118,6 +150,172 @@ const STOP_WORDS = new Set([
   'least', 'words', 'minutes', 'time', 'read', 'listen', 'speak', 'answer',
 ]);
 
+const COMMON_ACADEMIC_MISSPELLINGS: Record<string, string> = {
+  disucss: 'discuss',
+  disucssed: 'discussed',
+  disucssing: 'discussing',
+  discusion: 'discussion',
+  introdutory: 'introductory',
+  introdcutory: 'introductory',
+  introductry: 'introductory',
+  recieve: 'receive',
+  recieved: 'received',
+  seperate: 'separate',
+  seperated: 'separated',
+  occured: 'occurred',
+  occuring: 'occurring',
+  accomodate: 'accommodate',
+  accomodation: 'accommodation',
+  definately: 'definitely',
+  definitly: 'definitely',
+  enviroment: 'environment',
+  enviromental: 'environmental',
+  goverment: 'government',
+  neccessary: 'necessary',
+  necesary: 'necessary',
+  priviledge: 'privilege',
+  recomend: 'recommend',
+  reccommend: 'recommend',
+  recomendation: 'recommendation',
+  sedeule: 'schedule',
+  scedule: 'schedule',
+  scheduel: 'schedule',
+  profesoor: 'professor',
+  proffessor: 'professor',
+  profesor: 'professor',
+  uniiversity: 'university',
+  univeristy: 'university',
+  requiremnt: 'requirement',
+  requirment: 'requirement',
+  requiremnts: 'requirements',
+  requirments: 'requirements',
+  appointmnt: 'appointment',
+  apointment: 'appointment',
+  assignmnt: 'assignment',
+  assingment: 'assignment',
+  availible: 'available',
+  avaliable: 'available',
+  conveniant: 'convenient',
+  convinient: 'convenient',
+  tommorow: 'tomorrow',
+  tomorow: 'tomorrow',
+  wedensday: 'Wednesday',
+  wensday: 'Wednesday',
+  thrusday: 'Thursday',
+  febuary: 'February',
+  oppurtunity: 'opportunity',
+  oportunity: 'opportunity',
+  attendence: 'attendance',
+  labratory: 'laboratory',
+  curricullum: 'curriculum',
+  knowlege: 'knowledge',
+  arguement: 'argument',
+  beggining: 'beginning',
+  beleive: 'believe',
+  calender: 'calendar',
+  collegue: 'colleague',
+  commitee: 'committee',
+  concious: 'conscious',
+  curiousity: 'curiosity',
+  disapoint: 'disappoint',
+  embarass: 'embarrass',
+  existance: 'existence',
+  foriegn: 'foreign',
+  freind: 'friend',
+  grammer: 'grammar',
+  guidence: 'guidance',
+  immediatly: 'immediately',
+  independant: 'independent',
+  interupt: 'interrupt',
+  maintainance: 'maintenance',
+  noticable: 'noticeable',
+  occassion: 'occasion',
+  persue: 'pursue',
+  posession: 'possession',
+  prefered: 'preferred',
+  questionaire: 'questionnaire',
+  refered: 'referred',
+  relevent: 'relevant',
+  succesful: 'successful',
+  suprise: 'surprise',
+  unfortunatly: 'unfortunately',
+  untill: 'until',
+  wierd: 'weird',
+  biolgoy: 'biology',
+  biolgy: 'biology',
+};
+
+const CORE_ACADEMIC_TARGETS = [
+  'discuss',
+  'introductory',
+  'biology',
+  'chemistry',
+  'psychology',
+  'economics',
+  'professor',
+  'schedule',
+  'requirement',
+  'requirements',
+  'university',
+  'alternative',
+  'wednesday',
+  'thursday',
+  'tuesday',
+  'saturday',
+  'semester',
+  'department',
+  'laboratory',
+  'assignment',
+  'research',
+  'conference',
+  'attendance',
+  'registration',
+  'graduation',
+  'syllabus',
+  'curriculum',
+  'experiment',
+  'presentation',
+  'scholarship',
+  'opportunity',
+  'convenient',
+  'available',
+  'appointment',
+];
+
+export function buildCriteriaArray(
+  items: CriterionItem[],
+  legacyScores: {
+    taskFulfillment: number;
+    coherence: number;
+    vocabulary: number;
+    grammar: number;
+  }
+): CriteriaArrayWithLegacyProps {
+  const arr = [...items] as CriteriaArrayWithLegacyProps;
+  Object.assign(arr, legacyScores);
+  return arr;
+}
+
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (Math.abs(m - n) > 2) return 99;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
 function normalizeTaskTypeKey(
   rawType?: string
 ): 'write-email' | 'academic-discussion' | 'speaking-interview' | 'listen-repeat' {
@@ -189,6 +387,11 @@ function collectPromptStrings(promptData: any, extra?: any): string[] {
         if (b) chunks.push(String(b));
       }
     }
+    if (Array.isArray(src.instructions)) {
+      for (const inst of src.instructions) {
+        if (inst) chunks.push(String(inst));
+      }
+    }
   }
 
   return chunks;
@@ -232,9 +435,49 @@ export function detectPromptCopyingRatio(studentText: string, promptData: any, e
 }
 
 /**
+ * Counts how many distinct specific alternative day/time expressions the student proposed
+ * (excluding a day mentioned purely as the missed office-hours day).
+ */
+function countProposedAlternativeTimeSlots(studentText: string, promptData: any, extra?: any): {
+  proposedCount: number;
+  hasVagueTimeOnly: boolean;
+} {
+  const clean = String(studentText || '').toLowerCase();
+  const promptSituation = String(promptData?.situation || extra?.task?.situation || '').toLowerCase();
+
+  // Identify if a specific day of the week is mentioned in the prompt situation as the conflict day (e.g., "Wednesday")
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const conflictDays = new Set<string>();
+  for (const d of days) {
+    if (promptSituation.includes(d)) {
+      conflictDays.add(d);
+    }
+  }
+
+  let proposedCount = 0;
+  // Check non-conflict days mentioned in student text
+  for (const d of days) {
+    if (clean.includes(d) && !conflictDays.has(d)) {
+      proposedCount++;
+    }
+  }
+
+  // Check explicit clock times or time-of-day periods (e.g. "2:00", "2 pm", "10 am", "morning", "afternoon", "tomorrow", "next week")
+  const timeMatches = clean.match(/\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|o'clock)|morning|afternoon|evening|tomorrow|next\s+week)\b/gi) || [];
+  proposedCount += timeMatches.length;
+
+  const hasVagueTimeOnly =
+    proposedCount < 2 &&
+    /\b(whenever\s+you\s+are\s+free|whenever\s+you're\s+free|another\s+time|any\s+time|some\s+other\s+time|when\s+you\s+are\s+free)\b/i.test(
+      clean
+    );
+
+  return { proposedCount, hasVagueTimeOnly };
+}
+
+/**
  * 2. Topic & Bullet-Point Relevance Scoring:
- * Extracts significant topic keywords (words >= 4 chars, excluding common stop words)
- * from promptData and measures how many topic/prompt concepts the student addressed.
+ * Extracts significant topic keywords and verifies each required objective for Write an Email.
  */
 export function computeTopicRelevance(
   studentText: string,
@@ -247,12 +490,23 @@ export function computeTopicRelevance(
   bulletCoverageRatio: number;
   bulletsCovered: number;
   totalBullets: number;
+  bulletAnalysis: BulletAnalysisItem[];
 } {
   const studentWords = tokenizeWords(studentText);
   const studentWordSet = new Set(studentWords);
   const studentStems = new Set(
     studentWords.filter((w) => w.length >= 5).map((w) => w.slice(0, 5))
   );
+
+  // Also include corrected forms of misspelled words so a typo like "disucss" or "introdutory"
+  // is still recognized for topic keyword matching while being penalized in Spelling/Grammar!
+  for (const w of studentWords) {
+    if (COMMON_ACADEMIC_MISSPELLINGS[w]) {
+      const fixed = COMMON_ACADEMIC_MISSPELLINGS[w].toLowerCase();
+      studentWordSet.add(fixed);
+      if (fixed.length >= 5) studentStems.add(fixed.slice(0, 5));
+    }
+  }
 
   const promptChunks = collectPromptStrings(promptData, extra);
   const promptKeywords = new Set<string>();
@@ -276,17 +530,69 @@ export function computeTopicRelevance(
     ? promptData.goals
     : Array.isArray(promptData?.bulletPoints)
     ? promptData.bulletPoints
+    : Array.isArray(promptData?.instructions)
+    ? promptData.instructions
     : Array.isArray(extra?.task?.goals)
     ? extra.task.goals
     : [];
 
   let bulletsCovered = 0;
-  for (const goal of rawGoals) {
-    const goalWords = tokenizeWords(String(goal || '')).filter(
-      (w) => w.length >= 4 && !STOP_WORDS.has(w)
+  const bulletAnalysis: BulletAnalysisItem[] = [];
+
+  for (let idx = 0; idx < rawGoals.length; idx++) {
+    const goal = String(rawGoals[idx] || '').trim();
+    const asksForTwoTimes =
+      /\b(two|2|multiple|several)\s+(?:alternative\s+|specific\s+|different\s+|possible\s+)?(?:times?|days?|dates?|slots?|options?)\b/i.test(
+        goal
+      ) ||
+      /\bsuggest\s+(?:two\s+)?(?:alternative\s+)?times?\b/i.test(goal);
+
+    if (asksForTwoTimes) {
+      const { proposedCount, hasVagueTimeOnly } = countProposedAlternativeTimeSlots(
+        studentText,
+        promptData,
+        extra
+      );
+      if (proposedCount >= 2) {
+        bulletsCovered++;
+        bulletAnalysis.push({
+          goal,
+          addressed: true,
+          status: 'complete',
+          feedback: `Objective #${idx + 1} Complete: Proposed two specific alternative meeting times.`,
+        });
+      } else if (proposedCount === 1) {
+        bulletsCovered += 0.5;
+        bulletAnalysis.push({
+          goal,
+          addressed: false,
+          status: 'partial',
+          feedback: `Objective #${idx + 1} Partially Addressed: The prompt requires two alternative times ("${goal}"), but only one specific time/day was mentioned.`,
+        });
+      } else {
+        bulletAnalysis.push({
+          goal,
+          addressed: false,
+          status: hasVagueTimeOnly ? 'partial' : 'missing',
+          feedback: hasVagueTimeOnly
+            ? `Objective #${idx + 1} Incomplete: The prompt requires you to "${goal}", but you only wrote a vague request ("another time whenever you are free") without proposing two specific days or time slots (e.g., "Tuesday at 2:00 PM or Thursday morning at 10:00 AM").`
+            : `Objective #${idx + 1} Missing: You did not suggest two specific alternative times to meet ("${goal}").`,
+        });
+      }
+      continue;
+    }
+
+    const goalWords = tokenizeWords(goal).filter(
+      (w) => w.length >= 4 && !STOP_WORDS.has(w) && !['meet', 'with', 'when', 'could', 'would', 'your'].includes(w)
     );
     if (goalWords.length === 0) {
       bulletsCovered++;
+      bulletAnalysis.push({
+        goal,
+        addressed: true,
+        status: 'complete',
+        feedback: `Objective #${idx + 1} Complete: Addressed "${goal}".`,
+      });
       continue;
     }
     const hasMatch = goalWords.some(
@@ -294,10 +600,24 @@ export function computeTopicRelevance(
     );
     if (hasMatch) {
       bulletsCovered++;
+      bulletAnalysis.push({
+        goal,
+        addressed: true,
+        status: 'complete',
+        feedback: `Objective #${idx + 1} Complete: Addressed "${goal}".`,
+      });
+    } else {
+      bulletAnalysis.push({
+        goal,
+        addressed: false,
+        status: 'missing',
+        feedback: `Objective #${idx + 1} Incomplete: Make sure to explicitly address "${goal}" with concrete details.`,
+      });
     }
   }
 
   const totalBullets = rawGoals.length;
+  const roundedCovered = Math.floor(bulletsCovered);
   const bulletCoverageRatio = totalBullets > 0 ? bulletsCovered / totalBullets : 1;
   const relevanceRatio =
     promptKeywords.size > 0
@@ -309,23 +629,34 @@ export function computeTopicRelevance(
     matchedKeywordCount,
     relevanceRatio,
     bulletCoverageRatio,
-    bulletsCovered,
+    bulletsCovered: roundedCovered,
     totalBullets,
+    bulletAnalysis,
   };
 }
 
 /**
- * 4. Expanded Grammar & Mechanics Detection:
- * Dynamically detects common ESL/TOEFL grammar errors in studentResponse.
+ * 4. Expanded Grammar, Spelling, Capitalization & Wording Detection:
+ * Dynamically detects spelling typos, standalone lowercase "i", repeated words,
+ * preposition/collocation errors, pronoun agreement, punctuation, and better wording.
  */
-export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorItem[] {
+export function detectGrammarAndMechanicsErrors(
+  rawText: string,
+  promptData?: any,
+  extra?: any
+): GrammarErrorItem[] {
   const text = String(rawText || '').replace(/^Subject:.*$/im, '').trim();
   if (!text) return [];
 
   const errors: GrammarErrorItem[] = [];
   const seenOriginals = new Set<string>();
 
-  const pushError = (original: string, corrected: string, explanation: string) => {
+  const pushError = (
+    original: string,
+    corrected: string,
+    explanation: string,
+    type: GrammarErrorItem['type'] = 'grammar'
+  ) => {
     const cleanOrig = original.trim();
     if (!cleanOrig || seenOriginals.has(cleanOrig.toLowerCase())) return;
     seenOriginals.add(cleanOrig.toLowerCase());
@@ -333,12 +664,218 @@ export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorIt
       original: cleanOrig,
       corrected: corrected.trim(),
       explanation,
+      type,
     });
   };
 
-  // 1. Subject-verb agreement: "he/she/it have" or "he/she/it do"
-  const svPronounRegex = /\b(he|she|it)\s+(have|do|are|were)\b/gi;
   let m: RegExpExecArray | null;
+
+  // 1. Standalone lowercase "i" and contractions "i'm", "i've", "i'll", "i'd", "i couldn't"
+  const lowerIContractionRegex = /\b(i'(?:m|ve|ll|d))\b/g;
+  while ((m = lowerIContractionRegex.exec(text)) !== null) {
+    const tok = m[1];
+    pushError(
+      tok,
+      'I' + tok.slice(1),
+      'Capitalization error: the first-person singular pronoun "I" must always be capitalized in English.',
+      'mechanics'
+    );
+  }
+
+  const lowerIStandaloneRegex = /\bi\b/g;
+  while ((m = lowerIStandaloneRegex.exec(text)) !== null) {
+    const afterChar = text[m.index + 1] || '';
+    if (afterChar === "'" || afterChar === '.') continue;
+    pushError(
+      'i',
+      'I',
+      'Capitalization error: the first-person singular pronoun "I" must always be capitalized in English.',
+      'mechanics'
+    );
+  }
+
+  // 2. Double / repeated consecutive words ("about about", "the the", "and and", "is is")
+  const doubleWordRegex = /\b([a-zA-Z]{2,})\s+\1\b/gi;
+  while ((m = doubleWordRegex.exec(text)) !== null) {
+    const word = m[1].toLowerCase();
+    if (word !== 'had' && word !== 'that') {
+      // Check if preceded by discuss/disucss ("discuss about about")
+      const prefixSlice = text.slice(Math.max(0, m.index - 12), m.index).toLowerCase();
+      if (word === 'about' && /(?:discuss|disucss)\s*$/.test(prefixSlice)) {
+        pushError(
+          m[0],
+          '[omit — "discuss" takes no preposition "about"]',
+          'Redundant repeated word ("about about") and collocation error: the transitive verb "discuss" takes a direct object directly without "about" (write "discuss the introductory courses").',
+          'grammar'
+        );
+      } else {
+        pushError(
+          m[0],
+          m[1],
+          `Redundant repeated word: remove the duplicate word "${m[1]}".`,
+          'grammar'
+        );
+      }
+    }
+  }
+
+  // 3. Explicit dictionary of common academic & campus spelling mistakes
+  const wordTokenRegex = /\b([A-Za-z]{4,})\b/g;
+  while ((m = wordTokenRegex.exec(text)) !== null) {
+    const rawWord = m[1];
+    const lowerWord = rawWord.toLowerCase();
+    if (COMMON_ACADEMIC_MISSPELLINGS[lowerWord]) {
+      const correctBase = COMMON_ACADEMIC_MISSPELLINGS[lowerWord];
+      const corrected =
+        rawWord[0] === rawWord[0].toUpperCase() && rawWord[0] !== rawWord[0].toLowerCase()
+          ? correctBase.charAt(0).toUpperCase() + correctBase.slice(1)
+          : correctBase;
+      pushError(
+        rawWord,
+        corrected,
+        `Spelling error: "${rawWord}" is misspelled; the correct academic spelling is "${corrected}".`,
+        'spelling'
+      );
+    }
+  }
+
+  // 4. Dynamic Prompt-Word & Core Academic Word Levenshtein Typo Check (edit distance 1-2)
+  const promptStrings = collectPromptStrings(promptData, extra);
+  const targetVocabMap = new Map<string, string>();
+  for (const w of CORE_ACADEMIC_TARGETS) {
+    targetVocabMap.set(w.toLowerCase(), w);
+  }
+  for (const chunk of promptStrings) {
+    const rawMatches = chunk.match(/\b[A-Za-z]{6,}\b/g) || [];
+    for (const rw of rawMatches) {
+      targetVocabMap.set(rw.toLowerCase(), rw.toLowerCase());
+    }
+  }
+
+  const validLookup = new Set<string>(targetVocabMap.keys());
+  for (const k of Array.from(validLookup)) {
+    validLookup.add(`${k}s`);
+    validLookup.add(`${k}es`);
+    validLookup.add(`${k}ed`);
+    validLookup.add(`${k}d`);
+    validLookup.add(`${k}ing`);
+    if (k.endsWith('y')) {
+      validLookup.add(`${k.slice(0, -1)}ies`);
+      validLookup.add(`${k.slice(0, -1)}ied`);
+    }
+  }
+
+  wordTokenRegex.lastIndex = 0;
+  while ((m = wordTokenRegex.exec(text)) !== null) {
+    const rawWord = m[1];
+    const lowerWord = rawWord.toLowerCase();
+    if (
+      lowerWord.length < 6 ||
+      validLookup.has(lowerWord) ||
+      COMMON_ACADEMIC_MISSPELLINGS[lowerWord] ||
+      STOP_WORDS.has(lowerWord)
+    ) {
+      continue;
+    }
+
+    for (const [targetLower, targetDisplay] of targetVocabMap.entries()) {
+      if (Math.abs(lowerWord.length - targetLower.length) > 2) continue;
+      // Avoid flagging valid inflections of the target word
+      if (
+        lowerWord === `${targetLower}s` ||
+        lowerWord === `${targetLower}ed` ||
+        lowerWord === `${targetLower}ing` ||
+        targetLower === `${lowerWord}s` ||
+        targetLower === `${lowerWord}ed`
+      ) {
+        continue;
+      }
+      // Require same starting letter and ending letter to avoid false positives on unrelated words
+      if (lowerWord[0] !== targetLower[0]) continue;
+      const dist = levenshteinDistance(lowerWord, targetLower);
+      if (
+        dist === 1 ||
+        (dist === 2 &&
+          lowerWord.length >= 7 &&
+          targetLower.length >= 7 &&
+          lowerWord[1] === targetLower[1] &&
+          lowerWord[lowerWord.length - 1] === targetLower[targetLower.length - 1])
+      ) {
+        pushError(
+          rawWord,
+          targetDisplay,
+          `Spelling error: "${rawWord}" appears to be a typo for "${targetDisplay}".`,
+          'spelling'
+        );
+        break;
+      }
+    }
+  }
+
+  // 5. Common ESL Grammar & Collocation Patterns
+  // 5a. "you office hours" / "you office" / "you class" / "you course" / "you help" / "you lecture"
+  const youPossessiveRegex = /\b(you)\s+(office\s+hours|office|class(?:es)?|course(?:s)?|lecture(?:s)?|help|guidance|time|schedule|email|question(?:s)?|syllabus|department)\b/gi;
+  while ((m = youPossessiveRegex.exec(text)) !== null) {
+    const isCap = m[1][0] === 'Y';
+    pushError(
+      m[0],
+      `${isCap ? 'Your' : 'your'} ${m[2]}`,
+      `Grammar error: use the possessive determiner "${isCap ? 'Your' : 'your'}" before the noun phrase "${m[2]}" instead of the pronoun "${m[1]}".`,
+      'grammar'
+    );
+  }
+
+  // 5b. "during Monday/Tuesday/Wednesday/Thursday/Friday/Saturday/Sunday" -> "on Wednesday"
+  const duringDayRegex = /\b(during)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b/gi;
+  while ((m = duringDayRegex.exec(text)) !== null) {
+    const isCap = m[1][0] === 'D';
+    const dayProper = m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase();
+    pushError(
+      m[0],
+      `${isCap ? 'On' : 'on'} ${dayProper}`,
+      `Preposition error: use the preposition "on" with days of the week ("on ${dayProper}"), not "during".`,
+      'grammar'
+    );
+  }
+
+  // 5c. "have by biology" / "by biology" / "by schedule" / "by class" (typo for "my")
+  const byForMyRegex = /\b(have|had|attend|attended|in|for|missed)\s+by\s+(biology|chemistry|physics|math|psychology|economics|history|english|class(?:es)?|course(?:s)?|lecture(?:s)?|lab|schedule|exam|meeting)\b/gi;
+  while ((m = byForMyRegex.exec(text)) !== null) {
+    const verb = m[1].toLowerCase() === 'have' ? 'had' : m[1];
+    pushError(
+      m[0],
+      `${verb} my ${m[2]}`,
+      `Grammar & word-choice error: replace "by" with the possessive determiner "my" ("${verb} my ${m[2]}").`,
+      'grammar'
+    );
+  }
+
+  // 5d. Plural noun + "and its" ("classes and its requirement", "courses and its")
+  const pluralItsRegex = /\b(classes|courses|lectures|seminars|labs|assignments|exams|projects)\s+and\s+its\s+(requirement(?:s)?|schedule|syllabus|deadline(?:s)?|workload|grade(?:s)?)\b/gi;
+  while ((m = pluralItsRegex.exec(text)) !== null) {
+    const singularNoun = m[1].replace(/es$/i, '').replace(/s$/i, '');
+    const fixedReq = m[2].endsWith('s') ? m[2] : `${m[2]}s`;
+    pushError(
+      m[0],
+      `${singularNoun} and its ${fixedReq} (or "${m[1]} and their ${fixedReq}")`,
+      `Pronoun-antecedent agreement error: plural "${m[1]}" does not agree with singular possessive "its". Use singular "${singularNoun} and its ${fixedReq}" or plural "${m[1]} and their ${fixedReq}".`,
+      'grammar'
+    );
+  }
+
+  // 5e. "discuss/disucss about" (single "about")
+  const discussAboutRegex = /\b(discuss(?:ed|ing|es)?|disucss(?:ed|ing|es)?)\s+about\b(?!\s+about)/gi;
+  while ((m = discussAboutRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'discuss',
+      'Grammar/Collocation error: "discuss" is a transitive verb and takes a direct object without the preposition "about".',
+      'grammar'
+    );
+  }
+
+  // 6. Subject-verb agreement: "he/she/it have" or "he/she/it do"
+  const svPronounRegex = /\b(he|she|it)\s+(have|do|are|were)\b/gi;
   while ((m = svPronounRegex.exec(text)) !== null) {
     const subj = m[1];
     const verb = m[2].toLowerCase();
@@ -347,22 +884,24 @@ export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorIt
     pushError(
       m[0],
       `${subj} ${fixVerb}`,
-      `Singular third-person subject "${subj}" requires the singular verb "${fixVerb}".`
+      `Singular third-person subject "${subj}" requires the singular verb "${fixVerb}".`,
+      'grammar'
     );
   }
 
-  // 2. Existential "there is many / several / numerous / multiple / various / few"
+  // 7. Existential "there is many / several / numerous / multiple / various / few"
   const thereIsPluralRegex = /\b(there\s+is)\s+(many|several|numerous|multiple|various|few|two|three|four|five|a\s+lot\s+of\s+\w+s)\b/gi;
   while ((m = thereIsPluralRegex.exec(text)) !== null) {
     const isCap = m[1][0] === 'T';
     pushError(
       m[0],
       `${isCap ? 'There are' : 'there are'} ${m[2]}`,
-      'Use plural "there are" before plural quantifiers and countable plural nouns.'
+      'Use plural "there are" before plural quantifiers and countable plural nouns.',
+      'grammar'
     );
   }
 
-  // 3. Indefinite pronouns with plural verbs: "everyone have/are"
+  // 8. Indefinite pronouns with plural verbs: "everyone have/are"
   const indefRegex = /\b(everyone|everybody|someone|somebody|nobody|anybody|each\s+student|every\s+student)\s+(have|are|were|do)\b/gi;
   while ((m = indefRegex.exec(text)) !== null) {
     const subj = m[1];
@@ -372,24 +911,12 @@ export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorIt
     pushError(
       m[0],
       `${subj} ${fixVerb}`,
-      `Singular indefinite subject "${subj}" requires the singular verb "${fixVerb}".`
+      `Singular indefinite subject "${subj}" requires the singular verb "${fixVerb}".`,
+      'grammar'
     );
   }
 
-  // 4. Double / repeated consecutive words ("and and", "the the", "is is")
-  const doubleWordRegex = /\b([a-zA-Z]{2,})\s+\1\b/gi;
-  while ((m = doubleWordRegex.exec(text)) !== null) {
-    const word = m[1].toLowerCase();
-    if (word !== 'had' && word !== 'that') {
-      pushError(
-        m[0],
-        m[1],
-        `Remove the accidental duplicate word "${m[1]}".`
-      );
-    }
-  }
-
-  // 5. Uncountable plural errors ("informations", "researches", "advices", "equipments", "knowledges")
+  // 9. Uncountable plural errors ("informations", "researches", "advices", "equipments", "knowledges")
   const uncountableMap: Record<string, string> = {
     informations: 'information',
     researches: 'research',
@@ -414,32 +941,35 @@ export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorIt
     pushError(
       matched,
       fixed,
-      `"${fixed}" is an uncountable noun in academic English and does not take a plural "-s" ending.`
+      `"${fixed}" is an uncountable noun in academic English and does not take a plural "-s" ending.`,
+      'grammar'
     );
   }
 
-  // 6. Modal + "to" + verb ("can to help", "should to study", "must to complete")
+  // 10. Modal + "to" + verb ("can to help", "should to study", "must to complete")
   const modalToRegex = /\b(can|could|will|would|should|must|may|might)\s+to\s+([a-z]{2,})\b/gi;
   while ((m = modalToRegex.exec(text)) !== null) {
     pushError(
       m[0],
       `${m[1]} ${m[2]}`,
-      `Modal verb "${m[1]}" must be followed directly by the base verb "${m[2]}" without "to".`
+      `Modal verb "${m[1]}" must be followed directly by the base verb "${m[2]}" without "to".`,
+      'grammar'
     );
   }
 
-  // 7. Modal + 3rd person singular "-s" verb ("can helps", "will makes", "should provides")
+  // 11. Modal + 3rd person singular "-s" verb ("can helps", "will makes", "should provides")
   const modalSRegex = /\b(can|could|will|would|should|must|may|might)\s+(helps|makes|goes|creates|improves|leads|provides|allows|requires|causes|gives|takes|increases|reduces|supports)\b/gi;
   while ((m = modalSRegex.exec(text)) !== null) {
     const baseVerb = m[2].toLowerCase() === 'goes' ? 'go' : m[2].replace(/s$/i, '');
     pushError(
       m[0],
       `${m[1]} ${baseVerb}`,
-      `Use the base form "${baseVerb}" after the modal auxiliary "${m[1]}".`
+      `Use the base form "${baseVerb}" after the modal auxiliary "${m[1]}".`,
+      'grammar'
     );
   }
 
-  // 8. Informal slang / conversational abbreviations ("gonna", "wanna", "u", "cuz", "a lot of")
+  // 12. Informal slang / conversational abbreviations
   const slangMap: Record<string, { fix: string; note: string }> = {
     gonna: { fix: 'going to', note: 'Replace informal spoken contraction "gonna" with formal "going to".' },
     wanna: { fix: 'want to', note: 'Replace informal spoken contraction "wanna" with formal "want to".' },
@@ -458,7 +988,7 @@ export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorIt
   while ((m = slangRegex.exec(text)) !== null) {
     const key = m[1].toLowerCase();
     if (slangMap[key]) {
-      pushError(m[0], slangMap[key].fix, slangMap[key].note);
+      pushError(m[0], slangMap[key].fix, slangMap[key].note, 'wording');
     }
   }
 
@@ -467,77 +997,95 @@ export function detectGrammarAndMechanicsErrors(rawText: string): GrammarErrorIt
     pushError(
       m[0],
       'numerous / a substantial amount of',
-      'Prefer formal academic quantifiers ("numerous", "substantial", "significant") over conversational "a lot of".'
+      'Prefer formal academic quantifiers ("numerous", "substantial", "significant") over conversational "a lot of".',
+      'wording'
     );
   }
 
-  // 9. Standalone lowercase "i"
-  const lowerIRegex = /(?:^|\s)(i(?:\s|'(?:m|ve|ll|d)\b))/g;
-  while ((m = lowerIRegex.exec(text)) !== null) {
-    const tok = m[1].trim();
-    const fixed = 'I' + tok.slice(1);
+  // 13. Better Wording / Academic Register Upgrades
+  const wordingRules: Array<{ pattern: RegExp; fix: string; note: string }> = [
+    {
+      pattern: /\bcouldn't\s+manage\s+to\s+meet\s+you\b/i,
+      fix: 'was unable to attend your scheduled office hours',
+      note: 'Better Wording (Academic Register): replace conversational "couldn\'t manage to meet you" with formal "was unable to attend your scheduled office hours".',
+    },
+    {
+      pattern: /\bI\s+am\s+writing\s+to\s+tell\s+you\b/i,
+      fix: 'I am writing to inform you',
+      note: 'Better Wording (Register): "I am writing to inform you" is more appropriate for formal academic correspondence than "tell you".',
+    },
+    {
+      pattern: /\bwhenever\s+you\s+are\s+free\b/i,
+      fix: 'at your earliest convenience (e.g., Tuesday at 2:00 PM or Thursday morning)',
+      note: 'Better Wording & Specificity: "whenever you are free" is overly casual and vague; propose two specific alternative days/times in formal register.',
+    },
+    {
+      pattern: /\bI\s+want\s+to\s+ask\s+you\b/i,
+      fix: 'I would like to inquire',
+      note: 'Better Wording (Register): use polite academic hedging ("I would like to inquire") instead of direct "I want to ask you".',
+    },
+    {
+      pattern: /\bdepend\s+of\b/i,
+      fix: 'depend on',
+      note: 'Collocation error: the verb "depend" always takes the preposition "on", never "of".',
+    },
+    {
+      pattern: /\bdespite\s+of\b/i,
+      fix: 'despite / in spite of',
+      note: 'Collocation error: use "despite" without "of", or use the full phrase "in spite of".',
+    },
+  ];
+  for (const rule of wordingRules) {
+    const match = text.match(rule.pattern);
+    if (match) {
+      pushError(
+        match[0],
+        rule.fix,
+        rule.note,
+        rule.note.startsWith('Better Wording') ? 'wording' : 'grammar'
+      );
+    }
+  }
+
+  // 14. Missing comma after formal closing sign-off ("Sincerely", "Best regards", "Kind regards")
+  const signOffNoCommaRegex = /(?:^|\n)\s*(Sincerely|Best\s+regards|Kind\s+regards|Warm\s+regards|Respectfully)\s*(?=\n|$)/i;
+  const signOffMatch = text.match(signOffNoCommaRegex);
+  if (signOffMatch) {
     pushError(
-      tok,
-      fixed,
-      'Always capitalize the first-person singular pronoun "I" in English.'
+      signOffMatch[1],
+      `${signOffMatch[1]},`,
+      `Punctuation error: place a comma after the closing sign-off ("${signOffMatch[1]},").`,
+      'mechanics'
     );
   }
 
-  // 10. Missing sentence-initial capitalization
+  // 15. Missing sentence-initial capitalization
   const sentences = text.split(/(?<=[.!?])\s+/);
   for (const s of sentences) {
     const trimmed = s.trim();
     if (/^[a-z]/.test(trimmed)) {
-      const firstWords = trimmed.split(/\s+/).slice(0, 4).join(' ');
+      const firstWords = trimmed.split(/\s+/).slice(0, 3).join(' ');
       pushError(
         firstWords,
         firstWords.charAt(0).toUpperCase() + firstWords.slice(1),
-        'Capitalize the first letter at the beginning of every sentence.'
+        'Capitalize the first letter at the beginning of every sentence.',
+        'mechanics'
       );
     }
-    // 11. Run-on sentences > 45 words without internal semicolon or period
+    // 16. Run-on sentences > 45 words without internal semicolon or period
     const sWords = trimmed.split(/\s+/).filter(Boolean);
     if (sWords.length > 45 && !trimmed.includes(';')) {
       const snippet = `${sWords.slice(0, 7).join(' ')} ... (${sWords.length} words)`;
       pushError(
         snippet,
         `${sWords.slice(0, 7).join(' ')}. [Break into two sentences]`,
-        'Run-on sentence exceeding 45 words without terminal punctuation; divide long clauses into two distinct sentences.'
+        'Run-on sentence exceeding 45 words without terminal punctuation; divide long clauses into two distinct sentences.',
+        'mechanics'
       );
     }
   }
 
-  // 12. Common TOEFL spelling & collocation mistakes
-  const commonFixes: Array<{ pattern: RegExp; fix: string; note: string }> = [
-    {
-      pattern: /\bdepend\s+of\b/i,
-      fix: 'depend on',
-      note: 'The verb "depend" always takes the preposition "on", never "of".',
-    },
-    {
-      pattern: /\bdiscuss\s+about\b/i,
-      fix: 'discuss',
-      note: '"Discuss" is a transitive verb and takes a direct object without "about".',
-    },
-    {
-      pattern: /\bdespite\s+of\b/i,
-      fix: 'despite / in spite of',
-      note: 'Use "despite" without "of", or use the full phrase "in spite of".',
-    },
-    {
-      pattern: /\b(enviroment|definately|occured|recieve|seperate|goverment|neccessary|accomodate)\b/i,
-      fix: 'environment / definitely / occurred / receive / separate / government / necessary / accommodate',
-      note: 'Check academic spelling of high-frequency TOEFL vocabulary.',
-    },
-  ];
-  for (const rule of commonFixes) {
-    const match = text.match(rule.pattern);
-    if (match) {
-      pushError(match[0], rule.fix, rule.note);
-    }
-  }
-
-  return errors.slice(0, 6);
+  return errors.slice(0, 18);
 }
 
 /**
@@ -598,12 +1146,12 @@ function evaluateListenRepeatLocally(
     const target = rawTargets[i] || '';
     const spoken = (spokenList[i] || '').trim();
     if (!spoken) {
-      // Unanswered sentences count as 0%
       if (target) {
         corrections.push({
           original: `Sentence ${i + 1}: [No recording submitted]`,
           corrected: target,
           explanation: 'Unrecorded sentences receive 0% accuracy in official Listen & Repeat scoring.',
+          type: 'mechanics',
         });
       }
       continue;
@@ -620,13 +1168,13 @@ function evaluateListenRepeatLocally(
         original: `Sentence ${i + 1}: "${spoken}" (${matchRes.percentage}%)`,
         corrected: target,
         explanation: 'Ensure every target word is repeated in the exact sequential order without omissions or extra inserted words.',
+        type: 'grammar',
       });
     }
   }
 
   const avgAccuracy = Math.round(totalAccuracy / targetCount);
 
-  // Strict 2026 TOEFL iBT Listen & Repeat Accuracy -> Band 1.0–6.0 mapping
   let bandScore6 = 1.0;
   if (avgAccuracy >= 95) bandScore6 = 6.0;
   else if (avgAccuracy >= 88) bandScore6 = 5.5;
@@ -671,6 +1219,43 @@ function evaluateListenRepeatLocally(
   }
 
   const exemplar = rawTargets.join(' ');
+  const legacyCriteria = {
+    taskFulfillment: Math.round((answeredSentences / targetCount) * 100),
+    coherence: avgAccuracy,
+    vocabulary: avgAccuracy,
+    grammar: avgAccuracy,
+  };
+
+  const criteriaItems: CriterionItem[] = [
+    {
+      name: 'Task Completion (Sentences Repeated)',
+      score: Number(((answeredSentences / targetCount) * 5).toFixed(1)),
+      displayScore: `${answeredSentences}/${targetCount}`,
+      feedback: `Completed ${answeredSentences} of ${targetCount} prompted sentences.`,
+      comment: `Completed ${answeredSentences} of ${targetCount} prompted sentences.`,
+    },
+    {
+      name: 'Sequential Word-Order Accuracy',
+      score: rawRubricScore,
+      displayScore: `${avgAccuracy}%`,
+      feedback: `Achieved ${avgAccuracy}% exact word-sequence match across all items.`,
+      comment: `Achieved ${avgAccuracy}% exact word-sequence match across all items.`,
+    },
+    {
+      name: 'Phonetic & Lexical Precision',
+      score: rawRubricScore,
+      displayScore: `${rawRubricScore.toFixed(1)} / 5.0`,
+      feedback: avgAccuracy >= 85 ? 'Clear lexical reproduction of academic vocabulary.' : 'Practice retaining multi-syllable content words and prepositions.',
+      comment: avgAccuracy >= 85 ? 'Clear lexical reproduction of academic vocabulary.' : 'Practice retaining multi-syllable content words and prepositions.',
+    },
+    {
+      name: 'Grammatical & Structural Retention',
+      score: rawRubricScore,
+      displayScore: `${rawRubricScore.toFixed(1)} / 5.0`,
+      feedback: avgAccuracy >= 85 ? 'Maintained clause structure and inflections accurately.' : 'Focus on preserving articles, auxiliary verbs, and plural endings.',
+      comment: avgAccuracy >= 85 ? 'Maintained clause structure and inflections accurately.' : 'Focus on preserving articles, auxiliary verbs, and plural endings.',
+    },
+  ];
 
   return {
     bandScore6,
@@ -679,11 +1264,12 @@ function evaluateListenRepeatLocally(
     rawRubricScore,
     scaledScore,
     performanceLevel,
-    criteria: {
-      taskFulfillment: Math.round((answeredSentences / targetCount) * 100),
-      coherence: avgAccuracy,
-      vocabulary: avgAccuracy,
-      grammar: avgAccuracy,
+    criteria: buildCriteriaArray(criteriaItems, legacyCriteria),
+    criteriaBreakdown: legacyCriteria,
+    subScores: {
+      taskFulfillment: bandScore6,
+      languageUse: bandScore6,
+      topicDevelopment: bandScore6,
     },
     summary,
     feedbackSummary: summary,
@@ -695,9 +1281,9 @@ function evaluateListenRepeatLocally(
     exemplar,
     exemplarResponse: exemplar,
     modelBand6Rewrite: exemplar,
-    corrections: corrections.slice(0, 5),
-    errors: corrections.slice(0, 5),
-    grammarErrors: corrections.slice(0, 5),
+    corrections: corrections.slice(0, 10),
+    errors: corrections.slice(0, 10),
+    grammarErrors: corrections.slice(0, 10),
     answeredQuestionsCount: answeredSentences,
     accuracyPercent: avgAccuracy,
     isLocalEvaluation: true,
@@ -756,7 +1342,6 @@ function parseSpeakingInterviewResponses(
   } else if (typeof studentResponse === 'string') {
     const raw = studentResponse.trim();
     if (raw) {
-      // Check for explicit Q1: ... Q2: ... markers
       const qMarkerRegex = /(?:^|\n)\s*(?:Q(?:uestion)?\s*([1-4]))\s*[:.)-]\s*([\s\S]*?)(?=(?:\n\s*Q(?:uestion)?\s*[1-4]\s*[:.)-])|$)/gi;
       let match: RegExpExecArray | null;
       let foundMarkers = false;
@@ -769,7 +1354,6 @@ function parseSpeakingInterviewResponses(
       }
 
       if (!foundMarkers) {
-        // Split by double newline paragraphs
         const paragraphs = raw
           .split(/\n\s*\n+/)
           .map((p) => p.trim())
@@ -779,9 +1363,6 @@ function parseSpeakingInterviewResponses(
             slots[i] = paragraphs[i];
           }
         } else {
-          // Single block of text without Q1..Q4 markers:
-          // Check word count: if under 90 words, it's a single question response (Q1 only);
-          // if >= 180 words, distribute across slots.
           const words = tokenizeWords(raw);
           if (words.length >= 180) {
             const quarter = Math.ceil(words.length / 4);
@@ -830,12 +1411,10 @@ export function evaluateLocally(
 ): LocalEvaluationResult {
   const canonicalType = normalizeTaskTypeKey(taskType);
 
-  // Special path for Listen & Repeat (7-sentence sequential word-order alignment)
   if (canonicalType === 'listen-repeat') {
     return evaluateListenRepeatLocally(promptData, studentResponse, extra);
   }
 
-  // Extract clean text from studentResponse
   let cleanText = '';
   if (typeof studentResponse === 'string') {
     cleanText = studentResponse.trim();
@@ -866,7 +1445,6 @@ export function evaluateLocally(
     }
   }
 
-  // Strip "Subject: ..." header when counting email body words so subject line doesn't skew body metrics
   const bodyOnlyText =
     canonicalType === 'write-email'
       ? cleanText.replace(/^Subject:[^\n]*\n*/i, '').trim() || cleanText
@@ -884,7 +1462,7 @@ export function evaluateLocally(
   // Lexical diversity & sophistication
   const uniqueWords = new Set(words);
   const ttr = wordCount > 0 ? uniqueWords.size / wordCount : 0;
-  const longWords = words.filter((w) => w.length >= 7);
+  const longWords = words.filter((w) => w.length >= 7 && !COMMON_ACADEMIC_MISSPELLINGS[w]);
   const academicWordRatio = wordCount > 0 ? longWords.length / wordCount : 0;
 
   const lowerText = cleanText.toLowerCase();
@@ -905,9 +1483,11 @@ export function evaluateLocally(
     relevance.promptKeywordCount >= 3 &&
     relevance.matchedKeywordCount === 0;
 
-  // 3. Dynamic Grammar & Mechanics Detection
-  const corrections = detectGrammarAndMechanicsErrors(bodyOnlyText);
-  const grammarErrorPenalty = Math.min(35, corrections.length * 7);
+  // 3. Dynamic Grammar, Spelling, Capitalization & Wording Detection
+  const corrections = detectGrammarAndMechanicsErrors(bodyOnlyText, promptData, extra);
+  const hardErrors = corrections.filter((c) => c.type !== 'wording');
+  const wordingItems = corrections.filter((c) => c.type === 'wording');
+  const grammarErrorPenalty = Math.min(55, hardErrors.length * 8 + wordingItems.length * 3);
 
   // 4. Task-Calibrated Scoring
   let devScore = 60;
@@ -919,14 +1499,12 @@ export function evaluateLocally(
   let interviewCompletenessCap = 6.0;
 
   if (canonicalType === 'write-email') {
-    // 2026 TOEFL iBT Write an Email (7 mins): Full length credit at 85–130+ words!
     if (wordCount >= 85) devScore = 92;
-    else if (wordCount >= 70) devScore = 82;
-    else if (wordCount >= 50) devScore = 68;
-    else if (wordCount >= 30) devScore = 50;
+    else if (wordCount >= 70) devScore = 80;
+    else if (wordCount >= 50) devScore = 64;
+    else if (wordCount >= 30) devScore = 48;
     else devScore = 30;
 
-    // Salutation & sign-off checks
     const hasSalutation = /\b(dear|hello|hi|good morning|good afternoon|professor|dr\.|director|advisor|coordinator)\b/i.test(
       bodyOnlyText.slice(0, 120)
     );
@@ -944,15 +1522,14 @@ export function evaluateLocally(
       if (relevance.bulletsCovered === relevance.totalBullets) {
         devScore += 6;
       } else if (relevance.bulletsCovered === 2) {
-        devScore -= 10;
+        devScore -= 14;
       } else if (relevance.bulletsCovered === 1) {
-        devScore -= 22;
+        devScore -= 25;
       } else {
-        devScore -= 35;
+        devScore -= 38;
       }
     }
   } else if (canonicalType === 'academic-discussion') {
-    // 2026 TOEFL iBT Academic Discussion (10 mins): Full length credit at 105–150+ words!
     if (wordCount >= 115) devScore = 93;
     else if (wordCount >= 100) devScore = 88;
     else if (wordCount >= 80) devScore = 76;
@@ -962,15 +1539,12 @@ export function evaluateLocally(
     if (stanceMarkersUsed.length >= 1) devScore += 4;
     else devScore -= 6;
 
-    // Check if student referenced topic or classmates
     const s1Name = String(promptData?.s1?.name || promptData?.s1 || extra?.task?.s1?.name || '').split(':')[0].trim().toLowerCase();
     const s2Name = String(promptData?.s2?.name || promptData?.s2 || extra?.task?.s2?.name || '').split(':')[0].trim().toLowerCase();
     if ((s1Name && lowerText.includes(s1Name)) || (s2Name && lowerText.includes(s2Name))) {
       cohScore += 5;
     }
   } else if (canonicalType === 'speaking-interview') {
-    // 2026 TOEFL iBT Speaking Interview (4 x 45s):
-    // Score each of the 4 questions individually and average across all 4!
     const parsedInterview = parseSpeakingInterviewResponses(studentResponse, extra);
     answeredQuestionsCount = parsedInterview.answeredCount;
 
@@ -979,7 +1553,6 @@ export function evaluateLocally(
       const resp = parsedInterview.slotResponses[i];
       const respWords = tokenizeWords(resp);
       if (respWords.length < 3) {
-        // Unanswered question counts as 0!
         slotScores6.push(0);
         continue;
       }
@@ -997,7 +1570,7 @@ export function evaluateLocally(
       if (hasTrans && hasComplex && respWords.length >= 45) {
         slotBand = Math.min(6.0, slotBand + 0.5);
       }
-      const slotErrors = detectGrammarAndMechanicsErrors(resp);
+      const slotErrors = detectGrammarAndMechanicsErrors(resp, promptData, extra);
       if (slotErrors.length >= 2) {
         slotBand = Math.max(1.5, slotBand - 0.5 * Math.min(3, slotErrors.length));
       }
@@ -1035,14 +1608,17 @@ export function evaluateLocally(
   }
   cohScore = Math.min(98, Math.max(25, cohScore));
 
-  // Lexical Resource (Vocabulary)
+  // Lexical Resource (Vocabulary & Register)
   if (academicWordRatio >= 0.24 && ttr >= 0.52) vocabScore = 94;
   else if (academicWordRatio >= 0.18 && ttr >= 0.45) vocabScore = 85;
   else if (academicWordRatio >= 0.13) vocabScore = 75;
   else vocabScore = 62;
+
+  if (wordingItems.length >= 2) vocabScore -= 12;
+  else if (wordingItems.length === 1) vocabScore -= 6;
   vocabScore = Math.min(98, Math.max(25, vocabScore));
 
-  // Grammatical Range & Accuracy
+  // Grammatical Range & Mechanics
   if (avgWordsPerSentence >= 13 && avgWordsPerSentence <= 26 && complexClausesUsed.length >= 2) {
     gramScore = 92;
   } else if (avgWordsPerSentence >= 10 && complexClausesUsed.length >= 1) {
@@ -1053,8 +1629,7 @@ export function evaluateLocally(
     gramScore = 72;
   }
   gramScore = Math.max(20, gramScore - grammarErrorPenalty);
-  // Official ETS Speaking Interview Rule (PDF Pages 27-28):
-  // Do NOT penalize natural conversational fillers ('um', 'uh') unless excessive (> 8% of words).
+
   const fillerRatio = wordCount > 0 ? (extra?.fillerCount || 0) / wordCount : 0;
   if (canonicalType === 'speaking-interview' && fillerRatio > 0.08) {
     gramScore = Math.max(25, gramScore - 10);
@@ -1070,11 +1645,14 @@ export function evaluateLocally(
   const avgCriteria = Math.round((devScore + cohScore + vocabScore + gramScore) / 4);
   let scaledScore = Math.min(30, Math.max(4, Math.round((avgCriteria / 100) * 30)));
 
-  // Task-specific caps (Note: Write an Email is a 7-minute 85-130 word task, so do NOT cap 85+ word emails!)
   if (canonicalType === 'write-email') {
     if (wordCount < 35) scaledScore = Math.min(scaledScore, 12);
-    else if (wordCount < 60) scaledScore = Math.min(scaledScore, 19);
-    else if (wordCount < 75) scaledScore = Math.min(scaledScore, 24);
+    else if (wordCount < 60) scaledScore = Math.min(scaledScore, 18);
+    else if (wordCount < 75) scaledScore = Math.min(scaledScore, 23);
+
+    if (relevance.totalBullets > 0 && relevance.bulletsCovered < relevance.totalBullets) {
+      scaledScore = Math.min(scaledScore, 21);
+    }
   } else if (canonicalType === 'academic-discussion') {
     if (wordCount < 45) scaledScore = Math.min(scaledScore, 12);
     else if (wordCount < 75) scaledScore = Math.min(scaledScore, 19);
@@ -1083,34 +1661,33 @@ export function evaluateLocally(
 
   let bandScore6 = convertScaledToBand6(scaledScore);
 
-  // Enforce Speaking Interview completeness cap (k / 4 questions answered)
   if (canonicalType === 'speaking-interview') {
     bandScore6 = Math.min(bandScore6, interviewCompletenessCap);
     scaledScore = Math.round((bandScore6 / 6.0) * 30);
   }
 
-  // Enforce Off-Topic cap (<= 2.0)
   if (offTopicDetected) {
     bandScore6 = Math.min(bandScore6, 2.0);
     scaledScore = Math.min(scaledScore, 9);
   }
 
-  // Enforce Prompt-Copying / Plagiarism cap (<= 1.5)
   if (copiedPromptDetected) {
     bandScore6 = Math.min(bandScore6, 1.5);
     scaledScore = Math.min(scaledScore, 6);
   }
 
-  // Enforce Grammar error ceiling if many errors exist
-  if (corrections.length >= 4) {
+  // Enforce realistic Grammar/Spelling/Mechanics error ceiling
+  if (hardErrors.length >= 6) {
+    bandScore6 = Math.min(bandScore6, 3.0);
+    scaledScore = Math.min(scaledScore, 15);
+  } else if (hardErrors.length >= 4) {
     bandScore6 = Math.min(bandScore6, 3.5);
     scaledScore = Math.min(scaledScore, 17);
-  } else if (corrections.length >= 2) {
+  } else if (hardErrors.length >= 2) {
     bandScore6 = Math.min(bandScore6, 4.5);
     scaledScore = Math.min(scaledScore, 23);
   }
 
-  // All 2026 ETS Tasks (Email, Discussion, Listen & Repeat, Interview) use official 0 to 5 score scale
   const rawRubricScore = Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
 
   const performanceLevel: LocalEvaluationResult['performanceLevel'] =
@@ -1122,20 +1699,49 @@ export function evaluateLocally(
       ? 'Low-Intermediate'
       : 'Basic';
 
-  // Strengths & Improvements
   const strengths: string[] = [];
   const improvements: string[] = [];
 
   if (copiedPromptDetected) {
-    improvements.push('Avoid copying sentences directly from the prompt; use your own words.');
+    improvements.push('Avoid copying sentences directly from the prompt; paraphrase ideas in your own academic language.');
   }
   if (offTopicDetected) {
-    improvements.push('Your response appears off-topic and does not address the prompt requirements.');
+    improvements.push('Your response appears off-topic and does not address the specific prompt requirements.');
   }
 
   if (canonicalType === 'speaking-interview' && answeredQuestionsCount < 4) {
     improvements.push(
       `You only answered ${answeredQuestionsCount} of the 4 interview questions. Complete all 4 questions to achieve a full TOEFL Speaking band score.`
+    );
+  }
+
+  // Add incomplete bullet-point feedback first so it appears in Top 2 Actionable Fixes!
+  if (canonicalType === 'write-email' && relevance.bulletAnalysis.length > 0) {
+    for (const b of relevance.bulletAnalysis) {
+      if (!b.addressed) {
+        improvements.push(b.feedback);
+      }
+    }
+    if (relevance.bulletsCovered === relevance.totalBullets && relevance.totalBullets > 0) {
+      strengths.push(`Addresses all ${relevance.totalBullets} communicative objectives specified in the prompt.`);
+    }
+  }
+
+  if (hardErrors.length > 0) {
+    const sampleFixes = hardErrors
+      .slice(0, 3)
+      .map((e) => `"${e.original}" → "${e.corrected}"`)
+      .join('; ');
+    improvements.push(
+      `Fix ${hardErrors.length} grammar, spelling, and capitalization error(s) (${sampleFixes}).`
+    );
+  } else if (!copiedPromptDetected && !offTopicDetected) {
+    strengths.push('Clean grammatical control and mechanics with no major surface errors.');
+  }
+
+  if (wordingItems.length > 0) {
+    improvements.push(
+      `Upgrade informal phrasing to academic register (e.g., "${wordingItems[0].original}" → "${wordingItems[0].corrected}").`
     );
   }
 
@@ -1146,13 +1752,6 @@ export function evaluateLocally(
       improvements.push(
         `Expand your email to 85–130 words (currently ${wordCount} words) to fully elaborate on all 3 required objectives.`
       );
-    }
-    if (relevance.totalBullets > 0 && relevance.bulletsCovered < relevance.totalBullets) {
-      improvements.push(
-        `Address all ${relevance.totalBullets} required bullet points in the prompt (currently covered ${relevance.bulletsCovered} of ${relevance.totalBullets}).`
-      );
-    } else if (relevance.totalBullets > 0) {
-      strengths.push(`Addresses all ${relevance.totalBullets} communicative objectives specified in the prompt.`);
     }
   } else if (canonicalType === 'academic-discussion') {
     if (wordCount >= 105) {
@@ -1168,7 +1767,7 @@ export function evaluateLocally(
     strengths.push(`Effective use of academic discourse markers (${transitionsUsed.slice(0, 3).join(', ')}).`);
   } else {
     improvements.push(
-      'Incorporate formal academic transitions ("furthermore", "consequently", "on the other hand") to link ideas.'
+      'Incorporate formal academic transitions ("furthermore", "consequently", "moreover") to connect your sentences smoothly.'
     );
   }
 
@@ -1178,16 +1777,8 @@ export function evaluateLocally(
     improvements.push('Combine short simple sentences using subordinate clauses ("although", "whereas", "which").');
   }
 
-  if (corrections.length > 0) {
-    improvements.push(
-      `Review ${corrections.length} grammatical/mechanical issue(s) identified in your response (e.g., "${corrections[0].original}" -> "${corrections[0].corrected}").`
-    );
-  } else if (!copiedPromptDetected && !offTopicDetected) {
-    strengths.push('Clean grammatical control and mechanics with no major surface errors.');
-  }
-
   if (strengths.length === 0) {
-    strengths.push('Submitted a response for rubric analysis.');
+    strengths.push('Submitted a response for official ETS rubric analysis.');
   }
 
   const summary = copiedPromptDetected
@@ -1196,9 +1787,15 @@ export function evaluateLocally(
     ? `Score capped at Band ${bandScore6.toFixed(1)}/6.0 (${performanceLevel}) because the response does not address the specific topic and requirements of the prompt.`
     : canonicalType === 'speaking-interview' && answeredQuestionsCount < 4
     ? `Evaluated on the 2026 ETS TOEFL Speaking Rubric: Band ${bandScore6.toFixed(1)}/6.0 (${performanceLevel}). Note: Only ${answeredQuestionsCount} of 4 interview questions were answered, capping the overall band score proportionally (${answeredQuestionsCount}/4).`
-    : `Evaluated on the 2026 ETS TOEFL Rubric: Band ${bandScore6.toFixed(1)}/6.0 (${performanceLevel}, Scaled ${scaledScore}/30). Your response (${wordCount} words, ${sentenceCount} sentences) demonstrates ${
-        bandScore6 >= 5.0 ? 'strong' : bandScore6 >= 4.0 ? 'solid' : 'developing'
-      } organization and lexical control.`;
+    : `Evaluated on the 2026 ETS TOEFL Rubric: Band ${bandScore6.toFixed(1)}/6.0 (${performanceLevel}, Task Rubric ${rawRubricScore}/5.0, Scaled ${scaledScore}/30). Your response (${wordCount} words, ${sentenceCount} sentences) ${
+        hardErrors.length > 0
+          ? `contains ${hardErrors.length} spelling/grammar/mechanics issue(s) and ${wordingItems.length} register upgrade opportunity(ies)`
+          : 'demonstrates clean mechanical control'
+      }${
+        canonicalType === 'write-email' && relevance.totalBullets > 0
+          ? `, covering ${relevance.bulletsCovered} of ${relevance.totalBullets} required email objectives.`
+          : '.'
+      }`;
 
   // Build Band 6.0 Exemplar
   let exemplar = '';
@@ -1209,7 +1806,7 @@ export function evaluateLocally(
       'propose a solution',
       'confirm next steps',
     ];
-    exemplar = `Subject: Inquiry Regarding ${promptData?.title || 'Academic Coursework'}\n\nDear ${recipient},\n\nI am writing to formally address ${goals[0]?.toLowerCase() || 'our upcoming academic requirement'}. Specifically, after reviewing the departmental guidelines, I wanted to ensure that my current progress aligns with your expectations.\n\nFurthermore, regarding ${goals[1]?.toLowerCase() || 'the second objective'}, I have prepared the necessary documentation and can submit it prior to the deadline. Finally, concerning ${goals[2]?.toLowerCase() || 'our next steps'}, I would be grateful if you could confirm whether a brief meeting during your office hours this week would be convenient.\n\nThank you very much for your time and guidance.\n\nSincerely,\nAlex Morgan`;
+    exemplar = `Subject: Inquiry Regarding ${promptData?.title || 'Academic Coursework'}\n\nDear ${recipient.split(',')[0]},\n\nI am writing to formally apologize for missing your scheduled office hours on Wednesday afternoon. Unfortunately, I had a mandatory biology laboratory session and course requirement that conflicted with that time slot.\n\nI was hoping to meet with you to discuss the introductory coursework and clarify several key concepts regarding "${goals[1] || 'our upcoming academic requirement'}." Because I want to ensure that I stay on track with your expectations, your guidance would be invaluable.\n\nWould it be possible for us to schedule a brief appointment at an alternative time this week? Specifically, I am available on Tuesday between 2:00 PM and 4:00 PM, or on Thursday morning at 10:00 AM. Please let me know if either of these times is convenient for you.\n\nThank you very much for your time and consideration.\n\nSincerely,\nAlex Morgan`;
   } else if (canonicalType === 'academic-discussion') {
     const s1Name = String(promptData?.s1?.name || promptData?.s1 || extra?.task?.s1?.name || 'my classmate').split(':')[0];
     const s2Name = String(promptData?.s2?.name || promptData?.s2 || extra?.task?.s2?.name || 'the other student').split(':')[0];
@@ -1218,6 +1815,83 @@ export function evaluateLocally(
     exemplar = `From my perspective, ${promptData?.title || 'this academic topic'} plays a pivotal role in modern higher education. First, when institutions prioritize structured, evidence-based practices, students develop stronger analytical and problem-solving capabilities. For instance, in my own academic coursework, collaborative seminars allowed us to synthesize theoretical models with real-world applications. Ultimately, balancing innovation with rigorous standards ensures long-term success.`;
   }
 
+  const devScore5 = Number(((devScore / 100) * 5.0).toFixed(1));
+  const cohScore5 = Number(((cohScore / 100) * 5.0).toFixed(1));
+  const vocabScore5 = Number(((vocabScore / 100) * 5.0).toFixed(1));
+  const gramScore5 = Number(((gramScore / 100) * 5.0).toFixed(1));
+
+  const legacyCriteria = {
+    taskFulfillment: devScore,
+    coherence: cohScore,
+    vocabulary: vocabScore,
+    grammar: gramScore,
+  };
+
+  const criteriaItems: CriterionItem[] = [
+    {
+      name: canonicalType === 'speaking-interview' ? 'Task Fulfillment & Topic Development' : 'Task Fulfillment & Elaboration',
+      score: devScore5,
+      maxScore: 5.0,
+      displayScore: `${devScore5.toFixed(1)} / 5.0`,
+      feedback:
+        canonicalType === 'write-email' && relevance.totalBullets > 0
+          ? `Covered ${relevance.bulletsCovered} of ${relevance.totalBullets} required objectives (${wordCount} words; target 85–130 words).`
+          : `Developed response with ${wordCount} words across ${sentenceCount} sentence(s).`,
+      comment:
+        canonicalType === 'write-email' && relevance.totalBullets > 0
+          ? `Covered ${relevance.bulletsCovered} of ${relevance.totalBullets} required objectives (${wordCount} words; target 85–130 words).`
+          : `Developed response with ${wordCount} words across ${sentenceCount} sentence(s).`,
+    },
+    {
+      name: canonicalType === 'speaking-interview' ? 'Delivery & Discourse Coherence' : 'Organization & Coherence',
+      score: cohScore5,
+      maxScore: 5.0,
+      displayScore: `${cohScore5.toFixed(1)} / 5.0`,
+      feedback:
+        transitionsUsed.length > 0
+          ? `Used ${transitionsUsed.length} academic transition(s) (${transitionsUsed.slice(0, 3).join(', ')}) across ${paragraphCount} paragraph(s).`
+          : `Organized into ${paragraphCount} paragraph(s); add explicit discourse markers ("furthermore", "consequently") to strengthen flow.`,
+      comment:
+        transitionsUsed.length > 0
+          ? `Used ${transitionsUsed.length} academic transition(s) (${transitionsUsed.slice(0, 3).join(', ')}) across ${paragraphCount} paragraph(s).`
+          : `Organized into ${paragraphCount} paragraph(s); add explicit discourse markers ("furthermore", "consequently") to strengthen flow.`,
+    },
+    {
+      name: 'Vocabulary & Academic Register',
+      score: vocabScore5,
+      maxScore: 5.0,
+      displayScore: `${vocabScore5.toFixed(1)} / 5.0`,
+      feedback:
+        wordingItems.length > 0
+          ? `Identified ${wordingItems.length} informal phrase(s) that can be upgraded to formal academic register.`
+          : `Lexical diversity (TTR ${(ttr * 100).toFixed(0)}%) with appropriate academic tone.`,
+      comment:
+        wordingItems.length > 0
+          ? `Identified ${wordingItems.length} informal phrase(s) that can be upgraded to formal academic register.`
+          : `Lexical diversity (TTR ${(ttr * 100).toFixed(0)}%) with appropriate academic tone.`,
+    },
+    {
+      name: 'Grammar & Mechanics (Spelling/Punctuation/Capitalization)',
+      score: gramScore5,
+      maxScore: 5.0,
+      displayScore: `${gramScore5.toFixed(1)} / 5.0`,
+      feedback:
+        hardErrors.length > 0
+          ? `Detected ${hardErrors.length} grammar, spelling, or capitalization error(s) requiring correction.`
+          : 'Strong grammatical control, accurate spelling, and clean punctuation.',
+      comment:
+        hardErrors.length > 0
+          ? `Detected ${hardErrors.length} grammar, spelling, or capitalization error(s) requiring correction.`
+          : 'Strong grammatical control, accurate spelling, and clean punctuation.',
+    },
+  ];
+
+  const subScores = {
+    taskFulfillment: Number(((devScore / 100) * 6.0).toFixed(1)),
+    languageUse: Number((((vocabScore + gramScore) / 200) * 6.0).toFixed(1)),
+    topicDevelopment: Number(((cohScore / 100) * 6.0).toFixed(1)),
+  };
+
   return {
     bandScore6,
     overallBand: bandScore6,
@@ -1225,12 +1899,10 @@ export function evaluateLocally(
     rawRubricScore,
     scaledScore,
     performanceLevel,
-    criteria: {
-      taskFulfillment: devScore,
-      coherence: cohScore,
-      vocabulary: vocabScore,
-      grammar: gramScore,
-    },
+    criteria: buildCriteriaArray(criteriaItems, legacyCriteria),
+    criteriaBreakdown: legacyCriteria,
+    subScores,
+    bulletAnalysis: relevance.bulletAnalysis.length > 0 ? relevance.bulletAnalysis : undefined,
     summary,
     feedbackSummary: summary,
     strengths,
@@ -1244,6 +1916,7 @@ export function evaluateLocally(
     corrections,
     errors: corrections,
     grammarErrors: corrections,
+    wordingImprovements: wordingItems,
     copiedPromptDetected,
     offTopicDetected,
     answeredQuestionsCount,
