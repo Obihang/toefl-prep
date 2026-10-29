@@ -383,3 +383,164 @@ export function convertRawRubricToBand6(rawScore5: number): number {
   if (clamped >= 0.2) return 1.5;
   return 1.0;
 }
+
+export interface ListenRepeatSentenceScore {
+  score5: 0 | 1 | 2 | 3 | 4 | 5;
+  descriptorLabel: string;
+  badgeColorClass: string;
+}
+
+/**
+ * Official 2026 ETS Scoring Guide for Listen and Repeat (Per-Sentence 0–5 Integer Scale)
+ * - Score 5 / 5 (Exact Repetition): accuracy === 100% (or >= 96% with 0 missing words and 0 extra words)
+ * - Score 4 / 5 (Minor Change — Meaning Preserved): accuracy >= 80%
+ * - Score 3 / 5 (Majority Captured — Meaning Altered): accuracy >= 60%
+ * - Score 2 / 5 (Fragmentary / Significant Omission): accuracy >= 35%
+ * - Score 1 / 5 (Minimal Response): accuracy >= 10%
+ * - Score 0 / 5 (No / Unrelated Response): accuracy < 10%
+ */
+export function scoreListenRepeatSentence(
+  accuracy: number,
+  wordStatuses?: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>
+): ListenRepeatSentenceScore {
+  const pct = Math.max(0, Math.min(100, Math.round(Number(accuracy) || 0)));
+  const missedCount = Array.isArray(wordStatuses)
+    ? wordStatuses.filter((w) => w.status === 'missed').length
+    : 0;
+  const extraCount = Array.isArray(wordStatuses)
+    ? wordStatuses.filter((w) => w.status === 'extra').length
+    : 0;
+
+  if (pct === 100 || (pct >= 96 && missedCount === 0 && extraCount === 0)) {
+    return {
+      score5: 5,
+      descriptorLabel: 'Exact Repetition',
+      badgeColorClass: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    };
+  }
+  if (pct >= 80) {
+    return {
+      score5: 4,
+      descriptorLabel: 'Minor Change — Meaning Preserved',
+      badgeColorClass: 'bg-teal-100 text-teal-800 border-teal-300',
+    };
+  }
+  if (pct >= 60) {
+    return {
+      score5: 3,
+      descriptorLabel: 'Majority Captured — Meaning Altered',
+      badgeColorClass: 'bg-sky-100 text-sky-800 border-sky-300',
+    };
+  }
+  if (pct >= 35) {
+    return {
+      score5: 2,
+      descriptorLabel: 'Fragmentary / Significant Omission',
+      badgeColorClass: 'bg-amber-100 text-amber-800 border-amber-300',
+    };
+  }
+  if (pct >= 10) {
+    return {
+      score5: 1,
+      descriptorLabel: 'Minimal Response',
+      badgeColorClass: 'bg-orange-100 text-orange-800 border-orange-300',
+    };
+  }
+  return {
+    score5: 0,
+    descriptorLabel: 'No / Unrelated Response',
+    badgeColorClass: 'bg-rose-100 text-rose-800 border-rose-300',
+  };
+}
+
+export interface ListenRepeatCumulativeScore {
+  totalRawScore35: number;
+  maxRawScore35: number;
+  avgScore5: number;
+  overallWordAccuracy: number;
+  overallAccuracyPercent: number;
+  scaledScore30: number;
+  bandScore6: number;
+  overallBand: number;
+  cefrLevel: string;
+  performanceDescriptor: string;
+  completedCount: number;
+  completedSentences: number;
+  totalSentences: number;
+}
+
+/**
+ * Computes the cumulative session score across all 7 sentences in Listen & Repeat.
+ * Unanswered sentences count as 0 / 5 and 0% accuracy.
+ */
+export function calculateListenRepeatSessionScore(
+  sentenceScores5OrItems:
+    | Array<number | undefined>
+    | Array<{ score5: number; accuracyPercent: number } | null | undefined>,
+  sentenceAccuracies?: Array<number | undefined>,
+  totalSentences: number = 7
+): ListenRepeatCumulativeScore {
+  let scores5: Array<number | undefined> = [];
+  let accuracies: Array<number | undefined> = [];
+
+  if (Array.isArray(sentenceAccuracies)) {
+    scores5 = sentenceScores5OrItems as Array<number | undefined>;
+    accuracies = sentenceAccuracies;
+  } else {
+    const items = sentenceScores5OrItems as Array<{ score5: number; accuracyPercent: number } | null | undefined>;
+    scores5 = items.map((it) => (it && typeof it === 'object' ? it.score5 : undefined));
+    accuracies = items.map((it) => (it && typeof it === 'object' ? it.accuracyPercent : undefined));
+    if (items.length > 0) {
+      totalSentences = items.length;
+    }
+  }
+
+  const count = Math.max(1, totalSentences);
+  const maxRawScore35 = count * 5;
+
+  let totalRawScore35 = 0;
+  let totalAccuracySum = 0;
+  let completedCount = 0;
+
+  for (let i = 0; i < count; i++) {
+    const s5 = scores5[i];
+    const acc = accuracies[i];
+    if (s5 !== undefined && acc !== undefined) {
+      completedCount++;
+      totalRawScore35 += Math.max(0, Math.min(5, Math.round(s5)));
+      totalAccuracySum += Math.max(0, Math.min(100, Math.round(acc)));
+    }
+  }
+
+  const avgScore5 = Number((totalRawScore35 / count).toFixed(1));
+  const overallWordAccuracy = Math.round(totalAccuracySum / count);
+
+  const rawRatio = totalRawScore35 / maxRawScore35;
+  const accRatio = overallWordAccuracy / 100;
+  const combinedRatio = rawRatio * 0.7 + accRatio * 0.3;
+
+  const scaledScore30 =
+    totalRawScore35 === 0 && overallWordAccuracy === 0
+      ? 0
+      : Math.max(1, Math.min(30, Math.round(combinedRatio * 30)));
+
+  const bandScore6 = convertScaledToBand6(scaledScore30, 'Speaking');
+  const cefrInfo = getCefrFromBand6(bandScore6);
+
+  return {
+    totalRawScore35,
+    maxRawScore35,
+    avgScore5,
+    overallWordAccuracy,
+    overallAccuracyPercent: overallWordAccuracy,
+    scaledScore30,
+    bandScore6,
+    overallBand: bandScore6,
+    cefrLevel: cefrInfo.code,
+    performanceDescriptor: cefrInfo.name,
+    completedCount,
+    completedSentences: completedCount,
+    totalSentences: count,
+  };
+}
+

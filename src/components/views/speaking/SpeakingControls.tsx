@@ -223,7 +223,7 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
               {isRecording ? (
                 <>
                   <MicOff className="w-3.5 h-3.5" />
-                  <span>Stop Speaking</span>
+                  <span>Stop Speaking (Enter)</span>
                 </>
               ) : isTranscribing ? (
                 <>
@@ -243,7 +243,7 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
         {/* Live input-level meter using AnalyserNode and recording timer */}
         {isRecording && (
           <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg flex-wrap animate-in fade-in shadow-xs">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
@@ -255,7 +255,7 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
                   : `${Math.floor(recordingSeconds / 60)}:${String(recordingSeconds % 60).padStart(2, '0')}`}
               </span>
               <span className="text-slate-400">·</span>
-              <span className="text-slate-600">Capturing audio. Speak clearly into your mic.</span>
+              <span className="text-slate-600">Capturing audio. Press <strong>Enter</strong> or click Stop when done.</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-[11px] font-semibold text-slate-700">Mic Pulse:</span>

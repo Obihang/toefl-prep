@@ -981,11 +981,20 @@ STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 9-10):
 Return JSON format: {"title": "Conversation Title", "context": "Listen to a conversation between a student and a professor.", "speakers": {"A": "Emma (Student)", "B": "Professor Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma: ...\\nProfessor Miller: ...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Professor Miller: Exact 1-sentence turn from the script.", "questionType": "Speaker's Purpose / Function", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "questionType": "Detail", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation 2..."}]}`;
       case 'listen-repeat':
       case 'speaking_listen_repeat':
+      case 'speaking-listen-repeat':
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}.
-STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Format speakerName with a realistic first name and gender tag, e.g. "Sarah (Female)" or "Marcus (Male)".
-2. Provide EXACTLY 7 natural academic/campus sentences that progressively increase in length and grammatical complexity from 7 words (Sentence 1) to 15 words (Sentence 7).
-Return JSON format: {"title": "Listen & Repeat Exercise", "speakerName": "Sarah (Female)", "speakerGender": "female", "sentences": ["7-word sentence 1.", "8-9 word sentence 2.", "10-word sentence 3.", "11-12 word sentence 4.", "13-word sentence 5.", "14-word sentence 6.", "15-word sentence 7."]}`;
+STRICT 2026 ETS TOEFL iBT "LISTEN AND REPEAT" SPECIFICATIONS:
+1. COHESIVE SINGLE-SPEAKER SCENARIO: All 7 sentences in the set MUST be spoken by ONE single person (e.g., "Sarah (Lab Coordinator)", "Marcus (Head Librarian)", "Dr. Chen (Observatory Guide)", "Clara (Museum Docent)", "David (Academic Advisor)") directly addressing the listener ("Welcome to...", "Please store...", "You will find...", "If you need...") in ONE continuous, coherent campus or academic orientation/tour scenario!
+2. FORBIDDEN: Do NOT write 7 random disconnected textbook statements about unrelated topics. Every sentence must belong to the same continuous briefing or guided tour.
+3. PROGRESSIVE WORD LENGTH: Provide EXACTLY 7 natural spoken sentences that progress smoothly in length and grammatical complexity:
+   - Sentence 1: 6–7 words (warm welcome or opening statement)
+   - Sentence 2: 8 words
+   - Sentence 3: 9–10 words
+   - Sentence 4: 11 words
+   - Sentence 5: 12 words
+   - Sentence 6: 14 words
+   - Sentence 7: 15–16 words
+Return JSON format: {"title": "Biology Laboratory Safety Orientation", "speakerName": "Sarah (Lab Coordinator)", "speakerGender": "female", "sentences": ["Welcome to the undergraduate biology laboratory.", "Please store your backpacks inside the hallway lockers.", "Safety goggles and lab coats are required at all times.", "You will find clean glass slides inside the top cabinet drawer.", "Make sure to calibrate your microscope carefully before examining the tissue samples.", "Dispose of all used pipettes and gloves in the labeled biohazard container near the sink.", "If any chemical spill occurs during the experiment, notify your laboratory supervisor immediately for assistance."]}`;
       case 'speaking-interview':
       case 'speaking_interview':
         return `You are an official ETS 2026 TOEFL iBT Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}.

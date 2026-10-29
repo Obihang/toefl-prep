@@ -1793,6 +1793,7 @@ export default function App() {
                 <ListenRepeatView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListenRepeatTask}
+                  keyboardShortcutHint="⌨️ Enter: Stop Recording & Transcribe"
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1801,6 +1802,7 @@ export default function App() {
                 <SpeakingInterviewView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as SpeakingInterviewTask}
+                  keyboardShortcutHint="⌨️ Enter: Stop Recording & Transcribe"
                   localGraderLabel="⚡ Instant Local Grader"
                   aiGraderLabel="✨ Deep AI Grader"
                   apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"

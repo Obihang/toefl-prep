@@ -145,6 +145,13 @@ export const OFFICIAL_BUILD_SENTENCE_SPEC = {
   includesGrammaticalDistractors: true,
 } as const;
 
+export const OFFICIAL_LISTEN_REPEAT_SPEC = {
+  sentencesPerSet: 7,
+  cohesiveSingleSpeakerScenario: true,
+  directListenerAddress: true,
+  wordCountProgression: '6-7 words (Sentence 1) up to 14-16 words (Sentence 7)',
+} as const;
+
 export async function callBackendGenerate(
   taskType: string,
   level: string = 'intermediate',
@@ -168,6 +175,10 @@ export async function callBackendGenerate(
     taskType === 'build-sentence' ||
     taskType === 'writing_build_sentence' ||
     taskType === 'writing-build-sentence';
+  const isListenRepeat =
+    taskType === 'listen-repeat' ||
+    taskType === 'speaking_listen_repeat' ||
+    taskType === 'speaking-listen-repeat';
   const readingQuestionFocus = promptData?.questionSkillFocus || promptData?.readingQuestionFocus || 'all';
   const enrichedPromptData = isReadingAcademic
     ? {
@@ -185,6 +196,11 @@ export async function callBackendGenerate(
     ? {
         ...(promptData || {}),
         ...OFFICIAL_BUILD_SENTENCE_SPEC,
+      }
+    : isListenRepeat
+    ? {
+        ...(promptData || {}),
+        ...OFFICIAL_LISTEN_REPEAT_SPEC,
       }
     : promptData;
 

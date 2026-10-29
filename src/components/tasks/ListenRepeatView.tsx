@@ -6,8 +6,12 @@ import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
 import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
-import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
+import { SpeakingMetrics, calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
+import {
+  scoreListenRepeatSentence,
+  calculateListenRepeatSessionScore,
+} from '../../utils/toeflScoring';
 import { db } from '../../firebase';
 import { getAuthHeaders, getApiHeaders } from '../../utils/apiKey';
 import { updateDoc, doc } from 'firebase/firestore';
@@ -16,14 +20,16 @@ interface Props {
   task: ListenRepeatTask;
   onNextTask?: () => void;
   onComplete?: (result: any) => void;
+  keyboardShortcutHint?: string;
 }
-
-import { SpeakingMetrics } from '../../utils/speakingMetrics';
 
 interface SentenceState {
   userInput: string;
   isRecording: boolean;
   scorePercent?: number;
+  score5?: 0 | 1 | 2 | 3 | 4 | 5;
+  descriptorLabel?: string;
+  badgeColorClass?: string;
   bandScore?: number;
   wordBreakdown?: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
   metrics?: SpeakingMetrics;
@@ -32,7 +38,12 @@ interface SentenceState {
   fillerWordsList?: string[];
 }
 
-export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const ListenRepeatView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+  keyboardShortcutHint = '⌨️ Enter: Stop Recording & Transcribe',
+}) => {
   const [states, setStates] = useState<SentenceState[]>(() =>
     task.sentences.map(() => ({
       userInput: '',
@@ -113,19 +124,16 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
 
   const speakerName = (task as any).speakerName || 'Narrator';
 
-  // Pick a random male or female neural voice per sentence when the task loads
+  // Pick ONE locked neural voice for the cohesive single-speaker scenario across all 7 sentences
   const sentenceVoices = useMemo(() => {
-    const list: Array<{ gender: 'male' | 'female'; voiceId: string }> = [];
-    let lastVoiceId: string | undefined;
-    for (const rawSentence of task.sentences || []) {
-      const parsed = parseDialogueLine(rawSentence);
-      const inferred = inferGenderFromSpeaker(parsed.speakerName || parsed.speakerHint || '');
-      const picked = pickRandomVoice(inferred || undefined, lastVoiceId);
-      lastVoiceId = picked.voiceId;
-      list.push(picked);
-    }
-    return list;
-  }, [task.id, task.title, task.sentences]);
+    const explicitGender = (task as any).speakerGender;
+    const inferred =
+      explicitGender === 'male' || explicitGender === 'female'
+        ? explicitGender
+        : inferGenderFromSpeaker(`${speakerName} ${task.title || ''}`);
+    const lockedVoice = pickRandomVoice(inferred || undefined);
+    return (task.sentences || []).map(() => lockedVoice);
+  }, [task.id, task.title, speakerName, (task as any).speakerGender, task.sentences]);
 
   // Silent background pre-synthesis so clicking "Hear sentence" is INSTANT (0 ms delay)
   useEffect(() => {
@@ -563,33 +571,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
     const target = task.sentences[index];
     const user = customTranscript !== undefined ? customTranscript : states[index].userInput;
     const { percentage, wordStatuses } = calculateSentenceMatch(target, user);
-    const metrics = states[index].metrics;
-
-    let itemBand = 1.0;
-    if (percentage === 100) itemBand = 6.0;
-    else if (percentage >= 88) itemBand = 5.5;
-    else if (percentage >= 75) itemBand = 5.0;
-    else if (percentage >= 62) itemBand = 4.5;
-    else if (percentage >= 50) itemBand = 4.0;
-    else if (percentage >= 35) itemBand = 3.0;
-    else if (percentage >= 20) itemBand = 2.0;
-    else itemBand = 1.0;
-
-    if (metrics?.wpm) {
-      if (metrics.wpm < 85 || metrics.wpm > 180) itemBand = Math.max(1.0, itemBand - 0.5);
-    }
-    if (metrics?.pauseCount && metrics.pauseCount >= 3) {
-      itemBand = Math.max(1.0, itemBand - 0.5);
-    }
-
-    // Apply Band deduction for vocalized filler words
-    const fillerCount = states[index].fillerWordsCount ?? metrics?.fillerCount ?? 0;
-    if (fillerCount >= 2) {
-      itemBand = Math.max(1.0, itemBand - 0.5);
-    } else if (fillerCount === 1) {
-      itemBand = Math.max(1.0, itemBand - 0.25);
-    }
-    const bandScore = Math.round(itemBand * 2) / 2;
+    const rubric = scoreListenRepeatSentence(percentage, wordStatuses);
 
     setStates((prev) => {
       const next = [...prev];
@@ -597,7 +579,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         ...next[index],
         userInput: user,
         scorePercent: percentage,
-        bandScore,
+        score5: rubric.score5,
+        descriptorLabel: rubric.descriptorLabel,
+        badgeColorClass: rubric.badgeColorClass,
         wordBreakdown: wordStatuses,
         checked: true,
       };
@@ -608,16 +592,24 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
     const allChecked = states.every((s, i) => (i === index ? true : s.checked));
     if (allChecked && !hasCompletedRef.current) {
       hasCompletedRef.current = true;
-      const avgPercent = Math.round(
-        states.reduce((acc, s, i) => acc + (i === index ? percentage : s.scorePercent || 0), 0) /
-          task.sentences.length
-      );
-      const scaled = convertToScaledScore(avgPercent, 100);
+      const updatedSentenceScores = task.sentences.map((_, i) => {
+        if (i === index) {
+          return { score5: rubric.score5, accuracyPercent: percentage };
+        }
+        const st = states[i];
+        return st?.checked
+          ? { score5: st.score5 ?? 0, accuracyPercent: st.scorePercent ?? 0 }
+          : null;
+      });
+      const sessionResult = calculateListenRepeatSessionScore(updatedSentenceScores);
+
       const formattedRepetition = task.sentences
         .map((sent, i) => {
           const spoken = i === index ? user : states[i]?.userInput || '';
           const pct = i === index ? percentage : states[i]?.scorePercent ?? 0;
-          return `Sentence ${i + 1} (${pct}%): "${spoken.trim() || '(No response)'}"`;
+          const sc5 = i === index ? rubric.score5 : states[i]?.score5 ?? 0;
+          const desc = i === index ? rubric.descriptorLabel : states[i]?.descriptorLabel ?? 'No / Unrelated Response';
+          return `Sentence ${i + 1} [Score ${sc5}/5 · ${pct}% · ${desc}]: "${spoken.trim() || '(No response)'}"`;
         })
         .join('\n');
       const targetModelText = task.sentences
@@ -628,15 +620,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         taskType: 'listen-repeat',
         taskTitle: task.title,
         section: 'Speaking',
-        score: avgPercent,
-        maxScore: 100,
-        scaledScore30: scaled,
+        score: sessionResult.totalRawScore35,
+        maxScore: sessionResult.maxRawScore35,
+        scaledScore30: sessionResult.scaledScore30,
+        bandScore6: sessionResult.overallBand,
         timeSpentSeconds: 120,
         studentResponse: formattedRepetition,
-        feedbackSummary: `Listen & Repeat: Average accuracy of ${avgPercent}% across ${task.sentences.length} sentences`,
+        feedbackSummary: `Listen & Repeat: Band ${sessionResult.overallBand.toFixed(1)}/6.0 (${sessionResult.cefrLevel}) · Cumulative Rubric Score ${sessionResult.totalRawScore35}/${sessionResult.maxRawScore35} (Avg ${sessionResult.avgScore5.toFixed(1)}/5.0) · ${sessionResult.overallAccuracyPercent}% Word Accuracy`,
         modelAnswer: targetModelText,
       });
-      onComplete?.({ blobs: { ...blobsRef.current }, scaledScore: scaled, avgPercent });
+      onComplete?.({
+        blobs: { ...blobsRef.current },
+        scaledScore: sessionResult.scaledScore30,
+        bandScore6: sessionResult.overallBand,
+        totalRawScore35: sessionResult.totalRawScore35,
+        avgScore5: sessionResult.avgScore5,
+        avgPercent: sessionResult.overallAccuracyPercent,
+      });
     } else if (autoStart && index + 1 < task.sentences.length) {
       // Auto-advance to the next sentence when Auto-Flow is active
       setTimeout(() => {
@@ -644,6 +644,22 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
       }, 500);
     }
   };
+
+  // Press Enter while recording to immediately stop recording, transcribe, and evaluate
+  const handleToggleMicRef = useRef(handleToggleMic);
+  handleToggleMicRef.current = handleToggleMic;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey && activeMicIdx !== null && micStatus === 'listening') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleToggleMicRef.current(activeMicIdx);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [activeMicIdx, micStatus]);
 
   const handleResetItem = (index: number) => {
     if (activeMicIdx === index && voiceSessionRef.current) {
@@ -692,14 +708,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
   };
 
   const completedCount = states.filter((s) => s.checked).length;
-  const avgAccuracy =
-    completedCount > 0
-      ? Math.round(
-          states
-            .filter((s) => s.checked)
-            .reduce((acc, s) => acc + (s.scorePercent || 0), 0) / completedCount
-        )
-      : 0;
+  const sessionSummary = useMemo(() => {
+    const items = task.sentences.map((_, idx) => {
+      const s = states[idx];
+      if (!s || !s.checked) return null;
+      const fallbackRubric = scoreListenRepeatSentence(s.scorePercent ?? 0, s.wordBreakdown);
+      return {
+        score5: s.score5 ?? fallbackRubric.score5,
+        accuracyPercent: s.scorePercent ?? 0,
+      };
+    });
+    return calculateListenRepeatSessionScore(items);
+  }, [states, task.sentences]);
 
   return (
     <div className="space-y-6">
@@ -721,6 +741,8 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
             <span aria-hidden="true">·</span>
             <span>Listen & Repeat</span>
             <span aria-hidden="true">·</span>
+            <span>Speaker: <strong className="text-slate-700">{speakerName}</strong></span>
+            <span aria-hidden="true">·</span>
             <span>{((task as any).source === 'ai') ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}` : '📚 Curated Bank'}</span>
             <span aria-hidden="true">·</span>
             <span>{task.sentences.length} Sentences</span>
@@ -730,6 +752,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg whitespace-nowrap">
+            {keyboardShortcutHint}
+          </span>
+
           <button
             type="button"
             onClick={() => setIsTranscriberModalOpen(true)}
@@ -740,10 +766,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
           </button>
 
           {completedCount > 0 && (
-            <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg">
+            <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg flex-wrap">
               <span>Completed: <strong className="font-mono">{completedCount}/{task.sentences.length}</strong></span>
               <span aria-hidden="true">·</span>
-              <span>Est. TOEFL: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(avgAccuracy, 100)).toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-[11px]">({convertToScaledScore(avgAccuracy, 100)}/30)</span></span>
+              <span>Rubric: <strong className="font-mono text-teal-800">{sessionSummary.totalRawScore35}/{sessionSummary.maxRawScore35}</strong> <span className="text-slate-500 font-mono text-[11px]">(Avg {sessionSummary.avgScore5.toFixed(1)}/5.0)</span></span>
+              <span aria-hidden="true">·</span>
+              <span>Overall Band: <strong className="font-mono text-teal-800">{sessionSummary.overallBand.toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-[11px]">({sessionSummary.scaledScore30}/30)</span></span>
             </div>
           )}
         </div>
@@ -769,9 +797,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
       )}
 
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed">
-        <strong>Task Guidelines:</strong> Click <strong>Hear Sentence</strong> to listen to the prompt. Then repeat the
-        sentence aloud by clicking the <strong>Mic</strong> button (or type your response if no microphone is available).
-        Click <strong>Check</strong> to evaluate phonetic and lexical word accuracy.
+        <strong>Task Guidelines:</strong> You will hear <strong>{speakerName}</strong> speak 7 progressive sentences in a single campus scenario. Click <strong>Hear Prompt</strong> to listen, then repeat each sentence aloud by clicking <strong>Speak</strong> (press <strong>Enter</strong> anytime while recording to immediately stop and transcribe). Each sentence is scored on the official ETS <strong>0–5 integer rubric</strong>, and your cumulative session score (out of 35) maps to your TOEFL iBT Speaking Band Score (1.0–6.0).
         <span className="block mt-1.5 text-teal-700 font-medium">
           💡 Numbers and spoken times (e.g. <em>10:00</em> and <em>ten o'clock</em>, or <em>lab</em> and <em>laboratory</em>) are automatically recognized and matched.
         </span>
@@ -794,7 +820,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
             <span>Auto-Flow (All {task.sentences.length} sentences)</span>
           </label>
           <span className="text-[11px] text-slate-600">
-            Plays sentence → records your voice → checks word accuracy → advances automatically.
+            Plays sentence → records your voice (press <strong>Enter</strong> to finish recording) → checks word accuracy → advances automatically.
           </span>
         </div>
 
@@ -843,13 +869,19 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
           const isRecordingThis = activeMicIdx === idx && micStatus === 'listening';
           const isTranscribingThis = activeMicIdx === idx && micStatus === 'transcribing';
           const wordCount = targetSentence.split(/\s+/).length;
+          const sentenceRubric = state.checked
+            ? scoreListenRepeatSentence(state.scorePercent ?? 0, state.wordBreakdown)
+            : null;
+          const itemScore5 = state.score5 ?? sentenceRubric?.score5 ?? 0;
+          const itemDescriptor = state.descriptorLabel || sentenceRubric?.descriptorLabel || 'No / Unrelated Response';
+          const itemBadgeClass = state.badgeColorClass || sentenceRubric?.badgeColorClass || 'bg-rose-100 text-rose-800 border-rose-300';
 
           return (
             <div
               key={idx}
               className={`bg-white border rounded-xl p-5 shadow-xs transition-all ${
                 state.checked
-                  ? (state.scorePercent || 0) >= 75
+                  ? itemScore5 >= 4
                     ? 'border-emerald-200 bg-emerald-50/20'
                     : 'border-amber-200 bg-amber-50/20'
                   : isRecordingThis
@@ -898,7 +930,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                 {/* Live input-level meter using AnalyserNode and recording timer */}
                 {isRecordingThis && (
                   <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg animate-in fade-in flex-wrap shadow-xs">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
@@ -908,7 +940,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                         {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
                       </span>
                       <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">Speak clearly. Click Stop when done.</span>
+                      <span className="text-slate-600">Speak clearly. Press <strong>Enter</strong> or click Stop when done.</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[11px] font-semibold text-slate-700">Mic Pulse:</span>
@@ -925,8 +957,6 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                   </div>
                 )}
 
-
-
                 <div className="space-y-3">
                   {/* Full-width text input line */}
                   <div className="w-full">
@@ -941,6 +971,16 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                       data-gramm="false"
                       data-gramm_editor="false"
                       data-enable-grammarly="false"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (isRecordingThis) {
+                            handleToggleMic(idx);
+                          } else if (state.userInput.trim() && !isTranscribingThis) {
+                            handleCheck(idx);
+                          }
+                        }
+                      }}
                       onChange={(e) =>
                         setStates((prev) => {
                           const next = [...prev];
@@ -950,10 +990,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                       }
                       placeholder={
                         isRecordingThis
-                          ? 'Listening... speak clearly into your mic...'
+                          ? 'Listening... speak clearly into your mic (press Enter to stop & transcribe)...'
                           : isTranscribingThis
                           ? `Processing voice... ${transcribeSeconds}s`
-                          : 'Click mic to speak, or edit/type your repetition...'
+                          : 'Click Speak to record (or type your repetition and press Enter)...'
                       }
                       className={`w-full px-3.5 py-2.5 text-sm rounded-lg text-slate-900 outline-hidden transition-colors ${
                         isRecordingThis
@@ -976,12 +1016,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                             ? 'bg-slate-100 border-slate-300 text-slate-600 cursor-wait'
                             : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
                         }`}
-                        title={isRecordingThis ? 'Click to finish speaking' : 'Click mic and speak'}
+                        title={isRecordingThis ? 'Click or press Enter to finish speaking' : 'Click mic and speak'}
                       >
                         {isRecordingThis ? (
                           <>
                             <MicOff className="w-4 h-4 text-white" />
-                            <span>Stop</span>
+                            <span>Stop (Enter)</span>
                           </>
                         ) : isTranscribingThis ? (
                           <>
@@ -1049,33 +1089,19 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                   </div>
                 </div>
 
-                {/* Live Transcript / Word Accuracy Diff */}
+                {/* Live Transcript / Word Accuracy Diff with Official ETS 0-5 Per-Sentence Rubric */}
                 {state.checked && (
                   <div className="pt-3 border-t border-slate-200/80 space-y-2 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-slate-500">
-                          Accuracy Match: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
+                        <span className="text-slate-600">
+                          Accuracy: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
                         </span>
-                        <span className="text-xs font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                          Band {(state.bandScore ?? 5.0).toFixed(1)}/6.0
+                        <span className="text-xs font-mono font-bold text-teal-900 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200">
+                          ETS Sentence Score: {itemScore5} / 5
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          (state.scorePercent ?? 0) === 100
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : (state.scorePercent ?? 0) >= 85
-                            ? 'bg-teal-100 text-teal-800 border border-teal-300'
-                            : (state.scorePercent ?? 0) >= 65
-                            ? 'bg-sky-100 text-sky-800 border border-sky-300'
-                            : 'bg-amber-100 text-amber-800 border border-amber-300'
-                        }`}>
-                          {(state.scorePercent ?? 0) === 100
-                            ? 'Band 6.0 Exemplar Match'
-                            : (state.scorePercent ?? 0) >= 85
-                            ? 'Band 5.5 Advanced Match'
-                            : (state.scorePercent ?? 0) >= 65
-                            ? 'Band 5.0 Competent Match'
-                            : 'Needs Refinement'}
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${itemBadgeClass}`}>
+                          {itemDescriptor}
                         </span>
                         {state.metrics?.wpm ? (
                           <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-sm">
@@ -1095,7 +1121,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
                         )}
                       </div>
                       <span className="text-slate-500">
-                        Band 6.0 Target: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
+                        Target Sentence: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
                       </span>
                     </div>
 
@@ -1154,6 +1180,96 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask, onComplete
           );
         })}
       </div>
+
+      {/* Cumulative Listen & Repeat Session Result Card */}
+      {completedCount > 0 && (
+        <div className="bg-white border-2 border-teal-200 rounded-xl p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
+                Official 2026 ETS TOEFL iBT · Cumulative Session Evaluation
+              </span>
+              <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                Listen & Repeat Session Result ({sessionSummary.completedSentences} / {sessionSummary.totalSentences} Sentences Completed)
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Unanswered sentences count as 0 / 5 in the cumulative 35-point session rubric.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="px-3 py-1.5 rounded-lg bg-teal-900 text-white font-mono font-bold text-sm">
+                Overall Band: {sessionSummary.overallBand.toFixed(1)} / 6.0
+              </span>
+              <span className="px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 font-semibold text-xs">
+                {sessionSummary.cefrLevel} · {sessionSummary.performanceDescriptor}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Overall Band</div>
+              <div className="text-lg font-bold font-mono text-teal-800 mt-0.5">
+                {sessionSummary.overallBand.toFixed(1)} / 6.0
+              </div>
+              <div className="text-[11px] text-slate-500">{sessionSummary.performanceDescriptor}</div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Cumulative Rubric Score</div>
+              <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
+                {sessionSummary.totalRawScore35} / {sessionSummary.maxRawScore35}
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                Avg {sessionSummary.avgScore5.toFixed(1)} / 5.0 per item
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Scaled Score</div>
+              <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
+                {sessionSummary.scaledScore30} / 30
+              </div>
+              <div className="text-[11px] text-slate-500">ETS 0–30 Speaking Scale</div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Overall Word Accuracy</div>
+              <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
+                {sessionSummary.overallAccuracyPercent}%
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Completed: {sessionSummary.completedSentences} / {sessionSummary.totalSentences} Sentences
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {task.sentences.map((_, sIdx) => {
+              const st = states[sIdx];
+              const sc = st?.checked
+                ? st.score5 ?? scoreListenRepeatSentence(st.scorePercent ?? 0, st.wordBreakdown).score5
+                : null;
+              return (
+                <span
+                  key={sIdx}
+                  className={`px-2.5 py-1 rounded-md text-xs font-mono font-semibold border ${
+                    sc === null
+                      ? 'bg-slate-100 text-slate-500 border-slate-200'
+                      : sc >= 4
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                      : sc >= 3
+                      ? 'bg-sky-50 text-sky-900 border-sky-200'
+                      : 'bg-amber-50 text-amber-900 border-amber-200'
+                  }`}
+                >
+                  Sentence {sIdx + 1}: {sc !== null ? `${sc}/5 (${st.scorePercent ?? 0}%)` : '0/5 (Unanswered)'}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {onNextTask && (
         <div className="pt-2 flex justify-end">

@@ -23,10 +23,17 @@ interface Props {
   localGraderLabel?: string;
   aiGraderLabel?: string;
   apiKeyPromptText?: string;
+  keyboardShortcutHint?: string;
 }
 
 
-export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onComplete, onOpenApiKeySettings }) => {
+export const SpeakingInterviewView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+  onOpenApiKeySettings,
+  keyboardShortcutHint = '⌨️ Enter: Stop Recording & Transcribe',
+}) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [step, setStep] = useState<'idle' | 'prep' | 'speaking' | 'done'>('idle');
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -814,6 +821,28 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
   };
 
 
+  // Press Enter while recording to immediately stop recording and trigger transcription
+  const stopSimulationRef = useRef(stopSimulation);
+  stopSimulationRef.current = stopSimulation;
+  const handleManualMicToggleRef = useRef(handleManualMicToggle);
+  handleManualMicToggleRef.current = handleManualMicToggle;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey && isRecording) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (timerMode === 'speaking') {
+          stopSimulationRef.current(currentQIndex);
+        } else {
+          handleManualMicToggleRef.current();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [isRecording, timerMode, currentQIndex]);
+
   const currentAnswer = answers[currentQIndex] || '';
 
   return (
@@ -845,6 +874,10 @@ export const SpeakingInterviewView: React.FC<Props> = ({ task, onNextTask, onCom
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg whitespace-nowrap">
+            {keyboardShortcutHint}
+          </span>
+
           <button
             type="button"
             onClick={() => setShowMicTest(prev => !prev)}

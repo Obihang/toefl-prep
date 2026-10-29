@@ -1,5 +1,6 @@
 import { convertScaledToBand6 } from './scoreTracker';
 import { calculateSentenceMatch } from './audioSpeech';
+import { scoreListenRepeatSentence, calculateListenRepeatSessionScore } from './toeflScoring';
 
 export interface GrammarErrorItem {
   original: string;
@@ -1388,7 +1389,8 @@ function evaluateListenRepeatLocally(
     spokenList.push(...lines);
   }
 
-  let totalAccuracy = 0;
+  const sentenceScores5: Array<number | undefined> = [];
+  const sentenceAccuracies: Array<number | undefined> = [];
   let answeredSentences = 0;
   const corrections: GrammarErrorItem[] = [];
 
@@ -1396,11 +1398,13 @@ function evaluateListenRepeatLocally(
     const target = rawTargets[i] || '';
     const spoken = (spokenList[i] || '').trim();
     if (!spoken) {
+      sentenceScores5.push(undefined);
+      sentenceAccuracies.push(undefined);
       if (target) {
         corrections.push({
-          original: `Sentence ${i + 1}: [No recording submitted]`,
+          original: `Sentence ${i + 1}: [No recording submitted] (Score: 0/5)`,
           corrected: target,
-          explanation: 'Unrecorded sentences receive 0% accuracy in official Listen & Repeat scoring.',
+          explanation: 'Unrecorded sentences receive 0/5 on the official ETS Listen & Repeat rubric.',
           type: 'mechanics',
         });
       }
@@ -1408,14 +1412,17 @@ function evaluateListenRepeatLocally(
     }
     answeredSentences++;
     if (!target) {
-      totalAccuracy += 85;
+      sentenceScores5.push(4);
+      sentenceAccuracies.push(85);
       continue;
     }
     const matchRes = calculateSentenceMatch(target, spoken);
-    totalAccuracy += matchRes.percentage;
+    const rubricItem = scoreListenRepeatSentence(matchRes.percentage, matchRes.wordStatuses);
+    sentenceScores5.push(rubricItem.score5);
+    sentenceAccuracies.push(matchRes.percentage);
     if (matchRes.percentage < 100) {
       corrections.push({
-        original: `Sentence ${i + 1}: "${spoken}" (${matchRes.percentage}%)`,
+        original: `Sentence ${i + 1}: "${spoken}" (Accuracy: ${matchRes.percentage}% · ETS Score: ${rubricItem.score5}/5 — ${rubricItem.descriptorLabel})`,
         corrected: target,
         explanation: 'Ensure every target word is repeated in the exact sequential order without omissions or extra inserted words.',
         type: 'grammar',
@@ -1423,23 +1430,11 @@ function evaluateListenRepeatLocally(
     }
   }
 
-  const avgAccuracy = Math.round(totalAccuracy / targetCount);
-
-  let bandScore6 = 1.0;
-  if (avgAccuracy >= 95) bandScore6 = 6.0;
-  else if (avgAccuracy >= 88) bandScore6 = 5.5;
-  else if (avgAccuracy >= 80) bandScore6 = 5.0;
-  else if (avgAccuracy >= 72) bandScore6 = 4.5;
-  else if (avgAccuracy >= 64) bandScore6 = 4.0;
-  else if (avgAccuracy >= 55) bandScore6 = 3.5;
-  else if (avgAccuracy >= 45) bandScore6 = 3.0;
-  else if (avgAccuracy >= 35) bandScore6 = 2.5;
-  else if (avgAccuracy >= 25) bandScore6 = 2.0;
-  else if (avgAccuracy >= 15) bandScore6 = 1.5;
-  else bandScore6 = 1.0;
-
-  const scaledScore = Math.round((bandScore6 / 6.0) * 30);
-  const rawRubricScore = Number(((bandScore6 / 6.0) * 5.0).toFixed(1));
+  const cumulative = calculateListenRepeatSessionScore(sentenceScores5, sentenceAccuracies, targetCount);
+  const avgAccuracy = cumulative.overallWordAccuracy;
+  const bandScore6 = cumulative.bandScore6;
+  const scaledScore = cumulative.scaledScore30;
+  const rawRubricScore = cumulative.avgScore5;
   const performanceLevel: LocalEvaluationResult['performanceLevel'] =
     bandScore6 >= 5.5
       ? 'Advanced'
@@ -1449,7 +1444,7 @@ function evaluateListenRepeatLocally(
       ? 'Low-Intermediate'
       : 'Basic';
 
-  const summary = `Listen & Repeat Evaluation: Overall sequential word-order accuracy of ${avgAccuracy}% across ${targetCount} sentences (${answeredSentences}/${targetCount} answered) -> Band ${bandScore6.toFixed(1)}/6.0 (${performanceLevel}).`;
+  const summary = `Listen & Repeat Evaluation: Cumulative Rubric Score ${cumulative.totalRawScore35}/${cumulative.maxRawScore35} (Avg ${rawRubricScore.toFixed(1)}/5.0) · Word Accuracy ${avgAccuracy}% across ${targetCount} sentences (${answeredSentences}/${targetCount} answered) -> Band ${bandScore6.toFixed(1)}/6.0 (Scaled ${scaledScore}/30, ${performanceLevel}).`;
   const strengths: string[] = [];
   const improvements: string[] = [];
 
