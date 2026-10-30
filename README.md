@@ -1,127 +1,94 @@
-# TOEFL Prep Studio 🎓
+# TOEFL Prep Studio
 
-> **Note**: *Personal TOEFL practice suite.*
+**Full-Stack 2026 TOEFL iBT® Simulation, Practice & Diagnostic Suite**
 
-An interactive, browser-based TOEFL practice suite designed around the latest test formats and ETS scoring standards (including the 1.0–6.0 Band Scale). Practice Reading, Listening, Speaking, and Writing tasks with authentic test timing, BYOK multi-provider LLM routing, Groq Whisper STT, Vercel Blob audio caching, and AI-powered diagnostic rubric evaluations.
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
+![Vite 6](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
+![Express / Vercel Serverless](https://img.shields.io/badge/Backend-Express%20%2F%20Vercel%20Serverless-000000?logo=vercel&logoColor=white)
+![Firebase Firestore](https://img.shields.io/badge/Database-Firebase%20Firestore-FFCA28?logo=firebase&logoColor=black)
+![Web Speech & Neural TTS](https://img.shields.io/badge/Audio-Neural%20TTS%20%2B%20Whisper%20STT-10B981)
 
----
-
-## 🏗️ System Architecture
-
-```mermaid
-flowchart LR
-    subgraph Client["React Client SPA"]
-        UI["Practice Views\n(8 TOEFL Task Types)"]
-        Settings["BYOK Key Manager\n(Client-Side Storage)"]
-        AudioVis["Audio Visualizer &\nSpeech Player"]
-    end
-
-    subgraph Handlers["Unified Handlers (src/server/handlers.ts)"]
-        ServerEntry["Serverless & Express Entry\n(server.ts / /api/*)"]
-        BYOKRouter["Multi-Provider BYOK Router\n(Fallback Chains & Healing)"]
-        Auth["Firebase Auth\nToken Verification"]
-        STTHandler["Groq Whisper STT Handler\n(/api/stt)"]
-        TTSHandler["Cloud TTS Handler\n(/api/tts)"]
-    end
-
-    subgraph Cloud["External Services & Storage"]
-        LLMHub["Multi-Provider LLMs (BYOK)\n(Gemini / Groq / OpenRouter / NVIDIA)"]
-        GroqWhisper["Groq Whisper STT\n(whisper-large-v3-turbo)"]
-        CloudTTS["Google Cloud & Edge TTS Engine"]
-        VercelBlob[("Vercel Blob\nSHA-256 Audio Cache")]
-        Firestore[("Firebase Firestore\n(Shared Bank & Score Records)")]
-    end
-
-    UI -->|HTTP Requests with BYOK & Auth Headers| ServerEntry
-    Settings -.->|Provides Saved Keys| UI
-    ServerEntry --> BYOKRouter
-    ServerEntry --> STTHandler
-    ServerEntry --> TTSHandler
-
-    BYOKRouter -->|Generate Task & Evaluate Rubric| LLMHub
-    STTHandler -->|Audio Stream & Word Timestamps| GroqWhisper
-    TTSHandler -->|Verify User UID| Auth
-    TTSHandler -->|Check / Store Cached Audio| VercelBlob
-    TTSHandler -->|Synthesize Uncached Speech| CloudTTS
-    UI -->|Fetch Unseen Tasks & Record Stats| Firestore
-```
+**TOEFL Prep Studio** is a full-stack practice, diagnostic, and full-length mock exam platform engineered specifically for the **updated 2026 ETS TOEFL iBT® format** (effective January 2026). It combines a multistage adaptive exam engine, a 120-item curated question bank, a deterministic offline local evaluator, multi-accent neural audio synthesis, and optional multi-provider AI generation and grading.
 
 ---
 
-## 🌟 Key Features
+## ✨ Key Highlights
 
-- **Multi-Provider BYOK AI Router & Model Config**: Enter your API keys (Gemini, Groq, OpenRouter, NVIDIA, etc.) securely in Settings. The server routes generation, evaluation, and STT across optimal models with fallback chains, error classification, and retry-after / rate-limit tracking.
-- **Speech-to-Text & Speaking Metrics**: Groq Whisper STT (`whisper-large-v3-turbo`) with word-level timestamps calculating WPM, filler words, pauses over 1 second, and longest pause. Chrome & Edge also support Web Speech fallback when keys are absent. (Brave requires an explicit Groq or Gemini key).
-- **Text-to-Speech & Vercel Blob Caching**: Cloud TTS (`/api/tts`) authenticated via Firebase ID tokens with SHA-256 caching on Vercel Blob storage (`@vercel/blob`). Dialogues and Listen & Repeat synthesize multi-clip audio (`audioClips`).
-- **Unified Handlers**: Express `server.ts` and Vercel serverless functions in `/api/*` share identical handlers (`src/server/handlers.ts`) for robust local development and production.
-- **8 Authentic TOEFL iBT Task Types**: Complete Words, Reading Passages, Listening Dialogues & Lectures, Listen & Repeat, Speaking Interviews, Build Sentences, Write Emails, and Academic Discussions.
+- **100% Aligned with the Updated 2026 TOEFL iBT® Format:** Covers all 4 sections (**Reading**, **Listening**, **Writing**, **Speaking**) and all **12 official task types** in authentic section order (`Reading → Listening → Writing → Speaking`).
+- **Multistage Adaptive Full Mock Exam Engine:** Simulates Stage 1 (Routing Module) → Stage 2 (Higher or Standard Difficulty Track) multistage adaptive testing for Reading and Listening with official section timers and non-repeating item pools.
+- **Zero-API Offline Mode + Multi-Provider BYOK AI Support:** Works out-of-the-box with **120 curated questions** (10 per task type) and an instant deterministic **Local Grader** (catching grammar, academic collocations, spelling, capitalization, word order, and speaking disfluencies), while optionally supporting **Google Gemini, Groq, OpenRouter, NVIDIA NIM, OpenAI, DeepSeek, xAI, and Anthropic** keys for infinite AI question generation and deep rubric grading.
+- **Multi-Accent Neural Audio & Speech Pipeline:** Supports North American (`en-US`), British (`en-GB`), and Australian (`en-AU`) neural voices with gender-aware speaker locking for campus conversations, acoustic exam recording cues, live microphone waveform visualization, and hybrid cloud/offline WebAssembly Whisper transcription.
+- **Interactive Study Tools & Official Score Concordance:** Features an instant **double-click passage dictionary lookup popover**, a personal **Vocabulary Bank** with interactive **Flashcard quiz mode**, a **Mistake Notebook** for spaced review, **Score History** with saved essay/transcript inspection, and official **1.0–6.0 Band**, **CEFR (A1–C2)**, **0–5 Task Rubric**, **0–120 Legacy Scale**, and **MyBest®** superscore tracking.
 
 ---
 
-## 🚀 Quick Start
+## 📋 All 12 Supported 2026 TOEFL iBT® Task Types
 
-### 1. Prerequisites
-- Node.js 18+ installed
+| Section | Est. Section Time | Task Type | Format & Assessment Focus |
+| :--- | :---: | :--- | :--- |
+| **1. Reading** *(Multistage Adaptive)* | **30m** | **Complete the Words (C-Test)** | 70–100 word academic paragraph where the second half of every second word is missing (10 inline blanks). Tests lexical, morphological, and contextual accuracy. |
+| **1. Reading** *(Multistage Adaptive)* | **30m** | **Read in Daily Life** | Authentic campus/everyday texts (emails, syllabi, notices, schedules, Campus Wire posts) with 2–3 multiple-choice comprehension questions. |
+| **1. Reading** *(Multistage Adaptive)* | **30m** | **Read an Academic Passage** | University-level prose (~200 words) with 5 multiple-choice questions targeting *Factual Information*, *Negative Factual*, *Inference*, *Vocabulary in Context*, *Rhetorical Purpose*, and *Sentence Simplification*. |
+| **2. Listening** *(Multistage Adaptive)* | **29m** | **Listen and Choose a Response** | Single-turn spoken prompt followed by 4 written options; evaluates pragmatic appropriateness and conversational inference. |
+| **2. Listening** *(Multistage Adaptive)* | **29m** | **Listen to a Conversation** | Multi-turn campus or service dialogue with distinct male/female voices and 2 comprehension questions. |
+| **2. Listening** *(Multistage Adaptive)* | **29m** | **Listen to an Announcement** | Short spoken campus or academic announcement (~60–90 words) with 2 comprehension questions. |
+| **2. Listening** *(Multistage Adaptive)* | **29m** | **Listen to an Academic Talk** | University lecture (~150–220 words) with 4 questions testing main idea, supporting detail, organization, and speaker attitude. |
+| **3. Writing** | **23m** | **Build a Sentence** | 10-item scrambled word/chunk syntactic ordering drill testing complex academic grammar and clause structure. |
+| **3. Writing** | **23m** | **Write an Email** *(7m)* | 7-minute task requiring a structured campus or professional email addressing 3 specific bulleted goals. |
+| **3. Writing** | **23m** | **Write for an Academic Discussion** *(10m)* | 10-minute online seminar discussion response (100+ words) engaging with a professor's question and two student posts. |
+| **4. Speaking** | **8m** | **Listen and Repeat** *(7 items)* | 7 progressive sentence repetition items (8 to 18 words) with automatic audio playback and pronunciation/intelligibility scoring. |
+| **4. Speaking** | **8m** | **Take an Interview** *(4 items)* | 4 back-to-back spoken interview questions (45 seconds each, zero prep time) moving from personal experience to abstract policy/opinion. |
 
-### 2. Install Dependencies
+---
+
+## 🛠️ Architecture & Technical Stack
+
+- **Frontend:** React 19, TypeScript, Tailwind CSS v4, Lucide Icons, Web Audio API & MediaRecorder API, `@xenova/transformers` (optional client-side Whisper WebAssembly fallback).
+- **Backend:** Express.js (`server.ts` for local development & Node production) and Vercel Serverless Functions (`api/[...route].ts`), sharing unified route handlers in `src/server/`.
+- **Database & Sync:** Firebase Authentication + Cloud Firestore (`firestore.rules`) for shared community question caching, vocabulary definitions, and cross-device progress synchronization, backed by full `localStorage` persistence for offline use.
+- **Resilient AI Failover Chain:** Automatic model discovery, dead-model circuit breaking, exponential backoff, and seamless fallback from cloud AI providers to the built-in Curated Bank and Local Rule-Based Evaluator.
+
+---
+
+## 🚀 Quick Start & Local Development
+
+### Prerequisites
+- **Node.js** 18.x or 20.x+
+- **npm** 9.x+
+
+### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 3. Configure Environment Variables
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Configure your environment variables:
+### 2. Configure Optional AI Keys (BYOK or `.env`)
+The app works immediately out-of-the-box without any `.env` file using the built-in 120-question curated bank and offline evaluator. To enable live AI generation and grading, you can either paste your personal API key directly in the app via the **API Key & AI Model** button in the top navigation bar, or create an optional local `.env` file:
 ```env
-GEMINI_API_KEY=""
-GROQ_API_KEY=""
-OPENROUTER_API_KEY=""
-BLOB_READ_WRITE_TOKEN=""
-FIREBASE_PROJECT_ID="your-firebase-project-id"
-
-# Sentry Error Monitoring (Vercel Project Settings > Environment Variables)
-# Set VITE_SENTRY_DSN for both 'Production' and 'Preview' environments in Vercel:
-VITE_SENTRY_DSN="https://<public_key>@<org>.ingest.sentry.io/<project_id>"
-
-# Optional server-side Sentry error reporting:
-SENTRY_DSN_SERVER="https://<public_key>@<org>.ingest.sentry.io/<project_id>"
+GEMINI_API_KEY=
+GROQ_API_KEY=
+OPENROUTER_API_KEY=
+NVIDIA_API_KEY=
+OPENAI_API_KEY=
 ```
 
-#### Sentry Configuration on Vercel:
-To enable real-time error tracking across your deployment environments:
-1. Go to your project on [Vercel Dashboard](https://vercel.com) > **Settings** > **Environment Variables**.
-2. Add `VITE_SENTRY_DSN` (client-side React error tracking):
-   - Value: Your Sentry client DSN (`https://...@ingest.sentry.io/...`).
-   - Environments: Check both **Production** and **Preview**.
-3. Add `SENTRY_DSN_SERVER` (server-side Node error tracking, no `VITE_` prefix):
-   - Value: Your Sentry server/Node DSN (`https://...@ingest.sentry.io/...`).
-   - Environments: Check both **Production** and **Preview**.
-4. Redeploy or push a new commit to trigger a build with Sentry monitoring enabled.
-
-### 4. Run Development Server
+### 3. Start the Development Server
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser. (Chrome and Edge provide optimal Web Speech fallback support; Brave requires valid BYOK keys).
+This launches the unified Express + Vite development server at **`http://localhost:3000`**.
 
-### 5. Production Build
+### 4. Type-Check & Build for Production
 ```bash
-npm run build
-npm start
-```
-
----
-
-## 🧪 Simulation Tests & CI
-Run verification tests and simulations:
-```bash
-npm run test:sim
+# Run TypeScript compiler validation
 npm run lint
+
+# Build production client bundle into dist/
+npm run build
 ```
 
 ---
 
-## 📚 Attribution & Licensing
-- **Definitions**: WordNet 3.1, Princeton University (see `LICENSES/wordnet.txt`).
+## ⚖️ Trademark Disclaimer
+
+*TOEFL® and TOEFL iBT® are registered trademarks of ETS. This project is an independent open-source educational tool and is not affiliated with or endorsed by ETS.*

@@ -27,23 +27,7 @@ export const MicSection: React.FC<MicSectionProps> = ({ onVerified }) => {
 
   useEffect(() => {
     setSelectedMicId(getStoredMicDeviceId() || '');
-    getAudioInputDevices().then(setMicDevices).catch(() => {});
-
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'microphone' as any }).then((res) => {
-        setDeviceInfo((prev) => ({ ...prev, permissionState: res.state }));
-        res.onchange = () => {
-          setDeviceInfo((prev) => ({ ...prev, permissionState: res.state }));
-        };
-      }).catch(() => {});
-    }
-
-    const handleDeviceChange = () => {
-      getAudioInputDevices().then(setMicDevices).catch(() => {});
-    };
-    navigator?.mediaDevices?.addEventListener?.('devicechange', handleDeviceChange);
     return () => {
-      navigator?.mediaDevices?.removeEventListener?.('devicechange', handleDeviceChange);
       stopTest();
     };
   }, []);
@@ -131,6 +115,7 @@ export const MicSection: React.FC<MicSectionProps> = ({ onVerified }) => {
       }
 
       streamRef.current = stream;
+      getAudioInputDevices().then(setMicDevices).catch(() => {});
       const track = stream.getAudioTracks()[0];
       const deviceLabel = track ? track.label : 'Default Microphone';
       const sampleRate = audioCtx.sampleRate;

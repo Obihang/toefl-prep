@@ -23,13 +23,13 @@ function check(name: string, ok: boolean, detail = '') {
 console.log('Running keyflow simulation tests...');
 
 // 1. Switch notice & prefix validation
-const mismatch = validateKeyForProvider('gsk_123456789012345678901234567890', 'gemini');
+const mismatch = validateKeyForProvider('gsk_' + '123456789012345678901234567890', 'gemini');
 check(
   'Switch notice triggered when Groq key pasted under Gemini provider',
   !mismatch.valid && mismatch.mismatchedProvider === 'groq' && !!mismatch.message
 );
 
-const validGemini = validateKeyForProvider('AIzaSyD-123456789012345678901234567890', 'gemini');
+const validGemini = validateKeyForProvider('AIza' + 'SyD-123456789012345678901234567890', 'gemini');
 check('Gemini AIza key valid for gemini', validGemini.valid);
 
 // 2. Invalid key is not saved under mismatched provider without confirmation

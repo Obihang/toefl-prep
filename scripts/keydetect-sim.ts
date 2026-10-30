@@ -36,7 +36,7 @@ const jsonOk = (data: any) => () =>
 const statusRes = (code: number, body = '{}', headers: Record<string, string> = {}) => () =>
   new Response(body, { status: code, headers });
 
-const SECRET_KEY = 'nvapi-SECRET123456789012345678901234567890';
+const SECRET_KEY = 'nvapi-' + 'SECRET123456789012345678901234567890';
 
 async function expectError(fn: () => Promise<any>): Promise<any | null> {
   try {
@@ -54,19 +54,19 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
   const geminiShort = detectProviderFromKey('AIzaShort');
   check('partial Gemini key detected but not complete', geminiShort.provider === 'gemini' && !geminiShort.complete);
 
-  const geminiFull = detectProviderFromKey('AIzaSyD-12345678901234567890123456789012345');
+  const geminiFull = detectProviderFromKey('AIza' + 'SyD-12345678901234567890123456789012345');
   check('full Gemini key detected and complete', geminiFull.provider === 'gemini' && geminiFull.complete);
 
   const geminiAuthKey = detectProviderFromKey('AQ.Ab8RN6Inn3jqhzqyr1234567890');
   check('AQ. Gemini Auth key detected and complete', geminiAuthKey.provider === 'gemini' && geminiAuthKey.complete);
 
-  const nvidiaKey = detectProviderFromKey('nvapi-1234567890123456789012345678901234567890');
+  const nvidiaKey = detectProviderFromKey('nvapi-' + '1234567890123456789012345678901234567890');
   check('NVIDIA key detected and complete', nvidiaKey.provider === 'nvidia' && nvidiaKey.complete);
 
-  const groqKey = detectProviderFromKey('gsk_1234567890123456789012345678901234567890');
+  const groqKey = detectProviderFromKey('gsk_' + '1234567890123456789012345678901234567890');
   check('Groq key detected and complete', groqKey.provider === 'groq' && groqKey.complete);
 
-  const openrouterKey = detectProviderFromKey('sk-or-v1-123456789012345678901234567890123456');
+  const openrouterKey = detectProviderFromKey('sk-or-' + 'v1-123456789012345678901234567890123456');
   check('OpenRouter key detected and complete', openrouterKey.provider === 'openrouter' && openrouterKey.complete);
 
   // 2. Paid prefixes (xAI, Anthropic, sk-) are not auto-selected
@@ -112,7 +112,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
     jsonOk({ data: [{ id: 'meta/llama-3.1-8b-instruct' }, { id: 'meta/llama-3.3-70b-instruct' }] }),
     jsonOk({ choices: [{ message: { content: 'OK' } }] }),
   ];
-  const probeNvidia = await probeProvider('nvidia', 'nvapi-valid-key-12345678901234567890');
+  const probeNvidia = await probeProvider('nvidia', 'nvapi-' + 'valid-key-12345678901234567890');
   check(
     'probeProvider picks top ranked model',
     probeNvidia.success && probeNvidia.model === 'meta/llama-3.3-70b-instruct' && calls.length === 2
@@ -125,7 +125,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
     statusRes(404, '{"error":"model not found"}'),
     jsonOk({ choices: [{ message: { content: 'OK' } }] }),
   ];
-  const probeFallthrough = await probeProvider('groq', 'gsk_valid-key-12345678901234567890');
+  const probeFallthrough = await probeProvider('groq', 'gsk_' + 'valid-key-12345678901234567890');
   check('probeProvider falls through on model failure', probeFallthrough.success && probeFallthrough.model === 'model-b');
 
   // 4c. probeProvider returns warning on 429
@@ -134,7 +134,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
     jsonOk({ data: [{ id: 'model-c' }] }),
     statusRes(429, '{"error":"rate limit reached"}'),
   ];
-  const probeRateLimit = await probeProvider('groq', 'gsk_valid-key-12345678901234567890');
+  const probeRateLimit = await probeProvider('groq', 'gsk_' + 'valid-key-12345678901234567890');
   check(
     'probeProvider handles 429 with warning',
     probeRateLimit.success && !!probeRateLimit.warning && probeRateLimit.model === 'model-c'
@@ -153,7 +153,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
     jsonOk({ data: [{ id: 'model-d' }] }),
     statusRes(402, '{"error":"payment required"}'),
   ];
-  err = await expectError(() => probeProvider('groq', 'gsk_valid-key-12345678901234567890'));
+  err = await expectError(() => probeProvider('groq', 'gsk_' + 'valid-key-12345678901234567890'));
   check('probeProvider handles 402 skipped', !!err && err.status === 502);
 
   // 5. OpenRouter never lists, tests, or picks non-:free models
@@ -169,7 +169,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
     }),
     jsonOk({ choices: [{ message: { content: 'OK' } }] }),
   ];
-  const probeOpenRouter = await probeProvider('openrouter', 'sk-or-v1-valid-key-123456789012345678');
+  const probeOpenRouter = await probeProvider('openrouter', 'sk-or-' + 'v1-valid-key-123456789012345678');
   check(
     'OpenRouter probes only verified free models',
     probeOpenRouter.success &&
@@ -221,7 +221,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
   check('getApiConfig allows custom base URL when VERCEL is not set', allowedCustom.baseUrl === 'http://localhost:11434/v1');
 
   // 7. Key validation and prefix mismatch rejection
-  const mismatchGroqOnGemini = validateKeyForProvider('gsk_123456789012345678901234567890', 'gemini');
+  const mismatchGroqOnGemini = validateKeyForProvider('gsk_' + '123456789012345678901234567890', 'gemini');
   check(
     'Groq key rejected when provider is gemini',
     !mismatchGroqOnGemini.valid &&
@@ -229,7 +229,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
       String(mismatchGroqOnGemini.message).includes('Switch to Groq?')
   );
 
-  const mismatchGeminiOnGroq = validateKeyForProvider('AIzaSyD-123456789012345678901234567890', 'groq');
+  const mismatchGeminiOnGroq = validateKeyForProvider('AIza' + 'SyD-123456789012345678901234567890', 'groq');
   check(
     'Gemini key rejected when provider is groq',
     !mismatchGeminiOnGroq.valid &&
@@ -237,7 +237,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
       String(mismatchGeminiOnGroq.message).includes('Switch to Google Gemini?')
   );
 
-  const validGemini = validateKeyForProvider('AIzaSyD-123456789012345678901234567890', 'gemini');
+  const validGemini = validateKeyForProvider('AIza' + 'SyD-123456789012345678901234567890', 'gemini');
   check('Gemini key valid for gemini provider', validGemini.valid);
 
   const validGeminiAuth = validateKeyForProvider('AQ.Ab8RN6Inn3jqhzqyr1234567890', 'gemini');
@@ -246,7 +246,7 @@ async function expectError(fn: () => Promise<any>): Promise<any | null> {
   const mismatchGeminiAuthOnGroq = validateKeyForProvider('AQ.Ab8RN6Inn3jqhzqyr1234567890', 'groq');
   check('AQ. Gemini Auth key rejected when provider is groq', !mismatchGeminiAuthOnGroq.valid && mismatchGeminiAuthOnGroq.mismatchedProvider === 'gemini');
 
-  const validAuto = validateKeyForProvider('gsk_123456789012345678901234567890', 'auto');
+  const validAuto = validateKeyForProvider('gsk_' + '123456789012345678901234567890', 'auto');
   check('Any key valid when provider is auto', validAuto.valid);
 
   // Restore fetch

@@ -1,14 +1,28 @@
-node_modules
-dist
+# Dependencies & Build Outputs
+node_modules/
+dist/
+.vercel/
+
+# Environment Variables (keep .env.example tracked)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+
+# Logs & Debug Artifacts
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 .DS_Store
+
+# Lockfiles & Local Keys
 bun.lock
 bun.lockb
 *.pem
 *.key
 serviceAccountKey.json
 *-credentials.json
+
+# Optional Local Dictionary Assets
 public/dict/
