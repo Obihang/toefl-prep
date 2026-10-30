@@ -1031,7 +1031,14 @@ export const ListeningDialogueView: React.FC<Props> = ({
               {coachMode && revealedHints[qIdx] && !submitted && (
                 <div className="mb-3 p-3 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 leading-relaxed">
                   <strong className="font-bold text-indigo-900">🎓 Listening Strategy &amp; Hint:</strong>{' '}
-                  {(q as any).hint || q.why}
+                  {(() => {
+                    const rawHint = (q as any).hint;
+                    if (typeof rawHint === 'string') return rawHint;
+                    if (rawHint && typeof rawHint === 'object') {
+                      return String(rawHint.text || rawHint.hint || rawHint.tip || rawHint.strategy || JSON.stringify(rawHint));
+                    }
+                    return String(q.why || '');
+                  })()}
                 </div>
               )}
 

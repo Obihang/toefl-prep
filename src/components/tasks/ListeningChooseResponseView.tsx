@@ -465,7 +465,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
               <Keyboard className="w-3.5 h-3.5 text-slate-400" />
               <span>
-                ⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item
+                <strong className="font-semibold text-slate-800">Enter</strong>: Next item
               </span>
               <span aria-hidden="true" className="text-slate-300">·</span>
               <span>
@@ -664,9 +664,14 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         {coachMode && revealedHints[currentIndex] && !submitted && (
           <div className="p-3.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 leading-relaxed">
             <strong className="font-bold text-indigo-900">🎓 Conversational Pragmatics Tip:</strong>{' '}
-            {(currentItem as any)?.coachTip ||
-              (currentItem as any)?.hint ||
-              explanation}
+            {(() => {
+              const rawTip = (currentItem as any)?.coachTip || (currentItem as any)?.hint;
+              if (typeof rawTip === 'string') return rawTip;
+              if (rawTip && typeof rawTip === 'object') {
+                return String(rawTip.text || rawTip.tip || rawTip.hint || JSON.stringify(rawTip));
+              }
+              return String(explanation || '');
+            })()}
           </div>
         )}
 

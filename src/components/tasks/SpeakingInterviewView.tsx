@@ -997,14 +997,14 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           const isActiveCard =
             currentQIndex === idx || isAudioPlayingThis || isRecordingThis || isTranscribingThis;
           const qAnswer = typeof answers[idx] === 'string' ? answers[idx] : '';
-          const formula =
-            (qItem as any).speakingFormula ||
-            'Step 1: Direct Claim (5s) → Step 2: Concrete Reason & Specific Example (25s) → Step 3: Broader Conclusion (15s).';
-          const vocabList: string[] = Array.isArray((qItem as any).topicVocabulary)
-            ? (qItem as any).topicVocabulary
+          const rawFormula = (qItem as any).speakingFormula;
+          const rawVocab = (qItem as any).topicVocabulary || (qItem as any).topicVocab;
+          const vocabList: any[] = Array.isArray(rawVocab)
+            ? rawVocab
             : ['empirical evidence', 'practical implementation', 'long-term sustainability', 'measurable impact'];
-          const startersList: string[] = Array.isArray((qItem as any).sentenceStarters)
-            ? (qItem as any).sentenceStarters
+          const rawStarters = (qItem as any).sentenceStarters;
+          const startersList: any[] = Array.isArray(rawStarters)
+            ? rawStarters
             : [
                 'From my perspective, the most compelling factor is...',
                 'To illustrate this with a concrete example,...',
@@ -1063,41 +1063,86 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                       Relaxed 90s Coach Timer
                     </span>
                   </div>
-                  <p className="text-indigo-900 leading-relaxed font-medium">{formula}</p>
+                  {typeof rawFormula === 'string' && rawFormula ? (
+                    <p className="text-indigo-900 leading-relaxed font-medium">{rawFormula}</p>
+                  ) : rawFormula && typeof rawFormula === 'object' ? (
+                    <div className="space-y-1 text-indigo-900 font-medium">
+                      {rawFormula.pointFormula && (
+                        <div>
+                          <strong className="font-bold text-indigo-950">1. Point: </strong>
+                          <span>{String(rawFormula.pointFormula)}</span>
+                        </div>
+                      )}
+                      {rawFormula.reasonFormula && (
+                        <div>
+                          <strong className="font-bold text-indigo-950">2. Reason: </strong>
+                          <span>{String(rawFormula.reasonFormula)}</span>
+                        </div>
+                      )}
+                      {rawFormula.exampleFormula && (
+                        <div>
+                          <strong className="font-bold text-indigo-950">3. Example: </strong>
+                          <span>{String(rawFormula.exampleFormula)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-indigo-900 leading-relaxed font-medium">
+                      Step 1: Direct Claim (5s) → Step 2: Concrete Reason &amp; Specific Example (25s) → Step 3: Broader Conclusion (15s).
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                     <span className="text-[11px] font-bold text-slate-700">Band 6.0 Vocabulary:</span>
-                    {vocabList.map((v, vIdx) => (
-                      <span
-                        key={vIdx}
-                        className="px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-900 font-semibold text-[11px]"
-                      >
-                        {v}
-                      </span>
-                    ))}
+                    {vocabList.map((v: any, vIdx: number) => {
+                      const displayVal =
+                        typeof v === 'string'
+                          ? v
+                          : v && typeof v === 'object'
+                          ? `${v.word || v.term || ''}${v.meaning || v.definition ? ': ' + (v.meaning || v.definition) : ''}`
+                          : String(v || '');
+                      if (!displayVal) return null;
+                      return (
+                        <span
+                          key={vIdx}
+                          className="px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-900 font-semibold text-[11px]"
+                        >
+                          {displayVal}
+                        </span>
+                      );
+                    })}
                   </div>
                   <div className="space-y-1 pt-0.5">
                     <span className="text-[11px] font-bold text-slate-700 block">
                       Spoken Sentence Starters (click to insert into transcript box):
                     </span>
                     <div className="flex flex-wrap gap-1.5">
-                      {startersList.map((st, sIdx) => (
-                        <button
-                          key={sIdx}
-                          type="button"
-                          onClick={() =>
-                            setAnswers((prev) => {
-                              const curr = typeof prev[idx] === 'string' ? prev[idx] : '';
-                              const nextVal = curr.trim() ? `${curr.replace(/\s+$/, '')} ${st} ` : `${st} `;
-                              const next = { ...prev, [idx]: nextVal };
-                              answersRef.current = next;
-                              return next;
-                            })
-                          }
-                          className="text-left text-[11px] bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
-                        >
-                          + &ldquo;{st}&rdquo;
-                        </button>
-                      ))}
+                      {startersList.map((st: any, sIdx: number) => {
+                        const starterText =
+                          typeof st === 'string'
+                            ? st
+                            : st && typeof st === 'object'
+                            ? String(st.text || st.starter || st.sentence || JSON.stringify(st))
+                            : String(st || '');
+                        if (!starterText) return null;
+                        return (
+                          <button
+                            key={sIdx}
+                            type="button"
+                            onClick={() =>
+                              setAnswers((prev) => {
+                                const curr = typeof prev[idx] === 'string' ? prev[idx] : '';
+                                const nextVal = curr.trim() ? `${curr.replace(/\s+$/, '')} ${starterText} ` : `${starterText} `;
+                                const next = { ...prev, [idx]: nextVal };
+                                answersRef.current = next;
+                                return next;
+                              })
+                            }
+                            className="text-left text-[11px] bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
+                          >
+                            + &ldquo;{starterText}&rdquo;
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

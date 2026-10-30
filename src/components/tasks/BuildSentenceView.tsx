@@ -392,7 +392,11 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
                   <HelpCircle className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-indigo-900">🎓 Syntax &amp; Grammar Rule:</strong>{' '}
-                    <span>{item.grammarRule}</span>
+                    <span>
+                      {typeof item.grammarRule === 'string'
+                        ? item.grammarRule
+                        : String((item.grammarRule as any)?.rule || (item.grammarRule as any)?.explanation || JSON.stringify(item.grammarRule || ''))}
+                    </span>
                   </div>
                 </div>
               )}
@@ -590,7 +594,10 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
                   <div className="flex items-start gap-1.5 text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                     <HelpCircle className="w-3.5 h-3.5 text-teal-700 mt-0.5 shrink-0" />
                     <div>
-                      <strong className="text-slate-800">Grammar Rule:</strong> {item.grammarRule}
+                      <strong className="text-slate-800">Grammar Rule:</strong>{' '}
+                      {typeof item.grammarRule === 'string'
+                        ? item.grammarRule
+                        : String((item.grammarRule as any)?.rule || (item.grammarRule as any)?.explanation || JSON.stringify(item.grammarRule || ''))}
                     </div>
                   </div>
                 </div>

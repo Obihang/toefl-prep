@@ -49,7 +49,7 @@ export const TaskReportButton: React.FC<{ task: any }> = ({ task }) => {
       }`}
     >
       <Flag className="w-3 h-3" />
-      <span>{isReported ? '✓ Reported' : '🏳️ Report'}</span>
+      <span>{isReported ? '✓ Reported' : 'Report'}</span>
     </button>
   );
 };

@@ -21,8 +21,13 @@ export const SelectionHandler: React.FC<Props> = ({ taskType }) => {
         target.closest('input') ||
         target.closest('textarea') ||
         target.closest('[data-no-select-vocab]') ||
+        target.closest('[data-highlighter-active="true"]') ||
         target.closest('button'))
     ) {
+      return;
+    }
+
+    if (document.querySelector('[data-highlighter-active="true"]')) {
       return;
     }
 

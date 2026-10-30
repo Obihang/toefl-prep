@@ -373,7 +373,7 @@ export const DailyLifeView: React.FC<Props> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span><strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
@@ -402,7 +402,13 @@ export const DailyLifeView: React.FC<Props> = ({
             const isCorrect = userChoice === q.answer;
             const isQuestionChecked = submitted || Boolean(checkedQuestions[qIdx]);
             const skillBadge = getQuestionSkillBadge(q.questionType, q.q);
-            const hintText = (q as any).hint || skillBadge.strategy;
+            const rawHint = (q as any).hint;
+            const hintText =
+              typeof rawHint === 'string'
+                ? rawHint
+                : rawHint && typeof rawHint === 'object'
+                ? String(rawHint.text || rawHint.hint || rawHint.tip || rawHint.strategy || JSON.stringify(rawHint))
+                : String(skillBadge.strategy || '');
 
             return (
               <div

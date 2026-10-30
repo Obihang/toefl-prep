@@ -32,6 +32,7 @@ export const ReadingPassageView: React.FC<Props> = ({
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
+  const [passageHighlights, setPassageHighlights] = useState<string[]>([]);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
   const [openHints, setOpenHints] = useState<Record<number, boolean>>({});
   const [checkedQuestions, setCheckedQuestions] = useState<Record<number, boolean>>({});
@@ -42,6 +43,7 @@ export const ReadingPassageView: React.FC<Props> = ({
     setActiveQuestionIdx(0);
     setOpenHints({});
     setCheckedQuestions({});
+    setPassageHighlights([]);
   }, [task.id, task.title]);
 
   const handleSelect = (qIdx: number, optIdx: number) => {
@@ -153,6 +155,41 @@ export const ReadingPassageView: React.FC<Props> = ({
       .filter((i) => i !== -1);
   }, [submitted, selectedAnswers, task.questions]);
 
+  const handlePassageMouseUp = () => {
+    if (!isHighlightMode) return;
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    const text = selection.toString().trim();
+    if (text && text.length > 1) {
+      setPassageHighlights((prev) => (prev.includes(text) ? prev : [...prev, text]));
+    }
+  };
+
+  const renderHighlightedPassage = () => {
+    if (passageHighlights.length === 0) {
+      return <p className="whitespace-pre-line">{task.passage}</p>;
+    }
+    const sorted = [...passageHighlights].sort((a, b) => b.length - a.length);
+    const escaped = sorted.map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const pattern = new RegExp(`(${escaped.join('|')})`, 'gi');
+    const parts = task.passage.split(pattern);
+
+    return (
+      <p className="whitespace-pre-line">
+        {parts.map((part, i) => {
+          const isMatch = sorted.some((h) => h.toLowerCase() === part.toLowerCase());
+          return isMatch ? (
+            <mark key={i} className="bg-amber-200/90 text-slate-900 rounded-xs px-0.5 font-normal">
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          );
+        })}
+      </p>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -171,7 +208,7 @@ export const ReadingPassageView: React.FC<Props> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span><strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
@@ -186,6 +223,16 @@ export const ReadingPassageView: React.FC<Props> = ({
             <Highlighter className="w-3.5 h-3.5" />
             {isHighlightMode ? 'Highlighting Active' : 'Text Highlighter'}
           </button>
+          {passageHighlights.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPassageHighlights([])}
+              className="text-[11px] text-amber-800 hover:text-amber-950 underline px-1 cursor-pointer"
+              title="Clear all passage highlights"
+            >
+              Clear ({passageHighlights.length})
+            </button>
+          )}
           <TaskReportButton task={task} />
         </div>
       </div>
@@ -193,7 +240,12 @@ export const ReadingPassageView: React.FC<Props> = ({
       {/* Two-Column Official Layout on Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Passage */}
-        <div className={`lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-xs ${leftColumnClassName}`}>
+        <div
+          data-highlighter-active={isHighlightMode ? 'true' : 'false'}
+          data-no-select-vocab={isHighlightMode ? 'true' : undefined}
+          onMouseUp={handlePassageMouseUp}
+          className={`lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-xs ${leftColumnClassName}`}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Reading Passage</span>
             <span className="text-xs text-slate-400">
@@ -205,7 +257,7 @@ export const ReadingPassageView: React.FC<Props> = ({
               isHighlightMode ? 'cursor-text' : ''
             }`}
           >
-            <p className="whitespace-pre-line">{task.passage}</p>
+            {renderHighlightedPassage()}
           </div>
         </div>
 
@@ -243,7 +295,13 @@ export const ReadingPassageView: React.FC<Props> = ({
               return { label: 'Factual Detail', color: 'bg-teal-50 text-teal-700 border-teal-200', strategy: 'Locate the key noun phrase in the passage and match the option that paraphrases the cause-and-effect relationship accurately.' };
             };
             const skillBadge = getSkillBadge(rawBadgeType);
-            const hintText = (q as any).hint || skillBadge.strategy;
+            const rawHint = (q as any).hint;
+            const hintText =
+              typeof rawHint === 'string'
+                ? rawHint
+                : rawHint && typeof rawHint === 'object'
+                ? String(rawHint.text || rawHint.hint || rawHint.tip || rawHint.strategy || JSON.stringify(rawHint))
+                : String(skillBadge.strategy || '');
 
             return (
               <div

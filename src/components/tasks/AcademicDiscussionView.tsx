@@ -443,31 +443,47 @@ export const AcademicDiscussionView: React.FC<Props> = ({
               </div>
               {showCoachBlueprint && (
                 <div className="space-y-2.5">
-                  {coachBlueprint.map((step: any, sIdx: number) => (
-                    <div key={sIdx} className="bg-white/90 border border-indigo-100 rounded-lg p-3 space-y-1.5">
-                      <div className="text-xs font-bold text-indigo-950">{step.stage}</div>
-                      <p className="text-[11px] text-slate-600 leading-snug">{step.purpose}</p>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {(step.starters || []).map((st: string, stIdx: number) => (
-                          <button
-                            key={stIdx}
-                            type="button"
-                            onClick={() =>
-                              setResponse((prev) =>
-                                prev.trim()
-                                  ? `${prev.replace(/\s+$/, '')} ${st}`
-                                  : st
-                              )
-                            }
-                            className="text-left text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
-                            title="Click to insert sentence starter into your draft"
-                          >
-                            + &ldquo;{st}&rdquo;
-                          </button>
-                        ))}
+                  {coachBlueprint.map((step: any, sIdx: number) => {
+                    const stepTitle = String(step.stage || step.step || step.title || `Stage ${sIdx + 1}`);
+                    const stepDesc = String(step.purpose || step.description || step.tip || '');
+                    const rawStarters = Array.isArray(step.starters) ? step.starters : [];
+
+                    return (
+                      <div key={sIdx} className="bg-white/90 border border-indigo-100 rounded-lg p-3 space-y-1.5">
+                        <div className="text-xs font-bold text-indigo-950">{stepTitle}</div>
+                        {stepDesc && <p className="text-[11px] text-slate-600 leading-snug">{stepDesc}</p>}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {rawStarters.map((st: any, stIdx: number) => {
+                            const starterText =
+                              typeof st === 'string'
+                                ? st
+                                : st && typeof st === 'object'
+                                ? String(st.text || st.starter || st.label || JSON.stringify(st))
+                                : String(st || '');
+                            if (!starterText) return null;
+
+                            return (
+                              <button
+                                key={stIdx}
+                                type="button"
+                                onClick={() =>
+                                  setResponse((prev) =>
+                                    prev.trim()
+                                      ? `${prev.replace(/\s+$/, '')} ${starterText}`
+                                      : starterText
+                                  )
+                                }
+                                className="text-left text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
+                                title="Click to insert sentence starter into your draft"
+                              >
+                                + &ldquo;{starterText}&rdquo;
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

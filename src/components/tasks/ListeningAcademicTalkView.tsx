@@ -368,7 +368,7 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span><strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
@@ -598,7 +598,14 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
                 {coachMode && revealedHints[qIdx] && !submitted && (
                   <div className="mb-3 p-3 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 leading-relaxed">
                     <strong className="font-bold text-indigo-900">🎓 Lecture Strategy &amp; Hint:</strong>{' '}
-                    {(q as any).hint || q.why || q.explanation}
+                    {(() => {
+                      const rawHint = (q as any).hint;
+                      if (typeof rawHint === 'string') return rawHint;
+                      if (rawHint && typeof rawHint === 'object') {
+                        return String(rawHint.text || rawHint.hint || rawHint.tip || rawHint.strategy || JSON.stringify(rawHint));
+                      }
+                      return String(q.why || q.explanation || '');
+                    })()}
                   </div>
                 )}
 

@@ -1246,11 +1246,29 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
                     'Support your argument with a concrete academic or personal example',
                     'Synthesize the broader implications of your view',
                   ],
-            ...(q?.speakingFormula && typeof q.speakingFormula === 'object'
-              ? { speakingFormula: q.speakingFormula }
+            ...(q?.speakingFormula ? { speakingFormula: q.speakingFormula } : {}),
+            ...(Array.isArray(q?.topicVocabulary)
+              ? {
+                  topicVocabulary: q.topicVocabulary.map((v: any) =>
+                    typeof v === 'string'
+                      ? v
+                      : v && typeof v === 'object'
+                      ? `${v.word || v.term || ''}${v.meaning || v.definition ? ': ' + (v.meaning || v.definition) : ''}`
+                      : String(v || '')
+                  ),
+                }
               : {}),
-            ...(Array.isArray(q?.topicVocabulary) ? { topicVocabulary: q.topicVocabulary.map(String) } : {}),
-            ...(Array.isArray(q?.sentenceStarters) ? { sentenceStarters: q.sentenceStarters.map(String) } : {}),
+            ...(Array.isArray(q?.sentenceStarters)
+              ? {
+                  sentenceStarters: q.sentenceStarters.map((st: any) =>
+                    typeof st === 'string'
+                      ? st
+                      : st && typeof st === 'object'
+                      ? String(st.text || st.starter || st.sentence || JSON.stringify(st))
+                      : String(st || '')
+                  ),
+                }
+              : {}),
             sampleAnswer:
               typeof q?.sampleAnswer === 'string' && q.sampleAnswer.trim().length > 0
                 ? q.sampleAnswer.trim()
