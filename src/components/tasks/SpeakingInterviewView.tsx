@@ -1,11 +1,26 @@
-import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender, assignTaskSpeakerVoices } from '../../utils/voices';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { parseDialogueLine } from '../../utils/voices';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
-import { SpeakingInterviewTask, InterviewQuestionItem } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Play, Pause, Sparkles, AlertCircle, ArrowRight, Clock, Loader2, Headphones, RefreshCw, RotateCcw, Award, BookOpen, CheckCircle2, ChevronDown, ChevronUp, Zap, HardDrive } from 'lucide-react';
+import { SpeakingInterviewTask } from '../../data/curatedQuestions';
+import { Mic, Play, Sparkles, AlertCircle, ArrowRight, Loader2, Headphones, Zap, HardDrive } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, playChime, transcribeAudioBlob, prefetchSpeechAudio, playAudioBlob, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
+import {
+  speakWithCloudTTS,
+  chunkTextForTTS,
+  fetchCloudTtsAudio,
+  stopSpeaking,
+  createVoiceSession,
+  VoiceSession,
+  playChime,
+  playRecordingBeep,
+  transcribeAudioBlob,
+  prefetchSpeechAudio,
+  stripSpeakerAndFormatting,
+  pickRandomVoice,
+  inferGenderFromSpeaker,
+} from '../../utils/audioSpeech';
+import { filterWhisperHallucinations } from '../../utils/audio/fluencyMetrics';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
@@ -27,7 +42,6 @@ interface Props {
   activeCardHighlightClass?: string;
 }
 
-
 export const SpeakingInterviewView: React.FC<Props> = ({
   task,
   onNextTask,
@@ -36,15 +50,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   keyboardShortcutHint = '⌨️ Enter: Stop Recording & Transcribe',
 }) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [step, setStep] = useState<'idle' | 'prep' | 'speaking' | 'done'>('idle');
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [timerMode, setTimerMode] = useState<'idle' | 'prep' | 'speaking'>('idle');
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
+  const [, setStep] = useState<'idle' | 'speaking' | 'done'>('idle');
+  const [answers, setAnswers] = useState<Record<string | number, any>>({});
+  const answersRef = useRef<Record<string | number, any>>({});
+
+  const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
+  const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
+  const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
+  const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
+
+  const [autoStart, setAutoStart] = useState(true);
+  const autoStartRef = useRef(autoStart);
+  autoStartRef.current = autoStart;
+
+  const [timeLeft, setTimeLeft] = useState(45);
   const [audioLevel, setAudioLevel] = useState(0);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [autoStart, setAutoStart] = useState(false);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalSeconds, setEvalSeconds] = useState(0);
@@ -53,17 +74,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   const [evalError, setEvalError] = useState<string | null>(null);
   const [isBenchmarkOpen, setIsBenchmarkOpen] = useState(true);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
-  const [transcribingQuestionIds, setTranscribingQuestionIds] = useState<Record<number, boolean>>({});
-  const [transcriptionErrors, setTranscriptionErrors] = useState<Record<number, string | null>>({});
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioError, setAudioError] = useState<string | null>(null);
+  const [audioErrors, setAudioErrors] = useState<Record<number, string | null>>({});
 
   const [isTranscriberModalOpen, setIsTranscriberModalOpen] = useState(false);
   const [isAnyModelCached, setIsAnyModelCached] = useState<boolean>(true);
   const [showMicTest, setShowMicTest] = useState(false);
 
   const blobsRef = useRef<Record<number, Blob>>({});
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const hasCompletedRef = useRef<boolean>(false);
 
   useEffect(() => {
@@ -79,40 +96,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   const activePlayingKeyRef = useRef<string | null>(null);
   const questionAudioRef = useRef<HTMLAudioElement | null>(null);
   const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
-
+  const playbackSessionIdRef = useRef<number>(0);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
-  const timerIntervalRef = useRef<any>(null);
-  const pendingTranscriptionsRef = useRef<Record<number, Promise<void>>>({});
 
   const draftStorageKey = `toefl_draft_speaking_interview_${task.id || task.title}`;
 
-  // Reset completion guard & blobs on mount or task change, and restore saved draft transcripts
-  useEffect(() => {
-    hasCompletedRef.current = false;
-    blobsRef.current = {};
-    setStep('idle');
-    setEvaluationResult(null);
-    setEvalError(null);
-    try {
-      const rawDraft = localStorage.getItem(draftStorageKey);
-      if (rawDraft) {
-        const parsed = JSON.parse(rawDraft);
-        if (parsed && typeof parsed === 'object') {
-          setAnswers(parsed);
-          return;
-        }
-      }
-    } catch {}
-    setAnswers({});
-  }, [task.id, task.title]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(draftStorageKey, JSON.stringify(answers));
-    } catch {}
-  }, [draftStorageKey, answers]);
-
-  const stopAllAudio = () => {
+  const stopAllAudio = useCallback(() => {
+    playbackSessionIdRef.current++;
     if (recordingAudioRef.current) {
       try {
         recordingAudioRef.current.pause();
@@ -128,12 +118,51 @@ export const SpeakingInterviewView: React.FC<Props> = ({
       questionAudioRef.current = null;
     }
     activePlayingKeyRef.current = null;
-    setIsPlayingAudio(false);
+    setActiveAudioIdx(null);
+    setLoadingAudioIdx(null);
     setPlayingRecordingQIndex(null);
     stopSpeaking();
-  };
+  }, []);
 
-  const currentQ: InterviewQuestionItem = task.questions[currentQIndex];
+  // Reset completion guard & blobs on mount or task change, and restore saved draft transcripts
+  useEffect(() => {
+    hasCompletedRef.current = false;
+    blobsRef.current = {};
+    setCurrentQIndex(0);
+    setStep('idle');
+    setEvaluationResult(null);
+    setEvalError(null);
+    try {
+      const rawDraft = localStorage.getItem(draftStorageKey);
+      if (rawDraft) {
+        const parsed = JSON.parse(rawDraft);
+        if (parsed && typeof parsed === 'object') {
+          // Clean any stale single-dot hallucinations from saved draft
+          const cleanedDraft: Record<number, any> = {};
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string') {
+              const { transcript } = filterWhisperHallucinations(v, []);
+              cleanedDraft[k as any] = transcript;
+            } else {
+              cleanedDraft[k as any] = v;
+            }
+          }
+          answersRef.current = cleanedDraft;
+          setAnswers(cleanedDraft);
+          return;
+        }
+      }
+    } catch {}
+    answersRef.current = {};
+    setAnswers({});
+  }, [task.id, task.title, draftStorageKey]);
+
+  useEffect(() => {
+    answersRef.current = answers;
+    try {
+      localStorage.setItem(draftStorageKey, JSON.stringify(answers));
+    } catch {}
+  }, [draftStorageKey, answers]);
 
   const interviewerName = (task as any).interviewerName || 'Interviewer';
   const interviewerVoiceInfo = useMemo(() => {
@@ -143,7 +172,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         ? explicitGender
         : inferGenderFromSpeaker(`${interviewerName} ${task.context || ''}`);
     return pickRandomVoice(inferred || undefined);
-  }, [task.id, task.title, interviewerName]);
+  }, [task.id, task.title, interviewerName, (task as any).interviewerGender, task.context]);
 
   const interviewerGender = interviewerVoiceInfo.gender;
   const interviewerVoice = interviewerVoiceInfo.voiceId;
@@ -171,47 +200,55 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, [task.id, task.title, interviewerVoice, interviewerGender]);
+  }, [task.id, task.title, interviewerVoice, interviewerGender, task.questions]);
 
   // Stop audio/timers/voice session on unmount
   useEffect(() => {
     return () => {
-      clearInterval(timerIntervalRef.current);
       if (voiceSessionRef.current) {
         voiceSessionRef.current.abort();
       }
       stopAllAudio();
     };
-  }, []);
+  }, [stopAllAudio]);
 
-  // Stop audio when changing questions
-  useEffect(() => {
-    stopAllAudio();
-  }, [currentQIndex, task.id]);
+  // Live 45s TOEFL response countdown timer while recording
+  const handleToggleMicRef = useRef<(qIdx: number) => Promise<void>>(async () => {});
 
-  // Live timer for recording duration
   useEffect(() => {
     let interval: any = null;
-    if (isRecording) {
+    if (micStatus === 'listening' && activeMicIdx !== null) {
+      const allowedSec = task.questions[activeMicIdx]?.responseTimeSeconds || 45;
       setRecordingSeconds(0);
-      interval = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+      setTimeLeft(allowedSec);
+      let remaining = allowedSec;
+      const targetIdx = activeMicIdx;
+      interval = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+        remaining -= 1;
+        setTimeLeft(Math.max(0, remaining));
+        if (remaining <= 0) {
+          clearInterval(interval);
+          handleToggleMicRef.current(targetIdx);
+        }
+      }, 1000);
     } else {
       setRecordingSeconds(0);
     }
     return () => clearInterval(interval);
-  }, [isRecording]);
+  }, [micStatus, activeMicIdx, task.questions]);
 
   // Live timer for transcription duration
   useEffect(() => {
     let interval: any = null;
-    if (isTranscribing) {
+    if (micStatus === 'transcribing') {
       setTranscribeSeconds(0);
       interval = setInterval(() => setTranscribeSeconds((s) => s + 1), 1000);
     } else {
       setTranscribeSeconds(0);
     }
     return () => clearInterval(interval);
-  }, [isTranscribing]);
+  }, [micStatus]);
 
   // Live timer for evaluation duration
   useEffect(() => {
@@ -225,12 +262,41 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-  const playQuestionAudio = async (itemKey: string, qIdx: number = currentQIndex) => {
+  const handlePlayQuestion = async (qIdx: number) => {
+    setCurrentQIndex(qIdx);
+    setTimeout(() => {
+      document.getElementById(`interview-question-${qIdx}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 80);
+
+    const itemKey = `question_${qIdx}`;
+    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
     stopAllAudio();
+    if (wasPlayingThis) {
+      return;
+    }
+
+    // If currently recording another question, stop it first
+    if (voiceSessionRef.current && activeMicIdx !== null) {
+      try {
+        voiceSessionRef.current.abort();
+      } catch {}
+      voiceSessionRef.current = null;
+      setActiveMicIdx(null);
+      setMicStatus('idle');
+      setAudioLevel(0);
+    }
+
     activePlayingKeyRef.current = itemKey;
-    setIsPlayingAudio(true);
-    setAudioError(null);
-    const targetQ = task.questions[qIdx] || currentQ;
+    const currentSession = ++playbackSessionIdRef.current;
+
+    setLoadingAudioIdx(qIdx);
+    setAudioErrors((prev) => ({ ...prev, [qIdx]: null }));
+
+    const targetQ = task.questions[qIdx];
+    if (!targetQ) return;
     const parsed = parseDialogueLine(targetQ.question);
     const cleanQ = parsed.spokenText || stripSpeakerAndFormatting(targetQ.question);
     const effGender = interviewerGender;
@@ -245,6 +311,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({
       }
     }
 
+    if (playbackSessionIdRef.current !== currentSession) return;
+
     try {
       await speakWithCloudTTS(
         cleanQ,
@@ -254,299 +322,423 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           voice,
           voiceName: voice,
           gender: effGender,
-          onEnd: () => {
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setIsPlayingAudio(false);
+          speaker: interviewerName,
+          onStart: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              setLoadingAudioIdx(null);
+              setActiveAudioIdx(qIdx);
+            }
+          },
+          onEnd: async () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+              setActiveAudioIdx(null);
+              setLoadingAudioIdx(null);
+              if (autoStartRef.current) {
+                await playRecordingBeep();
+                if (playbackSessionIdRef.current === currentSession) {
+                  handleToggleMicRef.current(qIdx);
+                }
+              }
+            }
           },
           onError: (err) => {
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setIsPlayingAudio(false);
-            setAudioError(err?.message || String(err));
+            if (playbackSessionIdRef.current === currentSession) {
+              if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+              setActiveAudioIdx(null);
+              setLoadingAudioIdx(null);
+              setAudioErrors((prev) => ({ ...prev, [qIdx]: err?.message || String(err) }));
+            }
           },
         },
         voice
       );
     } catch (err: any) {
-      if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-      setIsPlayingAudio(false);
-      setAudioError(err?.message || String(err));
+      if (playbackSessionIdRef.current === currentSession) {
+        if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+        setActiveAudioIdx(null);
+        setLoadingAudioIdx(null);
+        setAudioErrors((prev) => ({ ...prev, [qIdx]: err?.message || String(err) }));
+      }
     }
   };
 
-  const handleHearQuestion = async () => {
-    const itemKey = `question_${currentQIndex}`;
-    const wasPlayingThis = activePlayingKeyRef.current === itemKey;
-    stopAllAudio();
-    if (wasPlayingThis) {
+  const handleEvaluateAI = async (
+    mode: 'local' | 'ai' = hasAnyStoredApiKey() ? 'ai' : 'local',
+    overrideAnswers?: Record<string | number, any>
+  ) => {
+    if (mode === 'ai') {
+      markUserAiRequest();
+    }
+    if (voiceSessionRef.current && activeMicIdx !== null) {
+      const prevSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
+      try {
+        await prevSession.stop();
+      } catch {}
+      setActiveMicIdx(null);
+      setMicStatus('idle');
+    }
+
+    const effectiveAnswers = overrideAnswers || answersRef.current || answers;
+    const hasAnyAnswer = task.questions.some((_, i) => {
+      const a = effectiveAnswers[i];
+      return typeof a === 'string' && a.trim().length > 0;
+    });
+
+    if (!hasAnyAnswer) {
+      setEvalError('Please provide a spoken or typed response to at least one question before requesting evaluation.');
       return;
     }
-    await playQuestionAudio(itemKey, currentQIndex);
-  };
 
-  const handleRestartQuestionAudio = async () => {
-    stopAllAudio();
-    const itemKey = `question_${currentQIndex}`;
-    await playQuestionAudio(itemKey, currentQIndex);
-  };
+    setIsEvaluating(true);
+    setEvalError(null);
 
-  // Background transcription per question
-  const startBackgroundTranscriptionIfNeeded = (qIndex: number, blob: Blob | null, existingTranscript: string) => {
-    if (existingTranscript.trim() || !blob) return;
-    markUserAiRequest();
+    const submissionData = task.questions.map((q, i) => {
+      const rawResp = typeof effectiveAnswers[i] === 'string' ? effectiveAnswers[i] : '';
+      const { transcript: response } = filterWhisperHallucinations(rawResp, []);
+      const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
+      const words = response.toLowerCase().match(/\b\w+\b/g) || [];
+      const metrics = effectiveAnswers[`metrics_${i}`] as SpeakingMetrics | undefined;
+      const fillerCount = metrics?.fillerWordCount ?? words.filter((w) => fillerWords.includes(w)).length;
+      const wordCount = words.length;
+      const timeInMinutes = (q.responseTimeSeconds || 45) / 60;
+      const wpm =
+        metrics?.wpm !== undefined
+          ? metrics.wpm
+          : timeInMinutes > 0
+          ? Math.round(wordCount / timeInMinutes)
+          : 0;
 
-    setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: true }));
-    console.log(`[Audio Timing] Starting background transcription for question ${qIndex + 1}...`);
-    const p = transcribeAudioBlob(blob)
-      .then(({ transcript, words, durationMs }) => {
-        if (transcript.trim()) {
-          const metrics = calculateSpeakingMetrics(words, transcript, (durationMs || 0) / 1000, currentQ.responseTimeSeconds);
-          setAnswers((prev) => ({
-            ...prev,
-            [qIndex]: transcript.trim(),
-            [`metrics_${qIndex}`]: metrics,
-          }));
-          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
+      return {
+        question: q.question,
+        studentResponse: response,
+        fillerCount,
+        wpm,
+      };
+    });
+
+    const avgWpm = Math.round(
+      submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
+    );
+    const totalPauses = submissionData.reduce((acc, _, i) => {
+      const m = effectiveAnswers[`metrics_${i}`] as SpeakingMetrics | undefined;
+      return acc + (m?.pauseCount || 0);
+    }, 0);
+    const maxPause = Math.max(
+      ...submissionData.map(
+        (_, i) => (effectiveAnswers[`metrics_${i}`] as SpeakingMetrics | undefined)?.longestPauseSeconds || 0
+      ),
+      0
+    );
+    const totalFillers = submissionData.reduce((acc, s) => acc + (s.fillerCount || 0), 0);
+
+    const localBaseline = evaluateLocally(
+      'speaking-interview',
+      {
+        title: task.title,
+        context: task.context,
+        questions: task.questions.map((q) => q.question),
+      },
+      submissionData,
+      {
+        task,
+        submissionData,
+        wpm: avgWpm,
+        pauseCount: totalPauses,
+        longestPause: maxPause,
+        fillerCount: totalFillers,
+      }
+    );
+
+    let evalData: any = null;
+
+    if (mode === 'local' || !hasAnyStoredApiKey()) {
+      evalData = localBaseline;
+    } else {
+      try {
+        const json = await safeFetchJson('/api/evaluate-response', {
+          method: 'POST',
+          headers: getApiHeaders(),
+          body: JSON.stringify({
+            taskType: 'speaking-interview',
+            promptData: {
+              title: task.title,
+              context: task.context,
+              questions: task.questions.map((q) => q.question),
+            },
+            studentResponse: submissionData,
+          }),
+        });
+
+        if (json.success && json.data) {
+          evalData = mergeAiAndLocalEvaluation(json.data, localBaseline);
+        } else {
+          evalData = localBaseline;
         }
-        console.log(`[Audio Timing] Background transcription finished for question ${qIndex + 1} in ${durationMs || 'N/A'}ms`);
-      })
-      .catch((err) => {
-        console.warn(`[Audio] Background transcription failed for question ${qIndex + 1}:`, err);
-        const errCode = err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
-        setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: errCode }));
-      })
-      .finally(() => {
-        setTranscribingQuestionIds((prev) => ({ ...prev, [qIndex]: false }));
-        delete pendingTranscriptionsRef.current[qIndex];
+      } catch (err: any) {
+        console.warn('[SpeakingInterview] Network error, running local rubric evaluator:', err);
+        evalData = localBaseline;
+      }
+    }
+
+    if (evalData) {
+      setEvaluationResult({ ...evalData, submissionData });
+
+      const scaled = evalData.scaledScore || 24;
+      const band6 =
+        evalData.bandScore6 ??
+        (scaled >= 29
+          ? 6.0
+          : scaled >= 26
+          ? 5.5
+          : scaled >= 23
+          ? 5.0
+          : scaled >= 20
+          ? 4.5
+          : scaled >= 17
+          ? 4.0
+          : 3.5);
+
+      const formattedTranscript = submissionData
+        .map(
+          (s, idx) =>
+            `Q${idx + 1}: ${s.question}\nResponse: ${s.studentResponse?.trim() || '(No response recorded)'}`
+        )
+        .join('\n\n');
+
+      savePracticeRecord({
+        taskType: 'speaking-interview',
+        taskTitle: task.title,
+        section: 'Speaking',
+        score: scaled,
+        maxScore: 30,
+        scaledScore30: scaled,
+        bandScore6: band6,
+        timeSpentSeconds: 240,
+        studentResponse: formattedTranscript,
+        feedbackSummary:
+          evalData.summary ||
+          `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${
+            evalData.rawRubricScore ?? evalData.bandScore
+          }/4.0 (${evalData.performanceLevel})`,
+        grammarErrors: Array.isArray(evalData.corrections)
+          ? evalData.corrections
+          : Array.isArray(evalData.grammarErrors)
+          ? evalData.grammarErrors
+          : [],
+        modelAnswer: evalData.modelBand6Rewrite || evalData.exemplar || '',
       });
 
-    pendingTranscriptionsRef.current[qIndex] = p;
-  };
-
-  const handleRetryTranscription = async (qIndex: number) => {
-    const blob = audioBlobs[qIndex];
-    if (!blob) return;
-    setIsTranscribing(true);
-    setMicNotice(null);
-    try {
-      const { transcript } = await transcribeAudioBlob(blob);
-      if (transcript.trim()) {
-        setAnswers((prev) => ({
-          ...prev,
-          [qIndex]: transcript.trim(),
-        }));
-        setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
-      }
-    } catch (err: any) {
-      const errCode = err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
-      setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: errCode }));
-      setMicNotice(
-        errCode === 'TRANSCRIPTION_TIMEOUT'
-          ? 'Transcription timed out (20s). Audio is preserved. Click "Retry transcription" to try again.'
-          : 'Audio transcription failed. Audio is preserved. Click "Retry transcription" to try again.'
-      );
-    } finally {
-      setIsTranscribing(false);
-    }
-  };
-
-  const stopCurrentRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {}
-    }
-  };
-
-  const stopSpeechRecognition = () => {
-    if (voiceSessionRef.current) {
-      stopSimulation();
-    }
-  };
-
-  const advanceStep = () => {
-    const isActivelyRecording =
-      mediaRecorderRef.current?.state === 'recording' || Boolean(voiceSessionRef.current);
-
-    if (currentQIndex >= 3) {
-      stopCurrentRecording();
-      stopSpeechRecognition();
-      setStep('done');
-      if (!isActivelyRecording && !hasCompletedRef.current) {
+      if (!hasCompletedRef.current) {
         hasCompletedRef.current = true;
-        onComplete?.({ blobs: { ...blobsRef.current }, answers });
+        onComplete?.(scaled);
+      }
+
+      setTimeout(() => {
+        document.getElementById('interview-evaluation-result')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 150);
+    }
+    setIsEvaluating(false);
+  };
+
+  const handleToggleMic = async (qIdx: number) => {
+    setMicNotice(null);
+    markUserAiRequest();
+    setCurrentQIndex(qIdx);
+
+    // If currently recording this question, stop and finalize transcript
+    if (activeMicIdx === qIdx && voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
+      setMicStatus('transcribing');
+
+      let finalTranscript = '';
+      let finalMetrics: SpeakingMetrics | undefined = undefined;
+
+      try {
+        const result = await activeSession.stop();
+        if (result.audioBlob) {
+          blobsRef.current[qIdx] = result.audioBlob;
+          setAudioBlobs((prev) => ({
+            ...prev,
+            [qIdx]: result.audioBlob!,
+          }));
+        }
+
+        const { transcript: cleanedFromSession } = filterWhisperHallucinations(
+          result.transcript || '',
+          []
+        );
+        finalTranscript = cleanedFromSession.trim();
+        finalMetrics = result.metrics;
+
+        // If session returned empty transcript but we have a non-silent audio blob, run transcribeAudioBlob
+        if (!finalTranscript && !result.isSilent && result.audioBlob && result.audioBlob.size > 500) {
+          try {
+            const sttRes = await transcribeAudioBlob(result.audioBlob);
+            const { transcript: cleanedStt } = filterWhisperHallucinations(
+              sttRes.transcript || '',
+              sttRes.words || []
+            );
+            if (cleanedStt.trim()) {
+              finalTranscript = cleanedStt.trim();
+              finalMetrics =
+                sttRes.metrics ||
+                calculateSpeakingMetrics(
+                  sttRes.words || [],
+                  finalTranscript,
+                  (sttRes.durationMs || 0) / 1000,
+                  task.questions[qIdx]?.responseTimeSeconds || 45
+                );
+            }
+          } catch (sttErr) {
+            console.warn('[SpeakingInterview] transcribeAudioBlob fallback notice:', sttErr);
+          }
+        }
+
+        // Fall back to any live transcript already in answersRef if non-empty and not a hallucination
+        if (!finalTranscript) {
+          const existingLive =
+            typeof answersRef.current[qIdx] === 'string' ? answersRef.current[qIdx] : '';
+          const { transcript: cleanedExisting } = filterWhisperHallucinations(existingLive, []);
+          finalTranscript = cleanedExisting.trim();
+        }
+
+        const updatedAnswers = {
+          ...answersRef.current,
+          [qIdx]: finalTranscript,
+          ...(finalMetrics ? { [`metrics_${qIdx}`]: finalMetrics } : {}),
+        };
+        answersRef.current = updatedAnswers;
+        setAnswers(updatedAnswers);
+      } catch (err: any) {
+        setMicNotice(err.message || 'Failed to process voice recording');
+      } finally {
+        setActiveMicIdx(null);
+        setMicStatus('idle');
+        setAudioLevel(0);
+        setStep('idle');
+        playChime(440, 250);
+      }
+
+      // Auto-Flow advancement to next question (Q1 -> Q2 -> Q3 -> Q4) or final evaluation
+      if (autoStartRef.current) {
+        if (qIdx + 1 < task.questions.length) {
+          const nextIdx = qIdx + 1;
+          setCurrentQIndex(nextIdx);
+          setTimeout(() => {
+            document.getElementById(`interview-question-${nextIdx}`)?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+            });
+            handlePlayQuestion(nextIdx);
+          }, 500);
+        } else if (qIdx >= task.questions.length - 1) {
+          setStep('done');
+          const hasAnySpoken = task.questions.some((_, i) => {
+            const val = answersRef.current[i];
+            return typeof val === 'string' && val.trim().length > 0;
+          });
+          if (hasAnySpoken) {
+            setTimeout(() => {
+              handleEvaluateAI(hasAnyStoredApiKey() ? 'ai' : 'local', answersRef.current);
+            }, 300);
+          } else {
+            setTimeout(() => {
+              document.getElementById('interview-evaluation-result')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+              });
+            }, 200);
+          }
+        }
       }
       return;
     }
 
-    stopCurrentRecording();
-    stopSpeechRecognition();
-    setCurrentQIndex((prev) => prev + 1);
-  };
-
-  // Start Official TOEFL Test Simulation for current question
-  const startSimulation = (qIdx: number = currentQIndex) => {
-    if (qIdx === 0) {
-      hasCompletedRef.current = false;
-    }
-    clearInterval(timerIntervalRef.current);
-    if (voiceSessionRef.current) {
-      voiceSessionRef.current.abort();
+    // If currently recording another question, stop it first and preserve its blob
+    if (voiceSessionRef.current && activeMicIdx !== null) {
+      const prevIdx = activeMicIdx;
+      const prevSession = voiceSessionRef.current;
       voiceSessionRef.current = null;
+      try {
+        const prevResult = await prevSession.stop();
+        if (prevResult.audioBlob) {
+          blobsRef.current[prevIdx] = prevResult.audioBlob;
+          setAudioBlobs((prev) => ({ ...prev, [prevIdx]: prevResult.audioBlob! }));
+        }
+      } catch {}
+      setAudioLevel(0);
     }
-    setIsRecording(false);
-    setAudioLevel(0);
-    setMicNotice(null);
 
-    // 1. 2-Second Transition ("Get ready to speak...") before 45-second recording begins
-    setStep('prep');
-    setTimerMode('prep');
-    setTimeLeft(2);
-    playChime(660, 250);
+    // Stop any playing question audio before opening the mic
+    stopAllAudio();
 
-    let currentSeconds = 2;
+    // Clear old text and metrics for this question so it starts fresh
+    const clearedAnswers = {
+      ...answersRef.current,
+      [qIdx]: '',
+      [`metrics_${qIdx}`]: undefined,
+    };
+    answersRef.current = clearedAnswers;
+    setAnswers(clearedAnswers);
 
-    timerIntervalRef.current = setInterval(() => {
-      currentSeconds--;
-      setTimeLeft(currentSeconds);
-
-      if (currentSeconds <= 0) {
-        clearInterval(timerIntervalRef.current);
-        startSpeakingPhase(qIdx);
-      }
-    }, 1000);
-  };
-
-  const startSpeakingPhase = async (qIdx: number = currentQIndex) => {
-    const targetQ = task.questions[qIdx] || currentQ;
+    const allowedSec = task.questions[qIdx]?.responseTimeSeconds || 45;
+    setTimeLeft(allowedSec);
     setStep('speaking');
-    setTimerMode('speaking');
-    setTimeLeft(targetQ.responseTimeSeconds);
-    playChime(880, 400);
 
-    const qIndex = qIdx;
     const session = createVoiceSession({
       onTranscriptUpdate: (transcript) => {
-        setAnswers((prev) => ({
-          ...prev,
-          [qIndex]: transcript,
-        }));
+        const { transcript: cleanedLive } = filterWhisperHallucinations(transcript, []);
+        setAnswers((prev) => {
+          const next = {
+            ...prev,
+            [qIdx]: cleanedLive,
+          };
+          answersRef.current = next;
+          return next;
+        });
       },
       onAudioLevel: (lvl) => setAudioLevel(lvl),
       onQuietWarning: (warning) => setMicNotice(warning),
       onDeviceDisconnected: (msg) => setMicNotice(msg),
       onNotice: (notice) => setMicNotice(notice),
       onStatusChange: (status, errorMsg) => {
-        if (status === 'listening' || status === 'waiting_for_voice') setIsRecording(true);
-        if (status === 'processing') setIsTranscribing(true);
-        if (status === 'idle') {
-          setIsRecording(false);
-          setIsTranscribing(false);
+        if (status === 'listening' || status === 'waiting_for_voice') {
+          setMicStatus('listening');
+        } else if (status === 'processing') {
+          setMicStatus('transcribing');
+        } else if (status === 'idle') {
+          setMicStatus('idle');
           setAudioLevel(0);
-        }
-        if (status === 'error') {
-          setIsRecording(false);
-          setIsTranscribing(false);
+        } else if (status === 'error') {
+          setMicStatus('idle');
+          setActiveMicIdx(null);
           setAudioLevel(0);
           if (errorMsg) setMicNotice(errorMsg);
         }
       },
-      autoStartThreshold: autoStart ? 5 : undefined,
     });
 
     voiceSessionRef.current = session;
+    setActiveMicIdx(qIdx);
 
     try {
       await session.start();
     } catch (err: any) {
-      setIsRecording(false);
-      setAudioLevel(0);
-      setMicNotice(err.message || 'Could not start microphone');
-    }
-
-    let speakingSeconds = targetQ.responseTimeSeconds;
-    timerIntervalRef.current = setInterval(async () => {
-      speakingSeconds--;
-      setTimeLeft(speakingSeconds);
-
-      if (speakingSeconds <= 0) {
-        clearInterval(timerIntervalRef.current);
-        await stopSimulation(qIndex);
-      }
-    }, 1000);
-  };
-
-  const stopSimulation = async (explicitQIndex?: number) => {
-    clearInterval(timerIntervalRef.current);
-    const qIndex = explicitQIndex !== undefined ? explicitQIndex : currentQIndex;
-    if (voiceSessionRef.current) {
-      const activeSession = voiceSessionRef.current;
       voiceSessionRef.current = null;
-      setIsTranscribing(true);
-      try {
-        const result = await activeSession.stop();
-        if (result.transcript) {
-          setAnswers((prev) => ({
-            ...prev,
-            [qIndex]: result.transcript,
-          }));
-          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
-        }
-        if (result.error) {
-          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: result.error! }));
-        }
-        if (result.audioBlob) {
-          blobsRef.current[qIndex] = result.audioBlob;
-          setAudioBlobs((prev) => ({
-            ...prev,
-            [qIndex]: result.audioBlob!,
-          }));
-          if (!result.error && !result.transcript) {
-            startBackgroundTranscriptionIfNeeded(qIndex, result.audioBlob, result.transcript);
-          }
-        }
-      } catch (err: any) {
-        console.warn('Voice session stop error:', err);
-      } finally {
-        setIsTranscribing(false);
-        setAudioLevel(0);
-      }
-    }
-    setIsRecording(false);
-    setAudioLevel(0);
-    setTimerMode('idle');
-    playChime(440, 500);
-
-    // If auto-sequence mode is enabled, automatically advance to the next question and play its prompt
-    if (autoStart && qIndex + 1 < task.questions.length) {
-      const nextIdx = qIndex + 1;
-      setCurrentQIndex(nextIdx);
-      setTimeout(() => {
-        document.getElementById(`interview-question-${nextIdx}`)?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-        playQuestionAudio(`question_${nextIdx}`, nextIdx).then(() => {
-          startSimulation(nextIdx);
-        }).catch(() => {});
-      }, 600);
-    } else if (qIndex >= task.questions.length - 1 && !hasCompletedRef.current) {
-      hasCompletedRef.current = true;
-      setStep('done');
-      onComplete?.({ blobs: { ...blobsRef.current }, answers });
-      if (autoStart) {
-        setTimeout(() => {
-          handleEvaluateAI(hasAnyStoredApiKey() ? 'ai' : 'local');
-        }, 300);
-      } else {
-        setTimeout(() => {
-          document.getElementById('interview-evaluation-result')?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-          });
-        }, 200);
-      }
+      setActiveMicIdx(null);
+      setMicStatus('idle');
+      setAudioLevel(0);
+      setMicNotice(err.message || 'Microphone could not be accessed. You can type your response.');
     }
   };
+
+  handleToggleMicRef.current = handleToggleMic;
 
   const handlePlayUserRecording = (qIndex: number) => {
     const itemKey = `user_rec_${qIndex}`;
@@ -600,267 +792,34 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     });
   };
 
-  const handleManualMicToggle = async () => {
-    setMicNotice(null);
-    const qIndex = currentQIndex;
-
-    if (isRecording && voiceSessionRef.current) {
-      const activeSession = voiceSessionRef.current;
-      voiceSessionRef.current = null;
-      setIsTranscribing(true);
-      try {
-        const result = await activeSession.stop();
-        if (result.transcript) {
-          setAnswers((prev) => ({
-            ...prev,
-            [qIndex]: result.transcript,
-          }));
-          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: null }));
-        }
-        if (result.error) {
-          setTranscriptionErrors((prev) => ({ ...prev, [qIndex]: result.error! }));
-        }
-        if (result.audioBlob) {
-          blobsRef.current[qIndex] = result.audioBlob;
-          setAudioBlobs((prev) => ({
-            ...prev,
-            [qIndex]: result.audioBlob!,
-          }));
-          if (!result.error && !result.transcript) {
-            startBackgroundTranscriptionIfNeeded(qIndex, result.audioBlob, result.transcript);
-          }
-        }
-      } catch (err: any) {
-        setMicNotice(err.message || 'Failed to process voice recording');
-      } finally {
-        setIsRecording(false);
-        setIsTranscribing(false);
-        setAudioLevel(0);
-      }
-      return;
-    }
-
-    // Clear old text and metrics so box starts fresh
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQIndex]: '',
-      [`metrics_${currentQIndex}`]: undefined,
-    }));
-
-    const session = createVoiceSession({
-      onTranscriptUpdate: (transcript) => {
-        setAnswers((prev) => ({
-          ...prev,
-          [currentQIndex]: transcript,
-        }));
-      },
-      onAudioLevel: (lvl) => setAudioLevel(lvl),
-      onQuietWarning: (warning) => setMicNotice(warning),
-      onDeviceDisconnected: (msg) => setMicNotice(msg),
-      onNotice: (notice) => setMicNotice(notice),
-      onStatusChange: (status, errorMsg) => {
-        if (status === 'listening' || status === 'waiting_for_voice') setIsRecording(true);
-        if (status === 'processing') setIsTranscribing(true);
-        if (status === 'idle') {
-          setIsRecording(false);
-          setIsTranscribing(false);
-          setAudioLevel(0);
-        }
-        if (status === 'error') {
-          setIsRecording(false);
-          setIsTranscribing(false);
-          setAudioLevel(0);
-          if (errorMsg) setMicNotice(errorMsg);
-        }
-      },
-      autoStartThreshold: autoStart ? 5 : undefined,
-    });
-
-    voiceSessionRef.current = session;
-
-    try {
-      await session.start();
-    } catch (err: any) {
-      voiceSessionRef.current = null;
-      setIsRecording(false);
-      setAudioLevel(0);
-      setMicNotice(err.message || 'Microphone could not be accessed. You can type your response.');
-    }
-  };
-
-  const handleEvaluateAI = async (mode: 'local' | 'ai' = hasAnyStoredApiKey() ? 'ai' : 'local') => {
-    if (mode === 'ai') {
-      markUserAiRequest();
-    }
-    if (voiceSessionRef.current) {
-      await stopSimulation();
-    }
-    // Wait for any running background transcriptions to finish first
-    const pending = Object.values(pendingTranscriptionsRef.current);
-    if (pending.length > 0) {
-      setIsTranscribing(true);
-      try {
-        await Promise.all(pending);
-      } catch {}
-      setIsTranscribing(false);
-    }
-
-    const hasAnyAnswer = Object.values(answers).some((a) => typeof a === 'string' && a.trim().length > 0);
-    if (!hasAnyAnswer) {
-      setEvalError('Please provide a spoken or typed response to at least one question before requesting evaluation.');
-      return;
-    }
-
-    setIsEvaluating(true);
-    setEvalError(null);
-
-    const submissionData = task.questions.map((q, i) => {
-      const response = answers[i] || '';
-      const fillerWords = ['um', 'uh', 'like', 'er', 'ah', 'actually', 'basically'];
-      const words = response.toLowerCase().match(/\b\w+\b/g) || [];
-      const metrics = (answers as any)[`metrics_${i}`] as SpeakingMetrics | undefined;
-      const fillerCount = metrics?.fillerWordCount ?? words.filter(w => fillerWords.includes(w)).length;
-      const wordCount = words.length;
-      const timeInMinutes = (q.responseTimeSeconds || 45) / 60;
-      const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
-      
-      return {
-        question: q.question,
-        studentResponse: response,
-        fillerCount,
-        wpm
-      };
-    });
-
-    console.log('[Audio Timing] Starting evaluation at', new Date().toISOString());
-
-    const avgWpm = Math.round(
-      submissionData.reduce((acc, s) => acc + (s.wpm || 120), 0) / (submissionData.length || 1)
-    );
-    const totalPauses = submissionData.reduce((acc, _, i) => {
-      const m = (answers as any)[`metrics_${i}`] as SpeakingMetrics | undefined;
-      return acc + (m?.pauseCount || 0);
-    }, 0);
-    const maxPause = Math.max(
-      ...submissionData.map((_, i) => ((answers as any)[`metrics_${i}`] as SpeakingMetrics | undefined)?.longestPauseSeconds || 0),
-      0
-    );
-    const totalFillers = submissionData.reduce((acc, s) => acc + (s.fillerCount || 0), 0);
-
-    const localBaseline = evaluateLocally(
-      'speaking-interview',
-      {
-        title: task.title,
-        context: task.context,
-        questions: task.questions.map((q) => q.question),
-      },
-      submissionData,
-      {
-        task,
-        submissionData,
-        wpm: avgWpm,
-        pauseCount: totalPauses,
-        longestPause: maxPause,
-        fillerCount: totalFillers,
-      }
-    );
-
-    let evalData: any = null;
-
-    if (mode === 'local' || !hasAnyStoredApiKey()) {
-      // 100% Zero-API Local Rubric Evaluation (Instant)
-      evalData = localBaseline;
-    } else {
-      try {
-        const json = await safeFetchJson('/api/evaluate-response', {
-          method: 'POST',
-          headers: getApiHeaders(),
-          body: JSON.stringify({
-            taskType: 'speaking-interview',
-            promptData: {
-              title: task.title,
-              context: task.context,
-              questions: task.questions.map((q) => q.question),
-            },
-            studentResponse: submissionData,
-          }),
-        });
-
-        if (json.success && json.data) {
-          evalData = mergeAiAndLocalEvaluation(json.data, localBaseline);
-        } else {
-          evalData = localBaseline;
-        }
-      } catch (err: any) {
-        console.warn('[SpeakingInterview] Network error, running local rubric evaluator:', err);
-        evalData = localBaseline;
-      }
-    }
-
-    if (evalData) {
-      console.log(`[Audio Timing] transcript -> evaluation completed`);
-      setEvaluationResult({ ...evalData, submissionData });
-
-      const scaled = evalData.scaledScore || 24;
-      const band6 = evalData.bandScore6 ?? (scaled >= 29 ? 6.0 : scaled >= 26 ? 5.5 : scaled >= 23 ? 5.0 : scaled >= 20 ? 4.5 : scaled >= 17 ? 4.0 : 3.5);
-
-      const formattedTranscript = submissionData
-        .map((s, idx) => `Q${idx + 1}: ${s.question}\nResponse: ${s.studentResponse?.trim() || '(No response recorded)'}`)
-        .join('\n\n');
-
-      savePracticeRecord({
-        taskType: 'speaking-interview',
-        taskTitle: task.title,
-        section: 'Speaking',
-        score: scaled,
-        maxScore: 30,
-        scaledScore30: scaled,
-        bandScore6: band6,
-        timeSpentSeconds: 240,
-        studentResponse: formattedTranscript,
-        feedbackSummary:
-          evalData.summary ||
-          `Speaking Interview: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/4.0 (${evalData.performanceLevel})`,
-        grammarErrors: Array.isArray(evalData.corrections)
-          ? evalData.corrections
-          : Array.isArray(evalData.grammarErrors)
-          ? evalData.grammarErrors
-          : [],
-        modelAnswer: evalData.modelBand6Rewrite || evalData.exemplar || '',
+  // Auto-scroll to the active question card whenever currentQIndex, activeMicIdx, or activeAudioIdx changes
+  useEffect(() => {
+    const activeIdx =
+      activeMicIdx !== null
+        ? activeMicIdx
+        : activeAudioIdx !== null
+        ? activeAudioIdx
+        : currentQIndex;
+    if (activeIdx > 0 || activeMicIdx !== null || activeAudioIdx !== null) {
+      document.getElementById(`interview-question-${activeIdx}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
       });
-
-      if (!hasCompletedRef.current) {
-        hasCompletedRef.current = true;
-        onComplete?.(scaled);
-      }
     }
-    setIsEvaluating(false);
-  };
-
+  }, [currentQIndex, activeMicIdx, activeAudioIdx]);
 
   // Press Enter while recording to immediately stop recording and trigger transcription
-  const stopSimulationRef = useRef(stopSimulation);
-  stopSimulationRef.current = stopSimulation;
-  const handleManualMicToggleRef = useRef(handleManualMicToggle);
-  handleManualMicToggleRef.current = handleManualMicToggle;
-
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey && isRecording) {
+      if (e.key === 'Enter' && !e.shiftKey && activeMicIdx !== null && micStatus === 'listening') {
         e.preventDefault();
         e.stopPropagation();
-        if (timerMode === 'speaking') {
-          stopSimulationRef.current(currentQIndex);
-        } else {
-          handleManualMicToggleRef.current();
-        }
+        handleToggleMicRef.current(activeMicIdx);
       }
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isRecording, timerMode, currentQIndex]);
-
-  const currentAnswer = answers[currentQIndex] || '';
+  }, [activeMicIdx, micStatus]);
 
   return (
     <div className="space-y-6">
@@ -882,9 +841,17 @@ export const SpeakingInterviewView: React.FC<Props> = ({
             <span aria-hidden="true">·</span>
             <span>Take an Interview</span>
             <span aria-hidden="true">·</span>
-            <span>{((task as any).source === 'ai') ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}` : '📚 Curated Bank'}</span>
+            <span>
+              Interviewer: <strong className="text-slate-700">{interviewerName}</strong>
+            </span>
             <span aria-hidden="true">·</span>
-            <span>4 Questions</span>
+            <span>
+              {(task as any).source === 'ai'
+                ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}`
+                : '📚 Curated Bank'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{task.questions.length} Questions (0s Prep · 45s Response)</span>
             <span aria-hidden="true">·</span>
             <span className="capitalize">{task.level}</span>
           </div>
@@ -897,7 +864,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
 
           <button
             type="button"
-            onClick={() => setShowMicTest(prev => !prev)}
+            onClick={() => setShowMicTest((prev) => !prev)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
           >
             <Mic className="w-3.5 h-3.5 text-teal-700" />
@@ -918,18 +885,22 @@ export const SpeakingInterviewView: React.FC<Props> = ({
             {task.questions.map((_, i) => (
               <button
                 key={i}
+                type="button"
                 onClick={() => {
-                  stopSimulation();
                   setCurrentQIndex(i);
+                  document.getElementById(`interview-question-${i}`)?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                  });
                 }}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5 cursor-pointer ${
                   currentQIndex === i
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 <span>Q{i + 1}</span>
-                {transcribingQuestionIds[i] ? (
+                {activeMicIdx === i && micStatus === 'transcribing' ? (
                   <Loader2 className="w-3 h-3 animate-spin text-teal-600 shrink-0" />
                 ) : answers[i]?.trim() ? (
                   <span className="text-teal-600">✓</span>
@@ -951,8 +922,12 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
             <div>
-              <strong className="font-bold block text-slate-900">Offline Whisper Speech Transcriber Not Downloaded Yet</strong>
-              <span>Download model (~75MB / ~245MB) once to enable 100% offline speech recognition without API keys.</span>
+              <strong className="font-bold block text-slate-900">
+                Offline Whisper Speech Transcriber Not Downloaded Yet
+              </strong>
+              <span>
+                Download model (~75MB / ~245MB) once to enable 100% offline speech recognition without API keys.
+              </span>
             </div>
           </div>
           <button
@@ -965,7 +940,17 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Unified Top-Level Auto-Sequence & Auto-Start Mic Control Bar */}
+      {task.context && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed">
+          <strong>Interview Scenario:</strong> {task.context} You will answer 4 sequential questions from{' '}
+          <strong>{interviewerName}</strong>. There is <strong>0 seconds of preparation time</strong>—as soon as the
+          interviewer finishes asking a question, a <strong>BEEP</strong> will sound and your{' '}
+          <strong>45-second recording timer</strong> begins immediately (press <strong>Enter</strong> anytime while
+          recording to stop and transcribe).
+        </div>
+      )}
+
+      {/* Unified Top-Level Auto-Flow Control Bar */}
       <div className="bg-teal-50/70 border border-teal-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
           <label
@@ -979,27 +964,27 @@ export const SpeakingInterviewView: React.FC<Props> = ({
               onChange={(e) => setAutoStart(e.target.checked)}
               className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
             />
-            <span>Auto-Flow (Q1 → Q{task.questions.length})</span>
+            <span>Auto-Flow (All {task.questions.length} Interview Questions)</span>
           </label>
           <span className="text-[11px] text-slate-600">
-            Plays question → 2s prep → records response → advances automatically through all {task.questions.length} questions.
+            Plays question → <strong>BEEP (0s prep)</strong> → records 45s response (press <strong>Enter</strong> when done) → advances automatically through Q1–Q{task.questions.length}.
           </span>
         </div>
 
         <button
           type="button"
-          onClick={async () => {
+          onClick={() => {
             setAutoStart(true);
-            stopSimulation(0);
-            setCurrentQIndex(0);
-            await playQuestionAudio('question_0', 0);
-            startSimulation(0);
+            autoStartRef.current = true;
+            const nextUnanswered = task.questions.findIndex((_, idx) => !answers[idx]?.trim());
+            const startIdx = nextUnanswered >= 0 ? nextUnanswered : 0;
+            handlePlayQuestion(startIdx);
           }}
-          disabled={timerMode !== 'idle' || isPlayingAudio}
+          disabled={activeAudioIdx !== null || micStatus !== 'idle'}
           className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
         >
           <Play className="w-3.5 h-3.5 fill-current" />
-          <span>Start Practice (Auto-Flow)</span>
+          <span>Start Interview (Auto-Flow)</span>
         </button>
       </div>
 
@@ -1008,7 +993,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         <Headphones className="w-4 h-4 text-teal-700 shrink-0" />
         <span>Tip: Use headphones or a headset to prevent microphone echo and avoid picking up system audio.</span>
       </div>
-
 
       {micNotice && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 text-xs text-amber-900 animate-in fade-in">
@@ -1026,129 +1010,156 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Question Card */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-        <SpeakingControls
-          currentQIndex={currentQIndex}
-          totalQuestions={task.questions.length}
-          currentQ={currentQ}
-          isPlayingAudio={isPlayingAudio}
-          audioError={audioError}
-          onHearQuestion={handleHearQuestion}
-          onRestartQuestionAudio={handleRestartQuestionAudio}
-          timerMode={timerMode}
-          timeLeft={timeLeft}
-          onStartSimulation={startSimulation}
-          onStopSimulation={stopSimulation}
-          hasRecording={Boolean(audioBlobs[currentQIndex])}
-          isPlayingRecording={playingRecordingQIndex === currentQIndex}
-          onPlayUserRecording={() => handlePlayUserRecording(currentQIndex)}
-          onRetryTranscription={() => handleRetryTranscription(currentQIndex)}
-          isTranscribing={isTranscribing}
-          transcriptionError={transcriptionErrors[currentQIndex]}
-          isRecording={isRecording}
-          transcribeSeconds={transcribeSeconds}
-          onManualMicToggle={handleManualMicToggle}
-          autoStart={autoStart}
-          onSetAutoStart={setAutoStart}
-          audioLevel={audioLevel}
-          recordingSeconds={recordingSeconds}
-        />
+      {/* All 4 Interview Question Cards */}
+      <div className="space-y-4">
+        {task.questions.map((qItem, idx) => {
+          const isAudioPlayingThis = activeAudioIdx === idx;
+          const isLoadingAudioThis = loadingAudioIdx === idx;
+          const isRecordingThis = activeMicIdx === idx && micStatus === 'listening';
+          const isTranscribingThis = activeMicIdx === idx && micStatus === 'transcribing';
+          const isActiveCard =
+            currentQIndex === idx || isAudioPlayingThis || isRecordingThis || isTranscribingThis;
+          const qAnswer = typeof answers[idx] === 'string' ? answers[idx] : '';
 
-        <div className="space-y-2">
-          <textarea
-            rows={4}
-            value={currentAnswer}
-            disabled={isTranscribing}
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            autoComplete="off"
-            data-gramm="false"
-            data-gramm_editor="false"
-            data-enable-grammarly="false"
-            onChange={(e) =>
-              setAnswers((prev) => ({
-                ...prev,
-                [currentQIndex]: e.target.value,
-              }))
-            }
-            placeholder={
-              isRecording
-                ? 'Listening to your speech...'
-                : isTranscribing
-                ? `Processing & transcribing voice recording... ${transcribeSeconds}s`
-                : 'Your spoken response will appear here as you speak. You can also edit or type manually...'
-            }
-            className={`w-full p-3.5 text-sm rounded-lg text-slate-900 outline-hidden leading-relaxed transition-colors ${
-              isRecording
-                ? 'bg-rose-50/40 border border-rose-300 focus:ring-2 focus:ring-rose-200'
-                : 'bg-slate-50 border border-slate-300 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100'
-            }`}
-          />
-          
-          {/* Post-answer metrics */}
-          {currentAnswer.trim() && !isRecording && !isTranscribing && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-3 text-xs bg-white border border-slate-200 p-3 rounded-lg text-slate-600">
-                {(() => {
-                  const metrics = (answers as any)[`metrics_${currentQIndex}`] as SpeakingMetrics | undefined;
-                  const words = currentAnswer.toLowerCase().match(/\b\w+\b/g) || [];
-                  const wordCount = words.length;
-                  const timeInMinutes = (currentQ.responseTimeSeconds || 45) / 60;
-                  const wpm = metrics?.wpm !== undefined ? metrics.wpm : (timeInMinutes > 0 ? Math.round(wordCount / timeInMinutes) : 0);
+          return (
+            <div
+              key={idx}
+              id={`interview-question-${idx}`}
+              onClick={() => setCurrentQIndex(idx)}
+              className={`bg-white border rounded-xl p-6 transition-all space-y-4 ${
+                isActiveCard
+                  ? 'ring-2 ring-emerald-500 shadow-md border-emerald-400'
+                  : 'shadow-xs border-slate-200'
+              } ${
+                isRecordingThis
+                  ? 'border-rose-300'
+                  : qAnswer.trim()
+                  ? 'bg-emerald-50/10'
+                  : ''
+              }`}
+            >
+              <SpeakingControls
+                currentQIndex={idx}
+                totalQuestions={task.questions.length}
+                currentQ={qItem}
+                isPlayingAudio={isAudioPlayingThis}
+                isLoadingAudio={isLoadingAudioThis}
+                audioError={audioErrors[idx] || null}
+                onHearQuestion={() => handlePlayQuestion(idx)}
+                timeLeft={isRecordingThis ? timeLeft : qItem.responseTimeSeconds || 45}
+                hasRecording={Boolean(audioBlobs[idx])}
+                isPlayingRecording={playingRecordingQIndex === idx}
+                onPlayUserRecording={() => handlePlayUserRecording(idx)}
+                isTranscribing={isTranscribingThis}
+                isRecording={isRecordingThis}
+                transcribeSeconds={transcribeSeconds}
+                onManualMicToggle={() => handleToggleMic(idx)}
+                audioLevel={audioLevel}
+                recordingSeconds={recordingSeconds}
+              />
 
-                  const detectedMatches = currentAnswer.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
-                  const fillerCount = metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
-                  const fillerList = metrics?.fillerWords || Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
+              <div className="space-y-2">
+                <textarea
+                  rows={3}
+                  value={qAnswer}
+                  disabled={isTranscribingThis}
+                  spellCheck={false}
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  autoComplete="off"
+                  data-gramm="false"
+                  data-gramm_editor="false"
+                  data-enable-grammarly="false"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && isRecordingThis) {
+                      e.preventDefault();
+                      handleToggleMic(idx);
+                    }
+                  }}
+                  onChange={(e) =>
+                    setAnswers((prev) => {
+                      const next = {
+                        ...prev,
+                        [idx]: e.target.value,
+                      };
+                      answersRef.current = next;
+                      return next;
+                    })
+                  }
+                  placeholder={
+                    isRecordingThis
+                      ? 'Listening to your speech (press Enter or click Stop when done)...'
+                      : isTranscribingThis
+                      ? `Processing & transcribing voice recording... ${transcribeSeconds}s`
+                      : 'Click Hear Question or Speak to record your 45-second response (or type/edit manually)...'
+                  }
+                  className={`w-full p-3.5 text-sm rounded-lg text-slate-900 outline-hidden leading-relaxed transition-colors ${
+                    isRecordingThis
+                      ? 'bg-rose-50/40 border border-rose-300 focus:ring-2 focus:ring-rose-200'
+                      : 'bg-slate-50 border border-slate-300 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100'
+                  }`}
+                />
 
-                  return (
-                    <>
-                      <div>WPM: <span className="font-mono font-bold text-teal-700">{wpm}</span></div>
-                      {metrics?.longestPauseSeconds ? (
-                        <div>Longest Pause: <span className="font-mono font-bold text-slate-700">{metrics.longestPauseSeconds}s</span></div>
-                      ) : null}
+                {/* Post-answer fluency metrics */}
+                {qAnswer.trim() && !isRecordingThis && !isTranscribingThis && (
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-3 text-xs bg-white border border-slate-200 p-3 rounded-lg text-slate-600">
+                      {(() => {
+                        const metrics = (answers as any)[`metrics_${idx}`] as SpeakingMetrics | undefined;
+                        const words = qAnswer.toLowerCase().match(/\b\w+\b/g) || [];
+                        const wordCount = words.length;
+                        const timeInMinutes = (qItem.responseTimeSeconds || 45) / 60;
+                        const wpm =
+                          metrics?.wpm !== undefined
+                            ? metrics.wpm
+                            : timeInMinutes > 0
+                            ? Math.round(wordCount / timeInMinutes)
+                            : 0;
 
-                      {/* ALWAYS Display Filler Badge */}
-                      {fillerCount === 0 ? (
-                        <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          0 fillers ✓
-                        </div>
-                      ) : (
-                        <div className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                          ⚠️ {fillerCount} filler{fillerCount > 1 ? 's' : ''} ({fillerList.join(', ')})
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
+                        const detectedMatches =
+                          qAnswer.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
+                        const fillerCount =
+                          metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
+                        const fillerList =
+                          metrics?.fillerWords ||
+                          Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
 
-              {/* Fluency Coaching Tip Banner */}
-              {(() => {
-                const metrics = (answers as any)[`metrics_${currentQIndex}`] as SpeakingMetrics | undefined;
-                const detectedMatches = currentAnswer.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
-                const fillerCount = metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
-                const fillerList = metrics?.fillerWords || Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
+                        return (
+                          <>
+                            <div>
+                              Words: <span className="font-mono font-bold text-slate-800">{wordCount}</span>
+                            </div>
+                            <div>
+                              WPM: <span className="font-mono font-bold text-teal-700">{wpm}</span>
+                            </div>
+                            {metrics?.longestPauseSeconds ? (
+                              <div>
+                                Longest Pause:{' '}
+                                <span className="font-mono font-bold text-slate-700">
+                                  {metrics.longestPauseSeconds}s
+                                </span>
+                              </div>
+                            ) : null}
 
-                if (fillerCount >= 1) {
-                  return (
-                    <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
-                      <span className="text-base shrink-0">💡</span>
-                      <div>
-                        <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
-                        <span>
-                          You used <strong>{fillerCount} filler word(s)</strong> ({fillerList.join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
-                        </span>
-                      </div>
+                            {fillerCount === 0 ? (
+                              <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                0 fillers ✓
+                              </div>
+                            ) : (
+                              <div className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+                                ⚠️ {fillerCount} filler{fillerCount > 1 ? 's' : ''} ({fillerList.join(', ')})
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
-                  );
-                }
-                return null;
-              })()}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          );
+        })}
       </div>
 
       {/* Global Evaluation Trigger */}
@@ -1224,13 +1235,12 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         </div>
       </div>
 
-
-      {evalError && (
+      {evalError &&
         (evalError.toLowerCase().includes('no api key') ||
-         evalError.toLowerCase().includes('invalid api key') ||
-         evalError.toLowerCase().includes('api key not valid') ||
-         evalError.toLowerCase().includes('add yours in dashboard') ||
-         evalError.toLowerCase().includes('settings & api key')) ? (
+        evalError.toLowerCase().includes('invalid api key') ||
+        evalError.toLowerCase().includes('api key not valid') ||
+        evalError.toLowerCase().includes('add yours in dashboard') ||
+        evalError.toLowerCase().includes('settings & api key') ? (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-amber-900">
             <div className="flex items-center gap-2 font-semibold text-sm">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1245,7 +1255,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                   Configure API Key
                 </button>
               )}
-              <span className="text-slate-500 font-medium">Supports Gemini, NVIDIA, Groq, OpenRouter, and custom keys</span>
+              <span className="text-slate-500 font-medium">
+                Supports Gemini, NVIDIA, Groq, OpenRouter, and custom keys
+              </span>
             </div>
           </div>
         ) : (
@@ -1253,8 +1265,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
             <span>{evalError}</span>
           </div>
-        )
-      )}
+        ))}
 
       {/* AI Evaluation Diagnostic Card */}
       <div id="interview-evaluation-result">

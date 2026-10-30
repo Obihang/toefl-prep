@@ -49,7 +49,8 @@ export const SILENCE_HALLUCINATION_EXACT = [
   /^(bye|goodbye|bye\s+bye)[\s.!?,]*$/i,
   /^\[.*(silence|music|applause|laughter|blank).*\]$/i,
   /^\(.*(silence|music|applause|laughter|blank).*\)$/i,
-  /^\.{2,}[\s.!?,]*$/,
+  /^[\s.!?,;:'"\u2026-]+$/,
+  /^\.{1,}[\s.!?,]*$/,
 ];
 
 /**

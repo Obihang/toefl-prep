@@ -1703,6 +1703,61 @@ export function playChime(freq = 880, durationMs = 200, type: OscillatorType = '
   }
 }
 
+// Official TOEFL iBT acoustic "BEEP" cue right before microphone recording starts
+export async function playRecordingBeep(): Promise<void> {
+  // Brief 400ms pause so the speaker's final word finishes cleanly
+  await new Promise((r) => setTimeout(r, 400));
+
+  if (typeof window === 'undefined') {
+    await new Promise((r) => setTimeout(r, 300));
+    return;
+  }
+
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      await new Promise((r) => setTimeout(r, 300));
+      return;
+    }
+
+    const ctx = getAudioContext() || new AudioCtx();
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        await new Promise((r) => setTimeout(r, 300));
+        return;
+      }
+    }
+
+    if (ctx.state !== 'running') {
+      await new Promise((r) => setTimeout(r, 300));
+      return;
+    }
+
+    const durationSec = 0.22; // 220ms
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + durationSec);
+
+    // Resolve 150ms after the 220ms beep ends so the microphone never records the beep itself
+    await new Promise((r) => setTimeout(r, 220 + 150));
+  } catch {
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
 // Speech Recognition helper
 export function createSpeechRecognizer(
   onTranscript: (text: string, isFinal: boolean) => void,
@@ -2087,7 +2142,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       volumeSamples = 0;
       quietWarningFired = false;
       isDeviceUnplugged = false;
-      waitingForVoice = Boolean(options.autoStartThreshold && options.autoStartThreshold > 0);
+      waitingForVoice = false;
 
       // Stop any TTS playback immediately to avoid microphone picking up app voice
       stopSpeaking();
@@ -2373,27 +2428,31 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
         }
       }
 
-      if (isSilentClip && !accumulatedTranscript.trim()) {
+      // Clean any live Web Speech transcript against silence/punctuation hallucinations
+      const { transcript: cleanedLive } = filterWhisperHallucinations(accumulatedTranscript, []);
+      const liveTranscript = cleanedLive.trim();
+
+      if (isSilentClip && !liveTranscript) {
         console.warn(`[Audio Timing] Silent clip detected (size: ${blobSize}B, duration: ${recordingDurationSec.toFixed(1)}s, ${Math.round(bytesPerSec)} B/s, ctxRunning: ${audioContextAlwaysRunning}). Skipping transcription.`);
         options.onStatusChange?.('error', 'No sound was detected in your recording. Please check your microphone or speak closer to it, then try again.');
         return { transcript: '', audioBlob: finalAudioBlob, isSilent: true };
       }
 
       // If we have live transcript from Web Speech, return immediately
-      const liveTranscript = accumulatedTranscript.trim();
       if (liveTranscript.length > 0) {
         console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via Web Speech)`);
         options.onStatusChange?.('idle');
         return { transcript: liveTranscript, audioBlob: finalAudioBlob };
       }
 
-      // Fallback: If Web Speech produced no text, use fast Gemini transcription with 20s timeout
+      // Fallback: If Web Speech produced no text, use Whisper / STT transcription
       if (finalAudioBlob && (finalAudioBlob as Blob).size > 150) {
         options.onStatusChange?.('processing');
         try {
           const { transcript: aiTranscribed, durationMs, metrics } = await transcribeAudioBlob(finalAudioBlob);
-          const cleaned = aiTranscribed.trim();
-          console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via Gemini /api/transcribe, model duration: ${durationMs || 'N/A'}ms)`);
+          const { transcript: filteredAi } = filterWhisperHallucinations(aiTranscribed || '', []);
+          const cleaned = filteredAi.trim() || liveTranscript;
+          console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via STT, model duration: ${durationMs || 'N/A'}ms)`);
           if (cleaned) {
             options.onTranscriptUpdate?.(cleaned);
           }
@@ -2408,6 +2467,10 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           };
         } catch (err: any) {
           console.warn('[Audio] AI speech transcription fallback error:', err);
+          if (liveTranscript) {
+            options.onStatusChange?.('idle');
+            return { transcript: liveTranscript, audioBlob: finalAudioBlob };
+          }
           const errCode: 'TRANSCRIPTION_TIMEOUT' | 'TRANSCRIPTION_FAILED' =
             err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
 

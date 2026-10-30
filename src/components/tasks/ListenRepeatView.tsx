@@ -5,7 +5,8 @@ import { ListenRepeatTask } from '../../data/curatedQuestions';
 import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play, HardDrive, Settings } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker } from '../../utils/audioSpeech';
+import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker, playRecordingBeep } from '../../utils/audioSpeech';
+import { filterWhisperHallucinations } from '../../utils/audio/fluencyMetrics';
 import { SpeakingMetrics, calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import {
@@ -58,9 +59,12 @@ export const ListenRepeatView: React.FC<Props> = ({
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
-  const [autoStart, setAutoStart] = useState(false);
+  const [autoStart, setAutoStart] = useState(true);
+  const autoStartRef = useRef(autoStart);
+  autoStartRef.current = autoStart;
   const [audioLevel, setAudioLevel] = useState(0);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [responseTimeLeft, setResponseTimeLeft] = useState(10);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
@@ -172,17 +176,40 @@ export const ListenRepeatView: React.FC<Props> = ({
     };
   }, []);
 
-  // Live timer for recording duration
+  const getSentenceResponseSeconds = useCallback(
+    (idx: number) => {
+      const s = task.sentences[idx] || '';
+      const words = s.trim().split(/\s+/).filter(Boolean).length;
+      if (words <= 9) return 8;
+      if (words <= 13) return 10;
+      return 12;
+    },
+    [task.sentences]
+  );
+
+  // Live timer for recording duration and 8-12s TOEFL response countdown
   useEffect(() => {
     let interval: any = null;
-    if (micStatus === 'listening') {
+    if (micStatus === 'listening' && activeMicIdx !== null) {
+      const allowedSec = getSentenceResponseSeconds(activeMicIdx);
       setRecordingSeconds(0);
-      interval = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+      setResponseTimeLeft(allowedSec);
+      let remaining = allowedSec;
+      const targetIdx = activeMicIdx;
+      interval = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+        remaining -= 1;
+        setResponseTimeLeft(Math.max(0, remaining));
+        if (remaining <= 0) {
+          clearInterval(interval);
+          handleToggleMicRef.current(targetIdx);
+        }
+      }, 1000);
     } else {
       setRecordingSeconds(0);
     }
     return () => clearInterval(interval);
-  }, [micStatus]);
+  }, [micStatus, activeMicIdx, getSentenceResponseSeconds]);
 
   // Live timer for transcription duration
   useEffect(() => {
@@ -243,11 +270,17 @@ export const ListenRepeatView: React.FC<Props> = ({
           audio.loop = false;
           activeAudioRef.current = audio;
           audio.playbackRate = 1.0;
-          audio.onended = () => {
+          audio.onended = async () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
             if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             resolve();
+            if (playbackSessionIdRef.current === currentSession && autoStartRef.current) {
+              await playRecordingBeep();
+              if (playbackSessionIdRef.current === currentSession) {
+                handleToggleMicRef.current(index);
+              }
+            }
           };
           audio.onerror = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
@@ -301,15 +334,16 @@ export const ListenRepeatView: React.FC<Props> = ({
               setActiveAudioIdx(index);
             }
           },
-          onEnd: () => {
+          onEnd: async () => {
             if (playbackSessionIdRef.current === currentSession) {
               if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
               setActiveAudioIdx(null);
               setLoadingAudioIdx(null);
-              if (autoStart) {
-                setTimeout(() => {
-                  handleToggleMic(index);
-                }, 250);
+              if (autoStartRef.current) {
+                await playRecordingBeep();
+                if (playbackSessionIdRef.current === currentSession) {
+                  handleToggleMicRef.current(index);
+                }
               }
             }
           },
@@ -460,23 +494,35 @@ export const ListenRepeatView: React.FC<Props> = ({
         }
         if (result.error) {
           setTranscribeErrors((prev) => ({ ...prev, [index]: result.error! }));
-        } else if (result.transcript) {
+        } else {
           setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
-          const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
-          const aligned = alignHomophonesAndPhonetics(result.transcript, task.sentences[index]);
-          alignedTranscript = aligned;
-          const metrics = result.metrics;
-          setStates((prev) => {
-            const next = [...prev];
-            next[index] = {
-              ...next[index],
-              userInput: aligned,
-              metrics: metrics || next[index].metrics,
-              fillerWordsCount: metrics?.fillerCount ?? result.fillerWordsCount ?? 0,
-              fillerWordsList: metrics?.fillerWords || result.fillerWordsList || [],
-            };
-            return next;
-          });
+          const { transcript: cleanRes } = filterWhisperHallucinations(result.transcript || '', []);
+          if (cleanRes.trim()) {
+            const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
+            const aligned = alignHomophonesAndPhonetics(cleanRes, task.sentences[index]);
+            alignedTranscript = aligned;
+            const metrics = result.metrics;
+            setStates((prev) => {
+              const next = [...prev];
+              next[index] = {
+                ...next[index],
+                userInput: aligned,
+                metrics: metrics || next[index].metrics,
+                fillerWordsCount: metrics?.fillerCount ?? result.fillerWordsCount ?? 0,
+                fillerWordsList: metrics?.fillerWords || result.fillerWordsList || [],
+              };
+              return next;
+            });
+          } else {
+            setStates((prev) => {
+              const next = [...prev];
+              next[index] = {
+                ...next[index],
+                userInput: '',
+              };
+              return next;
+            });
+          }
         }
       } catch (err: any) {
         setMicError(err.message || 'Error processing speech recording');
@@ -485,7 +531,7 @@ export const ListenRepeatView: React.FC<Props> = ({
         setMicStatus('idle');
         setAudioLevel(0);
       }
-      if (alignedTranscript.trim()) {
+      if (alignedTranscript.trim() || autoStartRef.current) {
         await handleCheck(index, alignedTranscript);
       }
       return;
@@ -552,7 +598,6 @@ export const ListenRepeatView: React.FC<Props> = ({
           }
         }
       },
-      autoStartThreshold: autoStart ? 5 : undefined,
     });
 
     voiceSessionRef.current = session;
@@ -651,7 +696,7 @@ export const ListenRepeatView: React.FC<Props> = ({
           block: 'center',
         });
       }, 150);
-    } else if (autoStart && index + 1 < task.sentences.length) {
+    } else if (autoStartRef.current && index + 1 < task.sentences.length) {
       // Auto-advance to the next sentence when Auto-Flow is active
       const nextIdx = index + 1;
       setCurrentIndex(nextIdx);
@@ -858,7 +903,7 @@ export const ListenRepeatView: React.FC<Props> = ({
             <span>Auto-Flow (All {task.sentences.length} sentences)</span>
           </label>
           <span className="text-[11px] text-slate-600">
-            Plays sentence → records your voice (press <strong>Enter</strong> to finish recording) → checks word accuracy → advances automatically.
+            Plays sentence → <strong>BEEP (0s prep)</strong> → records your voice (8–12s timer, press <strong>Enter</strong> to finish) → checks accuracy → advances automatically.
           </span>
         </div>
 
@@ -983,10 +1028,10 @@ export const ListenRepeatView: React.FC<Props> = ({
                       </span>
                       <span className="font-bold text-rose-900">Recording Active</span>
                       <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-mono font-bold text-[11px]">
-                        {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                        0:{String(responseTimeLeft).padStart(2, '0')} left
                       </span>
                       <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">Speak clearly. Press <strong>Enter</strong> or click Stop when done.</span>
+                      <span className="text-slate-600">Speak clearly (0s prep). Press <strong>Enter</strong> or click Stop when done.</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[11px] font-semibold text-slate-700">Mic Pulse:</span>
