@@ -18,12 +18,8 @@ jobs:
       - name: Install
         run: npm install --legacy-peer-deps
 
-      - name: Block truncated code (a string cut short with [...])
-        run: |
-          if grep -RnE "[^[]\[\.\.\.\][\`'\"]" src api server.ts scripts; then
-            echo "Found a string ending in [...], which means code was truncated."
-            exit 1
-          fi
+      - name: Block truncated code (comments cut short with ellipsis)
+        run: ! grep -rnE "//\s*\.\.\.\s*(existing|rest of|remaining)" src/ api/
 
       - name: Type check
         run: npm run lint

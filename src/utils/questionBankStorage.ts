@@ -1294,14 +1294,20 @@ export async function getGlobalBankCount(
 }
 
 export async function getSharedQuestions(
-  taskType?: string,
+  taskTypeOrMode?: string,
   difficulty?: string,
   topic?: string,
   mode: 'exam' | 'coach' = 'exam'
 ): Promise<any[]> {
-  await getQuestionBankStats(mode);
-  const targetTypes = taskType ? [canonicalizeTaskType(taskType)] : CANONICAL_TASK_IDS;
-  const targetMemCache = getMemoryCacheForMode(mode);
+  let effectiveTaskType = taskTypeOrMode;
+  let effectiveMode = mode;
+  if (taskTypeOrMode === 'exam' || taskTypeOrMode === 'coach') {
+    effectiveMode = taskTypeOrMode;
+    effectiveTaskType = undefined;
+  }
+  await getQuestionBankStats(effectiveMode);
+  const targetTypes = effectiveTaskType ? [canonicalizeTaskType(effectiveTaskType)] : CANONICAL_TASK_IDS;
+  const targetMemCache = getMemoryCacheForMode(effectiveMode);
   const results: any[] = [];
   const seenSigs = new Set<string>();
 
@@ -1633,7 +1639,55 @@ export async function saveQuestionToBank(
   }
 }
 
-export const saveQuestionToSharedBank = saveQuestionToBank;
+export async function saveQuestionToSharedBank(
+  taskTypeOrParams:
+    | string
+    | {
+        taskType: string;
+        level?: string;
+        topic?: string;
+        content?: any;
+        data?: any;
+        audioUrl?: string | null;
+        audioClips?: Array<{ speaker: string; url: string }> | null;
+        source?: string;
+        generatedBy?: string;
+        mode?: 'exam' | 'coach';
+      },
+  levelOrMode?: string,
+  topic?: string,
+  content?: any,
+  mode?: 'exam' | 'coach'
+): Promise<string | null> {
+  if (typeof taskTypeOrParams === 'object' && taskTypeOrParams !== null) {
+    const p = taskTypeOrParams;
+    const effectiveMode = (levelOrMode as 'exam' | 'coach') || p.mode || 'exam';
+    return saveQuestionToBank(
+      {
+        taskType: p.taskType,
+        level: p.level || 'intermediate',
+        topic: p.topic || 'campus-life',
+        content: p.content || p.data,
+        audioUrl: p.audioUrl,
+        audioClips: p.audioClips,
+        source: p.source,
+        generatedBy: p.generatedBy,
+        mode: effectiveMode,
+      },
+      effectiveMode
+    );
+  }
+  return saveQuestionToBank(
+    {
+      taskType: taskTypeOrParams,
+      level: levelOrMode || 'intermediate',
+      topic: topic || 'campus-life',
+      content,
+      mode: mode || 'exam',
+    },
+    mode || 'exam'
+  );
+}
 
 /**
  * Get the list of seen question IDs for the current user from userProgress/{uid}

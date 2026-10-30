@@ -108,6 +108,7 @@ function classifyCanonicalRole(
 
 export const ListeningDialogueView: React.FC<Props> = ({
   task,
+  coachMode = false,
   onNextTask,
   onComplete,
   leftColumnClassName = 'lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
@@ -124,6 +125,9 @@ export const ListeningDialogueView: React.FC<Props> = ({
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [listeningAudioFinished, setListeningAudioFinished] = useState(false);
+  const [audioSpeed, setAudioSpeed] = useState<number>(1.0);
+  const [revealedHints, setRevealedHints] = useState<Record<number, boolean>>({});
+  const [checkedQuestions, setCheckedQuestions] = useState<Record<number, boolean>>({});
 
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
@@ -143,6 +147,8 @@ export const ListeningDialogueView: React.FC<Props> = ({
     setPlayingExcerptIdx(null);
     setLoadingExcerptIdx(null);
     setPlayCount(0);
+    setRevealedHints({});
+    setCheckedQuestions({});
   }, [task.id, task.title]);
 
   // Assign strictly locked voices per canonical speaker role ('professor' vs 'student') once when the task loads:

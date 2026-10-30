@@ -1303,3 +1303,29 @@ export const COACH_CURATED_BANK: Record<string, any[]> = {
     },
   ],
 };
+
+// Aliases for underscore and alternate task type names
+COACH_CURATED_BANK['complete_words'] = COACH_CURATED_BANK['complete-words'];
+COACH_CURATED_BANK['daily_life'] = COACH_CURATED_BANK['daily-life'];
+COACH_CURATED_BANK['reading_academic'] = COACH_CURATED_BANK['reading-academic'];
+COACH_CURATED_BANK['reading_passage'] = COACH_CURATED_BANK['reading-academic'];
+COACH_CURATED_BANK['reading-passage'] = COACH_CURATED_BANK['reading-academic'];
+COACH_CURATED_BANK['reading'] = COACH_CURATED_BANK['reading-academic'];
+COACH_CURATED_BANK['listening_choose_response'] = COACH_CURATED_BANK['listening-choose-response'];
+COACH_CURATED_BANK['listening_dialogue'] = COACH_CURATED_BANK['listening-dialogue'];
+COACH_CURATED_BANK['listening_conversation'] = COACH_CURATED_BANK['listening-dialogue'];
+COACH_CURATED_BANK['listening-conversation'] = COACH_CURATED_BANK['listening-dialogue'];
+COACH_CURATED_BANK['listening_announcement'] = COACH_CURATED_BANK['listening-announcement'];
+COACH_CURATED_BANK['listening_academic_talk'] = COACH_CURATED_BANK['listening-academic-talk'];
+COACH_CURATED_BANK['listening_lecture'] = COACH_CURATED_BANK['listening-academic-talk'];
+COACH_CURATED_BANK['listening-lecture'] = COACH_CURATED_BANK['listening-academic-talk'];
+COACH_CURATED_BANK['writing_build_sentence'] = COACH_CURATED_BANK['build-sentence'];
+COACH_CURATED_BANK['writing-build-sentence'] = COACH_CURATED_BANK['build-sentence'];
+COACH_CURATED_BANK['write-email'] = COACH_CURATED_BANK['write-email'];
+COACH_CURATED_BANK['writing_email'] = COACH_CURATED_BANK['write-email'];
+COACH_CURATED_BANK['academic_discussion'] = COACH_CURATED_BANK['academic-discussion'];
+COACH_CURATED_BANK['writing_discussion'] = COACH_CURATED_BANK['academic-discussion'];
+COACH_CURATED_BANK['speaking_listen_repeat'] = COACH_CURATED_BANK['listen-repeat'];
+COACH_CURATED_BANK['speaking-listen-repeat'] = COACH_CURATED_BANK['listen-repeat'];
+COACH_CURATED_BANK['speaking_interview'] = COACH_CURATED_BANK['speaking-interview'];
+

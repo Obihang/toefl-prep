@@ -157,15 +157,16 @@ export async function callBackendGenerate(
   level: string = 'intermediate',
   topic: string = 'science-tech',
   promptData?: any,
-  extraOptions?: Record<string, any>
+  extraOptions?: Record<string, any> | boolean
 ): Promise<any> {
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
+  const optionsObj = typeof extraOptions === 'boolean' ? { coachMode: extraOptions } : extraOptions;
   const isCoachMode = Boolean(
     promptData === true ||
       promptData?.coachMode === true ||
       promptData?.mode === 'coach' ||
-      extraOptions?.coachMode === true ||
-      extraOptions?.mode === 'coach'
+      optionsObj?.coachMode === true ||
+      optionsObj?.mode === 'coach'
   );
   const basePromptData =
     typeof promptData === 'object' && promptData !== null
@@ -229,7 +230,7 @@ export async function callBackendGenerate(
     providerKeys,
     availableKeys: providerKeys,
     coachMode: isCoachMode,
-    ...(extraOptions || {}),
+    ...(optionsObj || {}),
   };
 
   return safeFetchJson('/api/generate-task', {
@@ -256,9 +257,10 @@ export async function generateTaskContent(
   level: string = 'intermediate',
   topic: string = 'science-tech',
   promptData?: any,
-  extraOptions?: Record<string, any>
+  extraOptions?: Record<string, any> | boolean
 ): Promise<any> {
-  const res = await callBackendGenerate(taskType, level, topic, promptData, extraOptions);
+  const optionsObj = typeof extraOptions === 'boolean' ? { coachMode: extraOptions } : extraOptions;
+  const res = await callBackendGenerate(taskType, level, topic, promptData, optionsObj);
   const rawData = res?.data || res;
   return normalizeTaskData(rawData, taskType);
 }

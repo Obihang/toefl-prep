@@ -37,9 +37,13 @@ import {
   convertScaledToBand6,
   convertOverall120ToBand6,
   getCefrFromBand6,
+  getCompletedQuestionIds,
 } from '../utils/scoreTracker';
 import { stopSpeaking } from '../utils/audioSpeech';
-import { Clock, ArrowRight, Award, CheckCircle2, ShieldCheck, GitBranch } from 'lucide-react';
+import { hasAnyProviderKey } from '../utils/apiKey';
+import { callBackendGenerate } from '../services/geminiService';
+import { saveVerifiedQuestion } from '../utils/questionBankStorage';
+import { Clock, ArrowRight, Award, CheckCircle2, ShieldCheck, GitBranch, Sparkles, Loader2 } from 'lucide-react';
 
 export { TaskType };
 
@@ -582,28 +586,92 @@ function getItemUniqueKey(item: any): string {
   return String(item.id || item.questionDocId || item.title || '').trim();
 }
 
+export function getExamUsedIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('toefl_exam_used_ids');
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export function recordExamUsedId(itemOrId: any): void {
+  if (typeof window === 'undefined' || !itemOrId) return;
+  try {
+    const existing = new Set(getExamUsedIds());
+    const candidates =
+      typeof itemOrId === 'string'
+        ? [itemOrId]
+        : [itemOrId.id, itemOrId.questionDocId, itemOrId.title, (itemOrId as any)._id].filter(Boolean);
+    candidates.forEach((c) => {
+      existing.add(String(c).trim());
+      existing.add(String(c).trim().toLowerCase());
+    });
+    localStorage.setItem('toefl_exam_used_ids', JSON.stringify(Array.from(existing).slice(-1000)));
+  } catch {}
+}
+
+export function getAllHistoricallySeenQuestionIds(): Set<string> {
+  const set = new Set<string>();
+  try {
+    const completed = getCompletedQuestionIds();
+    completed.forEach((id) => {
+      set.add(id);
+      set.add(id.toLowerCase());
+    });
+    const examUsed = getExamUsedIds();
+    examUsed.forEach((id) => {
+      set.add(id);
+      set.add(id.toLowerCase());
+    });
+  } catch {}
+  return set;
+}
+
+function isItemHistoricallySeen(item: any, seenSet: Set<string>): boolean {
+  if (!item || seenSet.size === 0) return false;
+  const id = item.id ? String(item.id).trim() : '';
+  const docId = item.questionDocId ? String(item.questionDocId).trim() : '';
+  const title = item.title ? String(item.title).trim() : '';
+  if (id && (seenSet.has(id) || seenSet.has(id.toLowerCase()))) return true;
+  if (docId && (seenSet.has(docId) || seenSet.has(docId.toLowerCase()))) return true;
+  if (title && (seenSet.has(title) || seenSet.has(title.toLowerCase()))) return true;
+  return false;
+}
+
 /**
- * Selects a question from the curated bank or fallback list while strictly filtering out
- * any item whose ID is already in `usedQuestionIds` so Module 2 NEVER repeats Module 1.
+ * Selects a question from the curated bank or fallback list while:
+ * 1. Filtering out any question ID already in `usedQuestionIds` so Module 2 NEVER repeats Module 1
+ * 2. Filtering out any question ID already practiced in section practice (`toefl_completed_question_ids`) or past exams (`toefl_exam_used_ids`) first, only falling back if all questions have been seen.
  */
 function pickFromBankOrFallback<T>(
   taskTypeId: string,
   fallbackList: T[],
   usedQuestionIds: Set<string>,
   stage?: AdaptiveModuleStage,
-  track?: AdaptiveTrack
+  track?: AdaptiveTrack,
+  historicallySeenIds?: Set<string>
 ): T {
   const loaded = getLoadedCuratedTasks(taskTypeId, 'all', 'all');
   const rawPool: any[] =
     Array.isArray(loaded) && loaded.length > 0 ? [...loaded, ...fallbackList] : [...fallbackList];
 
   // Safeguard 1: Never repeat Module 1 questions in Module 2 — filter out any question whose id is in usedQuestionIds
-  const unusedCandidates = rawPool.filter((item) => {
+  const sessionUnused = rawPool.filter((item) => {
     const key = getItemUniqueKey(item);
     return key ? !usedQuestionIds.has(key) : true;
   });
 
-  const candidatePool = unusedCandidates.length > 0 ? unusedCandidates : rawPool;
+  const sessionPool = sessionUnused.length > 0 ? sessionUnused : rawPool;
+
+  // Safeguard 2: Prioritize questions unseen in section practice or past mock exams!
+  const seenSet = historicallySeenIds || getAllHistoricallySeenQuestionIds();
+  const unseenCandidates = sessionPool.filter((item) => !isItemHistoricallySeen(item, seenSet));
+
+  // Prioritize unseen questions first, only falling back if all questions have been seen
+  const candidatePool = unseenCandidates.length > 0 ? unseenCandidates : sessionPool;
 
   // If selecting for READING_MODULE_2 or LISTENING_MODULE_2, prefer difficulty matching the adaptive routing track
   let stageFilteredPool = candidatePool;
@@ -626,7 +694,71 @@ function pickFromBankOrFallback<T>(
   if (chosenKey) {
     usedQuestionIds.add(chosenKey);
   }
+  recordExamUsedId(normalized);
   return normalized;
+}
+
+async function getOrGenerateTaskForSlot<T>(
+  taskTypeId: string,
+  fallbackList: T[],
+  usedQuestionIds: Set<string>,
+  stage?: AdaptiveModuleStage,
+  track?: AdaptiveTrack,
+  historicallySeenIds?: Set<string>,
+  forceFreshAi: boolean = false,
+  targetLevel: string = 'intermediate',
+  targetTopic: string = 'campus-life'
+): Promise<T> {
+  const seenIds = historicallySeenIds || getAllHistoricallySeenQuestionIds();
+  const loaded = getLoadedCuratedTasks(taskTypeId, 'all', 'all');
+  const rawPool: any[] =
+    Array.isArray(loaded) && loaded.length > 0 ? [...loaded, ...fallbackList] : [...fallbackList];
+  const sessionUnused = rawPool.filter((item) => {
+    const key = getItemUniqueKey(item);
+    return key ? !usedQuestionIds.has(key) : true;
+  });
+  const sessionPool = sessionUnused.length > 0 ? sessionUnused : rawPool;
+  const unseenCandidates = sessionPool.filter((item) => !isItemHistoricallySeen(item, seenIds));
+
+  // Determine if we should generate via AI:
+  // 1. If forceFreshAi is true AND user has a provider key
+  // 2. OR if unseen candidates in the curated bank are exhausted (unseenCandidates.length === 0) AND user has a provider key
+  const shouldAttemptAi = (forceFreshAi || unseenCandidates.length === 0) && hasAnyProviderKey();
+
+  if (shouldAttemptAi) {
+    try {
+      const resp = await callBackendGenerate(taskTypeId, targetLevel, targetTopic);
+      if (resp && resp.success && resp.data && !resp.data.isFallback) {
+        const normalized = normalizeTaskData(resp.data, taskTypeId) as T;
+        const key = getItemUniqueKey(normalized);
+        if (key && !usedQuestionIds.has(key)) {
+          usedQuestionIds.add(key);
+          recordExamUsedId(normalized);
+          saveVerifiedQuestion({
+            taskType: taskTypeId,
+            level: targetLevel,
+            topic: targetTopic,
+            content: normalized,
+            audioUrl: (normalized as any).audioUrl || null,
+            audioClips: (normalized as any).audioClips || null,
+            source: 'ai',
+          }).catch(() => {});
+          return normalized;
+        }
+      }
+    } catch (err) {
+      console.warn(`[ExamEngine] Live AI generation for slot ${taskTypeId} failed, falling back to curated bank:`, err);
+    }
+  }
+
+  return pickFromBankOrFallback<T>(
+    taskTypeId,
+    fallbackList,
+    usedQuestionIds,
+    stage,
+    track,
+    seenIds
+  );
 }
 
 export interface ExamTaskBundle {
@@ -816,6 +948,292 @@ export function pickRandomTasks(
   };
 }
 
+export async function buildFullExamBundleAsync(
+  usedQuestionIds: Set<string>,
+  readingTrack: AdaptiveTrack = 'higher',
+  listeningTrack: AdaptiveTrack = 'higher',
+  forceFreshAi: boolean = false,
+  onProgress?: (msg: string, completed: number, total: number) => void
+): Promise<ExamTaskBundle> {
+  const seenIds = getAllHistoricallySeenQuestionIds();
+  let step = 0;
+  const total = 19;
+
+  const updateProgress = (label: string) => {
+    step++;
+    onProgress?.(`Preparing ${label} (${step}/${total})...`, step, total);
+  };
+
+  updateProgress('Reading Module 1 Complete Words');
+  const completeWordsMod1 = await getOrGenerateTaskForSlot<CompleteWordsTask>(
+    'complete-words',
+    CURATED_COMPLETE_WORDS,
+    usedQuestionIds,
+    'READING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 1 Daily Life');
+  const dailyLifeMod1 = await getOrGenerateTaskForSlot<DailyLifeTask>(
+    'daily-life',
+    FALLBACK_DAILY_LIFE_LIST,
+    usedQuestionIds,
+    'READING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 1 Academic Passage');
+  const readingMod1 = await getOrGenerateTaskForSlot<ReadingPassageTask>(
+    'reading-academic',
+    CURATED_READING_PASSAGES,
+    usedQuestionIds,
+    'READING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'academic'
+  );
+
+  updateProgress('Reading Module 2 Complete Words');
+  const completeWordsMod2 = await getOrGenerateTaskForSlot<CompleteWordsTask>(
+    'complete-words',
+    CURATED_COMPLETE_WORDS,
+    usedQuestionIds,
+    'READING_MODULE_2',
+    readingTrack,
+    seenIds,
+    forceFreshAi,
+    readingTrack === 'higher' ? 'advanced' : 'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 2 Daily Life');
+  const dailyLifeMod2 = await getOrGenerateTaskForSlot<DailyLifeTask>(
+    'daily-life',
+    FALLBACK_DAILY_LIFE_LIST,
+    usedQuestionIds,
+    'READING_MODULE_2',
+    readingTrack,
+    seenIds,
+    forceFreshAi,
+    readingTrack === 'higher' ? 'advanced' : 'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 2 Academic Passage');
+  const readingMod2 = await getOrGenerateTaskForSlot<ReadingPassageTask>(
+    'reading-academic',
+    CURATED_READING_PASSAGES,
+    usedQuestionIds,
+    'READING_MODULE_2',
+    readingTrack,
+    seenIds,
+    forceFreshAi,
+    readingTrack === 'higher' ? 'advanced' : 'intermediate',
+    'academic'
+  );
+
+  updateProgress('Listening Module 1 Choose Response');
+  const chooseResponseMod1 = await getOrGenerateTaskForSlot<ListeningChooseResponseTask>(
+    'listening-choose-response',
+    FALLBACK_CHOOSE_RESPONSE_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'daily-conversation'
+  );
+
+  updateProgress('Listening Module 1 Dialogue');
+  const listeningMod1 = await getOrGenerateTaskForSlot<ListeningTask>(
+    'listening-dialogue',
+    CURATED_LISTENING,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-conversation'
+  );
+
+  updateProgress('Listening Module 1 Announcement');
+  const announcementMod1 = await getOrGenerateTaskForSlot<ListeningAnnouncementTask>(
+    'listening-announcement',
+    FALLBACK_ANNOUNCEMENT_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'announcement'
+  );
+
+  updateProgress('Listening Module 1 Academic Talk');
+  const academicTalkMod1 = await getOrGenerateTaskForSlot<ListeningAcademicTalkTask>(
+    'listening-academic-talk',
+    FALLBACK_ACADEMIC_TALK_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'academic'
+  );
+
+  updateProgress('Listening Module 2 Choose Response');
+  const chooseResponseMod2 = await getOrGenerateTaskForSlot<ListeningChooseResponseTask>(
+    'listening-choose-response',
+    FALLBACK_CHOOSE_RESPONSE_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'daily-conversation'
+  );
+
+  updateProgress('Listening Module 2 Dialogue');
+  const listeningMod2 = await getOrGenerateTaskForSlot<ListeningTask>(
+    'listening-dialogue',
+    CURATED_LISTENING,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'campus-conversation'
+  );
+
+  updateProgress('Listening Module 2 Announcement');
+  const announcementMod2 = await getOrGenerateTaskForSlot<ListeningAnnouncementTask>(
+    'listening-announcement',
+    FALLBACK_ANNOUNCEMENT_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'announcement'
+  );
+
+  updateProgress('Listening Module 2 Academic Talk');
+  const academicTalkMod2 = await getOrGenerateTaskForSlot<ListeningAcademicTalkTask>(
+    'listening-academic-talk',
+    FALLBACK_ACADEMIC_TALK_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'academic'
+  );
+
+  updateProgress('Writing Build Sentence');
+  const buildSentence = await getOrGenerateTaskForSlot<BuildSentenceTask>(
+    'build-sentence',
+    CURATED_BUILD_SENTENCES,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'general'
+  );
+
+  updateProgress('Writing Write Email');
+  const writeEmail = await getOrGenerateTaskForSlot<WriteEmailTask>(
+    'write-email',
+    CURATED_WRITE_EMAILS,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-communication'
+  );
+
+  updateProgress('Writing Academic Discussion');
+  const writing = await getOrGenerateTaskForSlot<AcademicDiscussionTask>(
+    'academic-discussion',
+    CURATED_ACADEMIC_DISCUSSIONS,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'advanced',
+    'academic-discussion'
+  );
+
+  updateProgress('Speaking Listen and Repeat');
+  const listenRepeat = await getOrGenerateTaskForSlot<ListenRepeatTask>(
+    'listen-repeat',
+    CURATED_LISTEN_REPEAT,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'sentence-repetition'
+  );
+
+  updateProgress('Speaking Interview');
+  const speaking = await getOrGenerateTaskForSlot<SpeakingInterviewTask>(
+    'speaking-interview',
+    CURATED_SPEAKING_INTERVIEWS,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'interview'
+  );
+
+  return {
+    completeWordsMod1,
+    dailyLifeMod1,
+    readingMod1,
+    completeWordsMod2,
+    dailyLifeMod2,
+    readingMod2,
+    chooseResponseMod1,
+    listeningMod1,
+    announcementMod1,
+    academicTalkMod1,
+    chooseResponseMod2,
+    listeningMod2,
+    announcementMod2,
+    academicTalkMod2,
+    buildSentence,
+    writeEmail,
+    writing,
+    listenRepeat,
+    speaking,
+  };
+}
+
 /**
  * Full 2026 ETS TOEFL iBT® Exam Simulation Engine
  * Covers all 12 official task types in the 4-section order (Reading -> Listening -> Writing -> Speaking)
@@ -835,6 +1253,12 @@ export const ExamEngine: React.FC = () => {
   // Track Module 1 -> Module 2 adaptive routing track for Reading and Listening
   const [readingAdaptiveTrack, setReadingAdaptiveTrack] = useState<AdaptiveTrack>('higher');
   const [listeningAdaptiveTrack, setListeningAdaptiveTrack] = useState<AdaptiveTrack>('higher');
+
+  // Fresh AI Exam options
+  const [generateFreshAi, setGenerateFreshAi] = useState<boolean>(false);
+  const [isPreparingExam, setIsPreparingExam] = useState<boolean>(false);
+  const [prepProgressText, setPrepProgressText] = useState<string>('');
+  const [prepProgressCount, setPrepProgressCount] = useState<number>(0);
 
   const getSectionTime = useCallback(
     (sec: SectionConfig) => {
@@ -1119,16 +1543,40 @@ export const ExamEngine: React.FC = () => {
     setCompletedSections((prev) => ({ ...prev, [section]: true }));
   };
 
-  const handleStartExam = () => {
-    // Reset used question IDs on exam start so Module 1 and Module 2 are freshly selected without overlap
-    usedQuestionIdsRef.current.clear();
-    setReadingAdaptiveTrack('higher');
-    setListeningAdaptiveTrack('higher');
-    setTestTasks(pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher'));
-    setCurrentSectionIndex(0);
-    setCurrentTaskIndexInSection(0);
-    setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
-    setIsStarted(true);
+  const handleStartExam = async () => {
+    setIsPreparingExam(true);
+    setPrepProgressText('Preparing exam questions...');
+    setPrepProgressCount(0);
+    try {
+      usedQuestionIdsRef.current.clear();
+      setReadingAdaptiveTrack('higher');
+      setListeningAdaptiveTrack('higher');
+      const bundle = await buildFullExamBundleAsync(
+        usedQuestionIdsRef.current,
+        'higher',
+        'higher',
+        generateFreshAi,
+        (msg, completed) => {
+          setPrepProgressText(msg);
+          setPrepProgressCount(completed);
+        }
+      );
+      setTestTasks(bundle);
+      setCurrentSectionIndex(0);
+      setCurrentTaskIndexInSection(0);
+      setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
+      setIsStarted(true);
+    } catch (err) {
+      console.error('[ExamEngine] Error preparing exam bundle:', err);
+      usedQuestionIdsRef.current.clear();
+      setTestTasks(pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher'));
+      setCurrentSectionIndex(0);
+      setCurrentTaskIndexInSection(0);
+      setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
+      setIsStarted(true);
+    } finally {
+      setIsPreparingExam(false);
+    }
   };
 
   const handleRetake = () => {
@@ -1226,12 +1674,61 @@ export const ExamEngine: React.FC = () => {
           })}
         </div>
 
+        {/* Fresh AI Exam Generation Toggle */}
+        {hasAnyProviderKey() && (
+          <div className="max-w-md mx-auto p-3.5 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-xl text-left flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-teal-700 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold text-xs text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={generateFreshAi}
+                  onChange={(e) => setGenerateFreshAi(e.target.checked)}
+                  disabled={isPreparingExam}
+                  className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
+                />
+                <span>✨ Generate Fresh AI Questions for Mock Exam</span>
+              </label>
+              <p className="text-[11px] text-slate-600 mt-1">
+                When enabled, synthesizes brand-new, unseen prompts and passages on-the-fly using your connected AI key. If disabled, prioritizes all unseen curated questions first before falling back to practiced ones.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Preparation Progress Bar */}
+        {isPreparingExam && (
+          <div className="max-w-md mx-auto p-4 bg-slate-50 border border-teal-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-teal-900">
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+                <span>{prepProgressText || 'Preparing exam tasks...'}</span>
+              </div>
+              <span className="font-mono text-teal-700">{prepProgressCount} / 19</span>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-teal-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.round((prepProgressCount / 19) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="pt-2">
           <button
             onClick={handleStartExam}
-            className="px-8 py-3 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition-colors shadow-md cursor-pointer"
+            disabled={isPreparingExam}
+            className="px-8 py-3 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-md cursor-pointer inline-flex items-center gap-2"
           >
-            Start Exam Simulation
+            {isPreparingExam ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Preparing Exam ({prepProgressCount}/19)...</span>
+              </>
+            ) : (
+              <span>Start Exam Simulation</span>
+            )}
           </button>
         </div>
       </div>
