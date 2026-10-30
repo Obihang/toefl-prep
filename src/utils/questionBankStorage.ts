@@ -42,25 +42,26 @@ import { inferTopic } from './inferTopic';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
 const DB_VERSION = 2;
-export const CURRENT_BANK_SCHEMA_VERSION = 202610;
-export const TOEFL_2026_PURGE_V18 = 'toefl_bank_purged_2026_v18';
-export const TOEFL_2026_PURGE_V17 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V16 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V15 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V14 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V13 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V12 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V11 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V10 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V9 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V8 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V7 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V18;
-export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V18;
-export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v28';
+export const CURRENT_BANK_SCHEMA_VERSION = 202612;
+export const TOEFL_2026_PURGE_V19 = 'toefl_bank_purged_2026_v20';
+export const TOEFL_2026_PURGE_V18 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V17 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V16 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V15 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V14 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V13 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V12 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V11 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V10 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V9 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V8 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V7 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V6 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V5 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V4 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V3 = TOEFL_2026_PURGE_V19;
+export const TOEFL_2026_PURGE_V2 = TOEFL_2026_PURGE_V19;
+export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v30';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);
@@ -411,10 +412,10 @@ export const SHARD_FILES = [
   'listening-dialogue',
   'listening-announcement',
   'listening-academic-talk',
-  'build-sentence',
-  'write-email',
+  'writing-build-sentence',
+  'writing-email',
   'academic-discussion',
-  'listen-repeat',
+  'speaking-listen-repeat',
   'speaking-interview',
 ];
 
@@ -426,24 +427,18 @@ const CANONICAL_TASK_IDS = ALL_TASK_TYPES;
 const curatedMemoryCache: Record<string, any[]> = {};
 
 /**
- * Load static curated shard for taskType from public/question-bank/<taskType>.json
+ * Load static curated shard for taskType from public/question-bank/<shard>.json
  * and merge with any cached IndexedDB questions for that taskType.
  */
 export async function loadCuratedShard(taskType: string): Promise<any[]> {
   await ensurePurged2026V2();
   const canonicalType = canonicalizeTaskType(taskType);
-  const shardsToLoad = [canonicalType];
-  if (canonicalType === 'reading-academic') {
-    shardsToLoad.push('reading-passage');
-  } else if (canonicalType === 'build-sentence') {
-    shardsToLoad.push('writing-build-sentence');
-  } else if (canonicalType === 'write-email') {
-    shardsToLoad.push('writing-email');
-  } else if (canonicalType === 'listen-repeat') {
-    shardsToLoad.push('speaking-listen-repeat');
-  } else if (canonicalType === 'listening-academic-talk') {
-    shardsToLoad.push('listening-lecture');
-  }
+  const shardFileMap: Record<string, string> = {
+    'build-sentence': 'writing-build-sentence',
+    'write-email': 'writing-email',
+    'listen-repeat': 'speaking-listen-repeat',
+  };
+  const shardsToLoad = [shardFileMap[canonicalType] || canonicalType];
 
   if (!curatedMemoryCache[canonicalType]) {
     curatedMemoryCache[canonicalType] = [];

@@ -10,13 +10,13 @@
       {
         "q": "According to paragraph 1, all of the following are mentioned as initial functions of proto-feathers EXCEPT:",
         "options": [
-          "Thermal insulation",
           "Aerodynamic lift for high-altitude flight",
+          "Thermal insulation",
           "Camouflage from predators",
           "Courtship display"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "Paragraph 1 explicitly states that proto-feathers initially served thermal insulation, camouflage, or courtship display functions rather than aerodynamic lift."
       },
@@ -24,12 +24,12 @@
         "q": "The word 'restructuring' in paragraph 2 is closest in meaning to:",
         "options": [
           "interruption",
-          "elimination",
+          "reorganization",
           "stagnation",
-          "reorganization"
+          "elimination"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Vocabulary in Context",
         "why": "In this context, restructuring describes profound morphological and functional reorganization of the respiratory and cardiovascular systems."
       },
@@ -51,24 +51,24 @@
         "options": [
           "Birds must cease flying when atmospheric partial pressure declines",
           "Mammals possess greater respiratory efficiency than birds at high altitudes",
-          "Cross-current oxygen extraction enables birds to sustain activity in thin air that would challenge mammalian tidal lungs",
-          "Avian air sacs collapse when atmospheric pressure diminishes"
+          "Avian air sacs collapse when atmospheric pressure diminishes",
+          "Cross-current oxygen extraction enables birds to sustain activity in thin air that would challenge mammalian tidal lungs"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Inference",
         "why": "Paragraph 2 contrasts avian unidirectional lungs with mammalian tidal lungs and notes that continuous gas exchange provides unparalleled efficiency at high altitudes."
       },
       {
         "q": "Why does the author mention 'internal truss-like struts' in paragraph 3?",
         "options": [
-          "To argue that hollow bones are more fragile than mammalian bones during flight",
+          "To explain how hollow avian bones maintain structural rigidity despite reduced mass",
           "To illustrate why ancestral theropods were unable to run rapidly on land",
           "To contrast avian bone marrow production with reptilian circulatory systems",
-          "To explain how hollow avian bones maintain structural rigidity despite reduced mass"
+          "To argue that hollow bones are more fragile than mammalian bones during flight"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Rhetorical Purpose",
         "why": "Paragraph 3 states that hollow pneumatic cavities are reinforced with internal truss-like struts to balance extreme lightness and structural rigidity."
       }
@@ -86,13 +86,13 @@
       {
         "q": "According to paragraph 1, what reciprocal benefit do mycorrhizal fungi receive from host trees?",
         "options": [
-          "Photosynthetic sugars and carbohydrates",
           "Nitrogen gas and mineral phosphorus",
+          "Photosynthetic sugars and carbohydrates",
           "Physical shade from subterranean ultraviolet radiation",
           "Protective tannin compounds against parasitic insects"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Factual Detail",
         "why": "Paragraph 1 explains that fungi absorb photosynthetic sugars and carbohydrates from the host trees in exchange for soil minerals."
       },
@@ -101,37 +101,37 @@
         "options": [
           "canopy",
           "barrier",
-          "reservoir",
-          "channel"
+          "channel",
+          "reservoir"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Vocabulary in Context",
         "why": "In biological ecology, a conduit refers to a channel or transmission pathway facilitating the flow of nutrients."
       },
       {
         "q": "What can be inferred from paragraph 2 about unshaded versus shaded juvenile saplings in a forest lacking mycorrhizal networks?",
         "options": [
-          "Shaded saplings would likely experience lower survival rates without surplus carbon transferred from mature canopy trees",
+          "Juvenile saplings would immediately develop ectomycorrhizal sheaths to dissolve granite rocks",
           "Shaded saplings would produce higher concentrations of photosynthetic sugars than mature canopy trees",
           "Herbivorous insects would only attack shaded saplings and ignore mature canopy trees",
-          "Juvenile saplings would immediately develop ectomycorrhizal sheaths to dissolve granite rocks"
+          "Shaded saplings would likely experience lower survival rates without surplus carbon transferred from mature canopy trees"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Inference",
         "why": "Paragraph 2 notes that mature canopy trees channel surplus carbon to shaded saplings via fungal pathways, significantly enhancing their survival rates."
       },
       {
         "q": "Why does the author compare 'arbuscular mycorrhizae' and 'ectomycorrhizal fungi' in paragraph 3?",
         "options": [
-          "To prove that tropical agricultural crops cannot survive symbiosis with soil fungi",
           "To illustrate how mycorrhizal structures adapt to different ecological biomes and soil demands",
+          "To prove that tropical agricultural crops cannot survive symbiosis with soil fungi",
           "To argue that coniferous trees in boreal forests do not require potassium or micronutrients",
           "To show that fungal filaments are gradually disappearing from alpine ecosystems"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Rhetorical Purpose",
         "why": "Paragraph 3 introduces these two fungal types to illustrate how the architectural diversity of mycorrhizal associations reflects distinct ecological adaptations across biomes."
       },
@@ -139,12 +139,12 @@
         "q": "According to the passage, all of the following are transported or transmitted through mycorrhizal networks EXCEPT:",
         "options": [
           "Soil phosphorus and nitrogen",
-          "Surplus carbon for shaded saplings",
+          "Mineral earthworms that pulverize subterranean granite",
           "Biochemical warning signals against insect attacks",
-          "Mineral earthworms that pulverize subterranean granite"
+          "Surplus carbon for shaded saplings"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "The passage mentions phosphorus, nitrogen, surplus carbon, and volatile biochemical warnings passing through mycorrhizal networks, but never mentions earthworms."
       }
@@ -163,12 +163,12 @@
         "q": "The word 'albedo' in paragraph 1 is closest in meaning to:",
         "options": [
           "seismic resistance",
-          "surface reflectance capacity",
           "electrical conductivity",
+          "surface reflectance capacity",
           "groundwater permeability"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Vocabulary in Context",
         "why": "Paragraph 1 explicitly defines albedo as 'reflectance capacity'—an object's ability to reflect incoming solar radiation."
       },
@@ -177,11 +177,11 @@
         "options": [
           "By creating subterranean air tunnels that circulate cool soil gases",
           "By converting carbon dioxide into liquid oxygen on leaf surfaces",
-          "Through evapotranspiration, absorbing heat energy to convert groundwater into vapor",
-          "Through magnetic repulsion of atmospheric solar particles"
+          "Through magnetic repulsion of atmospheric solar particles",
+          "Through evapotranspiration, absorbing heat energy to convert groundwater into vapor"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Factual Detail",
         "why": "Paragraph 2 states that foliage cools ambient air through evapotranspiration, wherein plants absorb heat energy to convert groundwater into vapor."
       },
@@ -216,11 +216,11 @@
         "options": [
           "Retrofitting building rooftops with vegetated green gardens",
           "Installing high-albedo reflective cool roofs",
-          "Aligning high-rise towers parallel to prevailing seasonal breezes",
-          "Replacing all downtown concrete sidewalks with dark asphalt roadways"
+          "Replacing all downtown concrete sidewalks with dark asphalt roadways",
+          "Aligning high-rise towers parallel to prevailing seasonal breezes"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "Paragraph 1 identifies dark asphalt roadways as a primary cause of heat absorption, not a mitigation strategy."
       }
@@ -238,13 +238,13 @@
       {
         "q": "Why does the author mention 'epic mythological poetry or heroic royal annals' in paragraph 1?",
         "options": [
-          "To contrast a popular misconception about the origin of writing with its actual administrative purpose",
+          "To explain why apprentice scribes refused to study mathematics in edubbas",
           "To prove that Sumerian priests prohibited the recording of grain surpluses",
           "To identify the very first texts written on hollow clay bullae",
-          "To explain why apprentice scribes refused to study mathematics in edubbas"
+          "To contrast a popular misconception about the origin of writing with its actual administrative purpose"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Rhetorical Purpose",
         "why": "Paragraph 1 opens with 'Contrary to the romantic conception...' to contrast the popular belief that writing began for literature with archaeological evidence showing it began for accounting."
       },
@@ -279,24 +279,24 @@
         "options": [
           "Lexical lists and mathematical tables",
           "Legal contracts and statutory law",
-          "Astronomical observations",
-          "Subterranean irrigation steam engines"
+          "Subterranean irrigation steam engines",
+          "Astronomical observations"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "Paragraph 3 mentions lexical lists, mathematical tables, legal contracts, statutory law, astronomical observations, and epic literature, but never steam engines."
       },
       {
         "q": "What can be inferred from paragraph 2 about why three-dimensional tokens eventually became unnecessary?",
         "options": [
-          "Once stylus impressions on the outside of clay tablets represented the quantities, enclosing physical tokens inside became redundant",
+          "Apprentice scribes in edubbas preferred memorizing spoken poetry over keeping records",
           "Sumerian temples abandoned agricultural storage and livestock trading altogether",
           "Reed styluses became extinct along the banks of the Tigris and Euphrates rivers",
-          "Apprentice scribes in edubbas preferred memorizing spoken poetry over keeping records"
+          "Once stylus impressions on the outside of clay tablets represented the quantities, enclosing physical tokens inside became redundant"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Inference",
         "why": "Paragraph 2 explains that accountants began impressing the outer surface of wet clay to represent the enclosed tokens, which evolved into two-dimensional cuneiform script."
       }
@@ -327,26 +327,26 @@
       {
         "q": "According to paragraph 2, what defines the psychological principle of loss aversion?",
         "options": [
-          "Losses are experienced approximately twice as intensely as equivalent monetary gains",
           "Consumers prioritize instant gratification over deferred retirement security",
+          "Losses are experienced approximately twice as intensely as equivalent monetary gains",
           "Investors consistently overestimate their long-term investment performance",
           "Individuals become indifferent to financial outcomes after experiencing initial losses"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Factual Detail",
         "why": "Paragraph 2 states that human beings experience the psychological pain of a monetary loss roughly twice as intensely as the satisfaction from an identical gain."
       },
       {
         "q": "The word 'seminal' in paragraph 1 is closest in meaning to:",
         "options": [
-          "groundbreaking and influential",
-          "controversial and disputed",
           "unsubstantiated and flawed",
+          "controversial and disputed",
+          "groundbreaking and influential",
           "preliminary and incomplete"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Vocabulary in Context",
         "why": "Seminal refers to a work of scholarship that is original, groundbreaking, and strongly influences later developments."
       },
@@ -366,13 +366,13 @@
       {
         "q": "According to paragraph 1, all of the following are attributes assumed of 'homo economicus' in classical economic doctrine EXCEPT:",
         "options": [
-          "Perfect market information",
-          "Cognitive consistency",
           "Reliance on subjective emotional reference points",
+          "Cognitive consistency",
+          "Perfect market information",
           "Immutable self-interest"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "Paragraph 1 states that homo economicus possesses perfect market information, cognitive consistency, and immutable self-interest, whereas subjective reference points belong to Kahneman and Tversky's prospect theory."
       }
@@ -405,11 +405,11 @@
         "options": [
           "In-person class time can be used for collaborative group projects and case studies",
           "Professors can provide individualized mentoring during class sessions",
-          "Students can pause and rewatch video lectures at their own pace",
-          "Students are exempted from taking final semester examinations"
+          "Students are exempted from taking final semester examinations",
+          "Students can pause and rewatch video lectures at their own pace"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "Paragraph 2 mentions group projects, case studies, individualized mentoring, and pausing/rewatching videos, but never mentions exempting students from final exams."
       },
@@ -418,11 +418,11 @@
         "options": [
           "prevents",
           "measures",
-          "encourages",
-          "postpones"
+          "postpones",
+          "encourages"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Vocabulary in Context",
         "why": "To foster means to encourage or promote the development of something (here, deeper student engagement)."
       },
@@ -442,13 +442,13 @@
       {
         "q": "What can be inferred from paragraph 3 about a flipped seminar where most students did not watch the assigned video beforehand?",
         "options": [
-          "The collaborative in-class discussion would be much less productive than intended",
           "The professor would finish the course syllabus several weeks early",
+          "The collaborative in-class discussion would be much less productive than intended",
           "Students would automatically score higher on laboratory case studies",
           "The pre-recorded video modules would be deleted from the university server"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Inference",
         "why": "Paragraph 3 explains that undergraduates who arrive without watching the preparatory videos struggle to contribute meaningfully to group discussions."
       }
@@ -479,26 +479,26 @@
       {
         "q": "Why does the author use the example of semiconductor engineers manufacturing cotton textiles in paragraph 2?",
         "options": [
-          "To illustrate how diverting specialized resources creates a high opportunity cost",
+          "To prove that nineteenth-century factories used modern assembly lines",
           "To show that textile manufacturing requires more training than microchip design",
           "To argue that countries should ban the export of computer microchips",
-          "To prove that nineteenth-century factories used modern assembly lines"
+          "To illustrate how diverting specialized resources creates a high opportunity cost"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Rhetorical Purpose",
         "why": "The example shows that diverting skilled engineers to textiles sacrifices high-value microchip output, illustrating the concept of opportunity cost."
       },
       {
         "q": "According to paragraph 1, what core principle did David Ricardo demonstrate regarding international trade?",
         "options": [
-          "Countries should only trade if they possess an absolute advantage in all industries",
           "Both nations gain by specializing in goods where their opportunity cost is lowest",
+          "Countries should only trade if they possess an absolute advantage in all industries",
           "Importing foreign goods always reduces domestic manufacturing efficiency",
           "International trade should be restricted to agricultural commodities"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Factual Detail",
         "why": "Paragraph 1 states that Ricardo demonstrated both nations gain by specializing in the goods where their opportunity cost is lowest."
       },
@@ -506,25 +506,25 @@
         "q": "According to paragraph 3, all of the following factors influence where multinational firms locate stages of a global value chain EXCEPT:",
         "options": [
           "Local technological expertise",
-          "Labor skills",
+          "Nineteenth-century textile tariffs",
           "Logistics infrastructure",
-          "Nineteenth-century textile tariffs"
+          "Labor skills"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "Paragraph 3 lists local technological expertise, labor skills, and logistics infrastructure as the factors guiding global value chain distribution."
       },
       {
         "q": "What can be inferred from paragraph 3 about how a modern commercial airplane is manufactured?",
         "options": [
-          "Its design, component manufacturing, and assembly are likely performed across several different countries",
-          "It is built from start to finish inside a single domestic factory",
           "It requires fewer skilled engineers than nineteenth-century cotton textile production",
+          "It is built from start to finish inside a single domestic factory",
+          "Its design, component manufacturing, and assembly are likely performed across several different countries",
           "Its production ignores local logistics infrastructure"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Inference",
         "why": "Paragraph 3 states that rather than manufacturing an entire airplane or smartphone within a single country, firms distribute research, fabrication, and assembly across multiple countries."
       }
@@ -543,51 +543,51 @@
         "q": "According to paragraph 1, how did medieval European painters typically determine the size of figures in their artwork?",
         "options": [
           "By measuring the exact physical distance from the viewer's eye",
-          "According to spiritual importance and religious hierarchy",
+          "According to the mathematical ratio of the horizon line",
           "By projecting camera obscura images onto wooden panels",
-          "According to the mathematical ratio of the horizon line"
+          "According to spiritual importance and religious hierarchy"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Factual Detail",
         "why": "Paragraph 1 states that medieval artists arranged figures according to spiritual hierarchy, rendering important religious figures larger."
       },
       {
         "q": "The word 'codified' in paragraph 2 is closest in meaning to:",
         "options": [
-          "concealed",
-          "questioned",
           "systematized",
+          "questioned",
+          "concealed",
           "abandoned"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Vocabulary in Context",
         "why": "To codify means to arrange rules or principles into a systematic written code."
       },
       {
         "q": "Why does the author discuss Masaccio's fresco 'The Holy Trinity' in paragraph 3?",
         "options": [
-          "To provide a concrete artistic masterpiece that put Brunelleschi's and Alberti's perspective principles into practice",
           "To argue that medieval spiritual hierarchy was superior to linear perspective",
+          "To provide a concrete artistic masterpiece that put Brunelleschi's and Alberti's perspective principles into practice",
           "To explain why Florentine architects stopped using mirrors after 1415",
           "To show that frescoes on plaster walls cannot display vanishing points"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Rhetorical Purpose",
         "why": "Paragraph 3 introduces Masaccio's fresco as a masterful realization of the synthesis of geometry and painting described in paragraph 2."
       },
       {
         "q": "What can be inferred from the passage about how a medieval painting would differ visually from Masaccio's 'The Holy Trinity'?",
         "options": [
-          "A medieval painting would lack a unified vanishing point and realistic three-dimensional depth recession",
-          "A medieval painting would align its ceiling lines with the eye level of a viewer in the nave",
           "A medieval painting would depict religious figures smaller than background architectural columns",
+          "A medieval painting would align its ceiling lines with the eye level of a viewer in the nave",
+          "A medieval painting would lack a unified vanishing point and realistic three-dimensional depth recession",
           "A medieval painting would rely on Alberti's grid of orthogonal lines"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Inference",
         "why": "Paragraph 1 notes that medieval art sized figures by spiritual rank without consistent spatial recession, unlike Masaccio's mathematically aligned perspective."
       },
@@ -618,13 +618,13 @@
       {
         "q": "The word 'proxies' in paragraph 2 is closest in meaning to:",
         "options": [
-          "obstacles",
-          "royal officials",
           "indirect indicators",
+          "royal officials",
+          "obstacles",
           "artificial reservoirs"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 0,
+        "correctAnswer": 0,
         "questionType": "Vocabulary in Context",
         "why": "In paleoclimatology, proxies are preserved physical or chemical records (like stalagmites and sediment cores) that serve as indirect indicators of past climate."
       },
@@ -632,12 +632,12 @@
         "q": "According to paragraph 2, how do scientists use oxygen isotopes in cave stalagmites to identify ancient droughts?",
         "options": [
           "Stalagmites stop growing completely whenever carbon dioxide levels fall",
-          "Oxygen-16 turns cave stalagmites bright blue during heavy monsoon floods",
           "Higher concentrations of heavier oxygen-18 indicate periods of intense evaporation and aridity",
+          "Oxygen-16 turns cave stalagmites bright blue during heavy monsoon floods",
           "Radioactive oxygen isotopes reveal the exact temperature of volcanic magma"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Factual Detail",
         "why": "Paragraph 2 explains that because lighter oxygen-16 evaporates more readily, layers enriched in heavier oxygen-18 signal prolonged aridity."
       },
@@ -646,24 +646,24 @@
         "options": [
           "Multi-decade megadroughts recorded in cave stalagmites",
           "Karst limestone topography lacking permanent surface rivers",
-          "Deforestation for maize farming and lime-plaster production",
-          "Catastrophic tsunamis destroying Pacific coastal reservoirs"
+          "Catastrophic tsunamis destroying Pacific coastal reservoirs",
+          "Deforestation for maize farming and lime-plaster production"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "The passage discusses megadroughts, karst topography without perennial rivers, and deforestation for maize and lime plaster, but never mentions tsunamis."
       },
       {
         "q": "What can be inferred from paragraph 3 about the production of lime plaster for Maya architecture and reservoirs?",
         "options": [
-          "It required cutting down large numbers of trees, which unintentionally worsened regional drought conditions",
+          "It was abandoned centuries before the construction of stone stelae",
           "It replenished subterranean aquifers beneath Tikal and Calakmul",
           "It increased regional evapotranspiration and monsoon rainfall",
-          "It was abandoned centuries before the construction of stone stelae"
+          "It required cutting down large numbers of trees, which unintentionally worsened regional drought conditions"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "questionType": "Inference",
         "why": "Paragraph 3 notes that widespread deforestation for maize cultivation and lime-plaster production reduced evapotranspiration and suppressed local rainfall."
       },
@@ -695,25 +695,25 @@
         "q": "According to paragraph 2, how does a bacterium establish genetic memory of an invading virus?",
         "options": [
           "Ribosomes convert viral proteins into protective lipid droplets",
-          "The bacterial cell membrane thickens to block future viral attachment",
           "Cas enzymes cut a segment of invading viral DNA and insert it into the host's CRISPR locus as a spacer",
+          "The bacterial cell membrane thickens to block future viral attachment",
           "The bacterium transfers its entire genome into neighboring host cells"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Factual Detail",
         "why": "Paragraph 2 explains that Cas enzymes excise a short segment of invading viral DNA and integrate it into the host's CRISPR locus as a new memory spacer."
       },
       {
         "q": "What can be inferred from paragraph 3 about what happens if a target DNA sequence lacks an adjacent PAM sequence?",
         "options": [
-          "Cas9 will not undergo the conformational shift required to cleave the DNA strands",
-          "The bacteriophage will immediately integrate into the eukaryotic nucleus",
           "The guide RNA will dissolve the bacterial cell wall",
+          "The bacteriophage will immediately integrate into the eukaryotic nucleus",
+          "Cas9 will not undergo the conformational shift required to cleave the DNA strands",
           "Cas9 will cut the host bacterium's entire chromosome indiscriminately"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "questionType": "Inference",
         "why": "Paragraph 3 states that upon recognizing the PAM sequence, Cas9 undergoes a conformational shift and cleaves both strands, implying PAM recognition is required for cleavage."
       },
@@ -747,12 +747,12 @@
         "q": "According to the passage, all of the following are components of the natural prokaryotic CRISPR-Cas9 immune response EXCEPT:",
         "options": [
           "Viral memory spacers integrated into the host CRISPR locus",
-          "Mature guide RNAs (crRNAs) transcribed from the CRISPR locus",
+          "Antibiotic compounds secreted by eukaryotic host cells",
           "The endonuclease enzyme Cas9 recognizing a PAM motif",
-          "Antibiotic compounds secreted by eukaryotic host cells"
+          "Mature guide RNAs (crRNAs) transcribed from the CRISPR locus"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 1,
+        "correctAnswer": 1,
         "questionType": "Negative Factual (EXCEPT/NOT)",
         "why": "The passage describes spacers, crRNAs, Cas9, and the PAM motif as components of the bacterial immune system, whereas antibiotics from eukaryotic cells are never mentioned."
       }

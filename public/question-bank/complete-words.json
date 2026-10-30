@@ -1,922 +1,102 @@
 [
   {
-    "id": "cw-curated-1",
-    "title": "University Orientation and Academic Advising",
-    "level": "beginner",
-    "difficulty": "beginner",
-    "topic": "campus-life",
-    "text": "New undergraduate students attend orientation workshops during their first week on campus. Faculty advi[sors] carefully exp[lain] degree gradu[ation] rules a[nd] semester cou[rse] registration dead[lines]. Students al[so] tour unive[rsity] research libr[aries] and comp[uter] laboratories before regular classroom lectures officially begin.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "advisors",
-        "prefix": "advi",
-        "answer": "sors",
-        "fullWord": "advisors"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "explain",
-        "prefix": "exp",
-        "answer": "lain",
-        "fullWord": "explain"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "graduation",
-        "prefix": "gradu",
-        "answer": "ation",
-        "fullWord": "graduation"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "and",
-        "prefix": "a",
-        "answer": "nd",
-        "fullWord": "and"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "course",
-        "prefix": "cou",
-        "answer": "rse",
-        "fullWord": "course"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "deadlines",
-        "prefix": "dead",
-        "answer": "lines",
-        "fullWord": "deadlines"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "also",
-        "prefix": "al",
-        "answer": "so",
-        "fullWord": "also"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "university",
-        "prefix": "unive",
-        "answer": "rsity",
-        "fullWord": "university"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "libraries",
-        "prefix": "libr",
-        "answer": "aries",
-        "fullWord": "libraries"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "computer",
-        "prefix": "comp",
-        "answer": "uter",
-        "fullWord": "computer"
-      }
-    ],
-    "explanation": "Complete the campus orientation vocabulary: advisors, explain, graduation, semester, registration, university, libraries, computer, regular, lectures."
-  },
-  {
-    "id": "cw-curated-2",
+    "id": "cw-1",
+    "taskType": "complete-words",
     "title": "Synaptic Plasticity and Long-Term Memory",
     "level": "upper-intermediate",
     "difficulty": "upper-intermediate",
     "topic": "science-tech",
-    "text": "Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists ha[ve] discovered th[at] synapses grad[ually] strengthen thr[ough] repeated elect[rical] stimulation. Th[is] phenomenon dire[ctly] enables cort[ical] neurons t[o] store va[st] quantities of complex information across cerebral circuits.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "have",
-        "prefix": "ha",
-        "answer": "ve",
-        "fullWord": "have"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "that",
-        "prefix": "th",
-        "answer": "at",
-        "fullWord": "that"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "gradually",
-        "prefix": "grad",
-        "answer": "ually",
-        "fullWord": "gradually"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "through",
-        "prefix": "thr",
-        "answer": "ough",
-        "fullWord": "through"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "electrical",
-        "prefix": "elect",
-        "answer": "rical",
-        "fullWord": "electrical"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "This",
-        "prefix": "Th",
-        "answer": "is",
-        "fullWord": "This"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "directly",
-        "prefix": "dire",
-        "answer": "ctly",
-        "fullWord": "directly"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "cortical",
-        "prefix": "cort",
-        "answer": "ical",
-        "fullWord": "cortical"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "to",
-        "prefix": "t",
-        "answer": "o",
-        "fullWord": "to"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "vast",
-        "prefix": "va",
-        "answer": "st",
-        "fullWord": "vast"
-      }
-    ],
-    "explanation": "Complete the neuroscience vocabulary: neuroscientists, discovered, synapses, strengthen, repeated, electrical, phenomenon, enables, neurons, quantities, information."
+    "text": "Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists ha[ve] discovered th[at] synapses grad[ually] strengthen thr[ough] repeated elect[rical] stimulation. Th[is] phenomenon dire[ctly] enables cort[ical] neurons t[o] store va[st] quantities of complex information across cerebral circuits. As neural pathways consolidate during deep restorative sleep, newly acquired declarative knowledge transitions from temporary hippocampal storage into permanent neocortical networks.",
+    "totalBlanks": 10
   },
   {
-    "id": "cw-curated-3",
-    "title": "The Industrial Revolution and Urban Demographics",
+    "id": "cw-2",
+    "taskType": "complete-words",
+    "title": "Urban Heat Islands and Microclimate Mitigation",
     "level": "intermediate",
     "difficulty": "intermediate",
+    "topic": "environment",
+    "text": "Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[tern] occurs bec[ause] asphalt a[nd] concrete struc[tures] absorb int[ense] solar radi[ation] throughout t[he] afternoon. Muni[cipal] planners ther[efore] advocate inst[alling] reflective rooftops and expanding urban canopies to mitigate excessive heat stress. Dense neighborhood vegetation not only shades pedestrian walkways but also lowers ambient air temperatures through natural daytime leaf evapotranspiration.",
+    "totalBlanks": 10
+  },
+  {
+    "id": "cw-3",
+    "taskType": "complete-words",
+    "title": "Algorithmic Pricing in Competitive Markets",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "business-economics",
+    "text": "Modern digital retailers increasingly rely upon automated dynamic pricing models. Software algor[ithms] continuously mon[itor] competitor ra[tes] and pre[dict] consumer dem[and] in re[al] time. Wh[ile] this stra[tegy] maximizes corp[orate] profits, regul[atory] agencies express concern regarding tacit collusion among rival market participants. When competing platforms deploy similar machine learning systems, retail prices can remain artificially elevated without any explicit human agreement.",
+    "totalBlanks": 10
+  },
+  {
+    "id": "cw-4",
+    "taskType": "complete-words",
+    "title": "Glacial Dynamics and Permafrost Thawing",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "environment",
+    "text": "Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[bal] temperatures accel[erate] seasonal gla[cial] melting, stea[dily] reducing la[te] summer strea[mflow] across agricu[ltural] valleys. Simulta[neously], thawing subter[ranean] permafrost destab[ilizes] steep mountain slopes and increases the frequency of catastrophic rockfall hazards. Civil engineers in mountainous regions must continuously monitor ground temperatures and reinforce vulnerable transport corridors against sudden debris flows.",
+    "totalBlanks": 10
+  },
+  {
+    "id": "cw-5",
+    "taskType": "complete-words",
+    "title": "Behavioral Economics and Choice Architecture",
+    "level": "advanced",
+    "difficulty": "advanced",
     "topic": "social-sciences",
-    "text": "During the late eighteenth century, mechanized manufacturing transformed traditional European society. Thousands o[f] agricultural labo[rers] migrated fr[om] rural vill[ages] into burge[oning] industrial fac[tory] towns. Th[is] unprecedented demog[raphic] shift cre[ated] dense ur[ban] centers that required fundamental municipal reforms in public sanitation.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "of",
-        "prefix": "o",
-        "answer": "f",
-        "fullWord": "of"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "laborers",
-        "prefix": "labo",
-        "answer": "rers",
-        "fullWord": "laborers"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "from",
-        "prefix": "fr",
-        "answer": "om",
-        "fullWord": "from"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "villages",
-        "prefix": "vill",
-        "answer": "ages",
-        "fullWord": "villages"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "burgeoning",
-        "prefix": "burge",
-        "answer": "oning",
-        "fullWord": "burgeoning"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "factory",
-        "prefix": "fac",
-        "answer": "tory",
-        "fullWord": "factory"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "This",
-        "prefix": "Th",
-        "answer": "is",
-        "fullWord": "This"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "demographic",
-        "prefix": "demog",
-        "answer": "raphic",
-        "fullWord": "demographic"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "created",
-        "prefix": "cre",
-        "answer": "ated",
-        "fullWord": "created"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "urban",
-        "prefix": "ur",
-        "answer": "ban",
-        "fullWord": "urban"
-      }
-    ],
-    "explanation": "Complete the historical demographic vocabulary: agricultural, migrated, villages, burgeoning, factory, unprecedented, created, centers, fundamental, reforms."
+    "text": "Classical economic theory assumes consumers make completely rational choices. However, behav[ioral] economists consis[tently] demonstrate th[at] cognitive bia[ses] systematically dis[tort] human deci[sion] making. B[y] modifying t[he] underlying cho[ice] architecture, pub[lic] institutions can gently nudge citizens toward preferable retirement savings outcomes. Simple administrative adjustments, such as automatic enrollment in employer pension plans, dramatically increase long-term financial security without restricting individual freedom of choice.",
+    "totalBlanks": 10
   },
   {
-    "id": "cw-curated-4",
-    "title": "Photosynthetic Efficiency and Solar Energy Capture",
+    "id": "cw-6",
+    "taskType": "complete-words",
+    "title": "Bioluminescence in Abyssal Marine Ecosystems",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "text": "In the pitch-black depths of the ocean, many marine organisms produce light through chemical bioluminescence. This rema[rkable] biological reac[tion] occurs wit[hin] specialized cell[ular] organs a[nd] helps de[ep] sea crea[tures] attract elu[sive] prey, sta[rtle] dangerous pred[ators], or communicate with potential mates. Molecular biologists now study these glowing proteins to develop advanced medical imaging tools that track cellular activity inside living tissues.",
+    "totalBlanks": 10
+  },
+  {
+    "id": "cw-7",
+    "taskType": "complete-words",
+    "title": "Roman Marine Concrete Durability",
+    "level": "advanced",
+    "difficulty": "advanced",
+    "topic": "arts-humanities",
+    "text": "Ancient Roman marine structures have survived relentless ocean waves for millennia while modern concrete deteriorates within decades. Recent minera[logical] analyses rev[eal] that anc[ient] builders mi[xed] volcanic a[sh] and quic[klime] with seaw[ater], triggering dur[able] crystal gro[wth] whenever micro[scopic] structural cracks formed. This self-healing mineral reaction automatically seals tiny fractures and inspires contemporary engineers to design far more sustainable coastal infrastructure today.",
+    "totalBlanks": 10
+  },
+  {
+    "id": "cw-8",
+    "taskType": "complete-words",
+    "title": "Mycorrhizal Fungal Networks in Forests",
     "level": "advanced",
     "difficulty": "advanced",
     "topic": "environment",
-    "text": "Plant chloroplasts utilize specialized pigment molecules to capture incoming solar radiation. Through a com[plex] sequence o[f] biochemical reac[tions] known a[s] the Calvin cy[cle], atmospheric car[bon] dioxide i[s] enzymatically conv[erted] into org[anic] glucose comp[ounds]. These metabolic pathways sustain terrestrial ecosystems and regulate global oxygen cycles.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "complex",
-        "prefix": "com",
-        "answer": "plex",
-        "fullWord": "complex"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "of",
-        "prefix": "o",
-        "answer": "f",
-        "fullWord": "of"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "reactions",
-        "prefix": "reac",
-        "answer": "tions",
-        "fullWord": "reactions"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "as",
-        "prefix": "a",
-        "answer": "s",
-        "fullWord": "as"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "cycle",
-        "prefix": "cy",
-        "answer": "cle",
-        "fullWord": "cycle"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "carbon",
-        "prefix": "car",
-        "answer": "bon",
-        "fullWord": "carbon"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "is",
-        "prefix": "i",
-        "answer": "s",
-        "fullWord": "is"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "converted",
-        "prefix": "conv",
-        "answer": "erted",
-        "fullWord": "converted"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "organic",
-        "prefix": "org",
-        "answer": "anic",
-        "fullWord": "organic"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "compounds",
-        "prefix": "comp",
-        "answer": "ounds",
-        "fullWord": "compounds"
-      }
-    ],
-    "explanation": "Complete the ecological biochemistry terms: complex, biochemical, carbon, enzymatically, organic, compounds, metabolic, sustain, ecosystems, global."
+    "text": "Beneath the floor of every healthy forest lies a vast subterranean network of microscopic fungal threads called mycorrhizae. These symb[iotic] fungi colo[nize] the ro[ot] systems o[f] trees a[nd] exchange vi[tal] soil mine[rals] like phosp[horus] and nitr[ogen] for photosy[nthetic] carbon sugars. Through this underground web, mature forest trees can even transfer scarce nutrients and chemical warning signals to neighboring seedlings during droughts.",
+    "totalBlanks": 10
   },
   {
-    "id": "cw-curated-5",
-    "title": "Monetary Policy and Central Bank Inflation Controls",
-    "level": "upper-intermediate",
-    "difficulty": "upper-intermediate",
-    "topic": "business-economics",
-    "text": "Central banking institutions play a vital role in preserving national macroeconomic stability. When cons[umer] price infl[ation] accelerates bey[ond] established tar[get] thresholds, policy[makers] typically incr[ease] benchmark borr[owing] rates. Hig[her] interest co[sts] moderate aggr[egate] spending and stabilize domestic currency values.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "consumer",
-        "prefix": "cons",
-        "answer": "umer",
-        "fullWord": "consumer"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "inflation",
-        "prefix": "infl",
-        "answer": "ation",
-        "fullWord": "inflation"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "beyond",
-        "prefix": "bey",
-        "answer": "ond",
-        "fullWord": "beyond"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "target",
-        "prefix": "tar",
-        "answer": "get",
-        "fullWord": "target"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "policymakers",
-        "prefix": "policy",
-        "answer": "makers",
-        "fullWord": "policymakers"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "increase",
-        "prefix": "incr",
-        "answer": "ease",
-        "fullWord": "increase"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "borrowing",
-        "prefix": "borr",
-        "answer": "owing",
-        "fullWord": "borrowing"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "Higher",
-        "prefix": "Hig",
-        "answer": "her",
-        "fullWord": "Higher"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "costs",
-        "prefix": "co",
-        "answer": "sts",
-        "fullWord": "costs"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "aggregate",
-        "prefix": "aggr",
-        "answer": "egate",
-        "fullWord": "aggregate"
-      }
-    ],
-    "explanation": "Complete the macroeconomic terms: consumer, inflation, beyond, target, policymakers, increase, borrowing, interest, moderate, stabilize."
-  },
-  {
-    "id": "cw-curated-6",
-    "title": "Architectural Acoustics in Classical Concert Halls",
+    "id": "cw-9",
+    "taskType": "complete-words",
+    "title": "Coral Reef Symbiosis and Thermal Bleaching",
     "level": "intermediate",
     "difficulty": "intermediate",
-    "topic": "arts-humanities",
-    "text": "Designing a symphony auditorium requires careful coordination between structural engineers and acousticians. Sound wa[ves] originating fr[om] the perfo[rmance] stage mu[st] travel eve[nly] to ev[ery] audience mem[ber] without gener[ating] distracting ech[oes] or muf[fled] resonance. Acoustic designers install curved timber panels along perimeter walls to scatter harmonic frequencies.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "waves",
-        "prefix": "wa",
-        "answer": "ves",
-        "fullWord": "waves"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "from",
-        "prefix": "fr",
-        "answer": "om",
-        "fullWord": "from"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "performance",
-        "prefix": "perfo",
-        "answer": "rmance",
-        "fullWord": "performance"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "must",
-        "prefix": "mu",
-        "answer": "st",
-        "fullWord": "must"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "evenly",
-        "prefix": "eve",
-        "answer": "nly",
-        "fullWord": "evenly"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "every",
-        "prefix": "ev",
-        "answer": "ery",
-        "fullWord": "every"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "member",
-        "prefix": "mem",
-        "answer": "ber",
-        "fullWord": "member"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "generating",
-        "prefix": "gener",
-        "answer": "ating",
-        "fullWord": "generating"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "echoes",
-        "prefix": "ech",
-        "answer": "oes",
-        "fullWord": "echoes"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "muffled",
-        "prefix": "muf",
-        "answer": "fled",
-        "fullWord": "muffled"
-      }
-    ],
-    "explanation": "Complete the architectural acoustics vocabulary: originating, travel, audience, generating, echoes, resonance, designers, curved, panels, scatter."
-  },
-  {
-    "id": "cw-curated-7",
-    "title": "University Registrar Credit Transfer and Accreditation",
-    "level": "beginner",
-    "difficulty": "beginner",
-    "topic": "campus-life",
-    "text": "Students who transfer between universities must submit official academic records for evaluation. Department cha[irs] carefully rev[iew] previous cou[rse] syllabi t[o] determine whe[ther] completed cla[sses] satisfy co[re] curriculum requir[ements]. Once t[he] registrar appr[oves] the transfer credits, students can enroll in advanced seminars immediately.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "chairs",
-        "prefix": "cha",
-        "answer": "irs",
-        "fullWord": "chairs"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "review",
-        "prefix": "rev",
-        "answer": "iew",
-        "fullWord": "review"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "course",
-        "prefix": "cou",
-        "answer": "rse",
-        "fullWord": "course"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "to",
-        "prefix": "t",
-        "answer": "o",
-        "fullWord": "to"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "whether",
-        "prefix": "whe",
-        "answer": "ther",
-        "fullWord": "whether"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "classes",
-        "prefix": "cla",
-        "answer": "sses",
-        "fullWord": "classes"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "core",
-        "prefix": "co",
-        "answer": "re",
-        "fullWord": "core"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "requirements",
-        "prefix": "requir",
-        "answer": "ements",
-        "fullWord": "requirements"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "the",
-        "prefix": "t",
-        "answer": "he",
-        "fullWord": "the"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "approves",
-        "prefix": "appr",
-        "answer": "oves",
-        "fullWord": "approves"
-      }
-    ],
-    "explanation": "Complete the university administrative vocabulary: chairs, review, course, determine, classes, curriculum, registrar, transfer, enroll, seminars."
-  },
-  {
-    "id": "cw-curated-8",
-    "title": "Deep-Sea Hydrothermal Vents and Chemosynthesis",
-    "level": "advanced",
-    "difficulty": "advanced",
     "topic": "environment",
-    "text": "Deep oceanic hydrothermal vents support thriving biological communities completely deprived of sunlight. In t[he] total abs[ence] of so[lar] photosynthesis, speci[alized] chemosynthetic bact[eria] oxidize hydr[ogen] sulfide mine[rals] spewing fr[om] volcanic chim[neys]. This chem[ical] conversion generates vital metabolic energy for deep-sea marine organisms.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "the",
-        "prefix": "t",
-        "answer": "he",
-        "fullWord": "the"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "absence",
-        "prefix": "abs",
-        "answer": "ence",
-        "fullWord": "absence"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "solar",
-        "prefix": "so",
-        "answer": "lar",
-        "fullWord": "solar"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "specialized",
-        "prefix": "speci",
-        "answer": "alized",
-        "fullWord": "specialized"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "bacteria",
-        "prefix": "bact",
-        "answer": "eria",
-        "fullWord": "bacteria"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "hydrogen",
-        "prefix": "hydr",
-        "answer": "ogen",
-        "fullWord": "hydrogen"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "minerals",
-        "prefix": "mine",
-        "answer": "rals",
-        "fullWord": "minerals"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "from",
-        "prefix": "fr",
-        "answer": "om",
-        "fullWord": "from"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "chimneys",
-        "prefix": "chim",
-        "answer": "neys",
-        "fullWord": "chimneys"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "chemical",
-        "prefix": "chem",
-        "answer": "ical",
-        "fullWord": "chemical"
-      }
-    ],
-    "explanation": "Complete the marine ecology vocabulary: absence, photosynthesis, chemosynthetic, oxidize, sulfide, spewing, chimneys, chemical, generates, energy."
+    "text": "Tropical coral reefs support roughly a quarter of all marine biodiversity despite covering less than one percent of oceans. Reef buil[ding] corals re[ly] upon micro[scopic] photosynthetic al[gae] living ins[ide] their tis[sues] to pro[vide] essential nutr[ients] and vib[rant] protective pigm[ents] throughout the year. When ocean temperatures rise abnormally, stressed corals expel these symbiotic algae, leaving behind fragile white skeletons vulnerable to starvation.",
+    "totalBlanks": 10
   },
   {
-    "id": "cw-curated-9",
-    "title": "Microeconomic Consumer Utility and Substitution",
+    "id": "cw-10",
+    "taskType": "complete-words",
+    "title": "Endogenous Circadian Rhythms in Plants",
     "level": "upper-intermediate",
     "difficulty": "upper-intermediate",
-    "topic": "business-economics",
-    "text": "Microeconomic consumer choice theory examines how households allocate limited financial budgets. Rational indiv[iduals] consistently purc[hase] combinations o[f] goods a[nd] services th[at] maximize th[eir] personal uti[lity]. When t[he] market pr[ice] of a spec[ific] commodity increases sharply, consumers naturally substitute affordable alternatives.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "individuals",
-        "prefix": "indiv",
-        "answer": "iduals",
-        "fullWord": "individuals"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "purchase",
-        "prefix": "purc",
-        "answer": "hase",
-        "fullWord": "purchase"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "of",
-        "prefix": "o",
-        "answer": "f",
-        "fullWord": "of"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "and",
-        "prefix": "a",
-        "answer": "nd",
-        "fullWord": "and"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "that",
-        "prefix": "th",
-        "answer": "at",
-        "fullWord": "that"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "their",
-        "prefix": "th",
-        "answer": "eir",
-        "fullWord": "their"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "utility",
-        "prefix": "uti",
-        "answer": "lity",
-        "fullWord": "utility"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "the",
-        "prefix": "t",
-        "answer": "he",
-        "fullWord": "the"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "price",
-        "prefix": "pr",
-        "answer": "ice",
-        "fullWord": "price"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "specific",
-        "prefix": "spec",
-        "answer": "ific",
-        "fullWord": "specific"
-      }
-    ],
-    "explanation": "Complete the microeconomic vocabulary: individuals, purchase, combinations, maximize, utility, market, specific, commodity, consumers, substitute."
-  },
-  {
-    "id": "cw-curated-10",
-    "title": "Classical Rhetoric and Persuasive Discourse Analysis",
-    "level": "intermediate",
-    "difficulty": "intermediate",
-    "topic": "arts-humanities",
-    "text": "Aristotelian rhetorical theory identifies three foundational modes of persuasive human communication. An effe[ctive] public spe[aker] establishes pers[onal] credibility thr[ough] ethical char[acter] while appe[aling] to audi[ence] emotion. Furth[ermore], persuasive ora[tors] construct log[ical] arguments supported by verifiable empirical evidence.",
-    "totalBlanks": 10,
-    "blanks": [
-      {
-        "id": "blank-1",
-        "index": 0,
-        "word": "effective",
-        "prefix": "effe",
-        "answer": "ctive",
-        "fullWord": "effective"
-      },
-      {
-        "id": "blank-2",
-        "index": 1,
-        "word": "speaker",
-        "prefix": "spe",
-        "answer": "aker",
-        "fullWord": "speaker"
-      },
-      {
-        "id": "blank-3",
-        "index": 2,
-        "word": "personal",
-        "prefix": "pers",
-        "answer": "onal",
-        "fullWord": "personal"
-      },
-      {
-        "id": "blank-4",
-        "index": 3,
-        "word": "through",
-        "prefix": "thr",
-        "answer": "ough",
-        "fullWord": "through"
-      },
-      {
-        "id": "blank-5",
-        "index": 4,
-        "word": "character",
-        "prefix": "char",
-        "answer": "acter",
-        "fullWord": "character"
-      },
-      {
-        "id": "blank-6",
-        "index": 5,
-        "word": "appealing",
-        "prefix": "appe",
-        "answer": "aling",
-        "fullWord": "appealing"
-      },
-      {
-        "id": "blank-7",
-        "index": 6,
-        "word": "audience",
-        "prefix": "audi",
-        "answer": "ence",
-        "fullWord": "audience"
-      },
-      {
-        "id": "blank-8",
-        "index": 7,
-        "word": "Furthermore",
-        "prefix": "Furth",
-        "answer": "ermore",
-        "fullWord": "Furthermore"
-      },
-      {
-        "id": "blank-9",
-        "index": 8,
-        "word": "orators",
-        "prefix": "ora",
-        "answer": "tors",
-        "fullWord": "orators"
-      },
-      {
-        "id": "blank-10",
-        "index": 9,
-        "word": "logical",
-        "prefix": "log",
-        "answer": "ical",
-        "fullWord": "logical"
-      }
-    ],
-    "explanation": "Complete the rhetorical communication terms: effective, speaker, personal, through, character, audience, orators, logical, supported, empirical."
+    "topic": "science-tech",
+    "text": "Although plants lack a central nervous system, they possess internal biological clocks that synchronize metabolism with the solar cycle. These endog[enous] circadian rhy[thms] allow lea[ves] to antic[ipate] dawn b[y] activating photosy[nthetic] enzymes sho[rtly] before mor[ning] sunlight actu[ally] strikes t[he] canopy. Accurate internal timing also regulates floral scent emission to coincide with the peak foraging hours of native insect pollinators.",
+    "totalBlanks": 10
   }
 ]

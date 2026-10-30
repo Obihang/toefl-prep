@@ -54,12 +54,12 @@
         "questionType": "Inference / Implied Meaning",
         "options": [
           "The star permanently expands into an unstable red supergiant",
-          "Electron degeneracy pressure fails, causing catastrophic gravitational collapse",
+          "Magnetic friction stops all subatomic particle interactions",
           "The core cools into a stable crystalline helium structure",
-          "Magnetic friction stops all subatomic particle interactions"
+          "Electron degeneracy pressure fails, causing catastrophic gravitational collapse"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The lecture states that once the Chandrasekhar limit is exceeded, electron degeneracy pressure fails, causing near-instant collapse."
       }
     ]
@@ -78,13 +78,13 @@
         "q": "What scientific evidence proved that severe drought coincided with the Maya abandonment?",
         "questionType": "Detail",
         "options": [
-          "Excavated bronze irrigation pipes discovered near Tikal",
           "Lake sediment cores and cave speleothem mineral deposits",
+          "Excavated bronze irrigation pipes discovered near Tikal",
           "Deciphered royal administrative inscriptions describing famine",
           "Satellite imagery showing dried canal networks in northern Yucatan"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "Sediment cores from Lake Chichancanab and cave speleothems provided direct paleoclimatic records of the 9th-century megadrought."
       },
       {
@@ -92,13 +92,13 @@
         "audioExcerpt": "Now, why were the Maya so extraordinarily vulnerable to drought?",
         "questionType": "Speaker's Purpose / Function",
         "options": [
-          "To introduce how porous limestone and lack of perennial rivers forced reliance on rainwater reservoirs",
           "To argue that Maya religious customs prohibited the storage of drinking water",
+          "To introduce how porous limestone and lack of perennial rivers forced reliance on rainwater reservoirs",
           "To suggest that subterranean sinkholes continually flooded their agricultural fields",
           "To show that southern cities depended entirely on water imported from northern cenotes"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The professor asks this rhetorical question to transition into explaining the geological vulnerability of the southern lowlands."
       },
       {
@@ -119,12 +119,12 @@
         "questionType": "Gist / Main Idea",
         "options": [
           "To argue that warfare was the sole catalyst of Maya collapse",
-          "To explain how environmental vulnerability and human deforestation interacted during a megadrought",
+          "To demonstrate why modern cities should avoid plaster-lined reservoirs",
           "To critique the architectural techniques of ancient Mesoamerican masonry",
-          "To demonstrate why modern cities should avoid plaster-lined reservoirs"
+          "To explain how environmental vulnerability and human deforestation interacted during a megadrought"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The professor illustrates how natural megadrought and human-caused deforestation combined to trigger the urban abandonment."
       }
     ]
@@ -144,13 +144,13 @@
         "audioExcerpt": "Charles Darwin famously recognized that sterile worker castes posed a severe challenge to his theory of natural selection: how could sterility evolve if natural selection favors traits that maximize individual reproductive output?",
         "questionType": "Speaker's Purpose / Function",
         "options": [
-          "To show that sterile workers lived significantly longer than queens",
           "To highlight the evolutionary puzzle of how sterile castes could evolve under natural selection",
+          "To show that sterile workers lived significantly longer than queens",
           "To prove that worker insects exhibited higher genetic diversity than solitary bees",
           "To explain how queens managed to suppress worker revolt without physical force"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The professor cites Darwin to frame the central theoretical puzzle that W.D. Hamilton's inclusive fitness model later solved."
       },
       {
@@ -158,25 +158,25 @@
         "questionType": "Detail",
         "options": [
           "Twenty-five percent",
-          "Fifty percent",
           "Seventy-five percent",
+          "Fifty percent",
           "One hundred percent"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "Because sisters inherit identical haploid paternal genomes, they share 75% of their alleles on average."
       },
       {
         "q": "According to Hamilton's rule, what can be inferred about why worker females assist their mother?",
         "questionType": "Inference / Implied Meaning",
         "options": [
-          "Raising sisters propagates more shared alleles than producing their own offspring",
-          "The queen physically prevents workers from constructing brood cells",
           "Sisters possess superior foraging instincts compared to new daughters",
+          "The queen physically prevents workers from constructing brood cells",
+          "Raising sisters propagates more shared alleles than producing their own offspring",
           "Haplodiploid colonies produce higher amounts of royal jelly"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "Workers share 75% relatedness with sisters compared to only 50% with their own daughters, maximizing their inclusive fitness."
       },
       {
@@ -208,13 +208,13 @@
         "q": "How did Baddeley and Hitch's model differ from classical views of short-term memory?",
         "questionType": "Gist / Main Idea",
         "options": [
-          "It posited that memory storage was restricted exclusively to emotional experiences",
           "It depicted memory as an active, multi-component workspace rather than a passive store",
+          "It posited that memory storage was restricted exclusively to emotional experiences",
           "It argued that human memory capacity was infinite and never deteriorated",
           "It eliminated the role of attention in cognitive decision-making"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "They showed working memory is an active workspace that simultaneously stores and manipulates information across multiple subsystems."
       },
       {
@@ -222,12 +222,12 @@
         "questionType": "Detail",
         "options": [
           "Manipulating three-dimensional mental rotation coordinates",
-          "Allocating general attentional resources across complex tasks",
           "Processing speech-based acoustic material through subvocal rehearsal",
+          "Allocating general attentional resources across complex tasks",
           "Storing autobiographical episodes in chronological sequence"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The phonological loop handles speech-based and acoustic material through silent internal subvocal rehearsal."
       },
       {
@@ -236,12 +236,12 @@
         "questionType": "Speaker's Purpose / Function",
         "options": [
           "To prove that visual and verbal tasks interfere heavily with each other regardless of context",
-          "To provide empirical evidence that working memory consists of separate, specialized subsystems",
           "To show that subjects cannot perform any secondary task while listening to speech",
+          "To provide empirical evidence that working memory consists of separate, specialized subsystems",
           "To demonstrate that the central executive is inactive during mental calculations"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The professor cites dual-task interference patterns as empirical confirmation of separate verbal and visuospatial subsystems."
       },
       {
@@ -249,12 +249,12 @@
         "questionType": "Detail",
         "options": [
           "Store unlimited sensory data permanently in long-term memory",
-          "Supervise attentional focus and coordinate mental resources between subsystems",
+          "Record spatial movements of ocular muscles during reading",
           "Generate auditory sounds for inner speech pronunciation",
-          "Record spatial movements of ocular muscles during reading"
+          "Supervise attentional focus and coordinate mental resources between subsystems"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The central executive acts as an attentional supervisor coordinating resources and switching cognitive strategies."
       }
     ]
@@ -288,12 +288,12 @@
         "questionType": "Speaker's Purpose / Function",
         "options": [
           "To show that social marginal cost is lower than private production cost",
-          "To explain how government subsidies prevent competitor power plants from entering",
           "To illustrate a concrete example of uncompensated external costs borne by the public",
+          "To explain how government subsidies prevent competitor power plants from entering",
           "To argue that consumers demand excess energy to power emergency air scrubbers"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The professor uses coal power plants to illustrate how pollution creates external health and environmental costs not paid by the producer."
       },
       {
@@ -314,12 +314,12 @@
         "questionType": "Inference / Implied Meaning",
         "options": [
           "It eliminates the need for any government tax revenue collection",
-          "It utilizes price incentives to achieve efficiency without rigid production quotas",
+          "It exempts small manufacturing firms from environmental oversight",
           "It guarantees that zero pollution is emitted across all industrial sectors",
-          "It exempts small manufacturing firms from environmental oversight"
+          "It utilizes price incentives to achieve efficiency without rigid production quotas"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "Pigouvian taxes use market price signals to restore efficiency rather than imposing rigid, top-down production mandates."
       }
     ]
@@ -339,13 +339,13 @@
         "audioExcerpt": "That paradigm shattered when oceanographers diving in the submersible Alvin discovered bustling biological oases along the Galápagos Rift, two and a half kilometers beneath the ocean surface.",
         "questionType": "Inference / Implied Meaning",
         "options": [
-          "That tectonic plates drift continuously along mid-ocean ridges",
           "That complex multicellular ecosystems can thrive completely independent of sunlight",
+          "That tectonic plates drift continuously along mid-ocean ridges",
           "That bacteria cannot survive in high-pressure aquatic environments",
           "That sulfur compounds are universally toxic to marine organisms"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "By saying the solar paradigm shattered, the professor implies that thriving complex life can exist without any sunlight."
       },
       {
@@ -353,38 +353,38 @@
         "questionType": "Detail",
         "options": [
           "Geothermal infrared radiation absorbed by algal pigments",
-          "Organic debris drifting down from surface phytoplankton",
           "Chemical oxidation of reduced sulfur compounds by chemotrophic bacteria",
+          "Organic debris drifting down from surface phytoplankton",
           "Electrical currents generated by tectonic friction along fault lines"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "Chemotrophic bacteria oxidize inorganic sulfur compounds (like hydrogen sulfide) to synthesize carbohydrates."
       },
       {
         "q": "How do giant hydrothermal tube worms obtain nutrition without a mouth or gut?",
         "questionType": "Detail",
         "options": [
-          "Through symbiotic sulfur-oxidizing bacteria hosted within a trophosome organ",
-          "By filtering microscopic crustaceans through specialized external tentacles",
           "By absorbing dissolved carbohydrates directly through their chitinous shells",
+          "By filtering microscopic crustaceans through specialized external tentacles",
+          "Through symbiotic sulfur-oxidizing bacteria hosted within a trophosome organ",
           "Through seasonal migrations to shallow photosynthetic ocean layers"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "Tube worms house billions of symbiotic sulfur-oxidizing bacteria inside a specialized organ called a trophosome."
       },
       {
         "q": "What characteristic defines the 'black smoker' chimneys described in the lecture?",
         "questionType": "Detail",
         "options": [
-          "They emit superheated mineral-rich fluids under high hydrostatic pressure",
+          "They absorb all toxic dissolved gases to purify the abyssal water column",
           "They are constructed from calcified coral skeletons over thousands of years",
           "They cool surrounding ocean water to near-freezing temperatures",
-          "They absorb all toxic dissolved gases to purify the abyssal water column"
+          "They emit superheated mineral-rich fluids under high hydrostatic pressure"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "Black smokers are mineral chimneys venting superheated fluids rich in hydrogen sulfide and heavy metals into the abyss."
       }
     ]
@@ -403,13 +403,13 @@
         "q": "How was spatial scale typically determined in medieval European painting?",
         "questionType": "Detail",
         "options": [
-          "By rigorous optical measurements taken with surveying instruments",
           "By hierarchical religious importance rather than physical realism",
+          "By rigorous optical measurements taken with surveying instruments",
           "By atmospheric haze diminishing background color intensity",
           "By the exact geometric angle of incoming natural sunlight"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "Medieval artists used hierarchical scaling, making holy figures large and ordinary mortals small regardless of spatial distance."
       },
       {
@@ -443,13 +443,13 @@
         "q": "What was the broader cultural impact of Brunelleschi's perspective system?",
         "questionType": "Gist / Main Idea",
         "options": [
-          "It elevated painting from an artisanal craft into an intellectual mathematical discipline",
+          "It led church authorities to ban geometric diagrams in public spaces",
           "It eliminated the use of religious subject matter from Renaissance art",
           "It caused fresco painters to abandon oil paint in favor of tempera",
-          "It led church authorities to ban geometric diagrams in public spaces"
+          "It elevated painting from an artisanal craft into an intellectual mathematical discipline"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "Linear perspective transformed painting into an intellectual discipline grounded in Euclidean geometry and optics."
       }
     ]
@@ -469,13 +469,13 @@
         "audioExcerpt": "In its strong formulation—linguistic determinism—language acts as a cognitive prison: if your language lacks a grammatical structure or lexical term for a concept, you are fundamentally incapable of conceiving it.",
         "questionType": "Speaker's Purpose / Function",
         "options": [
-          "To argue that brain imaging proves human infants cannot understand language",
           "To characterize the extreme claim that people cannot conceive ideas missing from their vocabulary",
+          "To argue that brain imaging proves human infants cannot understand language",
           "To show that all human languages possess completely identical grammar and vocabularies",
           "To explain why written alphabets evolved before spoken dialects in ancient cultures"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The professor uses the metaphor 'cognitive prison' to illustrate the extreme deterministic claim—which modern linguists reject—that vocabulary strictly bounds thought."
       },
       {
@@ -483,12 +483,12 @@
         "questionType": "Detail",
         "options": [
           "Using egocentric references based on their left and right hands",
-          "Using relative distances to the nearest freshwater river",
           "Exclusively using absolute cardinal directions like north, south, east, and west",
+          "Using relative distances to the nearest freshwater river",
           "Through gestural hand signals without any spoken adjectives"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "Guugu Yimithirr uses absolute geographic cardinal coordinates (north, south, east, west) rather than egocentric left/right."
       },
       {
@@ -496,25 +496,25 @@
         "questionType": "Inference / Implied Meaning",
         "options": [
           "Superior memorization of mathematical sequence tables",
-          "Constant, subconscious orientation to geographic cardinal bearings",
           "Enhanced perception of ultraviolet and infrared color bands",
+          "Constant, subconscious orientation to geographic cardinal bearings",
           "Rapid learning of Romance language verb conjugations"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "Because their language requires cardinal coordinates for basic communication, speakers maintain an extraordinary continuous mental compass."
       },
       {
         "q": "The weak version of the Sapir-Whorf hypothesis proposes that:",
         "questionType": "Gist / Main Idea",
         "options": [
-          "Language influences and predisposes habits of thought and attention",
+          "Vocabulary size determines a person's biological intelligence",
           "Human thought is completely independent of any linguistic interaction",
           "All languages eventually merge into a single universal tongue",
-          "Vocabulary size determines a person's biological intelligence"
+          "Language influences and predisposes habits of thought and attention"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "Linguistic relativity suggests language guides our attention to specific dimensions of experience without trapping thought entirely."
       }
     ]
@@ -533,13 +533,13 @@
         "q": "What causes the spectral lines of a star to shift in the radial velocity detection method?",
         "questionType": "Detail",
         "options": [
-          "Solar flares ejecting hot magnetized plasma toward interstellar space",
           "The gravitational pull of an orbiting planet inducing a reflex wobble in the star",
+          "Solar flares ejecting hot magnetized plasma toward interstellar space",
           "Interstellar dust clouds periodically blocking high-frequency ultraviolet light",
           "Nuclear fusion rates fluctuating rhythmically in the star's core"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The gravitational interaction causes the host star to wobble around the mutual barycenter, creating Doppler shifts in its light."
       },
       {
@@ -561,25 +561,25 @@
         "questionType": "Speaker's Purpose / Function",
         "options": [
           "To prove that most exoplanets possess intelligent technological life",
-          "To explain how using both methods together reveals a planet's physical composition",
           "To show how astronomers prevent an exoplanet's orbit from decaying into its star",
+          "To explain how using both methods together reveals a planet's physical composition",
           "To argue that direct visible-light photographs are superior to spectroscopy"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The professor explains that combining mass (from radial velocity) and radius (from transits) yields density, distinguishing rocky worlds from gas giants."
       },
       {
         "q": "Under what condition is the transit method capable of detecting an exoplanet?",
         "questionType": "Inference / Implied Meaning",
         "options": [
-          "The planet's orbital plane must align edge-on with Earth's line of sight",
+          "The star must lack any other companion planets in its solar system",
           "The star must be at least ten times more massive than our Sun",
           "The exoplanet must orbit outside the star's habitable zone",
-          "The star must lack any other companion planets in its solar system"
+          "The planet's orbital plane must align edge-on with Earth's line of sight"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "A transit can only be seen if the orbit is oriented edge-on so the planet passes between the star and our line of sight."
       }
     ]
@@ -626,12 +626,12 @@
         "questionType": "Detail",
         "options": [
           "They lacked fire to cook wild game meats properly",
-          "They lived in permanent close proximity to domesticated herd livestock",
           "They drank untreated ocean water during coastal journeys",
+          "They lived in permanent close proximity to domesticated herd livestock",
           "Their grain storage silos were routinely infested with tropical mosquitoes"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "Constant cohabitation with domesticated animals like sheep, goats, and cattle facilitated the jump of pathogens from animals to humans."
       },
       {
@@ -639,12 +639,12 @@
         "questionType": "Detail",
         "options": [
           "Maize and potatoes",
-          "Einkorn wheat and barley",
+          "Sugar cane and sorghum",
           "Wetland rice and soybeans",
-          "Sugar cane and sorghum"
+          "Einkorn wheat and barley"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The professor mentions the intentional domestication of wild cereals like einkorn wheat and barley in Southwest Asia."
       }
     ]

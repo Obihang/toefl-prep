@@ -18,6 +18,41 @@ import os from 'os';
 import WebSocket from 'ws';
 import { synthesizeEdge, EdgeTtsError } from './edgeTts';
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 60;
+const ipRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function getClientIp(req: any): string {
+  const forwarded = req?.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return String(forwarded[0]).trim();
+  }
+  const realIp = req?.headers?.['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.trim()) {
+    return realIp.trim();
+  }
+  return req?.socket?.remoteAddress || req?.ip || 'unknown';
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  if (ipRateLimitMap.size > 2000) {
+    for (const [k, v] of ipRateLimitMap.entries()) {
+      if (now >= v.resetAt) ipRateLimitMap.delete(k);
+    }
+  }
+  const entry = ipRateLimitMap.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    ipRateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > MAX_REQUESTS_PER_WINDOW;
+}
+
 export function wrapApiHandler<TReq = any, TRes = any>(
   handler: (req: TReq, res: TRes) => Promise<any> | any
 ): (req: TReq, res: TRes) => Promise<any> {
@@ -26,6 +61,14 @@ export function wrapApiHandler<TReq = any, TRes = any>(
       (req?.headers?.['x-request-id'] as string) ||
       ('req-' + crypto.randomBytes(4).toString('hex'));
     const route = req?.url || req?.originalUrl || (req?.headers?.['x-forwarded-uri'] as string) || 'unknown';
+
+    const clientIp = getClientIp(req);
+    if (isRateLimited(clientIp)) {
+      return res.status(429).json({
+        error: 'Too many requests, please try again later.',
+        requestId,
+      });
+    }
 
     try {
       return await handler(req, res);

@@ -139,21 +139,24 @@ service cloud.firestore {
     match /questions/{questionId} {
       allow read: if true;
 
-      allow create: if isValidQuestion(request.resource.data);
+      allow create: if isSignedIn() && isValidQuestion(request.resource.data);
 
-      allow update: if isQuestionIncrementOnly()
-        || isAdmin()
-        || (isValidQuestion(request.resource.data) && request.resource.data.id == resource.data.id && request.resource.data.taskType == resource.data.taskType)
-        || (isValidQuestion(request.resource.data) && request.resource.data.get('id', questionId) == resource.data.get('id', questionId) && request.resource.data.taskType == resource.data.taskType)
-        || (
-          isSignedIn()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
-          && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)
-          && !exists(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
-          && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+      allow update: if isSignedIn()
+        && request.resource.data.taskType == resource.data.taskType
+        && isValidQuestion(request.resource.data)
+        && (
+          isQuestionIncrementOnly()
+          || isAdmin()
+          || request.resource.data.get('id', questionId) == resource.data.get('id', questionId)
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
+            && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)
+            && !exists(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+          )
         );
 
-      allow delete: if isSignedIn();
+      allow delete: if false;
     }
 
     // Global User Reports

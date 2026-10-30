@@ -403,7 +403,7 @@ export function normalizeCompleteWordsTask(raw: any): {
   explanation?: string;
 } {
   const fallbackText =
-    'Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists have discovered that synapses gradually strengthen through repeated electrical stimulation. This phenomenon directly enables cortical neurons to store vast quantities of complex information across cerebral circuits.';
+    'Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists have discovered that synapses gradually strengthen through repeated electrical stimulation. This phenomenon directly enables cortical neurons to store vast quantities of complex information across cerebral circuits. As neural pathways consolidate during deep restorative sleep, newly acquired declarative knowledge transitions from temporary hippocampal storage into permanent neocortical networks.';
 
   const title = String(raw?.title || 'Complete the Words').trim() || 'Complete the Words';
   let rawText = String(raw?.text || raw?.passage || raw?.content?.text || '').trim();
@@ -547,7 +547,7 @@ export function normalizeCompleteWordsTask(raw: any): {
     return `${wi.lead}${prefix}[${answer}]${wi.trail}`;
   });
 
-  // Step 6: Strip any extra trailing sentences beyond 1 short concluding sentence after the 10th blank
+  // Step 6: Strip any extra trailing sentences beyond 1 single concluding sentence after the 10th blank (keeping passages tight at ~55-70 words)
   if (blanks.length >= 10) {
     let token10Idx = -1;
     let bCount = 0;
@@ -575,8 +575,9 @@ export function normalizeCompleteWordsTask(raw: any): {
         sentence10EndIdx++;
       }
 
-      // Allow at most 1 short concluding sentence after the 10th blank sentence
+      // Allow at most 1 single concluding sentence after the 10th blank sentence
       let maxKeptIdx = sentence10EndIdx;
+      let concludingSentencesFound = 0;
       let nextSentenceEndIdx = sentence10EndIdx + 1;
       while (nextSentenceEndIdx < tokens.length) {
         const tok = tokens[nextSentenceEndIdx];
@@ -584,7 +585,10 @@ export function normalizeCompleteWordsTask(raw: any): {
           const cleanTok = tok.replace(/[^a-zA-Z0-9.'’]/g, '').toLowerCase();
           if (!SENTENCE_ABBREVIATIONS.has(cleanTok)) {
             maxKeptIdx = nextSentenceEndIdx;
-            break;
+            concludingSentencesFound++;
+            if (concludingSentencesFound >= 1) {
+              break;
+            }
           }
         }
         nextSentenceEndIdx++;

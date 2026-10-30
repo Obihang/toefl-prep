@@ -13,25 +13,25 @@
       {
         "q": "Why were the afternoon laboratory sessions canceled?",
         "options": [
-          "Hazardous chemical fumes were detected in the hallway",
           "Emergency electrical repairs are taking place in Science Hall",
+          "Hazardous chemical fumes were detected in the hallway",
           "The instructor was called away to an academic conference",
           "Severe weather forced a mandatory university-wide lockdown"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The speaker states: 'Due to emergency electrical maintenance in Science Hall, all afternoon laboratory sections scheduled for today are canceled.'"
       },
       {
         "q": "What reassurance does the speaker offer regarding experiment samples?",
         "options": [
           "Students will be granted extra credit for damaged preparations",
-          "Lab technicians will transfer them to another building by hand",
           "Backup generators are operating to power the refrigerated incubators",
+          "Lab technicians will transfer them to another building by hand",
           "All lost data will be replaced by simulated computer datasets"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The speaker notes: 'the backup generators are active and running at full capacity' for refrigerated incubators."
       }
     ]
@@ -62,13 +62,13 @@
       {
         "q": "Why are the normal campus shuttle routes being temporarily altered?",
         "options": [
-          "University Boulevard is closed for the annual homecoming parade",
+          "Shuttle drivers are attending a required quarterly safety workshop",
           "Road resurfacing crews are paving the Central Quad roadway",
           "A major student athletic victory celebration is taking place",
-          "Shuttle drivers are attending a required quarterly safety workshop"
+          "University Boulevard is closed for the annual homecoming parade"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The speaker explains: 'Because of the annual homecoming parade, University Boulevard will be closed to all vehicular traffic.'"
       }
     ]
@@ -87,25 +87,25 @@
       {
         "q": "Where are students permitted to conduct group study sessions or phone conversations?",
         "options": [
-          "On the designated quiet third and fourth study floors",
           "Exclusively in the first-floor cafe and basement seminar rooms",
+          "On the designated quiet third and fourth study floors",
           "In any hallway corridor after ten o'clock at night",
           "Only in outdoor seating areas around the library fountain"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The announcement clarifies that group discussions and calls are 'restricted exclusively to the first-floor cafe and reservable basement seminar rooms.'"
       },
       {
         "q": "What change to library operations is announced for final exam week?",
         "options": [
           "Books may be checked out for an extended four-week duration",
-          "Free printing vouchers will be distributed at circulation desks",
           "Operating hours are extended until 2:00 AM nightly",
+          "Free printing vouchers will be distributed at circulation desks",
           "All overdue book fines will be automatically forgiven"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The librarian announces: 'our main reading room and second-floor research wing will remain open until 2:00 AM every night through final exam week.'"
       }
     ]
@@ -124,13 +124,13 @@
       {
         "q": "What caused the research council to postpone the fellowship submission deadline?",
         "options": [
-          "Technical difficulties with the university online submission portal",
-          "A low overall volume of preliminary research proposals",
           "Requests from faculty members for more evaluation time",
+          "A low overall volume of preliminary research proposals",
+          "Technical difficulties with the university online submission portal",
           "Recent budget increases provided by university alumni"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The professor states: 'This extension accommodates recent portal downtime.'"
       },
       {
@@ -138,11 +138,11 @@
         "options": [
           "A formal transcript stamped by the university registrar",
           "A signed letter of recommendation from an off-campus employer",
-          "An itemized budget sheet and a faculty endorsement letter",
-          "A peer review questionnaire completed by three classmates"
+          "A peer review questionnaire completed by three classmates",
+          "An itemized budget sheet and a faculty endorsement letter"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The professor reminds students: 'your proposal must include an itemized budget sheet and a faculty letter of endorsement.'"
       }
     ]
@@ -161,25 +161,25 @@
       {
         "q": "Where should students place leftover food and takeout containers?",
         "options": [
-          "Inside the black general waste compactors",
-          "Directly onto the conveyor belts at the kitchen window",
           "Inside the designated green composting bins",
+          "Directly onto the conveyor belts at the kitchen window",
+          "Inside the black general waste compactors",
           "In the blue mixed paper and plastic recycling receptacles"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The director instructs: 'please scrape leftover food waste and compostable boxes into the designated green bins.'"
       },
       {
         "q": "Who is stationed near the dish return area to guide diners?",
         "options": [
-          "Student environmental volunteers",
           "Full-time university cafeteria chefs",
+          "Student environmental volunteers",
           "Members of campus custodial services",
           "City environmental health inspectors"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The announcement confirms: 'Student environmental volunteers are stationed near the dish return to answer any questions.'"
       }
     ]
@@ -199,12 +199,12 @@
         "q": "What action are residents strictly warned against during the fire drill?",
         "options": [
           "Exiting the building through ground-floor emergency doors",
-          "Using the building elevators during the evacuation",
           "Gathering on the intramural athletic fields outdoors",
+          "Using the building elevators during the evacuation",
           "Wearing outdoor coats while walking down the stairways"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The coordinator commands: 'Do not use the elevators under any circumstances.'"
       },
       {
@@ -212,11 +212,11 @@
         "options": [
           "In the lobby of the main student dining commons",
           "At the circular driveway outside the front reception desk",
-          "On the intramural soccer field with their floor advisor",
-          "Inside the adjacent recreational sports complex gymnasium"
+          "Inside the adjacent recreational sports complex gymnasium",
+          "On the intramural soccer field with their floor advisor"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The announcement notes: 'report to your floor advisor on the intramural soccer field for headcount verification.'"
       }
     ]
@@ -235,25 +235,25 @@
       {
         "q": "What is featured at today's Wellness Week lunchtime session?",
         "options": [
-          "Professional nutritional counseling and blood pressure screenings",
           "Guided mindfulness meditation and licensed therapy dogs",
+          "Professional nutritional counseling and blood pressure screenings",
           "A cardiovascular fitness training and weightlifting clinic",
           "Academic tutoring for upcoming midterm examinations"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The speaker announces: 'Today's highlights include guided mindfulness meditation and visitations with certified therapy dogs.'"
       },
       {
         "q": "How can students participate in the lunchtime activities?",
         "options": [
-          "By dropping in without any prior registration required",
           "By signing up on the health center website 24 hours ahead",
+          "By dropping in without any prior registration required",
           "By obtaining a permission slip from their academic advisor",
           "By paying a nominal five-dollar supply fee at the atrium door"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The doctor concludes: 'No registration is required—just drop in whenever you have a break between classes.'"
       }
     ]
@@ -284,13 +284,13 @@
       {
         "q": "Which service will remain accessible to students throughout the server patch window?",
         "options": [
-          "The department Git version control repository server",
+          "The interactive database testing environment",
           "The high-performance GPU neural network training cluster",
           "The remote virtual desktop login terminals",
-          "The interactive database testing environment"
+          "The department Git version control repository server"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The announcement explicitly states: 'The Git repository server will stay online throughout the window.'"
       }
     ]
@@ -309,13 +309,13 @@
       {
         "q": "What will happen if rented textbooks are returned after May 12th at 5:00 PM?",
         "options": [
-          "The student's course enrollment will be cancelled for fall",
           "Students will be charged full replacement retail fees on their account",
+          "The student's course enrollment will be cancelled for fall",
           "Late books will only be accepted in exchange for store credit",
           "A five-dollar weekly late fee will be mailed to their home address"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The manager states: 'Books returned after this date will automatically be charged replacement retail fees to your student account.'"
       },
       {
@@ -347,12 +347,12 @@
         "q": "Why has a student ticket lottery been implemented for the symphony concert?",
         "options": [
           "The concert hall had to reduce seating capacity for acoustics",
-          "High public ticket demand limited general student availability",
           "The performance was rescheduled to an earlier afternoon timeslot",
+          "High public ticket demand limited general student availability",
           "University regulations require lotteries for all musical events"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The speaker explains: 'Due to overwhelming public demand, a student ticket lottery has been established.'"
       },
       {
@@ -360,11 +360,11 @@
         "options": [
           "Backstage access to meet the guest conductor after the show",
           "Complimentary transportation to and from the concert hall",
-          "The opportunity to purchase two subsidized ten-dollar tickets",
-          "Free admission vouchers for all remaining season performances"
+          "Free admission vouchers for all remaining season performances",
+          "The opportunity to purchase two subsidized ten-dollar tickets"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The announcement states that winning 'grants each recipient two subsidized ten-dollar orchestra tickets.'"
       }
     ]

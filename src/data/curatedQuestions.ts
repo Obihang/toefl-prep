@@ -129,7 +129,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Synaptic Plasticity and Long-Term Memory',
     level: 'upper-intermediate',
     topic: 'science-tech',
-    text: 'Synaptic plasticity is the biological foundation of human learning. Neurosc[[ientists]] have disco[[vered]] that syna[[pses]] stren[[gthen]] thr[[ough]] repe[[ated]] elect[[rical]] stimulation. This pheno[[menon]], known as long-term potentiation, ena[[bles]] neurons to store vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.',
+    text: 'Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists ha[ve] discovered th[at] synapses grad[ually] strengthen thr[ough] repeated elect[rical] stimulation. Th[is] phenomenon dire[ctly] enables cort[ical] neurons t[o] store va[st] quantities of complex information across cerebral circuits. As neural pathways consolidate during deep restorative sleep, newly acquired declarative knowledge transitions from temporary hippocampal storage into permanent neocortical networks.',
     totalBlanks: 10,
   },
   {
@@ -137,7 +137,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Urban Heat Islands and Microclimate Mitigation',
     level: 'intermediate',
     topic: 'environment',
-    text: 'Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[[tern]] occ[[urs]] bec[[ause]] conc[[rete]] struc[[tures]] absorb solar radi[[ation]] during the day. Enviro[[nmental]] plan[[ners]] advo[[cate]] installing refl[[ective]] roofs and expanding urban canopies to mitigate excessive heat stress.',
+    text: 'Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[tern] occurs bec[ause] asphalt a[nd] concrete struc[tures] absorb int[ense] solar radi[ation] throughout t[he] afternoon. Muni[cipal] planners ther[efore] advocate inst[alling] reflective rooftops and expanding urban canopies to mitigate excessive heat stress. Dense neighborhood vegetation not only shades pedestrian walkways but also lowers ambient air temperatures through natural daytime leaf evapotranspiration.',
     totalBlanks: 10,
   },
   {
@@ -145,7 +145,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Algorithmic Pricing in Competitive Markets',
     level: 'advanced',
     topic: 'business-economics',
-    text: 'Modern digital retailers increasingly rely upon automated dynamic pricing models. Soft[[ware]] algor[[ithms]] mon[[itor]] compe[[titor]] rates and pre[[dict]] consumer dem[[and]] in real time. While this stra[[tegy]] maxi[[mizes]] pro[[fits]], regulatory agen[[cies]] express concern regarding tacit collusion among rival market participants.',
+    text: 'Modern digital retailers increasingly rely upon automated dynamic pricing models. Software algor[ithms] continuously mon[itor] competitor ra[tes] and pre[dict] consumer dem[and] in re[al] time. Wh[ile] this stra[tegy] maximizes corp[orate] profits, regul[atory] agencies express concern regarding tacit collusion among rival market participants. When competing platforms deploy similar machine learning systems, retail prices can remain artificially elevated without any explicit human agreement.',
     totalBlanks: 10,
   },
   {
@@ -153,7 +153,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Glacial Dynamics and Permafrost Thawing',
     level: 'upper-intermediate',
     topic: 'environment',
-    text: 'Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[[bal]] temper[[atures]] accel[[erate]] seas[[onal]] mel[[ting]], redu[[cing]] sum[[mer]] strea[[mflow]] in agricu[[ltural]] valleys. Simultaneously, tha[[wing]] subterranean permafrost destabilizes mountain slopes, increasing the frequency of catastrophic rockfall hazards.',
+    text: 'Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[bal] temperatures accel[erate] seasonal gla[cial] melting, stea[dily] reducing la[te] summer strea[mflow] across agricu[ltural] valleys. Simulta[neously], thawing subter[ranean] permafrost destab[ilizes] steep mountain slopes and increases the frequency of catastrophic rockfall hazards. Civil engineers in mountainous regions must continuously monitor ground temperatures and reinforce vulnerable transport corridors against sudden debris flows.',
     totalBlanks: 10,
   },
   {
@@ -161,7 +161,47 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Behavioral Economics and Choice Architecture',
     level: 'advanced',
     topic: 'social-sciences',
-    text: 'Classical economic theory assumes consumers make completely rational choices. However, behav[[ioral]] econo[[mists]] demon[[strate]] that cogn[[itive]] bia[[ses]] systema[[tically]] dis[[tort]] deci[[sion]] making. By modi[[fying]] the cho[[ice]] architecture, institutions can gently nudge citizens toward preferable retirement savings outcomes.',
+    text: 'Classical economic theory assumes consumers make completely rational choices. However, behav[ioral] economists consis[tently] demonstrate th[at] cognitive bia[ses] systematically dis[tort] human deci[sion] making. B[y] modifying t[he] underlying cho[ice] architecture, pub[lic] institutions can gently nudge citizens toward preferable retirement savings outcomes. Simple administrative adjustments, such as automatic enrollment in employer pension plans, dramatically increase long-term financial security without restricting individual freedom of choice.',
+    totalBlanks: 10,
+  },
+  {
+    id: 'cw-6',
+    title: 'Bioluminescence in Abyssal Marine Ecosystems',
+    level: 'upper-intermediate',
+    topic: 'science-tech',
+    text: 'In the pitch-black depths of the ocean, many marine organisms produce light through chemical bioluminescence. This rema[rkable] biological reac[tion] occurs wit[hin] specialized cell[ular] organs a[nd] helps de[ep] sea crea[tures] attract elu[sive] prey, sta[rtle] dangerous pred[ators], or communicate with potential mates. Molecular biologists now study these glowing proteins to develop advanced medical imaging tools that track cellular activity inside living tissues.',
+    totalBlanks: 10,
+  },
+  {
+    id: 'cw-7',
+    title: 'Roman Marine Concrete Durability',
+    level: 'advanced',
+    topic: 'arts-humanities',
+    text: 'Ancient Roman marine structures have survived relentless ocean waves for millennia while modern concrete deteriorates within decades. Recent minera[logical] analyses rev[eal] that anc[ient] builders mi[xed] volcanic a[sh] and quic[klime] with seaw[ater], triggering dur[able] crystal gro[wth] whenever micro[scopic] structural cracks formed. This self-healing mineral reaction automatically seals tiny fractures and inspires contemporary engineers to design far more sustainable coastal infrastructure today.',
+    totalBlanks: 10,
+  },
+  {
+    id: 'cw-8',
+    title: 'Mycorrhizal Fungal Networks in Forests',
+    level: 'advanced',
+    topic: 'environment',
+    text: 'Beneath the floor of every healthy forest lies a vast subterranean network of microscopic fungal threads called mycorrhizae. These symb[iotic] fungi colo[nize] the ro[ot] systems o[f] trees a[nd] exchange vi[tal] soil mine[rals] like phosp[horus] and nitr[ogen] for photosy[nthetic] carbon sugars. Through this underground web, mature forest trees can even transfer scarce nutrients and chemical warning signals to neighboring seedlings during droughts.',
+    totalBlanks: 10,
+  },
+  {
+    id: 'cw-9',
+    title: 'Coral Reef Symbiosis and Thermal Bleaching',
+    level: 'intermediate',
+    topic: 'environment',
+    text: 'Tropical coral reefs support roughly a quarter of all marine biodiversity despite covering less than one percent of oceans. Reef buil[ding] corals re[ly] upon micro[scopic] photosynthetic al[gae] living ins[ide] their tis[sues] to pro[vide] essential nutr[ients] and vib[rant] protective pigm[ents] throughout the year. When ocean temperatures rise abnormally, stressed corals expel these symbiotic algae, leaving behind fragile white skeletons vulnerable to starvation.',
+    totalBlanks: 10,
+  },
+  {
+    id: 'cw-10',
+    title: 'Endogenous Circadian Rhythms in Plants',
+    level: 'upper-intermediate',
+    topic: 'science-tech',
+    text: 'Although plants lack a central nervous system, they possess internal biological clocks that synchronize metabolism with the solar cycle. These endog[enous] circadian rhy[thms] allow lea[ves] to antic[ipate] dawn b[y] activating photosy[nthetic] enzymes sho[rtly] before mor[ning] sunlight actu[ally] strikes t[he] canopy. Accurate internal timing also regulates floral scent emission to coincide with the peak foraging hours of native insect pollinators.',
     totalBlanks: 10,
   },
 ];
@@ -542,7 +582,7 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
     questions: [
       {
         question: 'Do you prefer studying alone in a quiet space or collaborating with peers in a study group? Why?',
-        prepTimeSeconds: 15,
+        prepTimeSeconds: 0,
         responseTimeSeconds: 45,
         suggestedPoints: [
           'State clear preference (solitary vs group study)',
@@ -553,7 +593,7 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
       },
       {
         question: 'How do you prioritize your time when you have multiple academic deadlines approaching in the same week?',
-        prepTimeSeconds: 20,
+        prepTimeSeconds: 0,
         responseTimeSeconds: 45,
         suggestedPoints: [
           'Mention organizational strategies (digital calendars, priority matrices, breaking down tasks)',
@@ -564,8 +604,8 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
       },
       {
         question: 'Some universities are replacing traditional paper textbooks entirely with digital e-books. Do you think this is a beneficial policy?',
-        prepTimeSeconds: 20,
-        responseTimeSeconds: 50,
+        prepTimeSeconds: 0,
+        responseTimeSeconds: 45,
         suggestedPoints: [
           'Evaluate pros (cost reduction, searchability, environmental impact) and cons (screen fatigue, distraction)',
           'Take a balanced stance and offer a reasoned conclusion',
@@ -575,8 +615,8 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
       },
       {
         question: 'If you could introduce one new facility or service on your university campus to improve student well-being, what would it be and why?',
-        prepTimeSeconds: 25,
-        responseTimeSeconds: 60,
+        prepTimeSeconds: 0,
+        responseTimeSeconds: 45,
         suggestedPoints: [
           'Propose a specific facility (wellness/meditation center, 24/7 maker space, peer tutoring hub)',
           'Justify its necessity with current campus challenges',
