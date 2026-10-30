@@ -233,8 +233,8 @@ export function stripSpeakerAndFormatting(text: string): string {
   // 4. Strip parenthesized stage directions e.g. (pauses), (laughs), (clears throat)
   cleaned = cleaned.replace(/\((?:pauses?|sighs?|laughs?|chuckles?|clears throat|applause|cheering|coughing|sound|music|gasp|whispering|shouting|silence|interrupted)\)/gi, ' ');
 
-  // 5. Strip markdown formatting (*, **, _, __, #, `, >)
-  cleaned = cleaned.replace(/[*_#`>]+/g, ' ');
+  // 5. Strip markdown formatting and prosody chunking bars (*, **, _, __, #, `, >, |)
+  cleaned = cleaned.replace(/[*_#`>|]+/g, ' ');
 
   // 6. Clean up whitespace
   return cleaned.replace(/\s+/g, ' ').trim();
@@ -289,8 +289,8 @@ export async function handleGenerateTaskEndpoint(req: Req, res: Res) {
   try {
     const config = getApiConfig(req.headers, req.body);
     const groqKey = (req.headers['x-groq-key'] as string) || (config.provider === 'groq' ? config.apiKey : '') || process.env.GROQ_API_KEY || '';
-    const mergedConfig = { ...config, groqKey };
-    const { taskType, level, topic, promptData } = req.body || {};
+    const { taskType, level, topic, promptData, coachMode } = req.body || {};
+    const mergedConfig = { ...config, groqKey, coachMode: Boolean(coachMode || promptData?.coachMode) };
     const result = await handleGenerateTask(taskType, level, topic, mergedConfig, promptData);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {

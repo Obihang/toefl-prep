@@ -160,6 +160,20 @@ export async function callBackendGenerate(
   extraOptions?: Record<string, any>
 ): Promise<any> {
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
+  const isCoachMode = Boolean(
+    promptData === true ||
+      promptData?.coachMode === true ||
+      promptData?.mode === 'coach' ||
+      extraOptions?.coachMode === true ||
+      extraOptions?.mode === 'coach'
+  );
+  const basePromptData =
+    typeof promptData === 'object' && promptData !== null
+      ? { ...promptData, ...(isCoachMode ? { coachMode: true, mode: 'coach' } : {}) }
+      : isCoachMode
+      ? { coachMode: true, mode: 'coach' }
+      : undefined;
+
   const isReadingAcademic =
     taskType === 'reading-academic' || taskType === 'reading_academic' || taskType === 'reading-passage';
   const isListeningWithExcerpt =
@@ -179,30 +193,34 @@ export async function callBackendGenerate(
     taskType === 'listen-repeat' ||
     taskType === 'speaking_listen_repeat' ||
     taskType === 'speaking-listen-repeat';
-  const readingQuestionFocus = promptData?.questionSkillFocus || promptData?.readingQuestionFocus || 'all';
+  const readingQuestionFocus =
+    basePromptData?.questionSkillFocus || basePromptData?.readingQuestionFocus || 'all';
   const enrichedPromptData = isReadingAcademic
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         questionSkillFocus: readingQuestionFocus,
         readingQuestionFocus,
-        requiredQuestionTypes: readingQuestionFocus === 'all' ? OFFICIAL_5_READING_QUESTION_TYPES : undefined,
+        requiredQuestionTypes:
+          readingQuestionFocus === 'all' ? OFFICIAL_5_READING_QUESTION_TYPES : undefined,
       }
     : isListeningWithExcerpt
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         requiresAudioExcerpt: true,
       }
     : isBuildSentence
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         ...OFFICIAL_BUILD_SENTENCE_SPEC,
+        itemsPerSet: isCoachMode ? 8 : OFFICIAL_BUILD_SENTENCE_SPEC.itemsPerSet,
       }
     : isListenRepeat
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         ...OFFICIAL_LISTEN_REPEAT_SPEC,
+        sentencesPerSet: isCoachMode ? 12 : OFFICIAL_LISTEN_REPEAT_SPEC.sentencesPerSet,
       }
-    : promptData;
+    : basePromptData;
 
   const options = {
     provider,
@@ -210,6 +228,7 @@ export async function callBackendGenerate(
     customApiKey: apiKey,
     providerKeys,
     availableKeys: providerKeys,
+    coachMode: isCoachMode,
     ...(extraOptions || {}),
   };
 
@@ -220,6 +239,7 @@ export async function callBackendGenerate(
       taskType,
       level,
       topic,
+      coachMode: isCoachMode,
       promptData: enrichedPromptData,
       customApiKey: apiKey,
       provider,

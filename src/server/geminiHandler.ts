@@ -23,9 +23,11 @@ import {
   normalizeListeningAnnouncementTask,
   normalizeListeningAcademicTalkTask,
   normalizeListeningDialogueTask,
+  canonicalizeTaskType,
 } from '../utils/taskNormalizer';
+import { COACH_CURATED_BANK } from '../utils/coachCuratedBank';
 
-export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
+export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string; coachMode?: boolean; mode?: 'exam' | 'coach' };
 
 export { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo };
 
@@ -106,12 +108,34 @@ export function getModelThinkingConfig(
   return null;
 }
 
+const CoachBlueprintSchema = z.array(
+  z.object({
+    step: z.string(),
+    description: z.string(),
+    starters: z.array(z.string()),
+  })
+).optional();
+
 const Schemas = {
-  completeWords: z.object({ title: z.string(), text: z.string(), totalBlanks: z.number() }),
+  completeWords: z.object({
+    title: z.string(),
+    text: z.string(),
+    totalBlanks: z.number(),
+    blanks: z.any().optional(),
+  }),
   readingPassage: z.object({
     title: z.string(),
     passage: z.string(),
-    questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
+    questions: z.array(
+      z.object({
+        q: z.string(),
+        options: z.array(z.string()),
+        answer: z.number(),
+        why: z.string(),
+        questionType: z.string().optional(),
+        hint: z.string().optional(),
+      })
+    ),
   }),
   listeningDialogue: z.object({
     title: z.string(),
@@ -119,14 +143,17 @@ const Schemas = {
     speakers: z.record(z.string(), z.string()),
     speakerGenders: z.record(z.string(), z.string()).default({ A: 'female', B: 'male' }),
     script: z.string(),
-    questions: z.array(z.object({
-      q: z.string(),
-      options: z.array(z.string()),
-      answer: z.number(),
-      why: z.string(),
-      audioExcerpt: z.string().optional(),
-      questionType: z.string().optional(),
-    })),
+    questions: z.array(
+      z.object({
+        q: z.string(),
+        options: z.array(z.string()),
+        answer: z.number(),
+        why: z.string(),
+        audioExcerpt: z.string().optional(),
+        questionType: z.string().optional(),
+        hint: z.string().optional(),
+      })
+    ),
   }),
   listenRepeat: z.object({
     title: z.string(),
@@ -139,7 +166,17 @@ const Schemas = {
     context: z.string(),
     interviewerName: z.string().default('Professor Lee'),
     interviewerGender: z.string().default('male'),
-    questions: z.array(z.object({ question: z.string(), prepTimeSeconds: z.number(), responseTimeSeconds: z.number(), suggestedPoints: z.array(z.string()) })),
+    questions: z.array(
+      z.object({
+        question: z.string(),
+        prepTimeSeconds: z.number(),
+        responseTimeSeconds: z.number(),
+        suggestedPoints: z.array(z.string()),
+        speakingFormula: z.array(z.string()).optional(),
+        topicVocabulary: z.array(z.string()).optional(),
+        sentenceStarters: z.array(z.string()).optional(),
+      })
+    ),
   }),
   buildSentence: z.object({
     title: z.string(),
@@ -164,6 +201,7 @@ const Schemas = {
     recipient: z.string(),
     goals: z.array(z.string()),
     suggestedWordCount: z.string(),
+    coachBlueprint: CoachBlueprintSchema,
   }),
   academicDiscussion: z.object({
     title: z.string(),
@@ -172,15 +210,18 @@ const Schemas = {
     s1: z.object({ name: z.string(), text: z.string() }),
     s2: z.object({ name: z.string(), text: z.string() }),
     question: z.string(),
+    coachBlueprint: CoachBlueprintSchema,
   }),
   vocabularyExplanation: z.object({
     word: z.string(),
     phonetic: z.string().optional().default(''),
-    meanings: z.array(z.object({
-      partOfSpeech: z.string(),
-      definition: z.string(),
-      example: z.string().optional().default(''),
-    })),
+    meanings: z.array(
+      z.object({
+        partOfSpeech: z.string(),
+        definition: z.string(),
+        example: z.string().optional().default(''),
+      })
+    ),
     examples: z.array(z.string()).optional().default([]),
     synonyms: z.array(z.string()).optional().default([]),
   }),
@@ -189,31 +230,40 @@ const Schemas = {
     formatType: z.string().default('notice'),
     context: z.string(),
     contentText: z.string(),
-    questions: z.array(z.object({
-      q: z.string(),
-      options: z.array(z.string()),
-      answer: z.number(),
-      why: z.string(),
-      questionType: z.string().optional(),
-    })),
+    questions: z.array(
+      z.object({
+        q: z.string(),
+        options: z.array(z.string()),
+        answer: z.number(),
+        why: z.string(),
+        questionType: z.string().optional(),
+        hint: z.string().optional(),
+      })
+    ),
   }),
   listeningChooseResponse: z.object({
     title: z.string(),
     category: z.string().optional().default('Campus Life'),
-    items: z.array(z.object({
-      audioPrompt: z.string(),
-      speakerName: z.string().default('Campus Speaker'),
-      speakerGender: z.string().default('male'),
-      options: z.array(z.string()),
-      answer: z.number(),
-      why: z.string(),
-    })).optional(),
+    items: z
+      .array(
+        z.object({
+          audioPrompt: z.string(),
+          speakerName: z.string().default('Campus Speaker'),
+          speakerGender: z.string().default('male'),
+          options: z.array(z.string()),
+          answer: z.number(),
+          why: z.string(),
+          coachTip: z.string().optional(),
+        })
+      )
+      .optional(),
     audioPrompt: z.string().optional(),
     speakerName: z.string().optional().default('Campus Speaker'),
     speakerGender: z.string().optional().default('male'),
     options: z.array(z.string()).optional(),
     answer: z.number().optional(),
     why: z.string().optional(),
+    coachTip: z.string().optional(),
   }),
   listeningAnnouncement: z.object({
     title: z.string(),
@@ -221,12 +271,16 @@ const Schemas = {
     speakerName: z.string().default('University Administrator'),
     speakerGender: z.string().default('female'),
     script: z.string(),
-    questions: z.array(z.object({
-      q: z.string(),
-      options: z.array(z.string()),
-      answer: z.number(),
-      why: z.string(),
-    })),
+    questions: z.array(
+      z.object({
+        q: z.string(),
+        options: z.array(z.string()),
+        answer: z.number(),
+        why: z.string(),
+        questionType: z.string().optional(),
+        hint: z.string().optional(),
+      })
+    ),
   }),
   listeningAcademicTalk: z.object({
     title: z.string(),
@@ -234,14 +288,17 @@ const Schemas = {
     speakerName: z.string().default('Professor'),
     speakerGender: z.string().default('male'),
     script: z.string(),
-    questions: z.array(z.object({
-      q: z.string(),
-      options: z.array(z.string()),
-      answer: z.number(),
-      why: z.string(),
-      audioExcerpt: z.string().optional(),
-      questionType: z.string().optional(),
-    })),
+    questions: z.array(
+      z.object({
+        q: z.string(),
+        options: z.array(z.string()),
+        answer: z.number(),
+        why: z.string(),
+        audioExcerpt: z.string().optional(),
+        questionType: z.string().optional(),
+        hint: z.string().optional(),
+      })
+    ),
   }),
 };
 
@@ -322,7 +379,8 @@ function normalizeAcademicDiscussion(data: any) {
   };
 
   const question = String(data.question || data.instruction || 'Participate in the discussion by responding to the professor and explaining your position.');
-  return { title, professorName: profName, professorPrompt: profPrompt, s1: s1Norm, s2: s2Norm, question };
+  const coachBlueprint = Array.isArray(data.coachBlueprint) ? data.coachBlueprint : undefined;
+  return { title, professorName: profName, professorPrompt: profPrompt, s1: s1Norm, s2: s2Norm, question, ...(coachBlueprint ? { coachBlueprint } : {}) };
 }
 
 function normalizeCompleteWords(data: any) {
@@ -334,7 +392,7 @@ function normalizeCompleteWords(data: any) {
     throw new Error('AI response missing valid complete_words paragraph text');
   }
 
-  const normalized = normalizeCompleteWordsTask({ title, text: rawText });
+  const normalized = normalizeCompleteWordsTask({ title, text: rawText, totalBlanks: data.totalBlanks });
   return {
     title: normalized.title,
     text: normalized.text,
@@ -352,8 +410,8 @@ function normalizeReadingPassage(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length < 3 || rawQs.length > 5) {
-    throw new Error(`Reading comprehension requires 3 to 5 questions (received ${rawQs.length})`);
+  if (rawQs.length < 3 || rawQs.length > 10) {
+    throw new Error(`Reading comprehension requires 3 to 10 questions (received ${rawQs.length})`);
   }
 
   const preValidated = rawQs.map((q: any, idx: number) => {
@@ -382,6 +440,8 @@ function normalizeReadingPassage(data: any) {
       options,
       answer,
       why: String(q.why || q.explanation || q.reason || 'Accurately supported by passage evidence.'),
+      ...(q.questionType ? { questionType: String(q.questionType).trim() } : {}),
+      ...(q.hint ? { hint: String(q.hint).trim() } : {}),
     };
   });
 
@@ -423,8 +483,8 @@ function normalizeListeningDialogue(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length < 2 || rawQs.length > 5) {
-    throw new Error(`Listening conversation requires 2 to 5 questions (received ${rawQs.length})`);
+  if (rawQs.length < 2 || rawQs.length > 6) {
+    throw new Error(`Listening conversation requires 2 to 6 questions (received ${rawQs.length})`);
   }
 
   const preValidated = rawQs.map((q: any, idx: number) => {
@@ -455,16 +515,18 @@ function normalizeListeningDialogue(data: any) {
       why: String(q.why || q.explanation || q.reason || 'Supported by dialogue.'),
       ...(q.audioExcerpt ? { audioExcerpt: String(q.audioExcerpt).trim() } : {}),
       ...(q.questionType ? { questionType: String(q.questionType).trim() } : {}),
+      ...(q.hint ? { hint: String(q.hint).trim() } : {}),
     };
   });
 
+  const maxQs = preValidated.length >= 4 ? Math.min(preValidated.length, 6) : 2;
   const normalized = normalizeListeningDialogueTask({
     title,
     context,
     speakers,
     speakerGenders,
     script,
-    questions: preValidated.slice(0, 2),
+    questions: preValidated.slice(0, maxQs),
   });
 
   return {
@@ -515,8 +577,8 @@ function normalizeSpeakingInterview(data: any) {
     });
   }
 
-  // If more than 4, slice to 4
-  const activeQs = rawQs.slice(0, 4);
+  // Allow up to 6 questions for Coach & Marathon Mode
+  const activeQs = rawQs.slice(0, 6);
 
   const questions = activeQs.map((q: any, idx: number) => {
     if (!q || typeof q !== 'object') throw new Error(`Interview question ${idx + 1} is invalid`);
@@ -532,6 +594,9 @@ function normalizeSpeakingInterview(data: any) {
       prepTimeSeconds: prepTime,
       responseTimeSeconds: respTime,
       suggestedPoints,
+      ...(Array.isArray(q.speakingFormula) ? { speakingFormula: q.speakingFormula.map(String).filter(Boolean) } : {}),
+      ...(Array.isArray(q.topicVocabulary) ? { topicVocabulary: q.topicVocabulary.map(String).filter(Boolean) } : {}),
+      ...(Array.isArray(q.sentenceStarters) ? { sentenceStarters: q.sentenceStarters.map(String).filter(Boolean) } : {}),
     };
   });
   return { title, context, interviewerName, interviewerGender, questions };
@@ -542,8 +607,8 @@ function normalizeBuildSentence(data: any) {
   const title = String(data.title || '').trim();
   if (!title) throw new Error('Build a Sentence missing title');
   const rawItems = Array.isArray(data.items) ? data.items : [];
-  if (rawItems.length !== 5) {
-    throw new Error(`Build a sentence requires exactly 5 items (received ${rawItems.length})`);
+  if (rawItems.length < 5 || rawItems.length > 10) {
+    throw new Error(`Build a sentence requires 5 to 10 items (received ${rawItems.length})`);
   }
   rawItems.forEach((it: any, idx: number) => {
     if (!it || typeof it !== 'object') throw new Error(`Build sentence item ${idx + 1} is invalid`);
@@ -600,7 +665,8 @@ function normalizeWriteEmail(data: any) {
   if (!suggestedWordCount) {
     throw new Error('Write an Email missing suggestedWordCount');
   }
-  return { title, situation, recipient, goals, suggestedWordCount };
+  const coachBlueprint = Array.isArray(data.coachBlueprint) ? data.coachBlueprint : undefined;
+  return { title, situation, recipient, goals, suggestedWordCount, ...(coachBlueprint ? { coachBlueprint } : {}) };
 }
 
 function normalizeVocabularyExplanation(data: any): any {
@@ -799,6 +865,15 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{
 }
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions, promptData?: any) {
+  const optsObj = typeof options === 'object' && options !== null ? options : {};
+  const isCoachMode = Boolean(
+    promptData === true ||
+      promptData?.coachMode === true ||
+      promptData?.mode === 'coach' ||
+      optsObj.coachMode === true ||
+      optsObj.mode === 'coach'
+  );
+
   const taskMap: Record<string, string> = {
     'complete-words': 'completeWords',
     complete_words: 'completeWords',
@@ -890,6 +965,14 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
     switch (tType) {
       case 'complete-words':
       case 'complete_words':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create a Marathon "Complete the Words" (C-Test) item for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Write a cohesive, multi-paragraph academic passage of strictly 160 to 200 words (6 to 8 sentences) with ZERO brackets [ ].
+2. Sentence 1 MUST be a clear introductory sentence (12-16 words).
+3. Set "totalBlanks": 22 so the C-Test engine blanks every 2nd word after Sentence 1 for 22 blanks.
+Return JSON format: {"title": "Marathon Academic Topic Title", "text": "The full 160-200 word plain-English academic passage with ZERO brackets", "totalBlanks": 22}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Write a cohesive, natural, 100% plain-English academic paragraph of strictly 65 to 85 words (exactly 3 to 4 sentences total) with ZERO brackets [ ].
@@ -900,6 +983,15 @@ STRICT 2026 TOEFL iBT SPECIFICATIONS:
 Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 65-85 word plain-English academic paragraph with ZERO brackets", "totalBlanks": 10}`;
       case 'daily-life':
       case 'daily_life':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create an Extended "Read in Daily Life" item for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", "invoice", or "social-post".
+2. Write a detailed realistic text of 110 to 160 words (contentText).
+3. Include EXACTLY 4 multiple-choice questions covering main_purpose, factual_detail, negative_factual, and inference.
+4. Include a "hint" field on each question pointing to the exact line/section clue and strategy.
+Return JSON format: {"title": "Title", "formatType": "email", "context": "Campus context description", "contentText": "Full text...", "questions": [{"q": "Question?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "why": "Explanation...", "questionType": "main_purpose", "hint": "Strategy & target clue in the document..."}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Reading "Read in Daily Life" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Page 6):
 1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", "invoice", or "social-post".
@@ -917,6 +1009,14 @@ Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campu
       case 'reading-passage':
       case 'reading_academic':
       case 'reading-academic': {
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create a Mega-Passage "Read an Academic Passage" item with 8 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Write a 350 to 420 word multi-paragraph university-level academic passage (4 focused paragraphs).
+2. Provide EXACTLY 8 multiple-choice questions covering ALL official reading question types: Factual Detail, Negative Factual (EXCEPT/NOT), Vocabulary in Context, Inference, Rhetorical Purpose, Sentence Relationship, and Main Idea Summary.
+3. Every question MUST include a "hint" field pointing to the exact paragraph/sentence clue and explaining the strategy for solving that question type.
+Return JSON format: {"title": "Passage Title", "passage": "350-420 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation...", "questionType": "Inference", "hint": "Paragraph 2 Clue & Strategy..."}]}`;
+        }
         const hasSpecificFocus = promptData?.questionSkillFocus && promptData.questionSkillFocus !== 'all';
         const skillDirective = hasSpecificFocus
           ? `NOTE: Focus questions specifically on the skill: ${promptData.questionSkillFocus} (all 5 questions testing ${promptData.questionSkillFocus}).`
@@ -937,6 +1037,14 @@ Return JSON format: {"title": "Passage Title", "passage": "180-210 word passage.
       }
       case 'listening-choose-response':
       case 'listening_choose_response':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create an 8-item TOEFL Listening "Listen & Choose a Response" practice set for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Provide EXACTLY 8 independent short items in the \`items\` array.
+2. Each item's \`audioPrompt\` MUST be a natural 1-sentence campus/everyday question or statement (6-15 words).
+3. Include a \`coachTip\` field on each item explaining the pragmatic intent, idiom, or indirect speech act.
+Return JSON format: {"title": "Marathon Pragmatics Set", "category": "Campus Life", "items": [{"audioPrompt": "Short 6-15 word question?", "speakerName": "Sarah", "speakerGender": "female", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Direct and natural response.", "coachTip": "Pragmatic clue explaining indirect speech act..."}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a 5-item TOEFL Listening "Listen & Choose a Response" practice set for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 8-9):
 1. Provide EXACTLY 5 independent short items in the \`items\` array.
@@ -947,6 +1055,13 @@ STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 8-9):
 Return JSON format: {"title": "Campus Interaction Set", "category": "Campus Life", "items": [{"audioPrompt": "Short 6-15 word question?", "speakerName": "Sarah", "speakerGender": "female", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Direct and natural response."}]}`;
       case 'listening-announcement':
       case 'listening_announcement':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create an Extended TOEFL Listening "Listen to an Announcement" item for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Write a 90 to 130 word spoken campus announcement (script).
+2. Follow with EXACTLY 4 comprehension questions, each with a "hint" field explaining what to listen for.
+Return JSON format: {"title": "Announcement Title", "context": "University announcement context", "speakerName": "Dean Williams", "speakerGender": "male", "script": "Attention all students...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "Explanation 1...", "hint": "Listen for the main policy change..."}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Announcement" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Write a strictly 45 to 80 word spoken campus announcement (script) by 1 university official or professor (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or filler text.
@@ -956,6 +1071,13 @@ Return JSON format: {"title": "Announcement Title", "context": "University annou
       case 'listening_academic_talk':
       case 'listening-lecture':
       case 'listening_lecture':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create an Extended TOEFL Listening "Listen to an Academic Talk" item for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Write a 200 to 260 word academic lecture (script).
+2. Follow with EXACTLY 5 comprehension questions (including 1 "audioExcerpt" pragmatic question) and include a "hint" field on each question.
+Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName": "Dr. Angela Evans", "speakerGender": "female", "script": "Good morning class...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Exact 1-sentence quote from the script.", "questionType": "Speaker's Purpose / Function", "options": ["A", "B", "C", "D"], "answer": 0, "why": "...", "hint": "Listen to how the professor introduces this example..."}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Academic Talk" item for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Write a strictly 140 to 200 word academic talk or mini-lecture (script) by a university educator (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or redundant concluding summaries.
@@ -970,6 +1092,13 @@ Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName":
       case 'listening_dialogue':
       case 'listening-conversation':
       case 'listening_conversation':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create an Extended TOEFL Listening "Listen to a Conversation" task for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Write a natural 10 to 12 turn conversation of 130 to 170 words between 1 female and 1 male speaker.
+2. Follow with EXACTLY 4 multiple-choice questions (including 1 "audioExcerpt" question) and include a "hint" field on every question.
+Return JSON format: {"title": "Conversation Title", "context": "Listen to a conversation between a student and a professor.", "speakers": {"A": "Emma (Student)", "B": "Professor Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma: ...\\nProfessor Miller: ...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Professor Miller: Exact 1-sentence turn from the script.", "questionType": "Speaker's Purpose / Function", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation 1...", "hint": "Listen for the professor's concern in Turn 4..."}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to a Conversation" task for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 9-10):
 1. Write a short, natural 8 to 10 turn conversation of strictly 75 to 110 words total (5 to 15 words per turn, like a real 30-second spoken campus exchange—NOT a long multi-sentence monologue!) between two distinct speakers (1 female and 1 male with clear names, e.g., "Emma (Student)" & "Professor Miller", or "Lucas (Student)" & "Ms. Rivera (Librarian)").
@@ -982,6 +1111,14 @@ Return JSON format: {"title": "Conversation Title", "context": "Listen to a conv
       case 'listen-repeat':
       case 'speaking_listen_repeat':
       case 'speaking-listen-repeat':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create a 12-sentence TOEFL Speaking "Listen and Repeat" Shadowing & Prosody set for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. All 12 sentences MUST be spoken by ONE single person in one continuous campus/academic orientation scenario.
+2. Progress smoothly from 6 words (Sentence 1) up to 18 words (Sentence 12).
+3. Insert " | " prosody chunking bars between natural 3-5 word phrase groups in every sentence so students can practice chunked shadowing!
+Return JSON format: {"title": "Orientation Shadowing Set", "speakerName": "Sarah (Lab Coordinator)", "speakerGender": "female", "sentences": ["Welcome to the | undergraduate biology laboratory.", "Please store your backpacks | inside the hallway lockers."]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 ETS TOEFL iBT "LISTEN AND REPEAT" SPECIFICATIONS:
 1. COHESIVE SINGLE-SPEAKER SCENARIO: All 7 sentences in the set MUST be spoken by ONE single person (e.g., "Sarah (Lab Coordinator)", "Marcus (Head Librarian)", "Dr. Chen (Observatory Guide)", "Clara (Museum Docent)", "David (Academic Advisor)") directly addressing the listener ("Welcome to...", "Please store...", "You will find...", "If you need...") in ONE continuous, coherent campus or academic orientation/tour scenario!
@@ -997,6 +1134,16 @@ STRICT 2026 ETS TOEFL iBT "LISTEN AND REPEAT" SPECIFICATIONS:
 Return JSON format: {"title": "Biology Laboratory Safety Orientation", "speakerName": "Sarah (Lab Coordinator)", "speakerGender": "female", "sentences": ["Welcome to the undergraduate biology laboratory.", "Please store your backpacks inside the hallway lockers.", "Safety goggles and lab coats are required at all times.", "You will find clean glass slides inside the top cabinet drawer.", "Make sure to calibrate your microscope carefully before examining the tissue samples.", "Dispose of all used pipettes and gloves in the labeled biohazard container near the sink.", "If any chemical spill occurs during the experiment, notify your laboratory supervisor immediately for assistance."]}`;
       case 'speaking-interview':
       case 'speaking_interview':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon Speaking examiner. Create a 6-question TOEFL Speaking "Take an Interview" coaching set for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Provide 6 progressive interview questions on the topic (prepTimeSeconds: 15, responseTimeSeconds: 90).
+2. On EVERY question, include:
+   - "speakingFormula": array of 3 step-by-step response steps
+   - "topicVocabulary": array of 3 high-scoring Band 6.0 vocabulary phrases
+   - "sentenceStarters": array of 2 natural spoken sentence starters
+Return JSON format: {"title": "Marathon Interview Simulation", "context": "Brief interviewer introduction", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Q1...", "prepTimeSeconds": 15, "responseTimeSeconds": 90, "suggestedPoints": ["Point 1", "Point 2"], "speakingFormula": ["Step 1...", "Step 2...", "Step 3..."], "topicVocabulary": ["phrase 1", "phrase 2", "phrase 3"], "sentenceStarters": ["From my perspective, ...", "For instance, ..."]}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Format interviewerName with a realistic name and gender tag, e.g. "Prof. Lee (Male)" or "Dr. Patel (Female)".
@@ -1009,6 +1156,14 @@ STRICT 2026 TOEFL iBT SPECIFICATIONS:
 Return JSON format: {"title": "University Interview Simulation", "context": "Brief interviewer introduction to the topic", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Q1...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q2...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q3...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q4...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
       case 'build-sentence':
       case 'writing_build_sentence':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Coach & Marathon test creator. Create an 8-item TOEFL Writing "Build a Sentence" syntax marathon set for level: ${levelDesc}. Topic: ${top}.
+COACH & MARATHON SPECIFICATIONS:
+1. Provide EXACTLY 8 conversational exchanges in the \`items\` array.
+2. Keep every tile in \`targetChunks\`, \`distractorChunks\`, and \`words\` 100% lowercase (except "I").
+3. Include a detailed \`grammarRule\` on each item explaining the exact syntactic construction.
+Return JSON format: {"title": "Build a Sentence: Marathon Syntax", "items": [{"context": "What did you think of the guided tour?", "framePrefix": "The", "frameSuffix": "fantastic.", "targetChunks": ["tour guides", "who", "showed us around", "the", "old", "city", "were"], "distractorChunks": ["was"], "words": ["old", "were", "who", "was", "tour guides", "city", "the", "showed us around"], "targetSentence": "The tour guides who showed us around the old city were fantastic.", "answer": "The tour guides who showed us around the old city were fantastic.", "grammarRule": "Subject relative clause modifying plural noun requires plural verb.", "explanation": "Subject relative clause modifying plural noun requires plural verb."}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT test creator. Create a 5-item TOEFL Writing "Build a Sentence" set for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 ETS TOEFL iBT "BUILD A SENTENCE" SPECIFICATIONS:
 1. Provide EXACTLY 5 conversational exchanges in the \`items\` array.
@@ -1031,6 +1186,10 @@ STRICT 2026 ETS TOEFL iBT "BUILD A SENTENCE" SPECIFICATIONS:
 Return JSON format: {"title": "Build a Sentence: Campus & Academic Syntax", "items": [{"context": "What did you think of the guided tour of the historical district?", "framePrefix": "The", "frameSuffix": "fantastic.", "targetChunks": ["tour guides", "who", "showed us around", "the", "old", "city", "were"], "distractorChunks": ["was"], "words": ["old", "were", "who", "was", "tour guides", "city", "the", "showed us around"], "targetSentence": "The tour guides who showed us around the old city were fantastic.", "answer": "The tour guides who showed us around the old city were fantastic.", "grammarRule": "Subject relative clause ('who showed us around the old city') modifying plural 'tour guides', requiring plural verb 'were' instead of 'was'.", "explanation": "Subject relative clause ('who showed us around the old city') modifying plural 'tour guides', requiring plural verb 'were' instead of 'was'."}]}`;
       case 'write-email':
       case 'writing_email':
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Writing Coach. Create a TOEFL Writing "Write an Email" prompt with a 4-stage "coachBlueprint" for level: ${levelDesc}. Topic: ${top}.
+Return JSON format: {"title": "Email Task Title", "situation": "Detailed campus or academic scenario description...", "recipient": "Recipient name and role", "goals": ["Specific bullet point 1", "Specific bullet point 2", "Specific bullet point 3"], "suggestedWordCount": "110-150 words", "coachBlueprint": [{"step": "Stage 1: Opening & Purpose", "description": "Address recipient and state purpose.", "starters": ["Dear ..., I am writing to ...", "I hope this message finds you well. I am reaching out regarding ..."]}, {"step": "Stage 2: Addressing Goal 1 & 2", "description": "Explain context and details.", "starters": ["Specifically, ...", "Furthermore, ..."]}, {"step": "Stage 3: Addressing Goal 3", "description": "Propose next step or request.", "starters": ["Would it be possible to ...", "I would appreciate it if ..."]}, {"step": "Stage 4: Professional Sign-Off", "description": "Close politely.", "starters": ["Thank you for your time and consideration.\\nSincerely,"]}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT Writing test designer. Create a 7-minute TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Provide a clear campus or academic scenario (\`situation\`), \`recipient\` name and role, and EXACTLY 3 specific bullet points (\`goals\`) the student must accomplish in their email.
@@ -1069,6 +1228,10 @@ Return valid JSON matching this schema:
       case 'academic-discussion':
       case 'writing_discussion':
       default:
+        if (isCoachMode) {
+          return `You are an official ETS 2026 TOEFL iBT Writing Coach. Create a TOEFL Writing "Writing for an Academic Discussion" prompt with a 4-stage "coachBlueprint" for level: ${levelDesc}. Topic: ${top}.
+Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "50-70 word professor question...", "s1": {"name": "Student A", "text": "50-70 word post taking viewpoint 1..."}, "s2": {"name": "Student B", "text": "50-70 word post taking contrasting viewpoint 2..."}, "question": "Express and support your personal opinion in the academic discussion forum, contributing a new point beyond the existing student posts.", "coachBlueprint": [{"step": "Stage 1: State Your Thesis", "description": "Directly answer the professor's prompt.", "starters": ["In my view, ...", "While both perspectives have merit, I strongly contend that ..."]}, {"step": "Stage 2: Engage with a Classmate", "description": "Acknowledge and build upon or counter a student's point.", "starters": ["While I understand Student A's point regarding ..., it overlooks ...", "Building upon Student B's observation about ..., I would add that ..."]}, {"step": "Stage 3: Introduce Your Original Argument & Example", "description": "Provide a concrete mechanism or real-world example.", "starters": ["A more compelling factor to consider is ...", "For example, empirical studies demonstrate that ..."]}, {"step": "Stage 4: Concluding Policy Synthesis", "description": "Tie your argument back to the broader question.", "starters": ["Ultimately, prioritizing ... ensures long-term sustainability."]}]}`;
+        }
         return `You are an official ETS 2026 TOEFL iBT Writing test designer. Create a 10-minute TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
 1. Provide a professor's course question (\`professorPrompt\`, 50-70 words) posing an open-ended academic debate question.
@@ -1193,6 +1356,23 @@ Return JSON format: {"title": "Academic Discussion Board", "professorName": "Pro
   const isQuota = isQuotaExhaustedError(lastError) || getStatus(lastError) === 429;
   const rateLimit = isQuota ? parseRateLimitFromError(lastError) : undefined;
   const errMsg = extractErrorMessage(lastError, 'AI Service');
+
+  if (isCoachMode) {
+    const canonicalType = canonicalizeTaskType(taskType);
+    const coachList = COACH_CURATED_BANK[canonicalType] || [];
+    const coachItem = coachList.length > 0 ? coachList[Math.floor(Math.random() * coachList.length)] : null;
+    if (coachItem) {
+      return {
+        ...coachItem,
+        isFallback: true,
+        isQuotaExhausted: isQuota,
+        rateLimit,
+        fallbackReason: errMsg,
+        modelUsed: 'Curated Coach & Marathon Question Bank',
+      };
+    }
+  }
+
   const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
   const curatedTasks = CURATED[curatedKey] as any[];
   const item = curatedTasks ? curatedTasks[Math.floor(Math.random() * curatedTasks.length)] : null;

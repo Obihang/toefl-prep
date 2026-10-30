@@ -218,8 +218,8 @@ export function stripSpeakerAndFormatting(text: string): string {
   // 4. Strip parenthesized stage directions e.g. (pauses), (laughs), (clears throat)
   cleaned = cleaned.replace(/\((?:pauses?|sighs?|laughs?|chuckles?|clears throat|applause|cheering|coughing|sound|music|gasp|whispering|shouting|silence|interrupted)\)/gi, ' ');
 
-  // 5. Strip markdown formatting (*, **, _, __, #, `, >)
-  cleaned = cleaned.replace(/[*_#`>]+/g, ' ');
+  // 5. Strip markdown formatting and prosody chunking bars (*, **, _, __, #, `, >, |)
+  cleaned = cleaned.replace(/[*_#`>|]+/g, ' ');
 
   // 6. Clean up whitespace
   return cleaned.replace(/\s+/g, ' ').trim();
@@ -769,7 +769,7 @@ export async function playDecodedSpeech(
 
   return new Promise<void>((resolve, reject) => {
     let finished = false;
-    const durationSec = audioBuffer.duration || 1;
+    const durationSec = (audioBuffer.duration || 1) / Math.max(0.5, playbackRate || 1.0);
     const timeoutMs = Math.round(durationSec * 1000) + 1500;
 
     const cleanup = () => {
@@ -1085,7 +1085,7 @@ export async function playSpeech(
         options.onStatus?.('Voice: Cached (Neural TTS)');
         options.onEngineDetected?.('Voice: Cached (Neural TTS)');
         options.onStart?.();
-        await playDecodedSpeech(fullMemHit, options.onEnd);
+        await playDecodedSpeech(fullMemHit, options.onEnd, undefined, options.rate || 1.0);
         return { ok: true };
       }
       return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
@@ -1129,7 +1129,9 @@ export async function playSpeech(
         const isLastChunk = cIdx === chunks.length - 1;
         await playDecodedSpeech(
           currentResult.audioBuffer,
-          isLastChunk ? options.onEnd : undefined
+          isLastChunk ? options.onEnd : undefined,
+          undefined,
+          options.rate || 1.0
         );
       }
 

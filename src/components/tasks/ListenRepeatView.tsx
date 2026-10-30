@@ -21,6 +21,7 @@ interface Props {
   onComplete?: (result: any) => void;
   keyboardShortcutHint?: string;
   activeCardHighlightClass?: string;
+  coachMode?: boolean;
 }
 
 interface SentenceState {
@@ -42,6 +43,7 @@ export const ListenRepeatView: React.FC<Props> = ({
   task,
   onNextTask,
   onComplete,
+  coachMode = false,
 }) => {
   const [states, setStates] = useState<SentenceState[]>(() =>
     task.sentences.map(() => ({
@@ -56,7 +58,8 @@ export const ListenRepeatView: React.FC<Props> = ({
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
-  const [showPromptText, setShowPromptText] = useState(false);
+  const [showPromptText, setShowPromptText] = useState<boolean>(() => Boolean(coachMode));
+  const [audioSpeed, setAudioSpeed] = useState<number>(1.0);
   const [autoStart, setAutoStart] = useState(true);
   const autoStartRef = useRef(autoStart);
   autoStartRef.current = autoStart;
@@ -120,7 +123,7 @@ export const ListenRepeatView: React.FC<Props> = ({
     blobsRef.current = {};
     setCurrentIndex(0);
     setStep('practice');
-    setShowPromptText(false);
+    setShowPromptText(Boolean(coachMode));
     setStates(
       task.sentences.map(() => ({
         userInput: '',
@@ -132,7 +135,7 @@ export const ListenRepeatView: React.FC<Props> = ({
     return () => {
       stopAllAudio();
     };
-  }, [task.id, stopAllAudio, task.sentences]);
+  }, [task.id, stopAllAudio, task.sentences, coachMode]);
 
   const speakerName = (task as any).speakerName || 'Narrator';
 
@@ -276,7 +279,7 @@ export const ListenRepeatView: React.FC<Props> = ({
           const audio = new Audio(savedClipUrl);
           audio.loop = false;
           activeAudioRef.current = audio;
-          audio.playbackRate = 1.0;
+          audio.playbackRate = coachMode ? audioSpeed : 1.0;
           audio.onended = async () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
             if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
@@ -896,7 +899,30 @@ export const ListenRepeatView: React.FC<Props> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {coachMode && (
+            <div className="inline-flex items-center bg-white border border-indigo-200 rounded-lg p-0.5 text-[11px] shadow-2xs">
+              {[
+                { rate: 0.85, label: '0.85x Slow' },
+                { rate: 1.0, label: '1.0x Normal' },
+                { rate: 1.15, label: '1.15x Fast' },
+              ].map((sp) => (
+                <button
+                  key={sp.rate}
+                  type="button"
+                  onClick={() => setAudioSpeed(sp.rate)}
+                  className={`px-2 py-1 rounded-md font-semibold transition-colors cursor-pointer ${
+                    audioSpeed === sp.rate
+                      ? 'bg-indigo-600 text-white'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  {sp.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => setShowPromptText((prev) => !prev)}
@@ -930,7 +956,7 @@ export const ListenRepeatView: React.FC<Props> = ({
               setAudioBlobs({});
               blobsRef.current = {};
               setCurrentIndex(0);
-              setShowPromptText(false);
+              setShowPromptText(Boolean(coachMode));
               setAutoStart(true);
               autoStartRef.current = true;
               handlePlay(0);
@@ -974,7 +1000,8 @@ export const ListenRepeatView: React.FC<Props> = ({
           const isTranscribingThis = activeMicIdx === idx && micStatus === 'transcribing';
           const isActiveCard =
             currentIndex === idx || isAudioPlaying || isRecordingThis || isTranscribingThis;
-          const wordCount = targetSentence.split(/\s+/).length;
+          const cleanDisplaySentence = targetSentence.replace(/\s*\|\s*/g, ' ').trim();
+          const wordCount = cleanDisplaySentence.split(/\s+/).filter(Boolean).length;
           const sentenceRubric = state.checked
             ? scoreListenRepeatSentence(state.scorePercent ?? 0, state.wordBreakdown)
             : null;
@@ -1037,15 +1064,40 @@ export const ListenRepeatView: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Question / Sentence Prompt: Hidden by default just like real exam */}
+              {/* Question / Sentence Prompt: Hidden by default in Exam Mode; Shown with Prosody Chunks in Coach Mode */}
               {!showPromptText && !state.checked ? (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-center gap-2">
                   <Headphones className="w-4 h-4 text-teal-600 shrink-0" />
                   <span>🎧 Listen to the sentence and speak after the beep (sentence text is hidden just like the real exam).</span>
                 </div>
               ) : !state.checked ? (
-                <div className="p-3 bg-teal-50/50 border border-teal-200 rounded-lg text-sm text-slate-800 font-medium leading-relaxed">
-                  "{targetSentence}"
+                <div className="p-3.5 bg-teal-50/50 border border-teal-200 rounded-lg text-sm text-slate-800 font-medium leading-relaxed space-y-1">
+                  {coachMode && targetSentence.includes('|') ? (
+                    <>
+                      <div className="text-[11px] font-bold text-indigo-800 uppercase tracking-wider">
+                        🎓 Shadowing &amp; Prosody Chunking Guide (pause briefly at each | marker):
+                      </div>
+                      <div>
+                        &ldquo;
+                        {targetSentence.split('|').map((chunk, cIdx, arr) => (
+                          <React.Fragment key={cIdx}>
+                            <span>{chunk.trim()}</span>
+                            {cIdx < arr.length - 1 && (
+                              <span
+                                className="mx-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-mono font-bold text-xs"
+                                title="Natural prosody pause / intonation boundary"
+                              >
+                                |
+                              </span>
+                            )}
+                          </React.Fragment>
+                        ))}
+                        &rdquo;
+                      </div>
+                    </>
+                  ) : (
+                    <div>&ldquo;{cleanDisplaySentence}&rdquo;</div>
+                  )}
                 </div>
               ) : null}
 

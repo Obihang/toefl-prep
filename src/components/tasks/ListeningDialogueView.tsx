@@ -27,6 +27,7 @@ interface Props {
   rightColumnClassName?: string;
   footerBarClassName?: string;
   excerptBadgeLabel?: string;
+  coachMode?: boolean;
 }
 
 type CanonicalSpeakerRole = 'professor' | 'student';
@@ -442,6 +443,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
         resolved.spokenText,
         resolved.gender,
         {
+          rate: coachMode ? audioSpeed : 1.0,
           voice: resolved.voiceId,
           voiceName: resolved.voiceId,
           gender: resolved.gender,
@@ -529,7 +531,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
               }
               const audio = new Audio(clipUrl);
               activeAudioRef.current = audio;
-              audio.playbackRate = 1.0;
+              audio.playbackRate = coachMode ? audioSpeed : 1.0;
               audio.onended = () => {
                 if (activeAudioRef.current === audio) activeAudioRef.current = null;
                 resolve();
@@ -555,6 +557,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
           }
           const audio = new Audio(audioUrl);
           activeAudioRef.current = audio;
+          audio.playbackRate = coachMode ? audioSpeed : 1.0;
           audio.onended = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
             resolve();
@@ -592,6 +595,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
               turn.spokenText,
               turn.gender,
               {
+                rate: coachMode ? audioSpeed : 1.0,
                 voice: turn.voiceId,
                 voiceName: turn.voiceId,
                 gender: turn.gender,
@@ -704,6 +708,8 @@ export const ListeningDialogueView: React.FC<Props> = ({
     setSubmitted(false);
     setListeningAudioFinished(false);
     setActiveQuestionIdx(0);
+    setRevealedHints({});
+    setCheckedQuestions({});
   };
 
   const score = submitted ? calculateScore() : 0;
@@ -841,8 +847,8 @@ export const ListeningDialogueView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Animated Waveform Visualizer */}
-        <div className="mt-5 pt-4 border-t border-slate-800 flex items-center justify-between gap-2">
+        {/* Animated Waveform Visualizer & Coach Audio Speed */}
+        <div className="mt-5 pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <Volume2 className={`w-4 h-4 ${isPlaying ? 'text-teal-400' : playCount > 0 ? 'text-amber-400' : 'text-slate-500'}`} />
             <span className="text-xs font-mono text-slate-300">
@@ -854,19 +860,44 @@ export const ListeningDialogueView: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="flex items-end gap-1 h-6">
-            {[4, 12, 8, 16, 22, 14, 9, 20, 15, 6, 18, 11, 24, 17, 8, 14, 5].map((h, i) => (
-              <div
-                key={i}
-                className={`w-1 rounded-full transition-all duration-150 ${
-                  isPlaying ? 'bg-teal-400 animate-pulse' : 'bg-slate-700'
-                }`}
-                style={{
-                  height: isPlaying ? `${Math.max(4, (h * (i % 2 === 0 ? 1 : 0.7)))}px` : '4px',
-                  animationDelay: `${i * 70}ms`,
-                }}
-              />
-            ))}
+          <div className="flex items-center gap-3">
+            {coachMode && (
+              <div className="inline-flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-[11px]">
+                {[
+                  { rate: 0.85, label: '0.85x Slow' },
+                  { rate: 1.0, label: '1.0x Normal' },
+                  { rate: 1.15, label: '1.15x Fast' },
+                ].map((sp) => (
+                  <button
+                    key={sp.rate}
+                    type="button"
+                    onClick={() => setAudioSpeed(sp.rate)}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                      audioSpeed === sp.rate
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {sp.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-end gap-1 h-6">
+              {[4, 12, 8, 16, 22, 14, 9, 20, 15, 6, 18, 11, 24, 17, 8, 14, 5].map((h, i) => (
+                <div
+                  key={i}
+                  className={`w-1 rounded-full transition-all duration-150 ${
+                    isPlaying ? 'bg-teal-400 animate-pulse' : 'bg-slate-700'
+                  }`}
+                  style={{
+                    height: isPlaying ? `${Math.max(4, (h * (i % 2 === 0 ? 1 : 0.7)))}px` : '4px',
+                    animationDelay: `${i * 70}ms`,
+                  }}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -906,9 +937,9 @@ export const ListeningDialogueView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Right Column: Comprehension Questions (Shown only after audio finishes playing or when skipped/submitted) */}
+        {/* Right Column: Comprehension Questions (Shown immediately in Coach Mode, or after audio finishes in Exam Mode) */}
         <div className={`space-y-5 ${rightColumnClassName}`}>
-          {!listeningAudioFinished && !submitted ? (
+          {!listeningAudioFinished && !submitted && !coachMode ? (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <p className="text-sm text-slate-700 font-medium leading-relaxed">
                 🎧 Listen to the audio track completely. The comprehension questions will appear automatically once the audio finishes.
@@ -936,13 +967,14 @@ export const ListeningDialogueView: React.FC<Props> = ({
           const skillBadge = inferListeningQuestionType(q.q, q.questionType, Boolean(q.audioExcerpt));
           const isExcerptPlaying = playingExcerptIdx === qIdx;
           const isExcerptLoading = loadingExcerptIdx === qIdx;
+          const showEval = submitted || Boolean(coachMode && checkedQuestions[qIdx]);
 
           return (
             <div
               key={qIdx}
               id={`lis-question-${qIdx}`}
               className={`bg-white border rounded-xl p-5 shadow-xs transition-colors ${
-                submitted
+                showEval
                   ? isCorrect
                     ? 'border-emerald-200 bg-emerald-50/20'
                     : 'border-rose-200 bg-rose-50/20'
@@ -958,7 +990,44 @@ export const ListeningDialogueView: React.FC<Props> = ({
                     {skillBadge}
                   </span>
                 </div>
+                {coachMode && !submitted && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRevealedHints((prev) => ({
+                          ...prev,
+                          [qIdx]: !prev[qIdx],
+                        }))
+                      }
+                      className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                    >
+                      {revealedHints[qIdx] ? 'Hide Hint' : '💡 Coach Hint'}
+                    </button>
+                    {userChoice !== undefined && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCheckedQuestions((prev) => ({
+                            ...prev,
+                            [qIdx]: !prev[qIdx],
+                          }))
+                        }
+                        className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                      >
+                        {checkedQuestions[qIdx] ? 'Hide Check' : '✓ Check Question'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {coachMode && revealedHints[qIdx] && !submitted && (
+                <div className="mb-3 p-3 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 leading-relaxed">
+                  <strong className="font-bold text-indigo-900">🎓 Listening Strategy &amp; Hint:</strong>{' '}
+                  {(q as any).hint || q.why}
+                </div>
+              )}
 
               {q.audioExcerpt && (
                 <div className="mb-3.5 p-3 rounded-xl bg-slate-900 text-white border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
@@ -966,7 +1035,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
                     <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
                       <span>{excerptBadgeLabel}</span>
                     </div>
-                    {submitted && (
+                    {(submitted || coachMode) && (
                       <p className="text-xs text-slate-300 italic leading-relaxed">
                         &ldquo;{stripSpeakerAndFormatting(q.audioExcerpt)}&rdquo;
                       </p>
@@ -1010,7 +1079,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
                   let optionClasses =
                     'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70 text-slate-800';
 
-                  if (submitted) {
+                  if (showEval) {
                     if (isRightOption) {
                       optionClasses = 'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium';
                     } else if (isSelected && !isRightOption) {
@@ -1043,7 +1112,7 @@ export const ListeningDialogueView: React.FC<Props> = ({
                 })}
               </div>
 
-              {submitted && (
+              {showEval && (
                 <div className="mt-3.5 pt-3 border-t border-slate-200/80 text-xs leading-relaxed">
                   <strong className={isCorrect ? 'text-emerald-700' : 'text-slate-800'}>
                     {isCorrect ? 'Correct!' : 'Official Explanation:'}

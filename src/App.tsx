@@ -115,7 +115,8 @@ import { WriteEmailView } from './components/tasks/WriteEmailView';
 import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionView';
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
 import { VoiceDiagnosticToast } from './components/shared/VoiceDiagnosticToast';
-import { ReadingQuestionSkill, READING_SKILL_OPTIONS } from './types';
+import { ReadingQuestionSkill, READING_SKILL_OPTIONS, PracticeMode } from './types';
+import { COACH_CURATED_BANK } from './utils/coachCuratedBank';
 
 import { TaskTypeId, TASK_DEFINITIONS } from './types/taskTypes';
 import {
@@ -138,6 +139,22 @@ const MockTestView = lazy(() => import('./components/ExamEngine').then(m => ({ d
 export default function App() {
   const { user, displayName } = useAuth();
   const [currentTaskType, setCurrentTaskType] = useState<TaskTypeId>('complete-words');
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>(() => {
+    try {
+      return localStorage.getItem('toefl_practice_mode') === 'coach' ? 'coach' : 'exam';
+    } catch {
+      return 'exam';
+    }
+  });
+  const practiceModeRef = React.useRef<PracticeMode>(practiceMode);
+  practiceModeRef.current = practiceMode;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('toefl_practice_mode', practiceMode);
+    } catch {}
+  }, [practiceMode]);
+
   const [level, setLevel] = useState<string>('all');
   const [topic, setTopic] = useState<string>('all');
   const [readingSkillFocus, setReadingSkillFocus] = useState<ReadingQuestionSkill>('all');
@@ -249,8 +266,8 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
     const syncBank = async () => {
-      await loadCuratedShard(currentTaskType);
-      const stats = await syncCuratedQuestionBank();
+      await loadCuratedShard(currentTaskType, practiceMode);
+      const stats = await syncCuratedQuestionBank(practiceMode);
       if (isMounted) {
         setBankStats({
           totalQuestions: stats.totalQuestions,
@@ -263,7 +280,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [currentTaskType]);
+  }, [currentTaskType, practiceMode]);
 
   // Active task payload per type
   const [customTasks, setCustomTasks] = useState<Record<string, any>>({});
@@ -283,12 +300,23 @@ export default function App() {
     'academic-discussion': 0,
   });
 
-  // Background question pre-fetch queue for instant generation
-  const [prefetchedQueue, setPrefetchedQueue] = useState<PrefetchQueue>(() => loadPrefetchQueueFromStorage());
+  // Background question pre-fetch queue for instant generation (strictly isolated by practiceMode)
+  const [prefetchedQueue, setPrefetchedQueue] = useState<PrefetchQueue>(() => loadPrefetchQueueFromStorage(practiceMode));
   const prefetchedQueueRef = useRef<PrefetchQueue>(prefetchedQueue);
   useEffect(() => {
     prefetchedQueueRef.current = prefetchedQueue;
   }, [prefetchedQueue]);
+
+  // When switching between Exam Mode and Coach Mode, reload isolated prefetch queue and clear custom task overrides
+  useEffect(() => {
+    stopSpeaking();
+    setCustomTasks({});
+    setTierNotice(null);
+    setGenerationError(null);
+    const loadedQueue = loadPrefetchQueueFromStorage(practiceMode);
+    setPrefetchedQueue(loadedQueue);
+    prefetchedQueueRef.current = loadedQueue;
+  }, [practiceMode]);
 
   const isPrefetchingRef = React.useRef<Record<string, boolean>>({});
   const failedRecentlyRef = React.useRef<Record<string, number>>({});
@@ -364,18 +392,31 @@ export default function App() {
     } catch {}
   }, [isWritingTimerEnabled]);
 
+  // Auto-adjust Writing timer mode when switching between Exam Mode and Coach Mode
+  useEffect(() => {
+    if (practiceMode === 'coach') {
+      setIsWritingTimerEnabled(false);
+      setIsWritingTimerRunning(false);
+    } else {
+      setIsWritingTimerEnabled(true);
+      if (currentTaskType === 'write-email' || currentTaskType === 'academic-discussion') {
+        setIsWritingTimerRunning(true);
+      }
+    }
+  }, [practiceMode]);
+
   // Auto-start Writing countdown timer whenever switching to Write an Email or Academic Discussion
   useEffect(() => {
     if (currentTaskType === 'write-email') {
       setWritingTimerSeconds(420);
-      setIsWritingTimerRunning(isWritingTimerEnabled);
+      setIsWritingTimerRunning(practiceMode === 'coach' ? false : isWritingTimerEnabled);
     } else if (currentTaskType === 'academic-discussion') {
       setWritingTimerSeconds(600);
-      setIsWritingTimerRunning(isWritingTimerEnabled);
+      setIsWritingTimerRunning(practiceMode === 'coach' ? false : isWritingTimerEnabled);
     } else {
       setIsWritingTimerRunning(false);
     }
-  }, [currentTaskType, isWritingTimerEnabled]);
+  }, [currentTaskType, isWritingTimerEnabled, practiceMode]);
 
   useEffect(() => {
     let timer: any = null;
@@ -425,18 +466,24 @@ export default function App() {
 
   // Next item in curated pool (prioritizing unpracticed questions first)
   const handleNextCurated = (type: TaskTypeId) => {
-    const loadedPool = getLoadedCuratedTasks(type, level, topic);
+    const loadedPool = getLoadedCuratedTasks(type, level, topic, practiceMode);
     const completedSet = new Set(getCompletedQuestionIds());
     let max = loadedPool.length;
     if (max === 0) {
-      if (type === 'complete-words') max = CURATED_COMPLETE_WORDS.length;
-      if (type === 'reading-passage') max = CURATED_READING_PASSAGES.length;
-      if (type === 'listening-dialogue') max = CURATED_LISTENING.length;
-      if (type === 'listen-repeat') max = CURATED_LISTEN_REPEAT.length;
-      if (type === 'speaking-interview') max = CURATED_SPEAKING_INTERVIEWS.length;
-      if (type === 'build-sentence') max = CURATED_BUILD_SENTENCES.length;
-      if (type === 'write-email') max = CURATED_WRITE_EMAILS.length;
-      if (type === 'academic-discussion') max = CURATED_ACADEMIC_DISCUSSIONS.length;
+      if (practiceMode === 'coach') {
+        const coachKey = type.replace(/-/g, '_');
+        const coachList = COACH_CURATED_BANK[coachKey] || COACH_CURATED_BANK[type] || [];
+        max = coachList.length || 1;
+      } else {
+        if (type === 'complete-words') max = CURATED_COMPLETE_WORDS.length;
+        if (type === 'reading-passage') max = CURATED_READING_PASSAGES.length;
+        if (type === 'listening-dialogue') max = CURATED_LISTENING.length;
+        if (type === 'listen-repeat') max = CURATED_LISTEN_REPEAT.length;
+        if (type === 'speaking-interview') max = CURATED_SPEAKING_INTERVIEWS.length;
+        if (type === 'build-sentence') max = CURATED_BUILD_SENTENCES.length;
+        if (type === 'write-email') max = CURATED_WRITE_EMAILS.length;
+        if (type === 'academic-discussion') max = CURATED_ACADEMIC_DISCUSSIONS.length;
+      }
     }
 
     // Clear custom task for this type so next curated item shows
@@ -477,7 +524,7 @@ export default function App() {
     setReportError(null);
 
     const completedSet = new Set(getCompletedQuestionIds());
-    const loadedPool = getLoadedCuratedTasks(type, level, topic);
+    const loadedPool = getLoadedCuratedTasks(type, level, topic, practiceMode);
     const activeId = activeTask?.id || (activeTask as any)?.questionDocId;
     const activeTitle = (activeTask as any)?.title;
 
@@ -505,21 +552,32 @@ export default function App() {
 
     if (shouldQueryBank) {
       try {
-        const shared = await fetchRandomSharedQuestion(type, level, topic);
+        const shared = await fetchRandomSharedQuestion(type, level, topic, practiceMode);
         if (shared && !isQuestionCompleted(shared, completedSet)) {
           if (shared.tier && shared.tier !== 'exact') {
             const lvlLabel = level !== 'all' && isValidLevel(level) ? LEVEL_LABELS[level] : level;
             const topLabel = topic !== 'all' && isValidAcademicTopic(topic) ? TOPIC_LABELS[topic] : topic;
             setTierNotice(`No exact match for ${lvlLabel} in ${topLabel}, showing a nearby question.`);
 
-            triggerBackgroundPrefetchIfNeeded(type, level, topic, async (tType, lvl, top) => {
-              const resp = await safeFetchJson('/api/generate-task', {
-                method: 'POST',
-                headers: getApiHeaders(),
-                body: JSON.stringify({ taskType: tType, level: lvl, topic: top }),
-              });
-              return resp.success && resp.data ? [resp.data] : [];
-            });
+            triggerBackgroundPrefetchIfNeeded(
+              type,
+              level,
+              topic,
+              async (tType, lvl, top) => {
+                const resp = await safeFetchJson('/api/generate-task', {
+                  method: 'POST',
+                  headers: getApiHeaders(),
+                  body: JSON.stringify({
+                    taskType: tType,
+                    level: lvl,
+                    topic: top,
+                    coachMode: practiceMode === 'coach',
+                  }),
+                });
+                return resp.success && resp.data ? [resp.data] : [];
+              },
+              practiceMode
+            );
           } else {
             setTierNotice(null);
           }
@@ -609,6 +667,8 @@ export default function App() {
     isPrefetchingRef.current[type] = true;
     lastPrefetchTimeRef.current = Date.now();
 
+    const activeModeAtStart = practiceModeRef.current;
+
     try {
       const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
@@ -617,11 +677,16 @@ export default function App() {
           taskType: type,
           level: concreteLevel,
           topic: concreteTopic,
+          coachMode: activeModeAtStart === 'coach',
         }),
       });
 
       if (json.success && !json.data.isFallback) {
-        if (lvl !== levelRef.current || top !== topicRef.current) {
+        if (
+          lvl !== levelRef.current ||
+          top !== topicRef.current ||
+          activeModeAtStart !== practiceModeRef.current
+        ) {
           return;
         }
 
@@ -644,7 +709,7 @@ export default function App() {
             ...prev,
             [type]: nextItems,
           };
-          savePrefetchQueueToStorage(nextQueue);
+          savePrefetchQueueToStorage(nextQueue, activeModeAtStart);
           return nextQueue;
         });
       } else {
@@ -694,7 +759,7 @@ export default function App() {
         }
       }
       if (changed) {
-        savePrefetchQueueToStorage(next);
+        savePrefetchQueueToStorage(next, practiceMode);
         return next;
       }
       return prev;
@@ -710,7 +775,7 @@ export default function App() {
       delete copy[currentTaskType];
       return copy;
     });
-  }, [level, topic, currentTaskType]);
+  }, [level, topic, currentTaskType, practiceMode]);
 
   // Sequential prefetch lock
   const inFlightLock = React.useRef(false);
@@ -759,7 +824,7 @@ export default function App() {
       isCancelled = true;
       clearTimeout(idleTimeout);
     };
-  }, [currentTaskType, level, topic, isGenerating, enablePrefetching]);
+  }, [currentTaskType, level, topic, isGenerating, enablePrefetching, practiceMode]);
 
   useEffect(() => {
     const handleKeyReset = () => {
@@ -778,7 +843,13 @@ export default function App() {
 
     // 1. Instant delivery if pre-fetched question is ready in the queue!
     if (hasReadyTask(prefetchedQueue, currentTaskType, concreteLevel, concreteTopic)) {
-      const { item: readyTask, updatedQueue } = popPrefetchedTask(prefetchedQueue, currentTaskType, concreteLevel, concreteTopic);
+      const { item: readyTask, updatedQueue } = popPrefetchedTask(
+        prefetchedQueue,
+        currentTaskType,
+        concreteLevel,
+        concreteTopic,
+        practiceMode
+      );
       if (readyTask) {
         setPrefetchedQueue(updatedQueue);
 
@@ -797,17 +868,20 @@ export default function App() {
         setGenerationSuccess(true);
         setTimeout(() => setGenerationSuccess(false), 3000);
 
-        saveVerifiedQuestion({
-          taskType: currentTaskType,
-          level: concreteLevel,
-          topic: concreteTopic,
-          content: readyTask,
-          audioUrl: readyTask.audioUrl || null,
-          audioClips: readyTask.audioClips || null,
-          source: 'ai',
-          generatedBy: displayName || getScholarUsername(),
-        })
-          .then(() => getQuestionBankStats().then(setBankStats))
+        saveVerifiedQuestion(
+          {
+            taskType: currentTaskType,
+            level: concreteLevel,
+            topic: concreteTopic,
+            content: readyTask,
+            audioUrl: readyTask.audioUrl || null,
+            audioClips: readyTask.audioClips || null,
+            source: 'ai',
+            generatedBy: displayName || getScholarUsername(),
+          },
+          practiceMode
+        )
+          .then(() => getQuestionBankStats(practiceMode).then(setBankStats))
           .catch(() => {});
 
         // Immediately replenish 1 standby question for the active task in the background
@@ -834,6 +908,7 @@ export default function App() {
           taskType: currentTaskType,
           level: concreteLevel,
           topic: concreteTopic,
+          coachMode: practiceMode === 'coach',
           promptData: readingSkillFocus !== 'all' ? { questionSkillFocus: readingSkillFocus } : undefined,
         }),
       });
@@ -870,22 +945,29 @@ export default function App() {
       }, currentTaskType);
 
       try {
-        const docId = await saveVerifiedQuestion({
-          taskType: currentTaskType,
-          level: concreteLevel,
-          topic: concreteTopic,
-          content: newTask,
-          source: 'ai',
-          generatedBy: displayName || getScholarUsername(),
-        });
+        const docId = await saveVerifiedQuestion(
+          {
+            taskType: currentTaskType,
+            level: concreteLevel,
+            topic: concreteTopic,
+            content: newTask,
+            source: 'ai',
+            generatedBy: displayName || getScholarUsername(),
+          },
+          practiceMode
+        );
         if (docId) {
           newTask.questionDocId = docId;
           newTask.createdByName = displayName || 'Anonymous Scholar';
           newTask.createdByUid = user?.uid || 'anonymous';
           newTask.isSharedBank = true;
-          setSharedBankNotice('Added to the shared question bank');
+          setSharedBankNotice(
+            practiceMode === 'coach'
+              ? 'Added to the isolated Coach & Marathon bank'
+              : 'Added to the shared question bank'
+          );
           setTimeout(() => setSharedBankNotice(null), 4000);
-          getQuestionBankStats().then(setBankStats).catch(() => {});
+          getQuestionBankStats(practiceMode).then(setBankStats).catch(() => {});
         }
       } catch (e: any) {
         console.warn('Failed to save to shared question bank:', e?.message || e);
@@ -934,12 +1016,12 @@ export default function App() {
     }
 
     if (!task) {
-      const loadedTasks = getLoadedCuratedTasks(currentTaskType, level, topic);
+      const loadedTasks = getLoadedCuratedTasks(currentTaskType, level, topic, practiceMode);
       const idx = curatedIndices[currentTaskType] || 0;
       if (loadedTasks && loadedTasks.length > 0) {
         task = loadedTasks[idx % loadedTasks.length];
       } else {
-        const allSectionTasks = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
+        const allSectionTasks = getLoadedCuratedTasks(currentTaskType, 'all', 'all', practiceMode);
         const levelMatches = allSectionTasks.filter((t) => matchesLevelFilter(t, level));
         const topicMatches = allSectionTasks.filter((t) => matchesTopicFilter(t, topic));
         const closestPool =
@@ -951,7 +1033,15 @@ export default function App() {
 
         if (closestPool.length > 0) {
           task = closestPool[idx % closestPool.length];
-        } else {
+        } else if (practiceMode === 'coach') {
+          const coachKey = currentTaskType.replace(/-/g, '_');
+          const coachList = COACH_CURATED_BANK[coachKey] || COACH_CURATED_BANK[currentTaskType] || [];
+          if (coachList.length > 0) {
+            task = coachList[idx % coachList.length];
+          }
+        }
+
+        if (!task) {
           switch (currentTaskType) {
             case 'complete-words':
               task = CURATED_COMPLETE_WORDS[idx % CURATED_COMPLETE_WORDS.length];
@@ -985,7 +1075,7 @@ export default function App() {
     }
 
     return normalizeTaskData(task, currentTaskType);
-  }, [customTasks, currentTaskType, level, topic, curatedIndices]);
+  }, [customTasks, currentTaskType, level, topic, curatedIndices, practiceMode]);
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
@@ -1111,8 +1201,45 @@ export default function App() {
         {/* Workspace Controls Deck: Task Type Segmented Bar */}
         <section aria-label="Task Selection Bar" className="space-y-3">
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="text-xs text-slate-500">
-              Select task format from official 2026 TOEFL iBT test specifications:
+            <div className="flex items-center gap-3 flex-wrap">
+              <div
+                role="group"
+                aria-label="Practice Mode Switcher"
+                className="inline-flex items-center p-1 bg-slate-200/90 rounded-xl border border-slate-300/70 shadow-2xs"
+              >
+                <button
+                  type="button"
+                  onClick={() => setPracticeMode('exam')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                    practiceMode === 'exam'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Official 2026 ETS Exam Simulation Mode (strict timers, official item counts, isolated Exam question bank)"
+                >
+                  <span>🎯 Official Exam Mode</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMockTest(false);
+                    setPracticeMode('coach');
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                    practiceMode === 'coach'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Coach & Marathon Mode (extended question volume, interactive hints, grammar & writing blueprints, audio speed control, isolated Coach question bank)"
+                >
+                  <span>🎓 Coach &amp; Marathon Mode</span>
+                </button>
+              </div>
+              <span className="text-xs text-slate-500 hidden lg:inline">
+                {practiceMode === 'coach'
+                  ? 'Extended marathon volume, step-by-step hints, writing & speaking blueprints, and isolated Coach bank'
+                  : 'Select task format from official 2026 TOEFL iBT test specifications:'}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400">Current Section:</span>
@@ -1121,6 +1248,19 @@ export default function App() {
               </span>
             </div>
           </div>
+
+          {practiceMode === 'coach' && !isMockTest && (
+            <div className="px-3.5 py-2 bg-indigo-50/90 border border-indigo-200 rounded-xl flex items-center justify-between gap-3 flex-wrap text-xs text-indigo-950">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-indigo-600 text-white font-bold rounded-md text-[10px] uppercase tracking-wider">
+                  Coach &amp; Marathon Bank
+                </span>
+                <span className="font-medium">
+                  Zero overlap with Exam Mode questions · Extended item counts · Interactive hints &amp; Band 6.0 blueprints enabled
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Section-Filtered Task Format Selector Bar */}
           <div className="p-1 bg-slate-200/80 rounded-xl flex items-center gap-1.5 flex-wrap">
@@ -1237,9 +1377,9 @@ export default function App() {
               )}
 
               {(() => {
-                const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
-                const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
-                const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic);
+                const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all', practiceMode);
+                const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || (practiceMode === 'coach' ? 2 : 10);
+                const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic, practiceMode);
                 const poolForPracticed = exactFilterMatches.length > 0 ? exactFilterMatches : loadedAllForSection;
                 const completedSet = new Set(completedQuestionIds);
                 const practicedCount = poolForPracticed.filter((q) => isQuestionCompleted(q, completedSet)).length;
@@ -1248,8 +1388,8 @@ export default function App() {
                     <Database className="w-3 h-3 text-teal-700 shrink-0" />
                     <span>
                       {exactFilterMatches.length > 0
-                        ? `${exactFilterMatches.length}/${sectionTotalCount} in bank`
-                        : `0 exact filter matches (showing closest from ${sectionTotalCount} in section)`}
+                        ? `${exactFilterMatches.length}/${sectionTotalCount} in ${practiceMode === 'coach' ? 'coach bank' : 'bank'}`
+                        : `0 exact filter matches (showing closest from ${sectionTotalCount} in ${practiceMode === 'coach' ? 'coach bank' : 'section'})`}
                     </span>
                     <span className="text-slate-300" aria-hidden="true">·</span>
                     <span className="text-emerald-700 font-semibold">
@@ -1539,8 +1679,9 @@ export default function App() {
 
               {currentTaskType === 'complete-words' && (
                 <CompleteWordsView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as CompleteWordsTask}
+                  coachMode={practiceMode === 'coach'}
                   wordWrapperClassName="inline-flex items-baseline whitespace-nowrap"
                   blankInputClassName="text-base font-semibold"
                   onComplete={() => markQuestionCompleted(activeTask)}
@@ -1550,8 +1691,9 @@ export default function App() {
 
               {currentTaskType === 'daily-life' && (
                 <DailyLifeView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
+                  coachMode={practiceMode === 'coach'}
                   skillFocus={readingSkillFocus}
                   leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
@@ -1563,8 +1705,9 @@ export default function App() {
 
               {(currentTaskType === 'reading-academic' || currentTaskType === 'reading-passage') && (
                 <ReadingPassageView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as ReadingPassageTask}
+                  coachMode={practiceMode === 'coach'}
                   skillFocus={readingSkillFocus}
                   leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
@@ -1576,8 +1719,9 @@ export default function App() {
 
               {currentTaskType === 'listening-choose-response' && (
                 <ListeningChooseResponseView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
+                  coachMode={practiceMode === 'coach'}
                   onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion('listening-choose-response')}
                 />
@@ -1585,8 +1729,9 @@ export default function App() {
 
               {(currentTaskType === 'listening-dialogue' || currentTaskType === 'listening-conversation') && (
                 <ListeningDialogueView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as ListeningTask}
+                  coachMode={practiceMode === 'coach'}
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
@@ -1598,8 +1743,9 @@ export default function App() {
 
               {currentTaskType === 'listening-announcement' && (
                 <ListeningAnnouncementView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
+                  coachMode={practiceMode === 'coach'}
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
@@ -1610,8 +1756,9 @@ export default function App() {
 
               {(currentTaskType === 'listening-academic-talk' || currentTaskType === 'listening-lecture') && (
                 <ListeningAcademicTalkView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
+                  coachMode={practiceMode === 'coach'}
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
@@ -1623,8 +1770,9 @@ export default function App() {
 
               {currentTaskType === 'build-sentence' && (
                 <BuildSentenceView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as BuildSentenceTask}
+                  coachMode={practiceMode === 'coach'}
                   onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
@@ -1632,8 +1780,9 @@ export default function App() {
 
               {currentTaskType === 'write-email' && (
                 <WriteEmailView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as WriteEmailTask}
+                  coachMode={practiceMode === 'coach'}
                   spellCheck={false}
                   annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
                   localGraderLabel="⚡ Instant Local Grader"
@@ -1664,8 +1813,9 @@ export default function App() {
 
               {currentTaskType === 'academic-discussion' && (
                 <AcademicDiscussionView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as AcademicDiscussionTask}
+                  coachMode={practiceMode === 'coach'}
                   spellCheck={false}
                   annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
                   localGraderLabel="⚡ Instant Local Grader"
@@ -1696,8 +1846,9 @@ export default function App() {
 
               {currentTaskType === 'listen-repeat' && (
                 <ListenRepeatView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as ListenRepeatTask}
+                  coachMode={practiceMode === 'coach'}
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   onComplete={() => {
                     markQuestionCompleted(activeTask);
@@ -1712,8 +1863,9 @@ export default function App() {
 
               {currentTaskType === 'speaking-interview' && (
                 <SpeakingInterviewView
-                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
+                  key={`${practiceMode}-${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as SpeakingInterviewTask}
+                  coachMode={practiceMode === 'coach'}
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   localGraderLabel="⚡ Instant Local Grader"
                   aiGraderLabel="✨ Deep AI Grader"
@@ -1789,6 +1941,7 @@ export default function App() {
           onClose={() => setIsDashboardOpen(false)} 
           defaultTab={dashboardDefaultTab}
           currentTaskType={currentTaskType}
+          practiceMode={practiceMode}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
           onResetProgress={handleResetAllProgress}

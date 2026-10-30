@@ -38,9 +38,10 @@ import {
   isValidAcademicTopic,
 } from '../constants/filters';
 import { inferTopic } from './inferTopic';
+import { COACH_CURATED_BANK } from './coachCuratedBank';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 export const CURRENT_BANK_SCHEMA_VERSION = 202612;
 export const TOEFL_2026_PURGE_V19 = 'toefl_bank_purged_2026_v20';
 export const TOEFL_2026_PURGE_V18 = TOEFL_2026_PURGE_V19;
@@ -64,6 +65,14 @@ export const STATIC_SHARDS_SYNC_KEY = 'toefl_static_shards_synced_v30';
 
 export function canonicalizeTaskType(taskType: string): string {
   return normalizerCanonicalizeTaskType(taskType);
+}
+
+export function getIdbStoreName(mode: 'exam' | 'coach' = 'exam'): string {
+  return mode === 'coach' ? 'coach_questions' : 'toefl_question_bank';
+}
+
+export function getFirestoreCollectionName(mode: 'exam' | 'coach' = 'exam'): string {
+  return mode === 'coach' ? 'coach_questions' : 'questions';
 }
 
 /**
@@ -174,6 +183,9 @@ export async function openIndexedDB(): Promise<IDBDatabase> {
       if (!dbInstance.objectStoreNames.contains('toefl_question_bank')) {
         dbInstance.createObjectStore('toefl_question_bank', { keyPath: 'id' });
       }
+      if (!dbInstance.objectStoreNames.contains('coach_questions')) {
+        dbInstance.createObjectStore('coach_questions', { keyPath: 'id' });
+      }
       if (!dbInstance.objectStoreNames.contains('toefl_audio_cache')) {
         dbInstance.createObjectStore('toefl_audio_cache', { keyPath: 'cacheKey' });
       }
@@ -188,12 +200,15 @@ export async function clearAllLocalQuestions(): Promise<void> {
   for (const key of Object.keys(curatedMemoryCache)) {
     delete curatedMemoryCache[key];
   }
+  for (const key of Object.keys(coachMemoryCache)) {
+    delete coachMemoryCache[key];
+  }
   try {
     const dbInstance = await openIndexedDB();
     await new Promise<void>((resolve, reject) => {
-      const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
-      const store = tx.objectStore('toefl_question_bank');
-      store.clear();
+      const tx = dbInstance.transaction(['toefl_question_bank', 'coach_questions'], 'readwrite');
+      tx.objectStore('toefl_question_bank').clear();
+      tx.objectStore('coach_questions').clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
@@ -286,16 +301,20 @@ export async function purgeLowQualityCache(): Promise<number> {
 /**
  * Save valid high-quality question to IndexedDB and Firestore
  */
-export async function saveVerifiedQuestion(params: {
-  taskType: string;
-  level: string;
-  topic: string;
-  content: any;
-  audioUrl?: string | null;
-  audioClips?: any[] | null;
-  source?: 'ai' | 'curated';
-  generatedBy?: string;
-}): Promise<string | null> {
+export async function saveVerifiedQuestion(
+  params: {
+    taskType: string;
+    level: string;
+    topic: string;
+    content: any;
+    audioUrl?: string | null;
+    audioClips?: any[] | null;
+    source?: 'ai' | 'curated';
+    generatedBy?: string;
+    mode?: 'exam' | 'coach';
+  },
+  modeOverride?: 'exam' | 'coach'
+): Promise<string | null> {
   const canonicalType = canonicalizeTaskType(params.taskType);
   const {
     audioUrl = null,
@@ -303,6 +322,7 @@ export async function saveVerifiedQuestion(params: {
     source = 'ai',
     generatedBy = getScholarUsername(),
   } = params;
+  const mode = modeOverride || params.mode || 'exam';
 
   const normalizedItem = normalizeQuestionBankItem(params.content, canonicalType);
   const content = normalizedItem?.content || normalizedItem;
@@ -316,7 +336,8 @@ export async function saveVerifiedQuestion(params: {
   const validTopic: AcademicTopic = normalizeTopicLabel(params.topic || content?.topic, content);
 
   const contentHash = await computeContentHash(canonicalType, content);
-  const questionId = content.id || `q_${contentHash.slice(0, 24)}`;
+  const prefix = mode === 'coach' ? 'coach_q_' : 'q_';
+  const questionId = content.id || `${prefix}${contentHash.slice(0, 24)}`;
   const enrichedContent = {
     ...content,
     id: questionId,
@@ -324,30 +345,31 @@ export async function saveVerifiedQuestion(params: {
     difficulty: validLevel,
     topic: validTopic,
     source,
+    mode,
     schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
   };
 
-  // Update in-memory cache immediately if not duplicate
-  if (!curatedMemoryCache[canonicalType]) {
-    curatedMemoryCache[canonicalType] = [];
+  const targetMemCache = getMemoryCacheForMode(mode);
+  if (!targetMemCache[canonicalType]) {
+    targetMemCache[canonicalType] = [];
   }
   const sig = getQuestionContentSignature(canonicalType, enrichedContent);
-  const alreadyInMem = curatedMemoryCache[canonicalType].some(
+  const alreadyInMem = targetMemCache[canonicalType].some(
     (item) =>
       (item.id || item._id) === questionId ||
       getQuestionContentSignature(canonicalType, item) === sig
   );
   if (!alreadyInMem) {
-    curatedMemoryCache[canonicalType].push(enrichedContent);
+    targetMemCache[canonicalType].push(enrichedContent);
   }
 
-  // Save to IndexedDB
+  const storeName = getIdbStoreName(mode);
   try {
     const dbInstance = await openIndexedDB();
-    const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
-    const store = tx.objectStore('toefl_question_bank');
+    const tx = dbInstance.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
     store.put({
       id: questionId,
       taskType: canonicalType,
@@ -358,6 +380,7 @@ export async function saveVerifiedQuestion(params: {
       audioUrl,
       audioClips,
       source,
+      mode,
       schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
       generatedBy: enrichedContent.generatedBy,
       updatedAt: Date.now(),
@@ -371,11 +394,11 @@ export async function saveVerifiedQuestion(params: {
     console.warn('Failed to save to local IndexedDB question bank:', err);
   }
 
-  // Save to Firestore (with or without anonymous auth)
+  const collectionName = getFirestoreCollectionName(mode);
   try {
     await ensureAuthenticated();
     if (db) {
-      const docRef = doc(db, 'questions', questionId);
+      const docRef = doc(db, collectionName, questionId);
       await setDoc(
         docRef,
         {
@@ -387,7 +410,7 @@ export async function saveVerifiedQuestion(params: {
           contentHash,
           audioUrl: isValidBlobUrl(audioUrl) ? audioUrl : null,
           audioClips: Array.isArray(audioClips)
-            ? audioClips.filter((c) => isValidBlobUrl(c?.url)).slice(0, 10)
+            ? audioClips.filter((c) => isValidBlobUrl(c?.url)).slice(0, 15)
             : null,
           source,
           schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
@@ -426,28 +449,31 @@ export const STATIC_SHARDS = SHARD_FILES;
 export const ALL_TASK_TYPES = TASK_DEFINITIONS.map((t) => t.id);
 const CANONICAL_TASK_IDS = ALL_TASK_TYPES;
 
-// In-memory cache for fast synchronous access
+// In-memory caches for fast synchronous access (strictly isolated by mode)
 const curatedMemoryCache: Record<string, any[]> = {};
+const coachMemoryCache: Record<string, any[]> = {};
+
+export function getMemoryCacheForMode(mode: 'exam' | 'coach' = 'exam'): Record<string, any[]> {
+  return mode === 'coach' ? coachMemoryCache : curatedMemoryCache;
+}
 
 /**
- * Load static curated shard for taskType from public/question-bank/<shard>.json
- * and merge with any cached IndexedDB questions for that taskType.
+ * Load static curated shard for taskType from public/question-bank/<shard>.json (or COACH_CURATED_BANK when mode === 'coach')
+ * and merge with any cached IndexedDB questions for that taskType and mode.
  */
-export async function loadCuratedShard(taskType: string): Promise<any[]> {
+export async function loadCuratedShard(
+  taskType: string,
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<any[]> {
   await ensurePurged2026V2();
   const canonicalType = canonicalizeTaskType(taskType);
-  const shardFileMap: Record<string, string> = {
-    'build-sentence': 'writing-build-sentence',
-    'write-email': 'writing-email',
-    'listen-repeat': 'speaking-listen-repeat',
-  };
-  const shardsToLoad = [shardFileMap[canonicalType] || canonicalType];
+  const targetMemCache = getMemoryCacheForMode(mode);
 
-  if (!curatedMemoryCache[canonicalType]) {
-    curatedMemoryCache[canonicalType] = [];
+  if (!targetMemCache[canonicalType]) {
+    targetMemCache[canonicalType] = [];
   }
 
-  const existingList = curatedMemoryCache[canonicalType];
+  const existingList = targetMemCache[canonicalType];
   const seenSigs = new Set<string>(
     existingList.map((item) => getQuestionContentSignature(canonicalType, item))
   );
@@ -456,51 +482,89 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
   );
 
   if (existingList.length === 0) {
-    for (const shard of shardsToLoad) {
-      try {
-        const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, {
-          cache: 'no-cache',
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (Array.isArray(json)) {
-            for (let idx = 0; idx < json.length; idx++) {
-              const rawItem = json[idx];
-              const qId = rawItem.id || `${shard}-curated-${idx + 1}`;
-              const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
-              const normalizedItem = normalizedWrapper?.content || normalizedWrapper;
-              if (!normalizedItem || !validateNormalizedTask(canonicalType, normalizedItem)) {
-                continue;
-              }
-              const enriched = {
-                ...normalizedItem,
-                id: qId,
-                taskType: canonicalType,
-                level: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
-                difficulty: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
-                topic: normalizeTopicLabel(rawItem.topic || rawItem.category, rawItem),
-                schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
-              };
-              const sig = getQuestionContentSignature(canonicalType, enriched);
-              if (!seenSigs.has(sig) && !seenIds.has(qId)) {
-                seenSigs.add(sig);
-                seenIds.add(qId);
-                existingList.push(enriched);
+    if (mode === 'coach') {
+      const coachItems = COACH_CURATED_BANK[canonicalType] || [];
+      for (let idx = 0; idx < coachItems.length; idx++) {
+        const rawItem = coachItems[idx];
+        const qId = rawItem.id || `coach-${canonicalType}-curated-${idx + 1}`;
+        const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
+        const normalizedItem = normalizedWrapper?.content || normalizedWrapper;
+        if (!normalizedItem || !validateNormalizedTask(canonicalType, normalizedItem)) {
+          continue;
+        }
+        const enriched = {
+          ...normalizedItem,
+          id: qId,
+          taskType: canonicalType,
+          mode: 'coach',
+          level: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
+          difficulty: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
+          topic: normalizeTopicLabel(rawItem.topic || rawItem.category, rawItem),
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+        };
+        const sig = getQuestionContentSignature(canonicalType, enriched);
+        if (!seenSigs.has(sig) && !seenIds.has(qId)) {
+          seenSigs.add(sig);
+          seenIds.add(qId);
+          existingList.push(enriched);
+        }
+      }
+    } else {
+      const shardFileMap: Record<string, string> = {
+        'build-sentence': 'writing-build-sentence',
+        'write-email': 'writing-email',
+        'listen-repeat': 'speaking-listen-repeat',
+      };
+      const shardsToLoad = [shardFileMap[canonicalType] || canonicalType];
+
+      for (const shard of shardsToLoad) {
+        try {
+          const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, {
+            cache: 'no-cache',
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (Array.isArray(json)) {
+              for (let idx = 0; idx < json.length; idx++) {
+                const rawItem = json[idx];
+                const qId = rawItem.id || `${shard}-curated-${idx + 1}`;
+                const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
+                const normalizedItem = normalizedWrapper?.content || normalizedWrapper;
+                if (!normalizedItem || !validateNormalizedTask(canonicalType, normalizedItem)) {
+                  continue;
+                }
+                const enriched = {
+                  ...normalizedItem,
+                  id: qId,
+                  taskType: canonicalType,
+                  mode: 'exam',
+                  level: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
+                  difficulty: normalizeDifficultyLabel(rawItem.level || rawItem.difficulty),
+                  topic: normalizeTopicLabel(rawItem.topic || rawItem.category, rawItem),
+                  schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+                };
+                const sig = getQuestionContentSignature(canonicalType, enriched);
+                if (!seenSigs.has(sig) && !seenIds.has(qId)) {
+                  seenSigs.add(sig);
+                  seenIds.add(qId);
+                  existingList.push(enriched);
+                }
               }
             }
           }
+        } catch (err) {
+          console.warn(`Failed to fetch curated shard for ${shard}:`, err);
         }
-      } catch (err) {
-        console.warn(`Failed to fetch curated shard for ${shard}:`, err);
       }
     }
   }
 
-  // Also merge any validated questions from local IndexedDB for this taskType
+  // Also merge any validated questions from local IndexedDB for this taskType and mode
+  const storeName = getIdbStoreName(mode);
   try {
     const dbInstance = await openIndexedDB();
-    const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
-    const store = tx.objectStore('toefl_question_bank');
+    const tx = dbInstance.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
     const all = await new Promise<any[]>((resolve) => {
       const req = store.getAll();
       req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
@@ -522,6 +586,7 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
           ...normalizedContent,
           id: qId || row.id,
           taskType: canonicalType,
+          mode,
           level: normalizeDifficultyLabel(row.level || row.content.level),
           difficulty: normalizeDifficultyLabel(row.level || row.content.level),
           topic: normalizeTopicLabel(row.topic || row.content.topic, row.content),
@@ -536,10 +601,10 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
       }
     }
   } catch (idbErr) {
-    console.warn(`Failed to load cached IDB questions for ${canonicalType}:`, idbErr);
+    console.warn(`Failed to load cached IDB questions for ${canonicalType} (${mode}):`, idbErr);
   }
 
-  return curatedMemoryCache[canonicalType] || [];
+  return targetMemCache[canonicalType] || [];
 }
 
 /**
@@ -549,10 +614,12 @@ export async function loadCuratedShard(taskType: string): Promise<any[]> {
 export function getFilteredBankTasks(
   taskType: string,
   level?: string,
-  topic?: string
+  topic?: string,
+  mode: 'exam' | 'coach' = 'exam'
 ): any[] {
   const canonicalType = canonicalizeTaskType(taskType);
-  const all = curatedMemoryCache[canonicalType] || [];
+  const targetMemCache = getMemoryCacheForMode(mode);
+  const all = targetMemCache[canonicalType] || [];
   if (all.length === 0) return [];
 
   return all.filter(
@@ -567,10 +634,12 @@ export function getFilteredBankTasks(
 export function getLoadedCuratedTasks(
   taskType: string,
   level?: string,
-  topic?: string
+  topic?: string,
+  mode: 'exam' | 'coach' = 'exam'
 ): any[] {
   const canonicalType = canonicalizeTaskType(taskType);
-  const all = curatedMemoryCache[canonicalType] || [];
+  const targetMemCache = getMemoryCacheForMode(mode);
+  const all = targetMemCache[canonicalType] || [];
   if (all.length === 0) return [];
 
   // Tier 1: Exact level + topic match
@@ -603,11 +672,13 @@ export interface QuestionBankSyncResult {
 }
 
 /**
- * Sync all curated question shards into IndexedDB and in-memory cache.
- * Pulls all static JSON shards AND all global questions from Firestore (without userId filtering).
+ * Sync all curated question shards into IndexedDB and in-memory cache for the given mode.
+ * Pulls static shards (or COACH_CURATED_BANK for coach mode) AND global questions from Firestore.
  * Deduplicates by content signature and ID across all sources so counts are 100% consistent.
  */
-export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult> {
+export async function syncCuratedQuestionBank(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<QuestionBankSyncResult> {
   await ensurePurged2026V2();
   const counts: Record<string, number> = {};
   const tempCache: Record<string, any[]> = {};
@@ -628,79 +699,145 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     topic: string;
     content: any;
     isCurated: boolean;
+    mode: 'exam' | 'coach';
     schemaVersion: number;
     updatedAt: number;
   }> = [];
 
-  // 1. Fetch all 12 curated shards completely into memory first BEFORE opening IDB transaction
-  for (const shard of SHARD_FILES) {
-    const canonicalType = canonicalizeTaskType(shard);
-    if (!tempCache[canonicalType]) {
-      tempCache[canonicalType] = [];
-      counts[canonicalType] = 0;
+  if (mode === 'coach') {
+    // 1. Load all 12 curated Coach & Marathon shards from COACH_CURATED_BANK
+    for (const canonicalType of CANONICAL_TASK_IDS) {
+      const coachItems = COACH_CURATED_BANK[canonicalType] || [];
+      for (let idx = 0; idx < coachItems.length; idx++) {
+        const rawItem = coachItems[idx];
+        const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
+        const item = normalizedWrapper?.content || normalizedWrapper;
+        if (!item || !validateNormalizedTask(canonicalType, item)) {
+          continue;
+        }
+        const qId = String(rawItem.id || item.id || `coach-${canonicalType}-curated-${idx + 1}`);
+        const validLevel = normalizeDifficultyLabel(
+          rawItem.level || rawItem.difficulty || item.level
+        );
+        const validTopic = normalizeTopicLabel(
+          rawItem.topic || rawItem.category || item.topic,
+          item
+        );
+        const enrichedContent = {
+          ...item,
+          id: qId,
+          taskType: canonicalType,
+          mode: 'coach' as const,
+          level: validLevel,
+          difficulty: validLevel,
+          topic: validTopic,
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+        };
+
+        const sig = getQuestionContentSignature(canonicalType, enrichedContent);
+        if (seenSignatures.has(sig) || seenIds.has(qId)) {
+          continue;
+        }
+        seenSignatures.add(sig);
+        seenIds.add(qId);
+
+        tempCache[canonicalType].push(enrichedContent);
+        counts[canonicalType] = (counts[canonicalType] || 0) + 1;
+        totalQuestions++;
+        totalCurated++;
+
+        questionsToStore.push({
+          id: qId,
+          taskType: canonicalType,
+          level: validLevel,
+          topic: validTopic,
+          content: enrichedContent,
+          isCurated: true,
+          mode: 'coach',
+          schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+          updatedAt: Date.now(),
+        });
+      }
     }
+  } else {
+    // 1. Fetch all 12 curated Exam Mode shards completely into memory first BEFORE opening IDB transaction
+    for (const shard of SHARD_FILES) {
+      const canonicalType = canonicalizeTaskType(shard);
+      if (!tempCache[canonicalType]) {
+        tempCache[canonicalType] = [];
+        counts[canonicalType] = 0;
+      }
 
-    try {
-      const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, {
-        cache: 'no-cache',
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json)) {
-          for (let idx = 0; idx < json.length; idx++) {
-            const rawItem = json[idx];
-            const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
-            const item = normalizedWrapper?.content || normalizedWrapper;
-            if (!item || !validateNormalizedTask(canonicalType, item)) {
-              continue;
+      try {
+        const res = await fetch(`/question-bank/${shard}.json?v=${Date.now()}`, {
+          cache: 'no-cache',
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json)) {
+            for (let idx = 0; idx < json.length; idx++) {
+              const rawItem = json[idx];
+              const normalizedWrapper = normalizeQuestionBankItem(rawItem, canonicalType);
+              const item = normalizedWrapper?.content || normalizedWrapper;
+              if (!item || !validateNormalizedTask(canonicalType, item)) {
+                continue;
+              }
+              const qId = String(rawItem.id || item.id || `${shard}-curated-${idx + 1}`);
+              const validLevel = normalizeDifficultyLabel(
+                rawItem.level || rawItem.difficulty || item.level
+              );
+              const validTopic = normalizeTopicLabel(
+                rawItem.topic || rawItem.category || item.topic,
+                item
+              );
+              const enrichedContent = {
+                ...item,
+                id: qId,
+                taskType: canonicalType,
+                mode: 'exam' as const,
+                level: validLevel,
+                difficulty: validLevel,
+                topic: validTopic,
+                schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+              };
+
+              const sig = getQuestionContentSignature(canonicalType, enrichedContent);
+              if (seenSignatures.has(sig) || seenIds.has(qId)) {
+                continue;
+              }
+              seenSignatures.add(sig);
+              seenIds.add(qId);
+
+              tempCache[canonicalType].push(enrichedContent);
+              counts[canonicalType] = (counts[canonicalType] || 0) + 1;
+              totalQuestions++;
+              totalCurated++;
+
+              questionsToStore.push({
+                id: qId,
+                taskType: canonicalType,
+                level: validLevel,
+                topic: validTopic,
+                content: enrichedContent,
+                isCurated: true,
+                mode: 'exam',
+                schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+                updatedAt: Date.now(),
+              });
             }
-            const qId = String(rawItem.id || item.id || `${shard}-curated-${idx + 1}`);
-            const validLevel = normalizeDifficultyLabel(rawItem.level || rawItem.difficulty || item.level);
-            const validTopic = normalizeTopicLabel(rawItem.topic || rawItem.category || item.topic, item);
-            const enrichedContent = {
-              ...item,
-              id: qId,
-              taskType: canonicalType,
-              level: validLevel,
-              difficulty: validLevel,
-              topic: validTopic,
-              schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
-            };
-
-            const sig = getQuestionContentSignature(canonicalType, enrichedContent);
-            if (seenSignatures.has(sig) || seenIds.has(qId)) {
-              continue;
-            }
-            seenSignatures.add(sig);
-            seenIds.add(qId);
-
-            tempCache[canonicalType].push(enrichedContent);
-            counts[canonicalType] = (counts[canonicalType] || 0) + 1;
-            totalQuestions++;
-            totalCurated++;
-
-            questionsToStore.push({
-              id: qId,
-              taskType: canonicalType,
-              level: validLevel,
-              topic: validTopic,
-              content: enrichedContent,
-              isCurated: true,
-              schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
-              updatedAt: Date.now(),
-            });
           }
         }
+      } catch (shardErr) {
+        console.warn(`Failed to sync shard ${shard}:`, shardErr);
       }
-    } catch (shardErr) {
-      console.warn(`Failed to sync shard ${shard}:`, shardErr);
     }
   }
 
-  // 2. Fetch and merge validated, deduplicated questions from Firestore (ONLY CURRENT_BANK_SCHEMA_VERSION)
+  // 2. Fetch and merge validated, deduplicated questions from Firestore for this mode
+  const collectionName = getFirestoreCollectionName(mode);
   try {
     if (db) {
-      const qSnap = await getDocs(collection(db, 'questions'));
+      const qSnap = await getDocs(collection(db, collectionName));
       if (!qSnap.empty) {
         qSnap.forEach((docSnap) => {
           const rawDoc = docSnap.data();
@@ -736,6 +873,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               id: contentToCheck.id || qId,
               questionDocId: qId,
               taskType: targetTaskType,
+              mode,
               level: validLevel,
               difficulty: validLevel,
               topic: validTopic,
@@ -766,6 +904,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
               topic: validTopic,
               content: enrichedContent,
               isCurated: false,
+              mode,
               schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
               updatedAt: Date.now(),
             });
@@ -774,15 +913,16 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
       }
     }
   } catch (firestoreErr) {
-    console.warn('Failed to sync questions from Firestore into local bank:', firestoreErr);
+    console.warn(`Failed to sync questions from Firestore (${collectionName}) into local bank:`, firestoreErr);
   }
 
-  // 3. Preserve any locally generated AI questions in IndexedDB that match CURRENT_BANK_SCHEMA_VERSION
+  // 3. Preserve any locally generated AI questions in IndexedDB for this mode that match CURRENT_BANK_SCHEMA_VERSION
+  const storeName = getIdbStoreName(mode);
   try {
     const dbInstance = await openIndexedDB();
     const existingRows = await new Promise<any[]>((resolve) => {
-      const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
-      const store = tx.objectStore('toefl_question_bank');
+      const tx = dbInstance.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
       const req = store.getAll();
       req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
       req.onerror = () => resolve([]);
@@ -809,6 +949,7 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
           ...rowContent,
           id: rowContent.id || qId,
           taskType: rowType,
+          mode,
           level: validLevel,
           difficulty: validLevel,
           topic: validTopic,
@@ -822,12 +963,13 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
           counts[rowType] = (counts[rowType] || 0) + 1;
           totalQuestions++;
           questionsToStore.push({
-            id: qId || `local_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            id: qId || `local_${mode}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             taskType: rowType,
             level: validLevel,
             topic: validTopic,
             content: enrichedContent,
             isCurated: Boolean(row.isCurated),
+            mode,
             schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
             updatedAt: row.updatedAt || Date.now(),
           });
@@ -836,8 +978,8 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
     }
 
     if (questionsToStore.length > 0) {
-      const tx = dbInstance.transaction('toefl_question_bank', 'readwrite');
-      const store = tx.objectStore('toefl_question_bank');
+      const tx = dbInstance.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
       store.clear();
       for (const q of questionsToStore) {
         store.put(q);
@@ -849,17 +991,18 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
       });
     }
   } catch (idbErr) {
-    console.warn('Failed to commit deduplicated questions to IndexedDB:', idbErr);
+    console.warn(`Failed to commit deduplicated questions to IndexedDB (${storeName}):`, idbErr);
   }
 
-  // Update in-memory cache atomically
+  // Update in-memory cache atomically for this mode
+  const targetMemCache = getMemoryCacheForMode(mode);
   for (const tId of CANONICAL_TASK_IDS) {
-    curatedMemoryCache[tId] = tempCache[tId] || [];
+    targetMemCache[tId] = tempCache[tId] || [];
   }
 
   // Trigger background sync of any missing local/curated questions to Firestore
-  syncLocalQuestionsToFirestore().catch((err) => {
-    console.warn('Background Firestore question sync skipped:', err);
+  syncLocalQuestionsToFirestore(mode).catch((err) => {
+    console.warn(`Background Firestore question sync (${mode}) skipped:`, err);
   });
 
   return {
@@ -870,23 +1013,30 @@ export async function syncCuratedQuestionBank(): Promise<QuestionBankSyncResult>
   };
 }
 
-let isSyncingToFirestore = false;
+const isSyncingToFirestoreByMode: Record<'exam' | 'coach', boolean> = {
+  exam: false,
+  coach: false,
+};
 
 /**
- * Syncs all deduplicated questions from in-memory cache and IndexedDB to the Firestore 'questions' collection
+ * Syncs all deduplicated questions from in-memory cache and IndexedDB to the Firestore 'questions' or 'coach_questions' collection
  * if they are not already present in Firestore.
  */
-export async function syncLocalQuestionsToFirestore(): Promise<{
+export async function syncLocalQuestionsToFirestore(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<{
   synced: number;
   existing: number;
 }> {
-  if (isSyncingToFirestore || !db) {
+  if (isSyncingToFirestoreByMode[mode] || !db) {
     return { synced: 0, existing: 0 };
   }
-  isSyncingToFirestore = true;
+  isSyncingToFirestoreByMode[mode] = true;
 
   let synced = 0;
   let existing = 0;
+  const collectionName = getFirestoreCollectionName(mode);
+  const targetMemCache = getMemoryCacheForMode(mode);
 
   try {
     await ensureAuthenticated();
@@ -895,7 +1045,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
     const existingSigs = new Set<string>();
     const existingHashes = new Set<string>();
 
-    const snap = await getDocs(collection(db, 'questions'));
+    const snap = await getDocs(collection(db, collectionName));
     snap.forEach((docSnap) => {
       const d = docSnap.data();
       const docSchema = d?.schemaVersion ?? d?.content?.schemaVersion;
@@ -908,7 +1058,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
       existingSigs.add(sig);
     });
 
-    // Gather all candidate questions from memory and IndexedDB
+    // Gather all candidate questions from memory
     const candidates: Array<{
       id: string;
       taskType: string;
@@ -919,7 +1069,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
     }> = [];
 
     for (const tId of CANONICAL_TASK_IDS) {
-      const list = curatedMemoryCache[tId] || [];
+      const list = targetMemCache[tId] || [];
       for (const item of list) {
         if (!isHighQualityTask(item, tId)) continue;
         const qId = String(item.id || '');
@@ -937,14 +1087,15 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
     }
 
     const toWrite: Array<{ docId: string; record: SharedQuestionRecord }> = [];
+    const prefix = mode === 'coach' ? 'coach_q_' : 'q_';
 
     for (const cand of candidates) {
       const sig = getQuestionContentSignature(cand.taskType, cand.content);
       const contentHash = await computeContentHash(cand.taskType, cand.content);
       const docId =
-        cand.id && cand.id.startsWith('q_')
+        cand.id && (cand.id.startsWith('q_') || cand.id.startsWith('coach_'))
           ? cand.id
-          : `q_${contentHash.slice(0, 24)}`;
+          : `${prefix}${contentHash.slice(0, 24)}`;
 
       if (
         existingIds.has(docId) ||
@@ -965,6 +1116,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
         level: cand.level,
         topic: cand.topic,
         source: cand.source,
+        mode,
         schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
         generatedBy: cand.content.generatedBy || getScholarUsername(),
         createdAt: cand.content.createdAt || Date.now(),
@@ -974,7 +1126,7 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
       const rawAudioClips = cand.content.audioClips || null;
       const cleanAudioUrl = isValidBlobUrl(rawAudioUrl) ? rawAudioUrl : null;
       const cleanAudioClips = Array.isArray(rawAudioClips)
-        ? rawAudioClips.filter((c: any) => isValidBlobUrl(c?.url)).slice(0, 10)
+        ? rawAudioClips.filter((c: any) => isValidBlobUrl(c?.url)).slice(0, 15)
         : null;
 
       toWrite.push({
@@ -1004,15 +1156,15 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
       const slice = toWrite.slice(i, i + BATCH_LIMIT);
       const batch = writeBatch(db);
       for (const item of slice) {
-        batch.set(doc(db, 'questions', item.docId), item.record, { merge: true });
+        batch.set(doc(db, collectionName, item.docId), item.record, { merge: true });
       }
       await batch.commit();
       synced += slice.length;
     }
   } catch (err) {
-    console.warn('Error in syncLocalQuestionsToFirestore:', err);
+    console.warn(`Error in syncLocalQuestionsToFirestore (${mode}):`, err);
   } finally {
-    isSyncingToFirestore = false;
+    isSyncingToFirestoreByMode[mode] = false;
   }
 
   return { synced, existing };
@@ -1020,26 +1172,32 @@ export async function syncLocalQuestionsToFirestore(): Promise<{
 
 /**
  * Synchronizes global questions from Firestore without userId filtering,
- * commits them to IndexedDB 'toefl_question_bank', updates memory cache,
+ * commits them to IndexedDB, updates memory cache,
  * and returns the updated counts across all task types.
  */
-export async function syncFirestoreGlobalCounts(): Promise<QuestionBankSyncResult> {
-  return syncCuratedQuestionBank();
+export async function syncFirestoreGlobalCounts(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<QuestionBankSyncResult> {
+  return syncCuratedQuestionBank(mode);
 }
 
 /**
  * Re-Sync All Shards: Pulls all static JSON shards AND all global Firestore questions,
  * merges everything into IndexedDB and in-memory cache, and returns the updated stats.
  */
-export async function reSyncAllShards(): Promise<QuestionBankSyncResult> {
-  return syncCuratedQuestionBank();
+export async function reSyncAllShards(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<QuestionBankSyncResult> {
+  return syncCuratedQuestionBank(mode);
 }
 
 /**
- * Get deduplicated question bank counts across all 8 canonical TOEFL sections.
+ * Get deduplicated question bank counts across all canonical TOEFL sections for the active mode.
  * Guarantees that totalQuestions === sum(Object.values(countsPerTaskType)).
  */
-export async function getQuestionBankStats(): Promise<{
+export async function getQuestionBankStats(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<{
   totalQuestions: number;
   totalCurated: number;
   countsPerTaskType: Record<string, number>;
@@ -1049,17 +1207,17 @@ export async function getQuestionBankStats(): Promise<{
     counts[tId] = 0;
   }
 
-  // 1. If in-memory cache is already populated across all 8 canonical task types, compute from deduplicated memory
+  const targetMemCache = getMemoryCacheForMode(mode);
   const memTotal = CANONICAL_TASK_IDS.reduce(
-    (sum, tId) => sum + (curatedMemoryCache[tId]?.length || 0),
+    (sum, tId) => sum + (targetMemCache[tId]?.length || 0),
     0
   );
 
-  // 2. Read all distinct questions from IndexedDB and deduplicate by signature
+  const storeName = getIdbStoreName(mode);
   try {
     const dbInstance = await openIndexedDB();
-    const tx = dbInstance.transaction('toefl_question_bank', 'readonly');
-    const store = tx.objectStore('toefl_question_bank');
+    const tx = dbInstance.transaction(storeName, 'readonly');
+    const store = tx.objectStore(storeName);
     const all = await new Promise<any[]>((resolve) => {
       const req = store.getAll();
       req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
@@ -1102,7 +1260,7 @@ export async function getQuestionBankStats(): Promise<{
 
   if (memTotal > 0) {
     for (const tId of CANONICAL_TASK_IDS) {
-      counts[tId] = (curatedMemoryCache[tId] || []).length;
+      counts[tId] = (targetMemCache[tId] || []).length;
     }
     const totalQuestions = Object.values(counts).reduce((a, b) => a + b, 0);
     return {
@@ -1112,8 +1270,8 @@ export async function getQuestionBankStats(): Promise<{
     };
   }
 
-  // If cache is cold and IDB empty, run full sync
-  const syncRes = await syncCuratedQuestionBank();
+  // If cache is cold and IDB empty, run full sync for this mode
+  const syncRes = await syncCuratedQuestionBank(mode);
   return {
     totalQuestions: syncRes.totalQuestions,
     totalCurated: syncRes.totalCurated,
@@ -1121,28 +1279,34 @@ export async function getQuestionBankStats(): Promise<{
   };
 }
 
-export async function getTaskBankCounts(): Promise<Record<string, number>> {
-  const stats = await getQuestionBankStats();
+export async function getTaskBankCounts(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<Record<string, number>> {
+  const stats = await getQuestionBankStats(mode);
   return stats.countsPerTaskType;
 }
 
-export async function getGlobalBankCount(): Promise<number> {
-  const stats = await getQuestionBankStats();
+export async function getGlobalBankCount(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<number> {
+  const stats = await getQuestionBankStats(mode);
   return stats.totalQuestions;
 }
 
 export async function getSharedQuestions(
   taskType?: string,
   difficulty?: string,
-  topic?: string
+  topic?: string,
+  mode: 'exam' | 'coach' = 'exam'
 ): Promise<any[]> {
-  await getQuestionBankStats();
+  await getQuestionBankStats(mode);
   const targetTypes = taskType ? [canonicalizeTaskType(taskType)] : CANONICAL_TASK_IDS;
+  const targetMemCache = getMemoryCacheForMode(mode);
   const results: any[] = [];
   const seenSigs = new Set<string>();
 
   for (const tId of targetTypes) {
-    const items = curatedMemoryCache[tId] || [];
+    const items = targetMemCache[tId] || [];
     for (const item of items) {
       if (!matchesLevelFilter(item, difficulty)) continue;
       if (!matchesTopicFilter(item, topic)) continue;
@@ -1328,19 +1492,23 @@ function isValidBlobUrl(url: any): boolean {
 }
 
 /**
- * Deduplicate by contentHash and save a question to Firestore collection 'questions'.
+ * Deduplicate by contentHash and save a question to Firestore collection 'questions' or 'coach_questions'.
  * Validates level against LEVELS and infers topic if missing, 'all' or 'general'.
  */
-export async function saveQuestionToBank(params: {
-  taskType: string;
-  level: string;
-  topic: string;
-  content: any;
-  audioUrl?: string | null;
-  audioClips?: Array<{ speaker: string; url: string }> | null;
-  source?: string;
-  generatedBy?: string;
-}): Promise<string | null> {
+export async function saveQuestionToBank(
+  params: {
+    taskType: string;
+    level: string;
+    topic: string;
+    content: any;
+    audioUrl?: string | null;
+    audioClips?: Array<{ speaker: string; url: string }> | null;
+    source?: string;
+    generatedBy?: string;
+    mode?: 'exam' | 'coach';
+  },
+  modeOverride?: 'exam' | 'coach'
+): Promise<string | null> {
   const canonicalType = canonicalizeTaskType(params.taskType);
   const {
     audioUrl = null,
@@ -1348,6 +1516,7 @@ export async function saveQuestionToBank(params: {
     source = 'ai',
     generatedBy = getScholarUsername(),
   } = params;
+  const mode = modeOverride || params.mode || 'exam';
 
   const normalizedWrapper = normalizeQuestionBankItem(params.content, canonicalType);
   const content = normalizedWrapper?.content || normalizedWrapper;
@@ -1365,10 +1534,11 @@ export async function saveQuestionToBank(params: {
 
   const cleanAudioUrl = isValidBlobUrl(audioUrl) ? audioUrl : null;
   const cleanAudioClips = Array.isArray(audioClips)
-    ? audioClips.filter((c) => isValidBlobUrl(c.url)).slice(0, 10)
+    ? audioClips.filter((c) => isValidBlobUrl(c.url)).slice(0, 15)
     : null;
 
-  const docId = `q_${contentHash.slice(0, 24)}`;
+  const prefix = mode === 'coach' ? 'coach_q_' : 'q_';
+  const docId = `${prefix}${contentHash.slice(0, 24)}`;
   const enrichedContent = {
     ...content,
     id: content.id || docId,
@@ -1376,17 +1546,56 @@ export async function saveQuestionToBank(params: {
     difficulty: validatedLevel,
     topic: validatedTopic,
     source,
+    mode,
     schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
     generatedBy: generatedBy || getScholarUsername(),
     createdAt: content.createdAt || Date.now(),
   };
 
+  // Update in-memory cache and IndexedDB for this mode as well
+  const targetMemCache = getMemoryCacheForMode(mode);
+  if (!targetMemCache[canonicalType]) {
+    targetMemCache[canonicalType] = [];
+  }
+  const sig = getQuestionContentSignature(canonicalType, enrichedContent);
+  const alreadyInMem = targetMemCache[canonicalType].some(
+    (item) =>
+      (item.id || item._id) === docId ||
+      getQuestionContentSignature(canonicalType, item) === sig
+  );
+  if (!alreadyInMem) {
+    targetMemCache[canonicalType].push(enrichedContent);
+  }
+
+  const storeName = getIdbStoreName(mode);
+  try {
+    const dbInstance = await openIndexedDB();
+    const tx = dbInstance.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.put({
+      id: docId,
+      taskType: canonicalType,
+      level: validatedLevel,
+      topic: validatedTopic,
+      content: enrichedContent,
+      contentHash,
+      audioUrl: cleanAudioUrl,
+      audioClips: cleanAudioClips,
+      source,
+      mode,
+      schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+      generatedBy: enrichedContent.generatedBy,
+      updatedAt: Date.now(),
+    });
+  } catch {}
+
+  const collectionName = getFirestoreCollectionName(mode);
   try {
     await ensureAuthenticated();
 
     // 1. Check for existing duplicate by contentHash
     const q = query(
-      collection(db, 'questions'),
+      collection(db, collectionName),
       where('contentHash', '==', contentHash),
       limit(1)
     );
@@ -1396,7 +1605,7 @@ export async function saveQuestionToBank(params: {
     }
 
     // 2. Generate new document
-    const docRef = doc(db, 'questions', docId);
+    const docRef = doc(db, collectionName, docId);
 
     const record: SharedQuestionRecord = {
       id: docId,
@@ -1419,8 +1628,8 @@ export async function saveQuestionToBank(params: {
     await setDoc(docRef, record, { merge: false });
     return docId;
   } catch (err) {
-    console.warn('Failed to save question to Firestore bank:', err);
-    return null;
+    console.warn(`Failed to save question to Firestore bank (${collectionName}):`, err);
+    return docId;
   }
 }
 
@@ -1555,7 +1764,7 @@ export function selectQuestionFromBankTiers(
 }
 
 /**
- * Fetch an unseen question from Firestore questions bank using tier querying:
+ * Fetch an unseen question from Firestore questions or coach_questions bank using tier querying:
  * (level+topic) -> (topic only) -> (level only) -> any.
  * Skips items with reportCount >= 3 and already seen questions.
  * Applies lazy backfill if document has outdated/missing topic or level.
@@ -1563,16 +1772,18 @@ export function selectQuestionFromBankTiers(
 export async function fetchUnseenQuestion(
   taskType: string,
   level: string = 'all',
-  topic: string = 'all'
+  topic: string = 'all',
+  mode: 'exam' | 'coach' = 'exam'
 ): Promise<UnseenQuestionResult | null> {
   const canonicalType = canonicalizeTaskType(taskType);
+  const collectionName = getFirestoreCollectionName(mode);
   try {
     const currentUid = auth?.currentUser?.uid;
     const seenIds = await getUserSeenQuestionIds(currentUid);
     const tiers = getQueryTiers(level, topic);
 
     for (const tierConfig of tiers) {
-      let q = query(collection(db, 'questions'), where('taskType', '==', canonicalType));
+      let q = query(collection(db, collectionName), where('taskType', '==', canonicalType));
       if (tierConfig.level) {
         q = query(q, where('level', '==', tierConfig.level));
       }
@@ -1620,7 +1831,7 @@ export async function fetchUnseenQuestion(
             activeLevel = normalizeDifficultyLabel(data.level || data.content?.level);
             updates.level = activeLevel;
           }
-          updateDoc(doc(db, 'questions', docSnap.id), updates).catch((err) => {
+          updateDoc(doc(db, collectionName, docSnap.id), updates).catch((err) => {
             console.warn(`Lazy backfill update failed for ${docSnap.id}:`, err);
           });
         }
@@ -1632,7 +1843,7 @@ export async function fetchUnseenQuestion(
         }
 
         // 4. Mark usage and update userProgress
-        updateDoc(doc(db, 'questions', docSnap.id), {
+        updateDoc(doc(db, collectionName, docSnap.id), {
           useCount: increment(1),
         }).catch(() => {});
 
@@ -1644,6 +1855,7 @@ export async function fetchUnseenQuestion(
             id: docSnap.id,
             questionDocId: docSnap.id,
             taskType: canonicalType,
+            mode,
             level: activeLevel,
             difficulty: activeLevel,
             topic: activeTopic,
@@ -1657,7 +1869,7 @@ export async function fetchUnseenQuestion(
       }
     }
   } catch (err) {
-    console.warn('Error fetching unseen question from bank:', err);
+    console.warn(`Error fetching unseen question from bank (${collectionName}):`, err);
   }
 
   return null;
@@ -1669,9 +1881,10 @@ export async function fetchUnseenQuestion(
 export async function fetchRandomSharedQuestion(
   taskType: string,
   level: string = 'all',
-  topic: string = 'all'
+  topic: string = 'all',
+  mode: 'exam' | 'coach' = 'exam'
 ): Promise<any | null> {
-  const result = await fetchUnseenQuestion(taskType, level, topic);
+  const result = await fetchUnseenQuestion(taskType, level, topic, mode);
   if (!result) return null;
   return {
     ...result.question,
@@ -1681,18 +1894,20 @@ export async function fetchRandomSharedQuestion(
 }
 
 /**
- * Get count of unseen questions currently available in bank for taskType, level, and topic.
+ * Get count of unseen questions currently available in bank for taskType, level, topic, and mode.
  * Skips items with reportCount >= 3.
  */
 export async function getUnseenQuestionCount(
   taskType: string,
   level: string = 'all',
-  topic: string = 'all'
+  topic: string = 'all',
+  mode: 'exam' | 'coach' = 'exam'
 ): Promise<number> {
   const canonicalType = canonicalizeTaskType(taskType);
+  const collectionName = getFirestoreCollectionName(mode);
   try {
     const seenIds = await getUserSeenQuestionIds();
-    let q = query(collection(db, 'questions'), where('taskType', '==', canonicalType));
+    let q = query(collection(db, collectionName), where('taskType', '==', canonicalType));
     if (level && level !== 'all' && isValidLevel(level)) {
       q = query(q, where('level', '==', level));
     }
@@ -1734,12 +1949,13 @@ export async function triggerBackgroundPrefetchIfNeeded(
   taskType: string,
   level: string = 'all',
   topic: string = 'all',
-  generateBatchFn: (tType: string, lvl: string, top: string) => Promise<any[]>
+  generateBatchFn: (tType: string, lvl: string, top: string) => Promise<any[]>,
+  mode: 'exam' | 'coach' = 'exam'
 ): Promise<void> {
   if (isBackgroundPrefetching) return;
 
   const canonicalType = canonicalizeTaskType(taskType);
-  const count = await getUnseenQuestionCount(canonicalType, level, topic);
+  const count = await getUnseenQuestionCount(canonicalType, level, topic, mode);
   if (count >= 5) return;
 
   // Determine concrete level (never 'all')
@@ -1757,7 +1973,8 @@ export async function triggerBackgroundPrefetchIfNeeded(
         const unseenForTopic = await getUnseenQuestionCount(
           canonicalType,
           concreteLevel,
-          candTopic
+          candTopic,
+          mode
         );
         if (unseenForTopic < minCount) {
           minCount = unseenForTopic;
@@ -1830,7 +2047,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
                   } catch {}
                 }
                 if (audioClips.length > 0) {
-                  audioClips = audioClips.slice(0, 10);
+                  audioClips = audioClips.slice(0, 15);
                   audioUrl = audioClips[0].url;
                 }
               } else if (
@@ -1859,7 +2076,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
                   } catch {}
                 }
                 if (audioClips.length > 0) {
-                  audioClips = audioClips.slice(0, 10);
+                  audioClips = audioClips.slice(0, 15);
                   audioUrl = audioClips[0].url;
                 }
               } else {
@@ -1898,6 +2115,7 @@ export async function triggerBackgroundPrefetchIfNeeded(
             content: item,
             audioUrl,
             audioClips,
+            mode,
           });
         })
       );
@@ -2007,7 +2225,9 @@ export async function repairQuestionBank(
   return { totalProcessed, totalFixed };
 }
 
-export async function getQuestionCountsPerSection(): Promise<Record<string, number>> {
+export async function getQuestionCountsPerSection(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<Record<string, number>> {
   const counts: Record<string, number> = {
     Reading: 0,
     Listening: 0,
@@ -2016,7 +2236,7 @@ export async function getQuestionCountsPerSection(): Promise<Record<string, numb
   };
 
   try {
-    const stats = await getQuestionBankStats();
+    const stats = await getQuestionBankStats(mode);
     for (const [taskType, count] of Object.entries(stats.countsPerTaskType)) {
       const section = getSectionForTaskType(taskType);
       if (section && counts[section] !== undefined) {
@@ -2030,9 +2250,11 @@ export async function getQuestionCountsPerSection(): Promise<Record<string, numb
   return counts;
 }
 
-export async function getQuestionCountsPerTaskType(): Promise<Record<string, number>> {
+export async function getQuestionCountsPerTaskType(
+  mode: 'exam' | 'coach' = 'exam'
+): Promise<Record<string, number>> {
   try {
-    const stats = await getQuestionBankStats();
+    const stats = await getQuestionBankStats(mode);
     return stats.countsPerTaskType;
   } catch {
     return {};

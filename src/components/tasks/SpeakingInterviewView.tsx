@@ -32,6 +32,7 @@ import { TaskSubtitleMeta, TaskReportButton, CollapsibleTaskInstructions } from 
 
 interface Props {
   task: SpeakingInterviewTask;
+  coachMode?: boolean;
   onNextTask?: () => void;
   onComplete?: (result: any) => void;
   onOpenApiKeySettings?: () => void;
@@ -44,6 +45,7 @@ interface Props {
 
 export const SpeakingInterviewView: React.FC<Props> = ({
   task,
+  coachMode = false,
   onNextTask,
   onComplete,
   onOpenApiKeySettings,
@@ -52,7 +54,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   const [, setStep] = useState<'idle' | 'speaking' | 'done'>('idle');
   const [answers, setAnswers] = useState<Record<string | number, any>>({});
   const answersRef = useRef<Record<string | number, any>>({});
-  const [showPromptText, setShowPromptText] = useState(false);
+  const [showPromptText, setShowPromptText] = useState<boolean>(coachMode);
 
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
@@ -63,7 +65,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   const autoStartRef = useRef(autoStart);
   autoStartRef.current = autoStart;
 
-  const [timeLeft, setTimeLeft] = useState(45);
+  const [timeLeft, setTimeLeft] = useState<number>(coachMode ? 90 : 45);
   const [audioLevel, setAudioLevel] = useState(0);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
@@ -129,7 +131,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     setStep('idle');
     setEvaluationResult(null);
     setEvalError(null);
-    setShowPromptText(false);
+    setShowPromptText(coachMode);
     answersRef.current = {};
     setAnswers({});
     setAudioBlobs({});
@@ -141,7 +143,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     return () => {
       stopAllAudio();
     };
-  }, [task.id, task.title, stopAllAudio]);
+  }, [task.id, task.title, stopAllAudio, coachMode]);
 
   useEffect(() => {
     answersRef.current = answers;
@@ -201,7 +203,9 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   useEffect(() => {
     let interval: any = null;
     if (micStatus === 'listening' && activeMicIdx !== null) {
-      const allowedSec = task.questions[activeMicIdx]?.responseTimeSeconds || 45;
+      const allowedSec = coachMode
+        ? Math.max(90, task.questions[activeMicIdx]?.responseTimeSeconds || 90)
+        : task.questions[activeMicIdx]?.responseTimeSeconds || 45;
       setRecordingSeconds(0);
       setTimeLeft(allowedSec);
       let remaining = allowedSec;
@@ -219,7 +223,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
       setRecordingSeconds(0);
     }
     return () => clearInterval(interval);
-  }, [micStatus, activeMicIdx, task.questions]);
+  }, [micStatus, activeMicIdx, task.questions, coachMode]);
 
   // Live timer for transcription duration
   useEffect(() => {
@@ -946,7 +950,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
               blobsRef.current = {};
               setEvaluationResult(null);
               setEvalError(null);
-              setShowPromptText(false);
+              setShowPromptText(Boolean(coachMode));
               setCurrentQIndex(0);
               setAutoStart(true);
               autoStartRef.current = true;
@@ -983,7 +987,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* All 4 Interview Question Cards */}
+      {/* All Interview Question Cards */}
       <div className="space-y-4">
         {task.questions.map((qItem, idx) => {
           const isAudioPlayingThis = activeAudioIdx === idx;
@@ -993,6 +997,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           const isActiveCard =
             currentQIndex === idx || isAudioPlayingThis || isRecordingThis || isTranscribingThis;
           const qAnswer = typeof answers[idx] === 'string' ? answers[idx] : '';
+          const formula =
+            (qItem as any).speakingFormula ||
+            'Step 1: Direct Claim (5s) → Step 2: Concrete Reason & Specific Example (25s) → Step 3: Broader Conclusion (15s).';
+          const vocabList: string[] = Array.isArray((qItem as any).topicVocabulary)
+            ? (qItem as any).topicVocabulary
+            : ['empirical evidence', 'practical implementation', 'long-term sustainability', 'measurable impact'];
+          const startersList: string[] = Array.isArray((qItem as any).sentenceStarters)
+            ? (qItem as any).sentenceStarters
+            : [
+                'From my perspective, the most compelling factor is...',
+                'To illustrate this with a concrete example,...',
+              ];
 
           return (
             <div
@@ -1019,7 +1035,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                 isLoadingAudio={isLoadingAudioThis}
                 audioError={audioErrors[idx] || null}
                 onHearQuestion={() => handlePlayQuestion(idx)}
-                timeLeft={isRecordingThis ? timeLeft : qItem.responseTimeSeconds || 45}
+                timeLeft={
+                  isRecordingThis
+                    ? timeLeft
+                    : coachMode
+                    ? 90
+                    : qItem.responseTimeSeconds || 45
+                }
                 hasRecording={Boolean(audioBlobs[idx])}
                 isPlayingRecording={playingRecordingQIndex === idx}
                 onPlayUserRecording={() => handlePlayUserRecording(idx)}
@@ -1032,6 +1054,54 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                 showPromptText={showPromptText || Boolean(evaluationResult)}
                 hasAnswerText={Boolean(qAnswer.trim())}
               />
+
+              {coachMode && (
+                <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-2.5 text-xs">
+                  <div className="font-bold text-indigo-950 flex items-center justify-between gap-2">
+                    <span>🎓 3-Step Speaking Formula &amp; Coaching Guide</span>
+                    <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                      Relaxed 90s Coach Timer
+                    </span>
+                  </div>
+                  <p className="text-indigo-900 leading-relaxed font-medium">{formula}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[11px] font-bold text-slate-700">Band 6.0 Vocabulary:</span>
+                    {vocabList.map((v, vIdx) => (
+                      <span
+                        key={vIdx}
+                        className="px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-900 font-semibold text-[11px]"
+                      >
+                        {v}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="space-y-1 pt-0.5">
+                    <span className="text-[11px] font-bold text-slate-700 block">
+                      Spoken Sentence Starters (click to insert into transcript box):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {startersList.map((st, sIdx) => (
+                        <button
+                          key={sIdx}
+                          type="button"
+                          onClick={() =>
+                            setAnswers((prev) => {
+                              const curr = typeof prev[idx] === 'string' ? prev[idx] : '';
+                              const nextVal = curr.trim() ? `${curr.replace(/\s+$/, '')} ${st} ` : `${st} `;
+                              const next = { ...prev, [idx]: nextVal };
+                              answersRef.current = next;
+                              return next;
+                            })
+                          }
+                          className="text-left text-[11px] bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
+                        >
+                          + &ldquo;{st}&rdquo;
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <textarea

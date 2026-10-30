@@ -11,6 +11,7 @@ interface Props {
   task: BuildSentenceTask;
   onNextTask?: () => void;
   onComplete?: (score: number) => void;
+  coachMode?: boolean;
 }
 
 interface ItemState {
@@ -20,6 +21,7 @@ interface ItemState {
   slotResults?: boolean[];
   isCorrect?: boolean;
   checked: boolean;
+  showGrammarCoach?: boolean;
 }
 
 function shuffleBankWords(words: string[], targetChunks: string[]): string[] {
@@ -66,7 +68,7 @@ const SPEAKER_PAIRS = [
   { s1: 'Lucas (Student)', s2: 'Dr. Patel', s1Color: 'bg-emerald-100 text-emerald-800 border-emerald-200', s2Color: 'bg-teal-100 text-teal-800 border-teal-200' },
 ];
 
-export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplete, coachMode = false }) => {
   const normalizedItems = useMemo<NormalizedBuildSentenceItem[]>(() => {
     const rawItems = Array.isArray(task?.items)
       ? task.items
@@ -83,6 +85,7 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
       bankWords: shuffleBankWords(item.words, item.targetChunks),
       slots: new Array(item.targetChunks.length).fill(null),
       checked: false,
+      showGrammarCoach: false,
     }));
 
   const [states, setStates] = useState<ItemState[]>(() => buildInitialStates(normalizedItems));
@@ -156,6 +159,7 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
         bankWords: shuffleBankWords(item.words, item.targetChunks),
         slots: new Array(item.targetChunks.length).fill(null),
         checked: false,
+        showGrammarCoach: false,
       };
       return next;
     });
@@ -167,6 +171,57 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
       .replace(/[^a-z0-9'\s]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+
+  const handleCoachPlaceNextTile = (itemIdx: number) => {
+    const cur = states[itemIdx];
+    const item = normalizedItems[itemIdx];
+    if (!cur || !item || cur.checked) return;
+
+    // Find first slot that is either empty or has a non-matching tile
+    let targetSlotIdx = cur.slots.findIndex((bIdx, sIdx) => {
+      if (bIdx === null) return true;
+      const placedText = cur.bankWords[bIdx] || '';
+      return normalizeChunkForCompare(placedText) !== normalizeChunkForCompare(item.targetChunks[sIdx]);
+    });
+
+    if (targetSlotIdx === -1) {
+      setStates((prev) => {
+        const next = [...prev];
+        next[itemIdx] = { ...next[itemIdx], showGrammarCoach: true };
+        return next;
+      });
+      return;
+    }
+
+    const expectedChunkNorm = normalizeChunkForCompare(item.targetChunks[targetSlotIdx]);
+    const updatedSlots = [...cur.slots];
+    updatedSlots[targetSlotIdx] = null;
+
+    // Find a bank tile that matches expectedChunkNorm and isn't already placed in an earlier correct slot
+    const matchingBankIdx = cur.bankWords.findIndex((w, bIdx) => {
+      const alreadyUsedCorrectly = updatedSlots.some(
+        (placedIdx, sIdx) => placedIdx === bIdx && sIdx < targetSlotIdx
+      );
+      return !alreadyUsedCorrectly && normalizeChunkForCompare(w) === expectedChunkNorm;
+    });
+
+    if (matchingBankIdx !== -1) {
+      // Remove matchingBankIdx if it was mistakenly placed in a later slot
+      const prevLoc = updatedSlots.indexOf(matchingBankIdx);
+      if (prevLoc !== -1) updatedSlots[prevLoc] = null;
+      updatedSlots[targetSlotIdx] = matchingBankIdx;
+    }
+
+    setStates((prev) => {
+      const next = [...prev];
+      next[itemIdx] = {
+        ...next[itemIdx],
+        slots: updatedSlots,
+        showGrammarCoach: true,
+      };
+      return next;
+    });
+  };
 
   const reconstructUserSentence = (item: NormalizedBuildSentenceItem, state: ItemState): string => {
     const filledWords = state.slots.map((bIdx, sIdx) => {
@@ -244,7 +299,14 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
     <div className="space-y-4">
       <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
+            {coachMode && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                🎓 Coach &amp; Marathon Mode ({normalizedItems.length} Exchanges)
+              </span>
+            )}
+          </div>
           <TaskSubtitleMeta task={task} extra={`${normalizedItems.length} Exchanges`} />
         </div>
 
@@ -284,6 +346,7 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
             bankWords: item.words,
             slots: new Array(item.targetChunks.length).fill(null),
             checked: false,
+            showGrammarCoach: false,
           };
           const filledCount = state.slots.filter((s) => s !== null).length;
           const totalSlots = item.targetChunks.length;
@@ -304,7 +367,7 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
               }`}
             >
               {/* Item Header Badge */}
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="flex items-center justify-center w-6 h-6 rounded-md bg-teal-800 text-white text-xs font-bold shrink-0">
                     {idx + 1}
@@ -313,7 +376,26 @@ export const BuildSentenceView: React.FC<Props> = ({ task, onNextTask, onComplet
                     Conversational Exchange {idx + 1} of {normalizedItems.length}
                   </span>
                 </div>
+                {coachMode && !state.checked && (
+                  <button
+                    type="button"
+                    onClick={() => handleCoachPlaceNextTile(idx)}
+                    className="text-xs font-semibold px-3 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-colors cursor-pointer"
+                  >
+                    💡 Hint (Place Next Tile &amp; Explain Grammar)
+                  </button>
+                )}
               </div>
+
+              {coachMode && state.showGrammarCoach && !state.checked && (
+                <div className="p-3 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 flex items-start gap-2">
+                  <HelpCircle className="w-4 h-4 text-indigo-700 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-indigo-900">🎓 Syntax &amp; Grammar Rule:</strong>{' '}
+                    <span>{item.grammarRule}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Row 1: Speaker 1 Avatar + Speech Bubble */}
               <div className="flex items-start gap-3">

@@ -30,6 +30,7 @@ interface Props {
   openRubrics: () => void;
   defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
   currentTaskType?: string;
+  practiceMode?: 'exam' | 'coach';
   onNavigateToTask?: (sectionOrTask: string) => void;
   onResetProgress?: () => void;
 }
@@ -41,6 +42,7 @@ export const DashboardModal: React.FC<Props> = ({
   openRubrics,
   defaultTab = 'dashboard',
   currentTaskType,
+  practiceMode = 'exam',
   onNavigateToTask,
   onResetProgress,
 }) => {
@@ -86,7 +88,7 @@ export const DashboardModal: React.FC<Props> = ({
   useEffect(() => {
     let mounted = true;
     setLoadingQuestionCounts(true);
-    getQuestionCountsPerTaskType()
+    getQuestionCountsPerTaskType(practiceMode)
       .then((counts) => {
         if (mounted) {
           setQuestionCounts(counts);
@@ -99,7 +101,7 @@ export const DashboardModal: React.FC<Props> = ({
     return () => {
       mounted = false;
     };
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, practiceMode]);
 
   useEffect(() => {
     const loadUserData = () => {
@@ -343,7 +345,7 @@ export const DashboardModal: React.FC<Props> = ({
               handleSaveGoals={handleSaveGoals}
             />
           )}
-          {activeTab === 'settings' && <SettingsTab currentTaskType={currentTaskType} />}
+          {activeTab === 'settings' && <SettingsTab currentTaskType={currentTaskType} practiceMode={practiceMode} />}
           {activeTab === 'vocabulary' && (
             <VocabularyTab
               vocab={vocab}

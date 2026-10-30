@@ -13,6 +13,7 @@ interface Props {
   onComplete?: (score: number) => void;
   wordWrapperClassName?: string;
   blankInputClassName?: string;
+  coachMode?: boolean;
 }
 
 interface BlankItem {
@@ -21,6 +22,15 @@ interface BlankItem {
   trailingPunct: string;
   userValue: string;
   isCorrect?: boolean;
+}
+
+function inferWordPartOfSpeechClue(fullWord: string): string {
+  const w = fullWord.toLowerCase();
+  if (/(tion|sion|ment|ness|ity|ism|ance|ence|ship|logy|ist|er|or)s?$/.test(w)) return 'Noun / Concept';
+  if (/(ly)$/.test(w)) return 'Adverb';
+  if (/(ive|ous|al|ic|able|ible|ful|less|ent|ant)$/.test(w)) return 'Adjective';
+  if (/(ed|ing|ize|ise|ate|ify)$/.test(w)) return 'Verb / Participle';
+  return 'Academic Content Word';
 }
 
 /**
@@ -63,12 +73,13 @@ export function isAcceptedCTestAnswer(prefix: string, userValue: string, solutio
   return canonicalizeSameLengthVariant(fullUserWord) === canonicalizeSameLengthVariant(fullExpectedWord);
 }
 
-export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplete, coachMode = false }) => {
   const [blanks, setBlanks] = useState<BlankItem[]>([]);
   const [segments, setSegments] = useState<Array<{ type: 'text' | 'blank'; value: string; blankIndex?: number }>>([]);
   const [checked, setChecked] = useState(false);
   const [score, setScore] = useState<{ correct: number; total: number } | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const [coachHintBanner, setCoachHintBanner] = useState<string | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Parse text formatted with [[missing_letters]] after enforcing strict 2026 C-Test normalization
@@ -125,6 +136,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
     setChecked(false);
     setScore(null);
     setFocusedIndex(null);
+    setCoachHintBanner(null);
   }, [task]);
 
   const handleCheck = () => {
@@ -168,6 +180,73 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
     onComplete?.(scaledScore);
   };
 
+  const handleCoachHintOneLetter = (explicitIdx?: number) => {
+    if (checked || blanks.length === 0) return;
+    let targetIdx = explicitIdx !== undefined ? explicitIdx : focusedIndex;
+    if (
+      targetIdx === null ||
+      targetIdx === undefined ||
+      isAcceptedCTestAnswer(blanks[targetIdx]?.prefix || '', blanks[targetIdx]?.userValue || '', blanks[targetIdx]?.solution || '')
+    ) {
+      const firstIncomplete = blanks.findIndex(
+        (b) => !isAcceptedCTestAnswer(b.prefix, b.userValue, b.solution)
+      );
+      targetIdx = firstIncomplete !== -1 ? firstIncomplete : 0;
+    }
+
+    const b = blanks[targetIdx];
+    if (!b) return;
+    const sol = b.solution;
+    const cur = b.userValue;
+
+    // Find the first character position where userValue doesn't match solution
+    let revealUpTo = 0;
+    while (
+      revealUpTo < sol.length &&
+      cur[revealUpTo] &&
+      cur[revealUpTo].toLowerCase() === sol[revealUpTo].toLowerCase()
+    ) {
+      revealUpTo++;
+    }
+    const nextValue = sol.slice(0, Math.min(sol.length, revealUpTo + 1));
+    const fullWord = `${b.prefix}${sol}`;
+    const posClue = inferWordPartOfSpeechClue(fullWord);
+
+    setBlanks((prev) => {
+      const updated = [...prev];
+      updated[targetIdx!] = {
+        ...updated[targetIdx!],
+        userValue: nextValue,
+        isCorrect: nextValue.length === sol.length ? true : undefined,
+      };
+      return updated;
+    });
+
+    setCoachHintBanner(
+      `Blank #${targetIdx + 1}: "${b.prefix}${nextValue}${'_'.repeat(Math.max(0, sol.length - nextValue.length))}" — ${fullWord.length}-letter ${posClue} (${b.prefix.length} given + ${sol.length} missing letters)`
+    );
+    inputRefs.current[targetIdx]?.focus();
+  };
+
+  const handleCoachCheckProgress = () => {
+    if (checked || blanks.length === 0) return;
+    let correctSoFar = 0;
+    let attemptedSoFar = 0;
+    const evaluated = blanks.map((b) => {
+      if (!b.userValue.trim()) {
+        return { ...b, isCorrect: undefined };
+      }
+      attemptedSoFar++;
+      const isRight = isAcceptedCTestAnswer(b.prefix, b.userValue, b.solution);
+      if (isRight) correctSoFar++;
+      return { ...b, isCorrect: isRight };
+    });
+    setBlanks(evaluated);
+    setCoachHintBanner(
+      `Progress Check: ${correctSoFar}/${blanks.length} blanks correct (${attemptedSoFar} attempted). Green blanks are verified; keep editing any red or empty blanks!`
+    );
+  };
+
   // Keyboard shortcut Ctrl+Enter or Cmd+Enter to submit anywhere
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -190,7 +269,11 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
     const truncated = clean.slice(0, maxLen);
 
     const updated = [...blanks];
-    updated[index].userValue = truncated;
+    updated[index] = {
+      ...updated[index],
+      userValue: truncated,
+      isCorrect: undefined,
+    };
     setBlanks(updated);
 
     // Auto-focus next input when current blank is filled
@@ -205,6 +288,15 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
       e.preventDefault();
       handleCheck();
       return;
+    }
+
+    if (coachMode && e.key === 'Tab' && !e.shiftKey) {
+      const b = blanks[index];
+      if (b && !isAcceptedCTestAnswer(b.prefix, b.userValue, b.solution)) {
+        e.preventDefault();
+        handleCoachHintOneLetter(index);
+        return;
+      }
     }
 
     // Pressing Enter advances to the next answer dash
@@ -227,13 +319,21 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
     setChecked(false);
     setScore(null);
     setFocusedIndex(null);
+    setCoachHintBanner(null);
   };
 
   return (
     <div className="space-y-4">
       <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
+            {coachMode && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                🎓 Coach &amp; Marathon Mode ({blanks.length} Blanks)
+              </span>
+            )}
+          </div>
           <TaskSubtitleMeta task={task} extra={`${blanks.length} Word Underlines`} />
         </div>
 
@@ -241,6 +341,12 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
             <span><strong className="font-semibold text-slate-800">Enter</strong>: Next dash</span>
+            {coachMode && (
+              <>
+                <span aria-hidden="true" className="text-slate-300">·</span>
+                <span><strong className="font-semibold text-indigo-700">Tab</strong>: +1 Letter Hint</span>
+              </>
+            )}
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
@@ -256,6 +362,35 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
         <strong>Navigation Guide:</strong> A vertical blinking cursor line indicates your active typing position.
         Press <strong>Enter</strong> to jump to the next word blank, and press <strong>Ctrl + Enter</strong> to check your answers.
       </CollapsibleTaskInstructions>
+
+      {coachMode && !checked && (
+        <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="text-xs text-indigo-950 space-y-0.5">
+            <div className="font-bold text-indigo-900 flex items-center gap-1.5">
+              <span>🎓 Interactive C-Test Coach Tools</span>
+            </div>
+            <p className="text-indigo-800">
+              {coachHintBanner || 'Click any word blank and use "+1 Letter Hint" (or press Tab) to reveal one letter + part-of-speech clue, or check your progress without locking the test.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleCoachHintOneLetter()}
+              className="px-3 py-1.5 text-xs font-semibold bg-white hover:bg-indigo-100 text-indigo-900 border border-indigo-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            >
+              💡 Hint (+1 Letter)
+            </button>
+            <button
+              type="button"
+              onClick={handleCoachCheckProgress}
+              className="px-3 py-1.5 text-xs font-semibold bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg shadow-2xs transition-colors cursor-pointer"
+            >
+              ✓ Check Current Progress
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Interactive C-Test Paragraph with Cursor and Discrete Slots */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
@@ -309,7 +444,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
                   {/* Visible discrete letter slots with high-contrast cursor */}
                   <span
                     className={`inline-flex items-baseline border-b-2 transition-colors relative ${
-                      checked
+                      checked || blank.isCorrect !== undefined
                         ? isRight
                           ? 'border-emerald-600 bg-emerald-50/70'
                           : 'border-rose-500 bg-rose-50/70'
@@ -326,7 +461,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplet
                         <span
                           key={charIdx}
                           className={`inline-flex items-center justify-center min-w-[10px] sm:min-w-[11px] h-5 px-[0.5px] text-base font-semibold tracking-normal transition-all relative ${
-                            checked
+                            checked || blank.isCorrect !== undefined
                               ? isRight
                                 ? 'text-emerald-900'
                                 : 'text-rose-900'

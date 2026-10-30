@@ -73,7 +73,7 @@ service cloud.firestore {
     function isValidAudioClips(clips) {
       return clips is list
         && clips.size() > 0
-        && clips.size() <= 10
+        && clips.size() <= 15
         && isValidAudioClip(clips[0])
         && (clips.size() <= 1 || isValidAudioClip(clips[1]))
         && (clips.size() <= 2 || isValidAudioClip(clips[2]))
@@ -83,7 +83,12 @@ service cloud.firestore {
         && (clips.size() <= 6 || isValidAudioClip(clips[6]))
         && (clips.size() <= 7 || isValidAudioClip(clips[7]))
         && (clips.size() <= 8 || isValidAudioClip(clips[8]))
-        && (clips.size() <= 9 || isValidAudioClip(clips[9]));
+        && (clips.size() <= 9 || isValidAudioClip(clips[9]))
+        && (clips.size() <= 10 || isValidAudioClip(clips[10]))
+        && (clips.size() <= 11 || isValidAudioClip(clips[11]))
+        && (clips.size() <= 12 || isValidAudioClip(clips[12]))
+        && (clips.size() <= 13 || isValidAudioClip(clips[13]))
+        && (clips.size() <= 14 || isValidAudioClip(clips[14]));
     }
 
     function isValidQuestion(data) {
@@ -137,6 +142,35 @@ service cloud.firestore {
 
     // Shared Question Bank
     match /questions/{questionId} {
+      allow read: if true;
+
+      allow create: if isSignedIn() && isValidQuestion(request.resource.data);
+
+      allow update: if isSignedIn()
+        && request.resource.data.taskType == resource.data.taskType
+        && isValidQuestion(request.resource.data)
+        && (
+          isQuestionIncrementOnly()
+          || isAdmin()
+          || (
+            request.resource.data.get('id', questionId) == resource.data.get('id', questionId)
+            && request.resource.data.taskType == resource.data.taskType
+            && request.resource.data.get('data', {}) == resource.data.get('data', {})
+            && request.resource.data.get('content', {}) == resource.data.get('content', {})
+          )
+          || (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
+            && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)
+            && !exists(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+            && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // Isolated Coach & Marathon Mode Question Bank
+    match /coach_questions/{questionId} {
       allow read: if true;
 
       allow create: if isSignedIn() && isValidQuestion(request.resource.data);

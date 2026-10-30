@@ -50,9 +50,14 @@ import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
   currentTaskType?: string;
+  practiceMode?: 'exam' | 'coach';
 }
 
-export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, currentTaskType }) => {
+export const SettingsTab: React.FC<SettingsTabProps> = ({
+  onConfigureGoals,
+  currentTaskType,
+  practiceMode = 'exam',
+}) => {
   const { displayName, setDisplayName } = useAuth();
   const [scholarInput, setScholarInput] = useState('');
   const [dataMessage, setDataMessage] = useState<{ success: boolean; text: string } | null>(null);
@@ -134,8 +139,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   } | null>(null);
 
   useEffect(() => {
-    getQuestionBankStats().then(setBankStats);
-  }, []);
+    getQuestionBankStats(practiceMode).then(setBankStats);
+  }, [practiceMode]);
 
   useEffect(() => {
     const currentName = displayName || localStorage.getItem('toefl_display_name') || getScholarUsername();
@@ -279,10 +284,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   };
 
   const handleSyncAndCleanBank = async () => {
-    setDataMessage({ success: true, text: 'Re-syncing question shards & pulling global Firestore questions...' });
+    setDataMessage({ success: true, text: `Re-syncing ${practiceMode === 'coach' ? 'Coach & Marathon' : 'Exam Mode'} question shards & pulling global Firestore questions...` });
     const purgeCount = await purgeLowQualityCache();
-    const syncRes = await reSyncAllShards();
-    const updated = await getQuestionBankStats();
+    const syncRes = await reSyncAllShards(practiceMode);
+    const updated = await getQuestionBankStats(practiceMode);
     setBankStats(updated);
     setDataMessage({
       success: true,
@@ -301,7 +306,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
       const res = await repairQuestionBank((processed, fixed) => {
         setRepairStatus(`Scanned ${processed} questions, fixed ${fixed}...`);
       });
-      const updated = await getQuestionBankStats();
+      const updated = await getQuestionBankStats(practiceMode);
       setBankStats(updated);
       setDataMessage({
         success: true,
@@ -395,6 +400,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               taskType: bulkSeedTaskType,
               level: target.level,
               topic: target.topic,
+              coachMode: practiceMode === 'coach',
+              promptData: practiceMode === 'coach' ? { coachMode: true, mode: 'coach' } : undefined,
             }),
           });
 
@@ -406,6 +413,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
                 level: target.level,
                 topic: target.topic,
                 content: generatedData,
+                mode: practiceMode,
               });
               successCount++;
             }
@@ -418,10 +426,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
         }
       }
 
+      const updatedStats = await getQuestionBankStats(practiceMode);
+      setBankStats(updatedStats);
+
       if (successCount > 0) {
         setDataMessage({
           success: true,
-          text: `Successfully generated and saved ${successCount}/5 verified questions for "${targetTaskName}" to IndexedDB & Firestore!`,
+          text: `Successfully generated and saved ${successCount}/5 verified questions for "${targetTaskName}" (${practiceMode === 'coach' ? 'Coach Mode' : 'Exam Mode'}) to IndexedDB & Firestore!`,
         });
       } else {
         setDataMessage({

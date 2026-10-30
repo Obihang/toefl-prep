@@ -77,7 +77,7 @@ export function isHighQualityTask(task: any, taskType: string): boolean {
       const sentences = Array.isArray(task.sentences) ? task.sentences : [];
       return (
         sentences.length >= 7 &&
-        sentences.every((s: string) => countWords(s) >= 5) &&
+        sentences.every((s: string) => countWords(String(s || '').replace(/\|/g, ' ')) >= 5) &&
         validateNormalizedTask(canonicalType, task)
       );
     }
