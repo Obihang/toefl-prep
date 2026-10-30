@@ -352,6 +352,41 @@ export function clearPracticeHistory() {
   }
 }
 
+export function clearAllUserProgress() {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(getStorageKey());
+    localStorage.removeItem('toefl_score_history');
+    localStorage.removeItem(COMPLETED_QUESTIONS_KEY);
+    localStorage.removeItem('toefl_mistakes');
+    localStorage.removeItem(`toefl_mistakes_${getCurrentUserId()}`);
+    localStorage.removeItem('toefl_exam_history');
+    localStorage.removeItem('toefl_adaptive_difficulty');
+    localStorage.removeItem('toefl_difficulty_history');
+    localStorage.removeItem(`toefl_daily_plan_${getCurrentUserId()}`);
+
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (
+        key &&
+        (key.startsWith('toefl_prep_history_') ||
+          key.startsWith('toefl_mistakes_') ||
+          key.startsWith('toefl_daily_plan_') ||
+          key.startsWith('toefl_draft_'))
+      ) {
+        localStorage.removeItem(key);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('toefl_completed_questions_updated'));
+    window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
+    window.dispatchEvent(new CustomEvent('toefl_daily_plan_updated'));
+    window.dispatchEvent(new CustomEvent('toefl_progress_reset'));
+  } catch (e) {
+    console.warn('Failed to clear all user progress:', e);
+  }
+}
+
 export const resetPracticeHistory = clearPracticeHistory;
 
 export {

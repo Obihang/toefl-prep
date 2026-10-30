@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Trophy, Flame, CheckCircle2, Circle, ArrowRight, Play, Sparkles, Clock, AlertTriangle, BookOpen, FileText, ChevronDown, ChevronUp, Award } from 'lucide-react';
-import { PracticeRecord, getUserStats, convertScaledToBand6, calculateMyBestScores } from '../../../utils/scoreTracker';
+import { Target, Trophy, Flame, CheckCircle2, Circle, ArrowRight, Play, Sparkles, Clock, AlertTriangle, BookOpen, FileText, ChevronDown, ChevronUp, Award, Trash2 } from 'lucide-react';
+import { PracticeRecord, getUserStats, convertScaledToBand6, calculateMyBestScores, getCompletedQuestionIds, clearAllUserProgress } from '../../../utils/scoreTracker';
+import { getMistakesList } from '../../../utils/mistakesTracker';
 import { HighlightedText } from '../../shared/FeedbackComparison';
 import { streak } from '../../../utils/dashboardStats';
 import {
@@ -24,6 +25,7 @@ interface OverviewTabProps {
   onOpenTask?: (taskType: string) => void;
   onOpenHistory?: () => void;
   onSwitchTab?: (tab: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes') => void;
+  onResetProgress?: () => void;
   vocab?: any[];
   mistakes?: any[];
   studyGoals?: StudyGoals;
@@ -38,6 +40,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   onOpenTask,
   onOpenHistory,
   onSwitchTab,
+  onResetProgress,
   vocab = [],
   mistakes = [],
   studyGoals,
@@ -45,7 +48,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const targetScore = stats?.targetScore || 100;
   const scoreGap = Math.max(0, targetScore - toeflEstimate.overallScore);
   const st = streak(completedDays);
-  const weeklyCompleted = stats?.weeklyCompleted || 3;
+  const weeklyCompleted = history.length === 0 ? 0 : (stats?.weeklyCompleted || history.length);
   const weeklyGoal = parseInt(localStorage.getItem('WEEKLY_GOAL') || '5', 10);
   const myBest = calculateMyBestScores(history);
 
@@ -53,6 +56,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     generateDailyPlan(history, mistakes, vocab, studyGoals)
   );
   const [expandedAttemptId, setExpandedAttemptId] = useState<string | null>(null);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   useEffect(() => {
     const updatePlan = () => {
@@ -371,20 +375,59 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       {/* 5. Recent Attempts */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h4 className="font-bold text-slate-900 text-sm">Recent Practice Attempts</h4>
             <p className="text-xs text-slate-500">Your latest logged test sessions</p>
           </div>
-          {onOpenHistory && (
-            <button
-              onClick={onOpenHistory}
-              className="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
-            >
-              <span>View Score History</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {(history.length > 0 || mistakes.length > 0 || getMistakesList().length > 0 || getCompletedQuestionIds().length > 0) && (
+              confirmingReset ? (
+                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg text-xs">
+                  <span className="text-rose-800 font-semibold">Confirm Reset Everything?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onResetProgress) {
+                        onResetProgress();
+                      } else {
+                        clearAllUserProgress();
+                      }
+                      setConfirmingReset(false);
+                    }}
+                    className="px-2 py-0.5 font-bold bg-rose-600 text-white rounded hover:bg-rose-700 transition-colors cursor-pointer"
+                  >
+                    Yes, Clear All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReset(false)}
+                    className="px-1.5 py-0.5 text-slate-600 hover:text-slate-900 font-medium transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingReset(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>🗑️ Reset All Scores &amp; History</span>
+                </button>
+              )
+            )}
+            {onOpenHistory && (
+              <button
+                onClick={onOpenHistory}
+                className="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
+              >
+                <span>View Score History</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
 
         {recentAttemptsList.length === 0 ? (

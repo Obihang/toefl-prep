@@ -13,7 +13,7 @@ const getMistakesKey = () => `toefl_mistakes_${getCurrentUserId()}`;
 export function getMistakesList(): MistakeRecord[] {
   if (typeof localStorage === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(getMistakesKey());
+    const raw = localStorage.getItem(getMistakesKey()) || localStorage.getItem('toefl_mistakes');
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -38,6 +38,7 @@ export function saveQuestionMistake(questionId: string, section: string, taskTit
       list.unshift(newRecord);
     }
     localStorage.setItem(getMistakesKey(), JSON.stringify(list));
+    localStorage.setItem('toefl_mistakes', JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
   } catch (e) {
     console.warn('Failed to save mistake record:', e);
@@ -49,6 +50,7 @@ export function removeQuestionMistake(questionId: string): void {
   try {
     const list = getMistakesList().filter((m) => m.questionId !== questionId);
     localStorage.setItem(getMistakesKey(), JSON.stringify(list));
+    localStorage.setItem('toefl_mistakes', JSON.stringify(list));
     window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
   } catch (e) {
     console.warn('Failed to remove mistake record:', e);
@@ -63,5 +65,6 @@ export function isQuestionInMistakes(questionId: string): boolean {
 export function clearAllMistakes(): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.removeItem(getMistakesKey());
+  localStorage.removeItem('toefl_mistakes');
   window.dispatchEvent(new CustomEvent('toefl_mistakes_updated'));
 }

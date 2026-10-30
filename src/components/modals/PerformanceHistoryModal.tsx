@@ -3,6 +3,8 @@ import { X, Trash2, Award, BarChart3, TrendingUp, Calendar, Download, Upload, Ta
 import {
   getPracticeHistory,
   clearPracticeHistory,
+  clearAllUserProgress,
+  getCompletedQuestionIds,
   calculateToeflEstimate,
   calculateMyBestScores,
   convertScaledToBand6,
@@ -10,15 +12,17 @@ import {
   getCurrentUserId,
   PracticeRecord,
 } from '../../utils/scoreTracker';
+import { getMistakesList } from '../../utils/mistakesTracker';
 import { PerformanceTrendChart } from './history/PerformanceTrendChart';
 import { HighlightedText } from '../shared/FeedbackComparison';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onResetProgress?: () => void;
 }
 
-export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
+export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose, onResetProgress }) => {
   const [history, setHistory] = useState<PracticeRecord[]>([]);
   const [activeSectionTab, setActiveSectionTab] = useState<'All' | 'Reading' | 'Listening' | 'Speaking' | 'Writing'>('All');
   const [targetScore, setTargetScore] = useState(100);
@@ -26,6 +30,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,13 +47,28 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
       }
       setStatusMessage(null);
       setConfirmingClear(false);
+      setConfirmingReset(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const syncOnReset = () => {
+      setHistory(getPracticeHistory());
+      setConfirmingReset(false);
+      setConfirmingClear(false);
+    };
+    window.addEventListener('toefl_progress_reset', syncOnReset);
+    return () => window.removeEventListener('toefl_progress_reset', syncOnReset);
+  }, []);
 
   if (!isOpen) return null;
 
   const stats = calculateToeflEstimate(history);
   const myBest = calculateMyBestScores(history);
+  const hasAnyProgress =
+    history.length > 0 ||
+    getCompletedQuestionIds().length > 0 ||
+    getMistakesList().length > 0;
 
   // Countdown days
   const daysToTest = testDate ? Math.ceil((new Date(testDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30;
@@ -64,9 +84,15 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
 
   const handleClear = () => {
     clearPracticeHistory();
+    if (onResetProgress) {
+      onResetProgress();
+    } else {
+      clearAllUserProgress();
+    }
     setHistory([]);
     setConfirmingClear(false);
-    showNotification('Practice history cleared successfully.', 'success');
+    setConfirmingReset(false);
+    showNotification('All scores, MyBest® superscores, and practice history have been reset.', 'success');
   };
 
   // Export JSON
@@ -139,22 +165,54 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
               <BarChart3 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">TOEFL Analytics & Study Projection</h2>
+              <h2 className="text-lg font-bold text-slate-900">TOEFL Analytics &amp; Study Projection</h2>
               <p className="text-xs text-slate-500">Track score trends, MyBest® superscores, countdown, and backup data</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {hasAnyProgress && (
+              confirmingReset ? (
+                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg text-xs">
+                  <span className="text-rose-800 font-semibold">Confirm Reset Everything?</span>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="px-2.5 py-1 font-bold bg-rose-600 text-white rounded-md hover:bg-rose-700 transition-colors cursor-pointer"
+                  >
+                    Yes, Clear All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReset(false)}
+                    className="px-2 py-1 text-slate-600 hover:text-slate-900 font-medium transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingReset(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>🗑️ Reset All Scores &amp; History</span>
+                </button>
+              )
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Official ETS MyBest® Scores Card */}

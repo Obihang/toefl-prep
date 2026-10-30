@@ -60,7 +60,12 @@ import {
   getCompletedQuestionIds,
   markQuestionCompleted,
   isQuestionCompleted,
+  getPracticeHistory,
+  clearAllUserProgress,
+  PracticeRecord,
 } from './utils/scoreTracker';
+import { getMistakesList, clearAllMistakes, MistakeRecord } from './utils/mistakesTracker';
+import { clearAllFirestoreMistakes } from './utils/mistakes';
 import { SystemStatusModal } from './components/shared/SystemStatusModal';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
 import { GlobalReportButton } from './components/shared/GlobalReportButton';
@@ -158,22 +163,66 @@ export default function App() {
     };
   }, [currentTaskType, isMockTest]);
 
-  // Track completed question IDs so we prioritize unpracticed questions and show ✓ Z practiced
+  // Track completed question IDs, score history, and mistake notebook so we prioritize unpracticed questions and support full reset
   const [completedQuestionIds, setCompletedQuestionIds] = useState<string[]>(() =>
     getCompletedQuestionIds()
   );
+  const [scoreHistory, setScoreHistory] = useState<PracticeRecord[]>(() =>
+    getPracticeHistory()
+  );
+  const [mistakeNotebook, setMistakeNotebook] = useState<MistakeRecord[]>(() =>
+    getMistakesList()
+  );
+  const [taskResetNonce, setTaskResetNonce] = useState(0);
 
   useEffect(() => {
     const syncCompleted = () => {
       setCompletedQuestionIds(getCompletedQuestionIds());
+      setScoreHistory(getPracticeHistory());
+    };
+    const syncMistakes = () => {
+      setMistakeNotebook(getMistakesList());
     };
     window.addEventListener('toefl_completed_questions_updated', syncCompleted);
     window.addEventListener('toefl_user_changed', syncCompleted);
+    window.addEventListener('toefl_mistakes_updated', syncMistakes);
     return () => {
       window.removeEventListener('toefl_completed_questions_updated', syncCompleted);
       window.removeEventListener('toefl_user_changed', syncCompleted);
+      window.removeEventListener('toefl_mistakes_updated', syncMistakes);
     };
   }, []);
+
+  const handleResetAllProgress = () => {
+    stopSpeaking();
+    // 1. Clear scoreHistory state and remove 'toefl_score_history' from localStorage
+    setScoreHistory([]);
+    localStorage.removeItem('toefl_score_history');
+
+    // 2. Clear mistakeNotebook state and remove 'toefl_mistakes' from localStorage
+    setMistakeNotebook([]);
+    localStorage.removeItem('toefl_mistakes');
+    clearAllMistakes();
+    clearAllFirestoreMistakes().catch(() => {});
+
+    // 3. Clear completed/practiced question tracking ('toefl_completed_question_ids', adaptive difficulty history, and mock exam history 'toefl_exam_history')
+    localStorage.removeItem('toefl_completed_question_ids');
+    localStorage.removeItem('toefl_exam_history');
+    localStorage.removeItem('toefl_adaptive_difficulty');
+    localStorage.removeItem('toefl_difficulty_history');
+    clearAllUserProgress();
+    setCompletedQuestionIds([]);
+
+    // 4. Reset any active evaluation/answers on screen
+    setTaskResetNonce((n) => n + 1);
+    if (currentTaskType === 'write-email') {
+      setWritingTimerSeconds(420);
+      setIsWritingTimerRunning(isWritingTimerEnabled);
+    } else if (currentTaskType === 'academic-discussion') {
+      setWritingTimerSeconds(600);
+      setIsWritingTimerRunning(isWritingTimerEnabled);
+    }
+  };
 
   // Ensure fresh start on reload: purge any legacy draft keys
   useEffect(() => {
@@ -1490,7 +1539,7 @@ export default function App() {
 
               {currentTaskType === 'complete-words' && (
                 <CompleteWordsView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as CompleteWordsTask}
                   wordWrapperClassName="inline-flex items-baseline whitespace-nowrap"
                   blankInputClassName="text-base font-semibold"
@@ -1501,7 +1550,7 @@ export default function App() {
 
               {currentTaskType === 'daily-life' && (
                 <DailyLifeView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
                   skillFocus={readingSkillFocus}
                   leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
@@ -1514,7 +1563,7 @@ export default function App() {
 
               {(currentTaskType === 'reading-academic' || currentTaskType === 'reading-passage') && (
                 <ReadingPassageView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as ReadingPassageTask}
                   skillFocus={readingSkillFocus}
                   leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
@@ -1527,7 +1576,7 @@ export default function App() {
 
               {currentTaskType === 'listening-choose-response' && (
                 <ListeningChooseResponseView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
                   onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion('listening-choose-response')}
@@ -1536,7 +1585,7 @@ export default function App() {
 
               {(currentTaskType === 'listening-dialogue' || currentTaskType === 'listening-conversation') && (
                 <ListeningDialogueView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as ListeningTask}
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
@@ -1549,7 +1598,7 @@ export default function App() {
 
               {currentTaskType === 'listening-announcement' && (
                 <ListeningAnnouncementView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
@@ -1561,7 +1610,7 @@ export default function App() {
 
               {(currentTaskType === 'listening-academic-talk' || currentTaskType === 'listening-lecture') && (
                 <ListeningAcademicTalkView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as any}
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
@@ -1574,7 +1623,7 @@ export default function App() {
 
               {currentTaskType === 'build-sentence' && (
                 <BuildSentenceView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as BuildSentenceTask}
                   onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
@@ -1583,7 +1632,7 @@ export default function App() {
 
               {currentTaskType === 'write-email' && (
                 <WriteEmailView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as WriteEmailTask}
                   spellCheck={false}
                   annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
@@ -1615,7 +1664,7 @@ export default function App() {
 
               {currentTaskType === 'academic-discussion' && (
                 <AcademicDiscussionView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as AcademicDiscussionTask}
                   spellCheck={false}
                   annotatedReviewTitle="Annotated Response Review (Errors & Wording Highlights)"
@@ -1647,7 +1696,7 @@ export default function App() {
 
               {currentTaskType === 'listen-repeat' && (
                 <ListenRepeatView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as ListenRepeatTask}
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   onComplete={() => {
@@ -1663,7 +1712,7 @@ export default function App() {
 
               {currentTaskType === 'speaking-interview' && (
                 <SpeakingInterviewView
-                  key={activeTask.id || (activeTask as any).title}
+                  key={`${activeTask.id || (activeTask as any).title}-${taskResetNonce}`}
                   task={activeTask as SpeakingInterviewTask}
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   localGraderLabel="⚡ Instant Local Grader"
@@ -1730,7 +1779,11 @@ export default function App() {
       <SystemStatusModal isOpen={isStatusModalOpen} onClose={() => setIsStatusModalOpen(false)} />
 
       <Suspense fallback={null}>
-        <PerformanceHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+        <PerformanceHistoryModal
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+          onResetProgress={handleResetAllProgress}
+        />
         <DashboardModal 
           isOpen={isDashboardOpen} 
           onClose={() => setIsDashboardOpen(false)} 
@@ -1738,6 +1791,7 @@ export default function App() {
           currentTaskType={currentTaskType}
           openHistory={() => { setIsDashboardOpen(false); setIsHistoryOpen(true); }}
           openRubrics={() => { setIsDashboardOpen(false); setIsRubricsOpen(true); }}
+          onResetProgress={handleResetAllProgress}
           onNavigateToTask={(target) => {
             setIsDashboardOpen(false);
             const lower = (target || '').toLowerCase();

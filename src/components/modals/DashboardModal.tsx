@@ -31,6 +31,7 @@ interface Props {
   defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
   currentTaskType?: string;
   onNavigateToTask?: (sectionOrTask: string) => void;
+  onResetProgress?: () => void;
 }
 
 export const DashboardModal: React.FC<Props> = ({
@@ -41,9 +42,11 @@ export const DashboardModal: React.FC<Props> = ({
   defaultTab = 'dashboard',
   currentTaskType,
   onNavigateToTask,
+  onResetProgress,
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab || 'dashboard');
   const [stats, setStats] = useState<any>(null);
+  const [practiceHistory, setPracticeHistory] = useState<any[]>(() => getPracticeHistory());
   const [completedDays, setCompletedDays] = useState<string[]>([]);
   const [vocab, setVocab] = useState<VocabularyWord[]>([]);
 
@@ -101,6 +104,7 @@ export const DashboardModal: React.FC<Props> = ({
   useEffect(() => {
     const loadUserData = () => {
       if (isOpen) {
+        setPracticeHistory(getPracticeHistory());
         setStats(getUserStats());
         getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
         
@@ -155,14 +159,16 @@ export const DashboardModal: React.FC<Props> = ({
     loadUserData();
     window.addEventListener('toefl_user_changed', loadUserData);
     window.addEventListener('toefl_vocab_updated', loadUserData);
+    window.addEventListener('toefl_progress_reset', loadUserData);
     return () => {
       window.removeEventListener('toefl_user_changed', loadUserData);
       window.removeEventListener('toefl_vocab_updated', loadUserData);
+      window.removeEventListener('toefl_progress_reset', loadUserData);
     };
   }, [isOpen]);
 
   const targetScoreNum = parseInt(targetScoreInput, 10) || 100;
-  const toeflEstimate = calculateToeflEstimate(getPracticeHistory());
+  const toeflEstimate = calculateToeflEstimate(practiceHistory);
   const readinessPct = Math.min(100, Math.round((toeflEstimate.overallScore / (targetScoreNum || 120)) * 100));
   const scoreGap = Math.max(0, targetScoreNum - toeflEstimate.overallScore);
 
@@ -170,7 +176,7 @@ export const DashboardModal: React.FC<Props> = ({
     ? Math.ceil((new Date(testDateInput).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
-  const weeklyCompleted = stats?.weeklyCompleted || 3;
+  const weeklyCompleted = practiceHistory.length === 0 ? 0 : (stats?.weeklyCompleted || practiceHistory.length);
   const sectionTargetScore = Math.round(targetScoreNum / 4);
   const totalBankCount = Object.values(questionCounts).reduce((a, b) => a + b, 0);
 
@@ -292,7 +298,7 @@ export const DashboardModal: React.FC<Props> = ({
             <OverviewTab
               toeflEstimate={toeflEstimate}
               stats={stats}
-              history={getPracticeHistory()}
+              history={practiceHistory}
               completedDays={completedDays}
               vocab={vocab}
               onOpenTask={(target) => {
@@ -301,6 +307,12 @@ export const DashboardModal: React.FC<Props> = ({
               }}
               onOpenHistory={openHistory}
               onSwitchTab={(tab) => setActiveTab(tab)}
+              onResetProgress={() => {
+                onResetProgress?.();
+                setPracticeHistory([]);
+                setStats(null);
+                setCompletedDays([]);
+              }}
               studyGoals={{
                 targetScore: targetScoreNum,
                 testDate: testDateInput,
