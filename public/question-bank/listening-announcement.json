@@ -1,0 +1,372 @@
+[
+  {
+    "id": "la-1",
+    "title": "Science Hall Power Outage & Lab Rescheduling",
+    "context": "Broadcast to students enrolled in chemistry and biology laboratory courses",
+    "speakerName": "Dr. Angela Evans",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "science-tech",
+    "script": "Attention all chemistry students. Due to emergency electrical maintenance in Science Hall, all afternoon laboratory sections scheduled for today are canceled. Make-up sessions will take place next Tuesday during normal lab periods. If you have experiment samples currently inside the refrigerated incubators, please do not worry—the backup generators are active and running at full capacity. Check your email tonight for updated safety briefing notes.",
+    "questions": [
+      {
+        "q": "Why were the afternoon laboratory sessions canceled?",
+        "options": [
+          "Hazardous chemical fumes were detected in the hallway",
+          "Emergency electrical repairs are taking place in Science Hall",
+          "The instructor was called away to an academic conference",
+          "Severe weather forced a mandatory university-wide lockdown"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The speaker states: 'Due to emergency electrical maintenance in Science Hall, all afternoon laboratory sections scheduled for today are canceled.'"
+      },
+      {
+        "q": "What reassurance does the speaker offer regarding experiment samples?",
+        "options": [
+          "Students will be granted extra credit for damaged preparations",
+          "Lab technicians will transfer them to another building by hand",
+          "Backup generators are operating to power the refrigerated incubators",
+          "All lost data will be replaced by simulated computer datasets"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The speaker notes: 'the backup generators are active and running at full capacity' for refrigerated incubators."
+      }
+    ]
+  },
+  {
+    "id": "la-2",
+    "title": "University Shuttle Route Changes for Homecoming Parade",
+    "context": "Campus transportation advisory delivered over the campus radio and student portal",
+    "speakerName": "Director Marcus Vance",
+    "speakerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "script": "Good morning commuters. Because of the annual homecoming parade, University Boulevard will be closed to all vehicular traffic between 1:00 PM and 5:00 PM this Friday. Consequently, the blue express campus shuttle will bypass the Student Union and Central Quad stops. Passengers heading to North Campus should board at the East Stadium Transit Hub instead. Normal campus bus routes will resume promptly at 5:30 PM.",
+    "questions": [
+      {
+        "q": "Where should students board the blue express shuttle on Friday afternoon?",
+        "options": [
+          "At the main Student Union entrance portico",
+          "At the Central Quad pedestrian plaza stop",
+          "At the East Stadium Transit Hub",
+          "At the municipal downtown transit terminal"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The announcement states: 'Passengers heading to North Campus should board at the East Stadium Transit Hub instead.'"
+      },
+      {
+        "q": "Why are the normal campus shuttle routes being temporarily altered?",
+        "options": [
+          "University Boulevard is closed for the annual homecoming parade",
+          "Road resurfacing crews are paving the Central Quad roadway",
+          "A major student athletic victory celebration is taking place",
+          "Shuttle drivers are attending a required quarterly safety workshop"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The speaker explains: 'Because of the annual homecoming parade, University Boulevard will be closed to all vehicular traffic.'"
+      }
+    ]
+  },
+  {
+    "id": "la-3",
+    "title": "Library Extended Hours & Noise Policy Reminder",
+    "context": "Announcement made over the intercom system in Green Memorial Library",
+    "speakerName": "Head Librarian Patricia Cole",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "script": "Good evening library patrons. Starting tonight, our main reading room and second-floor research wing will remain open until 2:00 AM every night through final exam week. As a reminder, the third and fourth floors are designated strictly for silent, independent study. Cell phone calls and group discussions are restricted exclusively to the first-floor cafe and reservable basement seminar rooms. Thank you for maintaining a respectful environment.",
+    "questions": [
+      {
+        "q": "Where are students permitted to conduct group study sessions or phone conversations?",
+        "options": [
+          "On the designated quiet third and fourth study floors",
+          "Exclusively in the first-floor cafe and basement seminar rooms",
+          "In any hallway corridor after ten o'clock at night",
+          "Only in outdoor seating areas around the library fountain"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The announcement clarifies that group discussions and calls are 'restricted exclusively to the first-floor cafe and reservable basement seminar rooms.'"
+      },
+      {
+        "q": "What change to library operations is announced for final exam week?",
+        "options": [
+          "Books may be checked out for an extended four-week duration",
+          "Free printing vouchers will be distributed at circulation desks",
+          "Operating hours are extended until 2:00 AM nightly",
+          "All overdue book fines will be automatically forgiven"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The librarian announces: 'our main reading room and second-floor research wing will remain open until 2:00 AM every night through final exam week.'"
+      }
+    ]
+  },
+  {
+    "id": "la-4",
+    "title": "Undergraduate Research Grant Deadline Extension",
+    "context": "Classroom announcement by an economics professor",
+    "speakerName": "Professor David Albright",
+    "speakerGender": "male",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "business-economics",
+    "script": "Before we begin today's lecture on econometric modeling, please take note: the university research council has pushed back the proposal deadline for Undergraduate Summer Fellowships to next Friday, April 14th at midnight. This extension accommodates recent portal downtime. Don't forget that your proposal must include an itemized budget sheet and a faculty letter of endorsement. Late submissions cannot be accepted under any circumstances.",
+    "questions": [
+      {
+        "q": "What caused the research council to postpone the fellowship submission deadline?",
+        "options": [
+          "Technical difficulties with the university online submission portal",
+          "A low overall volume of preliminary research proposals",
+          "Requests from faculty members for more evaluation time",
+          "Recent budget increases provided by university alumni"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The professor states: 'This extension accommodates recent portal downtime.'"
+      },
+      {
+        "q": "What supporting material must accompany each student's proposal?",
+        "options": [
+          "A formal transcript stamped by the university registrar",
+          "A signed letter of recommendation from an off-campus employer",
+          "An itemized budget sheet and a faculty endorsement letter",
+          "A peer review questionnaire completed by three classmates"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The professor reminds students: 'your proposal must include an itemized budget sheet and a faculty letter of endorsement.'"
+      }
+    ]
+  },
+  {
+    "id": "la-5",
+    "title": "Campus Dining Center Transition to Composting",
+    "context": "Announcement made at the student dining center entrance",
+    "speakerName": "Sustainability Director Laura Gomez",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "environment",
+    "script": "Welcome diners. In our ongoing effort to achieve zero campus landfill waste, all dining halls are transitioning to fully compostable takeaway containers and cutlery starting today. When clearing your trays, please scrape leftover food waste and compostable boxes into the designated green bins. Cans and plastic bottles belong in the blue recycling containers. Student environmental volunteers are stationed near the dish return to answer any questions.",
+    "questions": [
+      {
+        "q": "Where should students place leftover food and takeout containers?",
+        "options": [
+          "Inside the black general waste compactors",
+          "Directly onto the conveyor belts at the kitchen window",
+          "Inside the designated green composting bins",
+          "In the blue mixed paper and plastic recycling receptacles"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The director instructs: 'please scrape leftover food waste and compostable boxes into the designated green bins.'"
+      },
+      {
+        "q": "Who is stationed near the dish return area to guide diners?",
+        "options": [
+          "Student environmental volunteers",
+          "Full-time university cafeteria chefs",
+          "Members of campus custodial services",
+          "City environmental health inspectors"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The announcement confirms: 'Student environmental volunteers are stationed near the dish return to answer any questions.'"
+      }
+    ]
+  },
+  {
+    "id": "la-6",
+    "title": "Mandatory Resident Hall Fire Drill Notification",
+    "context": "Paging system announcement in student residence quad",
+    "speakerName": "Residence Hall Coordinator Thomas Reed",
+    "speakerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "script": "Attention West Quad residents. This evening at approximately 7:30 PM, campus safety will conduct our mandatory semester fire evacuation drill. When the alarms sound, please cease all activities, put on warm outdoor clothing, and evacuate via the nearest marked stairwells. Do not use the elevators under any circumstances. Once outside, report to your floor advisor on the intramural soccer field for headcount verification.",
+    "questions": [
+      {
+        "q": "What action are residents strictly warned against during the fire drill?",
+        "options": [
+          "Exiting the building through ground-floor emergency doors",
+          "Using the building elevators during the evacuation",
+          "Gathering on the intramural athletic fields outdoors",
+          "Wearing outdoor coats while walking down the stairways"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The coordinator commands: 'Do not use the elevators under any circumstances.'"
+      },
+      {
+        "q": "Where must students gather to have their attendance recorded?",
+        "options": [
+          "In the lobby of the main student dining commons",
+          "At the circular driveway outside the front reception desk",
+          "On the intramural soccer field with their floor advisor",
+          "Inside the adjacent recreational sports complex gymnasium"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The announcement notes: 'report to your floor advisor on the intramural soccer field for headcount verification.'"
+      }
+    ]
+  },
+  {
+    "id": "la-7",
+    "title": "Student Wellness Week Workshop Offerings",
+    "context": "Morning message broadcast to all university student dormitories",
+    "speakerName": "Dr. Susan Lin",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "campus-life",
+    "script": "Good morning students! Today marks the kickoff of campus Wellness Week. Free stress-reduction activities will be hosted daily in the Student Center atrium from noon until 2:00 PM. Today's highlights include guided mindfulness meditation and visitations with certified therapy dogs. Healthy fruit smoothies and herbal teas will be served to all participants. No registration is required—just drop in whenever you have a break between classes.",
+    "questions": [
+      {
+        "q": "What is featured at today's Wellness Week lunchtime session?",
+        "options": [
+          "Professional nutritional counseling and blood pressure screenings",
+          "Guided mindfulness meditation and licensed therapy dogs",
+          "A cardiovascular fitness training and weightlifting clinic",
+          "Academic tutoring for upcoming midterm examinations"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The speaker announces: 'Today's highlights include guided mindfulness meditation and visitations with certified therapy dogs.'"
+      },
+      {
+        "q": "How can students participate in the lunchtime activities?",
+        "options": [
+          "By dropping in without any prior registration required",
+          "By signing up on the health center website 24 hours ahead",
+          "By obtaining a permission slip from their academic advisor",
+          "By paying a nominal five-dollar supply fee at the atrium door"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The doctor concludes: 'No registration is required—just drop in whenever you have a break between classes.'"
+      }
+    ]
+  },
+  {
+    "id": "la-8",
+    "title": "Computer Science Lab Server Maintenance Window",
+    "context": "Announcement made at the beginning of an advanced programming lecture",
+    "speakerName": "Professor Brian Walsh",
+    "speakerGender": "male",
+    "level": "upper-intermediate",
+    "difficulty": "upper-intermediate",
+    "topic": "science-tech",
+    "script": "A quick operational announcement regarding computing resources: our department's Linux compute cluster will undergo operating system kernel patches this Saturday between 2:00 AM and 6:00 AM. Any long-running batch jobs will be terminated when the reboot begins, so please suspend your training routines before midnight on Friday. The Git repository server will stay online throughout the window, so you can continue pushing code commits without interruption.",
+    "questions": [
+      {
+        "q": "What will happen to long-running computational jobs when the maintenance starts?",
+        "options": [
+          "They will be automatically migrated to commercial cloud servers",
+          "They will pause and automatically resume after the system reboots",
+          "They will be terminated when the reboot begins",
+          "They will be stored permanently on high-capacity tape backups"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The professor warns: 'Any long-running batch jobs will be terminated when the reboot begins.'"
+      },
+      {
+        "q": "Which service will remain accessible to students throughout the server patch window?",
+        "options": [
+          "The department Git version control repository server",
+          "The high-performance GPU neural network training cluster",
+          "The remote virtual desktop login terminals",
+          "The interactive database testing environment"
+        ],
+        "answer": 0,
+        "correctAnswer": 0,
+        "why": "The announcement explicitly states: 'The Git repository server will stay online throughout the window.'"
+      }
+    ]
+  },
+  {
+    "id": "la-9",
+    "title": "Campus Bookstore Buyback and Rental Return Alert",
+    "context": "Broadcast in the university student center concourse",
+    "speakerName": "Store Manager Kelly Martinez",
+    "speakerGender": "female",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "business-economics",
+    "script": "Attention all students: finals week textbook buyback begins this Thursday at the campus bookstore! Bring your unwanted course textbooks to Counter 3 for immediate cash payout. Furthermore, if you rented textbooks for the semester, the return deadline is 5:00 PM on Friday, May 12th. Books returned after this date will automatically be charged replacement retail fees to your student account. Please ensure all barcode stickers remain intact.",
+    "questions": [
+      {
+        "q": "What will happen if rented textbooks are returned after May 12th at 5:00 PM?",
+        "options": [
+          "The student's course enrollment will be cancelled for fall",
+          "Students will be charged full replacement retail fees on their account",
+          "Late books will only be accepted in exchange for store credit",
+          "A five-dollar weekly late fee will be mailed to their home address"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The manager states: 'Books returned after this date will automatically be charged replacement retail fees to your student account.'"
+      },
+      {
+        "q": "What condition must be met for returned rental books?",
+        "options": [
+          "They must be accompanied by the original plastic shrinkwrap",
+          "They must have all original publisher barcode stickers intact",
+          "They must include a signed return authorization from the instructor",
+          "They must be certified as free of any handwritten highlighter marks"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The announcement concludes: 'Please ensure all barcode stickers remain intact.'"
+      }
+    ]
+  },
+  {
+    "id": "la-10",
+    "title": "Performing Arts Center Student Ticket Lottery",
+    "context": "Announcement made before a music theory seminar",
+    "speakerName": "Professor Arthur Pendelton",
+    "speakerGender": "male",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "topic": "arts-humanities",
+    "script": "Good morning. The university symphony will perform Beethoven's Ninth Symphony next weekend at the Performing Arts Center. Due to overwhelming public demand, a student ticket lottery has been established. Undergraduate and graduate students can enter online starting at 9:00 AM tomorrow through the student activities portal. Winning entries will be notified by email on Wednesday, granting each recipient two subsidized ten-dollar orchestra tickets.",
+    "questions": [
+      {
+        "q": "Why has a student ticket lottery been implemented for the symphony concert?",
+        "options": [
+          "The concert hall had to reduce seating capacity for acoustics",
+          "High public ticket demand limited general student availability",
+          "The performance was rescheduled to an earlier afternoon timeslot",
+          "University regulations require lotteries for all musical events"
+        ],
+        "answer": 1,
+        "correctAnswer": 1,
+        "why": "The speaker explains: 'Due to overwhelming public demand, a student ticket lottery has been established.'"
+      },
+      {
+        "q": "What benefit do selected lottery winners receive?",
+        "options": [
+          "Backstage access to meet the guest conductor after the show",
+          "Complimentary transportation to and from the concert hall",
+          "The opportunity to purchase two subsidized ten-dollar tickets",
+          "Free admission vouchers for all remaining season performances"
+        ],
+        "answer": 2,
+        "correctAnswer": 2,
+        "why": "The announcement states that winning 'grants each recipient two subsidized ten-dollar orchestra tickets.'"
+      }
+    ]
+  }
+]

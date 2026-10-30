@@ -20,7 +20,9 @@ import {
   getStoredApiKey,
   setStoredApiKey,
   disconnectAllApiKeys,
+  hasAnyProviderKey,
   ApiProvider,
+  PROVIDERS,
   getScholarUsername,
   setScholarUsername,
 } from '../../../utils/apiKey';
@@ -38,12 +40,12 @@ import {
   reSyncAllShards,
   syncFirestoreGlobalCounts,
   getQuestionBankStats,
+  repairQuestionBank,
 } from '../../../utils/questionBankStorage';
 import { isHighQualityTask } from '../../../utils/questionValidator';
 import { getApiHeaders } from '../../../utils/apiKey';
 import { TASK_DEFINITIONS } from '../../../types/taskTypes';
 import { preCacheSectionAudio } from '../../../utils/audioPrewarmer';
-import { repairQuestionBank } from '../../../utils/sharedQuestions';
 
 interface SettingsTabProps {
   onConfigureGoals?: () => void;
@@ -61,6 +63,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   const [groqKey, setGroqKey] = useState('');
   const [openRouterKey, setOpenRouterKey] = useState('');
   const [nvidiaKey, setNvidiaKey] = useState('');
+  const [extraKeys, setExtraKeys] = useState<Record<string, string>>({});
+
+  // Auto-Detect expander state
+  const [isMoreApisExpanded, setIsMoreApisExpanded] = useState(false);
+  const [autoKeyInput, setAutoKeyInput] = useState('');
+  const [autoKeyMessage, setAutoKeyMessage] = useState<{ success: boolean; text: string } | null>(null);
 
   // Test states for each key
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
@@ -71,6 +79,52 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
     setGroqKey(getStoredApiKey('groq') || '');
     setOpenRouterKey(getStoredApiKey('openrouter') || '');
     setNvidiaKey(getStoredApiKey('nvidia') || '');
+
+    const extraProviders: ApiProvider[] = ['openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai'];
+    const loaded: Record<string, string> = {};
+    for (const p of extraProviders) {
+      const k = (
+        localStorage.getItem(`${p}_api_key`) ||
+        getStoredApiKey(p) ||
+        ''
+      ).trim();
+      if (k) {
+        loaded[p] = k;
+      }
+    }
+    setExtraKeys(loaded);
+  };
+
+  const handleAddAutoDetectedKey = () => {
+    const raw = autoKeyInput.trim();
+    if (!raw) return;
+
+    let provider: ApiProvider = 'openai';
+    if (/^(AIza|AQ)/i.test(raw)) provider = 'gemini';
+    else if (/^gsk_/.test(raw)) provider = 'groq';
+    else if (/^sk-or-/i.test(raw)) provider = 'openrouter';
+    else if (/^nvapi-/i.test(raw)) provider = 'nvidia';
+    else if (/^sk-ant-/i.test(raw)) provider = 'anthropic';
+    else if (/^xai-/i.test(raw)) provider = 'xai';
+    else if (/^ds-/i.test(raw)) provider = 'deepseek';
+    else if (/^sk-/.test(raw)) provider = 'openai';
+
+    localStorage.setItem(`${provider}_api_key`, raw);
+    setStoredApiKey(raw, provider);
+
+    syncKeys();
+    setAutoKeyInput('');
+    const providerName = PROVIDERS[provider]?.name || provider.toUpperCase();
+    setAutoKeyMessage({ success: true, text: `Detected ${providerName} API Key and saved!` });
+    window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
+    setTimeout(() => setAutoKeyMessage(null), 4000);
+  };
+
+  const handleRemoveExtraKey = (p: ApiProvider) => {
+    localStorage.removeItem(`${p}_api_key`);
+    setStoredApiKey('', p);
+    syncKeys();
+    window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
   };
 
   const [bankStats, setBankStats] = useState<{
@@ -149,8 +203,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
     syncKeys();
     if (targetProvider === 'gemini') setGeminiKey('');
     if (targetProvider === 'groq') setGroqKey('');
-    if (targetProvider === 'openrouter') setOpenRouterKey('');
-    if (targetProvider === 'nvidia') setNvidiaKey('');
     window.dispatchEvent(new CustomEvent('apiKeyUpdated'));
   };
 
@@ -306,12 +358,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
   }, [currentTaskType]);
 
   const handleBulkSeedBank = async () => {
-    const hasConfiguredKey = Boolean(
-      getStoredApiKey('gemini') ||
-      getStoredApiKey('groq') ||
-      getStoredApiKey('openrouter') ||
-      getStoredApiKey('nvidia')
-    );
+    const hasConfiguredKey = hasAnyProviderKey();
 
     if (!hasConfiguredKey) {
       setDataMessage({
@@ -525,113 +572,82 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               )}
             </div>
 
-            {/* OpenRouter */}
-            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-2">
-                  OpenRouter API Key
-                  {Boolean(openRouterKey.trim()) && (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                      Saved ✓
+            {/* Add More APIs (Auto-Detect) Expander */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setIsMoreApisExpanded(!isMoreApisExpanded)}
+                className="w-full py-2.5 px-3.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl flex items-center justify-between transition cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <span>➕ Add More APIs (Auto-Detect)</span>
+                  {Object.keys(extraKeys).length > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-800 font-bold rounded-full">
+                      {Object.keys(extraKeys).length} Extra Key{Object.keys(extraKeys).length > 1 ? 's' : ''} Connected
                     </span>
                   )}
                 </span>
-                <a
-                  href="https://openrouter.ai/keys"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-teal-700 hover:underline text-[11px]"
-                >
-                  Get key
-                </a>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={openRouterKey}
-                  onChange={(e) => {
-                    setOpenRouterKey(e.target.value);
-                    handleSaveIndividualKey('openrouter', e.target.value);
-                  }}
-                  placeholder="sk-or-v1-... (Multi-model fallback)"
-                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleTestKey('openrouter', openRouterKey)}
-                  disabled={testingProvider === 'openrouter' || !openRouterKey.trim()}
-                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
-                >
-                  {testingProvider === 'openrouter' ? 'Testing...' : 'Test'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleClearKey('openrouter')}
-                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                  title="Clear key"
-                >
-                  Clear
-                </button>
-              </div>
-              {testResults['openrouter'] && (
-                <p className={`text-[11px] font-medium ${testResults['openrouter'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {testResults['openrouter'].message}
-                </p>
-              )}
-            </div>
+                <span className="text-slate-500 font-mono text-xs">{isMoreApisExpanded ? '▲' : '▼'}</span>
+              </button>
 
-            {/* NVIDIA NIM */}
-            <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-2">
-                  NVIDIA NIM API Key
-                  {Boolean(nvidiaKey.trim()) && (
-                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                      Saved ✓
-                    </span>
+              {isMoreApisExpanded && (
+                <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <p className="text-[11px] text-slate-600">
+                    Paste any key (OpenAI, Anthropic, OpenRouter, NVIDIA, etc.). Provider prefix will be detected automatically.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={autoKeyInput}
+                      onChange={(e) => setAutoKeyInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddAutoDetectedKey()}
+                      placeholder="Paste any API key (OpenAI, Anthropic, OpenRouter, NVIDIA, etc.)"
+                      className="flex-1 text-xs font-mono bg-white border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddAutoDetectedKey}
+                      disabled={!autoKeyInput.trim()}
+                      className="px-4 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {autoKeyMessage && (
+                    <p className={`text-[11px] font-medium ${autoKeyMessage.success ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {autoKeyMessage.text}
+                    </p>
                   )}
-                </span>
-                <a
-                  href="https://build.nvidia.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-teal-700 hover:underline text-[11px]"
-                >
-                  Get key
-                </a>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={nvidiaKey}
-                  onChange={(e) => {
-                    setNvidiaKey(e.target.value);
-                    handleSaveIndividualKey('nvidia', e.target.value);
-                  }}
-                  placeholder="nvapi-... (Llama 3.3 70B Instruct)"
-                  className="flex-1 text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 outline-hidden focus:border-teal-600"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleTestKey('nvidia', nvidiaKey)}
-                  disabled={testingProvider === 'nvidia' || !nvidiaKey.trim()}
-                  className="px-3 py-2 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition cursor-pointer shrink-0"
-                >
-                  {testingProvider === 'nvidia' ? 'Testing...' : 'Test'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleClearKey('nvidia')}
-                  className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
-                  title="Clear key"
-                >
-                  Clear
-                </button>
-              </div>
-              {testResults['nvidia'] && (
-                <p className={`text-[11px] font-medium ${testResults['nvidia'].success ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {testResults['nvidia'].message}
-                </p>
+
+                  {Object.keys(extraKeys).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Active Extra Providers</span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(extraKeys).map(([p, k]) => {
+                          const pName = PROVIDERS[p as ApiProvider]?.name || p.toUpperCase();
+                          return (
+                            <span
+                              key={p}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-medium"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <span>🟢 {pName}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExtraKey(p as ApiProvider)}
+                                className="ml-1 text-slate-400 hover:text-rose-600 font-bold cursor-pointer transition"
+                                title={`Remove ${pName} key`}
+                              >
+                                [x]
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -730,7 +746,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-teal-700 shrink-0" />
                 <span className="text-xs font-bold text-slate-900">
-                  Section bank: {bankStats?.totalQuestions || 0} match current filter
+                  Global bank: {bankStats?.totalQuestions || 0} verified questions ({bankStats?.countsPerTaskType?.[currentTaskType || 'academic-discussion'] || 0} in active section)
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -753,7 +769,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onConfigureGoals, curr
               </div>
             </div>
             <p className="text-[11px] text-slate-600">
-              All 9 TOEFL task types are synced and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.
+              All 8 TOEFL task types are deduplicated, synced, and cached in IndexedDB (<code className="font-mono text-teal-800">toefl_question_bank</code>) for 100% offline practice.
             </p>
           </div>
 

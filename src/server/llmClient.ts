@@ -1,5 +1,5 @@
-import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
-import { resolveModelChains, isModelGone, markModelDead } from './modelRoles.ts';
+import { filterWhisperHallucinations } from '../utils/speakingMetrics';
+import { resolveModelChains, isModelGone, markModelDead } from './modelRoles';
 
 export type ModelPurpose = 'generation' | 'evaluation' | 'transcription' | 'tts';
 
@@ -95,8 +95,9 @@ export function resolveProviderDefaults(
   return { baseUrl: resolvedBaseUrl, model: resolvedModel };
 }
 
-export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise<{ text: string; modelUsed: string }> {
-  const { provider = 'custom', apiKey, baseUrl, model, purpose = 'generation', prompt, systemInstruction, temperature = 0.7, responseJson = true } = options;
+export async function callOpenAiCompatibleChat(options: LlmCallOptions & { requireJson?: boolean }): Promise<{ text: string; modelUsed: string }> {
+  const { provider = 'custom', apiKey, baseUrl, model, purpose = 'generation', prompt, systemInstruction, temperature = 0.7, responseJson = true, requireJson } = options;
+  const shouldRequireJson = requireJson !== undefined ? requireJson : responseJson;
   const resolved = resolveProviderDefaults(provider, baseUrl, model, purpose);
 
   if (!resolved.baseUrl) {
@@ -110,6 +111,13 @@ export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise
 
   if (apiKey && apiKey.trim()) {
     headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+  }
+
+  if (resolved.baseUrl.includes('anthropic.com') || endpoint.includes('anthropic.com')) {
+    if (apiKey && apiKey.trim()) {
+      headers['x-api-key'] = apiKey.trim();
+    }
+    headers['anthropic-version'] = '2023-06-01';
   }
 
   if (endpoint.includes('openrouter.ai')) {
@@ -129,7 +137,7 @@ export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise
     temperature,
   };
 
-  if (responseJson) {
+  if (shouldRequireJson) {
     bodyPayload.response_format = { type: 'json_object' };
   }
 
@@ -144,7 +152,7 @@ export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise
       signal: controller.signal,
     });
 
-    if (!res.ok && responseJson && res.status === 400) {
+    if (res.status === 400 && shouldRequireJson) {
       delete bodyPayload.response_format;
       res = await fetch(endpoint, {
         method: 'POST',
@@ -185,6 +193,8 @@ export async function callOpenAiCompatibleChat(options: LlmCallOptions): Promise
     clearTimeout(timer);
   }
 }
+
+export const callOpenAICompatible = callOpenAiCompatibleChat;
 
 // Native Speech Synthesis for OpenAI TTS (/v1/audio/speech)
 export async function callOpenAiTts(options: {
@@ -429,6 +439,12 @@ export async function testOpenAiCompatible(options: {
   };
   if (cleanKey) {
     headers['Authorization'] = `Bearer ${cleanKey}`;
+  }
+  if (resolvedBase.includes('anthropic.com') || endpoint.includes('anthropic.com')) {
+    if (cleanKey) {
+      headers['x-api-key'] = cleanKey;
+    }
+    headers['anthropic-version'] = '2023-06-01';
   }
   if (endpoint.includes('openrouter.ai')) {
     headers['HTTP-Referer'] = 'https://toeflprepstudio.com';

@@ -3,11 +3,11 @@
 import http from 'node:http';
 import { createHash } from 'node:crypto';
 import { WebSocketServer } from 'ws';
-import { generateSecMsGecV2 } from '../src/server/secMsGec.ts';
+import { generateSecMsGecV2 } from '../src/server/secMsGec';
 import {
   synthesizeEdge, EdgeTtsError, normalizeEdgeVoice, rateToSsml, chunkText,
   SEC_MS_GEC_VERSION, getClockSkewSeconds, resetClockSkew,
-} from '../src/server/edgeTts.ts';
+} from '../src/server/edgeTts';
 
 let failures = 0;
 const check = (name: string, ok: boolean, extra = '') => {
@@ -88,52 +88,60 @@ async function withMock(mode: 'ok' | 'status200' | 'skew403', run: (base: string
   }
 }
 
-await withMock('ok', async (base, seen) => {
-  const audio = await synthesizeEdge('Hello <world> & friends', 'en-US-GuyNeural', 1.2, { wssUrl: base });
-  check('returns audio bytes', audio.length === 700, String(audio.length));
-  const s = seen[0];
-  const q = new URL('http://x' + s.url).searchParams;
-  check('handshake has ConnectionId', /^[0-9a-f]{32}$/.test(q.get('ConnectionId') || ''));
-  check('handshake has v2 Sec-MS-GEC token', /^[0-9A-F]{16}-[0-9A-F]{64}$/.test(q.get('Sec-MS-GEC') || ''));
-  check('handshake version is 2-<chromium>', q.get('Sec-MS-GEC-Version') === SEC_MS_GEC_VERSION && SEC_MS_GEC_VERSION.startsWith('2-'));
-  check('Origin header', s.headers.origin === 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold', String(s.headers.origin));
-  check('muid cookie', /^muid=[0-9A-F]{32};$/.test(String(s.headers.cookie)));
-  check('speech.config frame', s.frames[0].includes('Path:speech.config') && s.frames[0].includes('"sentenceBoundaryEnabled":"true"') && s.frames[0].includes('audio-24khz-48kbitrate-mono-mp3'));
-  check('SSML frame uses long voice name', s.frames[1].includes("voice name='Microsoft Server Speech Text to Speech Voice (en-US, GuyNeural)'"));
-  check('SSML frame escapes text and sets rate', s.frames[1].includes('Hello &lt;world&gt; &amp; friends') && s.frames[1].includes("rate='+20%'"));
-  check('SSML timestamp has trailing Z like Edge', /X-Timestamp:[^\r]*\)Z\r\nPath:ssml/.test(s.frames[1]));
-});
-
-await withMock('status200', async (base) => {
-  try {
-    await synthesizeEdge('Hello', 'en-US-AriaNeural', 1, { wssUrl: base, maxAttempts: 1 });
-    check('HTTP 200 on upgrade is reported', false, 'no error thrown');
-  } catch (e: any) {
-    check('HTTP 200 on upgrade is reported as a handshake error with status and body',
-      e instanceof EdgeTtsError && e.step === 'handshake' && e.status === 200 && /Unexpected server response: 200/.test(e.message) && /blocked/.test(e.message), e?.message);
-  }
-});
-
-resetClockSkew();
-await withMock('skew403', async (base, seen, serverDateMs) => {
-  const audio = await synthesizeEdge('Hello', 'en-US-AriaNeural', 1, { wssUrl: base, maxAttempts: 3 });
-  check('403 triggers clock-skew correction and a successful retry', audio.length > 0 && seen.length === 2, `attempts=${seen.length}`);
-  const expectedSkew = serverDateMs / 1000 - Date.now() / 1000;
-  check('clock skew was learned from the Date header', Math.abs(getClockSkewSeconds() - expectedSkew) < 10, `${getClockSkewSeconds()} vs ${expectedSkew}`);
-  const t1 = new URL('http://x' + seen[0].url).searchParams.get('Sec-MS-GEC');
-  const t2 = new URL('http://x' + seen[1].url).searchParams.get('Sec-MS-GEC');
-  check('second attempt token is computed from server time', t1 !== t2 && t2 === generateSecMsGecV2(serverDateMs / 1000), `${t2}`);
-});
-
-// 4. Guard: no invented endpoints or keys anywhere in the server code
 import fs from 'node:fs';
-const forbidden = ['6A5AA1D4EA6542C85E50B57041075765', 'jdiccldimpdaibcomobbfflhhbcngdbk', 'translate_tts', 'translate.google'];
-const files = ['src/server/handlers.ts', 'src/server/edgeTts.ts', 'src/server/secMsGec.ts', 'server.ts'].filter((f) => fs.existsSync(f));
-for (const f of files) {
-  const text = fs.readFileSync(f, 'utf8');
-  for (const bad of forbidden) check(`${f} does not contain "${bad}"`, !text.includes(bad));
-}
-void createHash;
 
-if (failures) { console.error(`\n${failures} check(s) failed`); process.exit(1); }
-console.log('\nAll Edge TTS checks passed');
+async function main() {
+  await withMock('ok', async (base, seen) => {
+    const audio = await synthesizeEdge('Hello <world> & friends', 'en-US-GuyNeural', 1.2, { wssUrl: base });
+    check('returns audio bytes', audio.length === 700, String(audio.length));
+    const s = seen[0];
+    const q = new URL('http://x' + s.url).searchParams;
+    check('handshake has ConnectionId', /^[0-9a-f]{32}$/.test(q.get('ConnectionId') || ''));
+    check('handshake has v2 Sec-MS-GEC token', /^[0-9A-F]{16}-[0-9A-F]{64}$/.test(q.get('Sec-MS-GEC') || ''));
+    check('handshake version is 2-<chromium>', q.get('Sec-MS-GEC-Version') === SEC_MS_GEC_VERSION && SEC_MS_GEC_VERSION.startsWith('2-'));
+    check('Origin header', s.headers.origin === 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold', String(s.headers.origin));
+    check('muid cookie', /^muid=[0-9A-F]{32};$/.test(String(s.headers.cookie)));
+    check('speech.config frame', s.frames[0].includes('Path:speech.config') && s.frames[0].includes('"sentenceBoundaryEnabled":"true"') && s.frames[0].includes('audio-24khz-48kbitrate-mono-mp3'));
+    check('SSML frame uses long voice name', s.frames[1].includes("voice name='Microsoft Server Speech Text to Speech Voice (en-US, GuyNeural)'"));
+    check('SSML frame escapes text and sets rate', s.frames[1].includes('Hello &lt;world&gt; &amp; friends') && s.frames[1].includes("rate='+20%'"));
+    check('SSML timestamp has trailing Z like Edge', /X-Timestamp:[^\r]*\)Z\r\nPath:ssml/.test(s.frames[1]));
+  });
+
+  await withMock('status200', async (base) => {
+    try {
+      await synthesizeEdge('Hello', 'en-US-AriaNeural', 1, { wssUrl: base, maxAttempts: 1 });
+      check('HTTP 200 on upgrade is reported', false, 'no error thrown');
+    } catch (e: any) {
+      check('HTTP 200 on upgrade is reported as a handshake error with status and body',
+        e instanceof EdgeTtsError && e.step === 'handshake' && e.status === 200 && /Unexpected server response: 200/.test(e.message) && /blocked/.test(e.message), e?.message);
+    }
+  });
+
+  resetClockSkew();
+  await withMock('skew403', async (base, seen, serverDateMs) => {
+    const audio = await synthesizeEdge('Hello', 'en-US-AriaNeural', 1, { wssUrl: base, maxAttempts: 3 });
+    check('403 triggers clock-skew correction and a successful retry', audio.length > 0 && seen.length === 2, `attempts=${seen.length}`);
+    const expectedSkew = serverDateMs / 1000 - Date.now() / 1000;
+    check('clock skew was learned from the Date header', Math.abs(getClockSkewSeconds() - expectedSkew) < 10, `${getClockSkewSeconds()} vs ${expectedSkew}`);
+    const t1 = new URL('http://x' + seen[0].url).searchParams.get('Sec-MS-GEC');
+    const t2 = new URL('http://x' + seen[1].url).searchParams.get('Sec-MS-GEC');
+    check('second attempt token is computed from server time', t1 !== t2 && t2 === generateSecMsGecV2(serverDateMs / 1000), `${t2}`);
+  });
+
+  // 4. Guard: no invented endpoints or keys anywhere in the server code
+  const forbidden = ['6A5AA1D4EA6542C85E50B57041075765', 'jdiccldimpdaibcomobbfflhhbcngdbk', 'translate_tts', 'translate.google'];
+  const files = ['src/server/handlers.ts', 'src/server/edgeTts.ts', 'src/server/secMsGec.ts', 'server.ts'].filter((f) => fs.existsSync(f));
+  for (const f of files) {
+    const text = fs.readFileSync(f, 'utf8');
+    for (const bad of forbidden) check(`${f} does not contain "${bad}"`, !text.includes(bad));
+  }
+  void createHash;
+
+  if (failures) { console.error(`\n${failures} check(s) failed`); process.exit(1); }
+  console.log('\nAll Edge TTS checks passed');
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

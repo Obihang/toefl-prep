@@ -1,4 +1,4 @@
-import { detectProviderFromKey } from '../utils/keyDetect.ts';
+import { detectProviderFromKey } from '../utils/keyDetect';
 
 export interface ApiConfig {
   provider: string;
@@ -11,6 +11,7 @@ export interface ApiConfig {
   ttsProvider?: string;
   audio8Url?: string;
   prompt?: string;
+  availableKeys?: Record<string, string>;
 }
 
 const KNOWN_PROVIDERS = new Set(['gemini', 'nvidia', 'groq', 'openrouter', 'openai', 'deepseek', 'xai', 'anthropic', 'custom', 'auto', 'audio8']);
@@ -63,6 +64,12 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
       provider = 'openrouter';
     } else if (/^(AIza|AQ\.)/i.test(apiKey)) {
       provider = 'gemini';
+    } else if (/^sk-ant-/i.test(apiKey)) {
+      provider = 'anthropic';
+    } else if (/^xai-/i.test(apiKey)) {
+      provider = 'xai';
+    } else if (/^ds-/i.test(apiKey)) {
+      provider = 'deepseek';
     } else if (/^sk-/i.test(apiKey)) {
       provider = 'openai';
     } else if (provider === 'auto') {
@@ -94,6 +101,33 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
   const sttModel = (getHeader(headers, 'x-api-model-stt') || b.sttModel || '').trim();
   const ttsModel = (getHeader(headers, 'x-api-model-tts') || b.ttsModel || '').trim();
 
+  // Collect all multi-provider keys passed via headers or body
+  const availableKeys: Record<string, string> = {};
+  const KNOWN_ROUTED = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai'];
+  for (const p of KNOWN_ROUTED) {
+    const k =
+      getHeader(headers, `x-api-key-${p}`) ||
+      (b.availableKeys && b.availableKeys[p]) ||
+      (b.providerKeys && b.providerKeys[p]) ||
+      (b.options?.providerKeys && b.options.providerKeys[p]);
+    if (k && typeof k === 'string' && k.trim()) {
+      availableKeys[p] = k.trim();
+    }
+  }
+  const xGroq = getHeader(headers, 'x-groq-key');
+  if (xGroq && xGroq.trim() && !availableKeys.groq) {
+    availableKeys.groq = xGroq.trim();
+  }
+  const xGemini = getHeader(headers, 'x-gemini-api-key');
+  if (xGemini && xGemini.trim() && !availableKeys.gemini) {
+    availableKeys.gemini = xGemini.trim();
+  }
+  if (effectiveApiKey && provider && provider !== 'auto') {
+    if (!availableKeys[provider]) {
+      availableKeys[provider] = effectiveApiKey;
+    }
+  }
+
   return {
     provider,
     apiKey: effectiveApiKey,
@@ -105,5 +139,6 @@ export function getApiConfig(headers: any = {}, body: any = {}): ApiConfig {
     ttsProvider,
     audio8Url,
     prompt,
+    availableKeys,
   };
 }

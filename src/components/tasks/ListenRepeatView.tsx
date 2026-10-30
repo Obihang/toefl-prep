@@ -1,28 +1,35 @@
-import { pickSingleVoice, inferGender, pickBrowserVoiceForGender, parseDialogueLine, detectSpeakerGender, assignTaskSpeakerVoices } from '../../utils/voices';
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { parseDialogueLine } from '../../utils/voices';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { ListenRepeatTask } from '../../data/curatedQuestions';
-import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play, HardDrive, Settings } from 'lucide-react';
+import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader2, Headphones, Pause, RotateCcw, Play } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
-import { speakScriptLine, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
-import { calculateSpeakingMetrics } from '../../utils/speakingMetrics';
+import { speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker, playRecordingBeep } from '../../utils/audioSpeech';
+import { filterWhisperHallucinations, detectFillerWords } from '../../utils/audio/fluencyMetrics';
+import { SpeakingMetrics, calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
-import { db } from '../../firebase';
-import { getAuthHeaders, getApiHeaders } from '../../utils/apiKey';
-import { updateDoc, doc } from 'firebase/firestore';
+import {
+  scoreListenRepeatSentence,
+  calculateListenRepeatSessionScore,
+} from '../../utils/toeflScoring';
+import { TaskSubtitleMeta, TaskReportButton, CollapsibleTaskInstructions } from '../shared/TaskHeaderMeta';
 
 interface Props {
   task: ListenRepeatTask;
   onNextTask?: () => void;
+  onComplete?: (result: any) => void;
+  keyboardShortcutHint?: string;
+  activeCardHighlightClass?: string;
 }
-
-import { SpeakingMetrics } from '../../utils/speakingMetrics';
 
 interface SentenceState {
   userInput: string;
   isRecording: boolean;
   scorePercent?: number;
+  score5?: 0 | 1 | 2 | 3 | 4 | 5;
+  descriptorLabel?: string;
+  badgeColorClass?: string;
   bandScore?: number;
   wordBreakdown?: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
   metrics?: SpeakingMetrics;
@@ -31,7 +38,11 @@ interface SentenceState {
   fillerWordsList?: string[];
 }
 
-export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
+export const ListenRepeatView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+}) => {
   const [states, setStates] = useState<SentenceState[]>(() =>
     task.sentences.map(() => ({
       userInput: '',
@@ -39,13 +50,19 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       checked: false,
     }))
   );
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [, setStep] = useState<'practice' | 'done'>('practice');
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
-  const [autoStart, setAutoStart] = useState(false);
+  const [showPromptText, setShowPromptText] = useState(false);
+  const [autoStart, setAutoStart] = useState(true);
+  const autoStartRef = useRef(autoStart);
+  autoStartRef.current = autoStart;
   const [audioLevel, setAudioLevel] = useState(0);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [responseTimeLeft, setResponseTimeLeft] = useState(10);
   const [transcribeSeconds, setTranscribeSeconds] = useState(0);
   const [micError, setMicError] = useState<string | null>(null);
   const [audioBlobs, setAudioBlobs] = useState<Record<number, Blob>>({});
@@ -70,6 +87,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   const recordingAudioRef = useRef<HTMLAudioElement | null>(null);
   const playbackSessionIdRef = useRef<number>(0);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const blobsRef = useRef<Record<number, Blob>>({});
+  const hasCompletedRef = useRef<boolean>(false);
 
   const stopAllAudio = useCallback(() => {
     playbackSessionIdRef.current++;
@@ -96,23 +116,64 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, []);
 
   useEffect(() => {
+    hasCompletedRef.current = false;
+    blobsRef.current = {};
+    setCurrentIndex(0);
+    setStep('practice');
+    setShowPromptText(false);
+    setStates(
+      task.sentences.map(() => ({
+        userInput: '',
+        isRecording: false,
+        checked: false,
+      }))
+    );
+    setAudioBlobs({});
     return () => {
       stopAllAudio();
     };
-  }, [task.id, stopAllAudio]);
+  }, [task.id, stopAllAudio, task.sentences]);
 
-  const speakerName = (task as any).speakerName || 'Sarah (student)';
-  const speakerGender = (task as any).speakerGender || inferGender(speakerName);
-  const speakerVoice = pickSingleVoice(`${task.title}|${speakerName}`, speakerGender);
+  const speakerName = (task as any).speakerName || 'Narrator';
+
+  // Pick ONE locked neural voice for the cohesive single-speaker scenario across all 7 sentences
+  const sentenceVoices = useMemo(() => {
+    const explicitGender = (task as any).speakerGender;
+    const inferred =
+      explicitGender === 'male' || explicitGender === 'female'
+        ? explicitGender
+        : inferGenderFromSpeaker(`${speakerName} ${task.title || ''}`);
+    const lockedVoice = pickRandomVoice(inferred || undefined);
+    return (task.sentences || []).map(() => lockedVoice);
+  }, [task.id, task.title, speakerName, (task as any).speakerGender, task.sentences]);
 
   // Silent background pre-synthesis so clicking "Hear sentence" is INSTANT (0 ms delay)
   useEffect(() => {
     if (!task?.sentences || task.sentences.length === 0) return;
-    task.sentences.forEach((sentence, idx) => {
-      const sentenceVoice = pickSingleVoice(`${task.id || task.title}|${speakerName}|s_${idx}`, speakerGender);
-      prefetchSpeechAudio(sentence, sentenceVoice).catch(() => {});
-    });
-  }, [task.id, task.title, speakerName, speakerGender]);
+    let cancelled = false;
+
+    const firstSentence = task.sentences[0];
+    const firstVoice = sentenceVoices[0] || pickRandomVoice();
+    if (firstSentence) {
+      const firstChunks = chunkTextForTTS(firstSentence);
+      if (firstChunks.length > 0) {
+        fetchCloudTtsAudio(firstChunks[0], firstVoice.gender, firstVoice.voiceId).catch(() => {});
+      }
+    }
+
+    (async () => {
+      for (let idx = 0; idx < task.sentences.length; idx++) {
+        if (cancelled) break;
+        const sentence = task.sentences[idx];
+        const vInfo = sentenceVoices[idx] || firstVoice;
+        await prefetchSpeechAudio(sentence, vInfo.voiceId, vInfo.gender).catch(() => {});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [task.id, task.title, sentenceVoices]);
 
   useEffect(() => {
     return () => {
@@ -122,17 +183,40 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     };
   }, []);
 
-  // Live timer for recording duration
+  const getSentenceResponseSeconds = useCallback(
+    (idx: number) => {
+      const s = task.sentences[idx] || '';
+      const words = s.trim().split(/\s+/).filter(Boolean).length;
+      if (words <= 9) return 8;
+      if (words <= 13) return 10;
+      return 12;
+    },
+    [task.sentences]
+  );
+
+  // Live timer for recording duration and 8-12s TOEFL response countdown
   useEffect(() => {
     let interval: any = null;
-    if (micStatus === 'listening') {
+    if (micStatus === 'listening' && activeMicIdx !== null) {
+      const allowedSec = getSentenceResponseSeconds(activeMicIdx);
       setRecordingSeconds(0);
-      interval = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+      setResponseTimeLeft(allowedSec);
+      let remaining = allowedSec;
+      const targetIdx = activeMicIdx;
+      interval = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+        remaining -= 1;
+        setResponseTimeLeft(Math.max(0, remaining));
+        if (remaining <= 0) {
+          clearInterval(interval);
+          handleToggleMicRef.current(targetIdx);
+        }
+      }, 1000);
     } else {
       setRecordingSeconds(0);
     }
     return () => clearInterval(interval);
-  }, [micStatus]);
+  }, [micStatus, activeMicIdx, getSentenceResponseSeconds]);
 
   // Live timer for transcription duration
   useEffect(() => {
@@ -147,6 +231,13 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   }, [micStatus]);
 
   const handlePlay = async (index: number) => {
+    setCurrentIndex(index);
+    setTimeout(() => {
+      document.getElementById(`listen-repeat-item-${index}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 80);
     const itemKey = `sentence_${index}`;
     const wasPlayingThis = activePlayingKeyRef.current === itemKey;
     stopAllAudio();
@@ -163,7 +254,9 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     const parsed = parseDialogueLine(rawSentence);
     const cleanSentence = parsed.spokenText || stripSpeakerAndFormatting(rawSentence);
     const effSpeaker = parsed.speakerName || speakerName;
-    const effGender = detectSpeakerGender(effSpeaker, parsed.speakerHint || speakerGender);
+    const assignedVoice = sentenceVoices[index] || pickRandomVoice();
+    const effGender = assignedVoice.gender;
+    const voice = assignedVoice.voiceId;
     const audioClips = (task as any).audioClips;
     const audioUrl = (task as any).audioUrl;
 
@@ -184,11 +277,17 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           audio.loop = false;
           activeAudioRef.current = audio;
           audio.playbackRate = 1.0;
-          audio.onended = () => {
+          audio.onended = async () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
             if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
             setActiveAudioIdx(null);
             resolve();
+            if (playbackSessionIdRef.current === currentSession && autoStartRef.current) {
+              await playRecordingBeep();
+              if (playbackSessionIdRef.current === currentSession) {
+                handleToggleMicRef.current(index);
+              }
+            }
           };
           audio.onerror = () => {
             if (activeAudioRef.current === audio) activeAudioRef.current = null;
@@ -213,109 +312,59 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
       return;
     }
 
-    // Try /api/tts with getAuthHeaders() and getApiHeaders()
-    try {
-      const authHdrs = await getAuthHeaders();
-      const headers = { ...getApiHeaders(), ...authHdrs };
-      const speakerVoices = assignTaskSpeakerVoices(task);
-      const voice = speakerVoices[effSpeaker] || speakerVoices['default'] || pickSingleVoice(`${task.id || task.title}|${effSpeaker}`, effGender);
-      const ttsRes = await fetch('/api/tts', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ text: cleanSentence, voice, voiceName: voice, gender: effGender, speaker: effSpeaker }),
-      });
-      const ttsJson = await ttsRes.json();
-      const audioSrc = ttsJson.audioUrl || (ttsJson.audioBase64 ? `data:audio/mpeg;base64,${ttsJson.audioBase64}` : null);
-
-      if (playbackSessionIdRef.current !== currentSession) return;
-
-      if (ttsRes.ok && ttsJson.success && audioSrc) {
-        const newUrl = ttsJson.audioUrl;
-        setLoadingAudioIdx(null);
-        setActiveAudioIdx(index);
-
-        const docId = (task as any).questionDocId || (task as any).id;
-        if (docId && docId.startsWith('q_') && newUrl && newUrl.startsWith('https://') && newUrl.includes('blob.vercel-storage.com')) {
-          try {
-            if (!audioUrl) {
-              await updateDoc(doc(db, 'questions', docId), { audioUrl: newUrl });
-              (task as any).audioUrl = newUrl;
-            }
-            const currentClips = Array.isArray(task.audioClips) ? [...task.audioClips] : [];
-            currentClips[index] = { speaker: speakerName, url: newUrl };
-            const cappedClips = currentClips.slice(0, 10);
-            await updateDoc(doc(db, 'questions', docId), { audioClips: cappedClips });
-            (task as any).audioClips = cappedClips;
-          } catch (e) {
-            console.warn('Failed to save sentence audio:', e);
-          }
-        }
-
-        await new Promise<void>((resolve, reject) => {
-          if (playbackSessionIdRef.current !== currentSession) {
-            resolve();
-            return;
-          }
-          const audio = new Audio(audioSrc);
-          audio.loop = false;
-          activeAudioRef.current = audio;
-          audio.playbackRate = 1.0;
-          audio.onended = () => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            resolve();
-          };
-          audio.onerror = () => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            reject(new Error('Generated audio playback error'));
-          };
-          audio.play().catch((err) => {
-            if (activeAudioRef.current === audio) activeAudioRef.current = null;
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            reject(err);
-          });
-        });
-        return;
+    // Pre-warm next sentence's first chunk in parallel if available
+    if (index + 1 < task.sentences.length) {
+      const nextSentence = task.sentences[index + 1];
+      const nextVoice = sentenceVoices[index + 1] || assignedVoice;
+      const nextChunks = chunkTextForTTS(nextSentence);
+      if (nextChunks.length > 0) {
+        fetchCloudTtsAudio(nextChunks[0], nextVoice.gender, nextVoice.voiceId).catch(() => {});
       }
-    } catch (e) {
-      console.warn('TTS fetch failed for ListenRepeat sentence, falling back to Web Speech:', e);
     }
 
     if (playbackSessionIdRef.current !== currentSession) return;
 
-    const voiceName = pickSingleVoice(`${task.id || task.title}|${speakerName}|s_${index}`, speakerGender);
-    const browserVoice = pickBrowserVoiceForGender(speakerGender);
+    const voiceName = voice;
     try {
-      await speakScriptLine(cleanSentence, {
-        rate: 0.9,
-        voiceName,
-        browserVoice,
-        onStart: () => {
-          if (playbackSessionIdRef.current === currentSession) {
-            setLoadingAudioIdx(null);
-            setActiveAudioIdx(index);
-          }
+      await speakWithCloudTTS(
+        cleanSentence,
+        effGender,
+        {
+          rate: 0.9,
+          voice: voiceName,
+          voiceName,
+          gender: effGender,
+          speaker: effSpeaker,
+          onStart: () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              setLoadingAudioIdx(null);
+              setActiveAudioIdx(index);
+            }
+          },
+          onEnd: async () => {
+            if (playbackSessionIdRef.current === currentSession) {
+              if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+              setActiveAudioIdx(null);
+              setLoadingAudioIdx(null);
+              if (autoStartRef.current) {
+                await playRecordingBeep();
+                if (playbackSessionIdRef.current === currentSession) {
+                  handleToggleMicRef.current(index);
+                }
+              }
+            }
+          },
+          onError: (err) => {
+            if (playbackSessionIdRef.current === currentSession) {
+              if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
+              setActiveAudioIdx(null);
+              setLoadingAudioIdx(null);
+              setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
+            }
+          },
         },
-        onEnd: () => {
-          if (playbackSessionIdRef.current === currentSession) {
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            setLoadingAudioIdx(null);
-          }
-        },
-        onError: (err) => {
-          if (playbackSessionIdRef.current === currentSession) {
-            if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
-            setActiveAudioIdx(null);
-            setLoadingAudioIdx(null);
-            setAudioErrors((prev) => ({ ...prev, [index]: err?.message || String(err) }));
-          }
-        },
-      });
+        voiceName
+      );
     } catch (err: any) {
       if (playbackSessionIdRef.current === currentSession) {
         if (activePlayingKeyRef.current === itemKey) activePlayingKeyRef.current = null;
@@ -384,36 +433,103 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
     });
   };
 
+  const stopCurrentRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+  };
+
+  const stopSpeechRecognition = async (indexToSave: number = currentIndex) => {
+    if (voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
+      try {
+        const result = await activeSession.stop();
+        if (result.audioBlob) {
+          blobsRef.current[indexToSave] = result.audioBlob;
+          setAudioBlobs((prev) => ({ ...prev, [indexToSave]: result.audioBlob! }));
+        }
+      } catch {}
+      setActiveMicIdx(null);
+      setMicStatus('idle');
+      setAudioLevel(0);
+    }
+  };
+
+  const advanceSentence = async () => {
+    const lastIdx = Math.max(0, task.sentences.length - 1);
+    const isActivelyRecording =
+      mediaRecorderRef.current?.state === 'recording' || Boolean(voiceSessionRef.current);
+
+    if (currentIndex >= lastIdx) {
+      stopCurrentRecording();
+      await stopSpeechRecognition(currentIndex);
+      setStep('done');
+      if (!isActivelyRecording && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onComplete?.({ blobs: { ...blobsRef.current }, states });
+      } else if (isActivelyRecording && !mediaRecorderRef.current && !hasCompletedRef.current) {
+        hasCompletedRef.current = true;
+        onComplete?.({ blobs: { ...blobsRef.current }, states });
+      }
+      return;
+    }
+
+    stopCurrentRecording();
+    await stopSpeechRecognition(currentIndex);
+    setCurrentIndex((prev) => prev + 1);
+  };
+
   const handleToggleMic = async (index: number) => {
     setMicError(null);
     markUserAiRequest();
+    setCurrentIndex(index);
 
     // If currently recording this item, stop and finalize transcript
     if (activeMicIdx === index && voiceSessionRef.current) {
+      const activeSession = voiceSessionRef.current;
+      voiceSessionRef.current = null;
       setMicStatus('transcribing');
+      let alignedTranscript = '';
       try {
-        const result = await voiceSessionRef.current.stop();
+        const result = await activeSession.stop();
         if (result.audioBlob) {
+          blobsRef.current[index] = result.audioBlob;
           setAudioBlobs((prev) => ({ ...prev, [index]: result.audioBlob! }));
         }
         if (result.error) {
           setTranscribeErrors((prev) => ({ ...prev, [index]: result.error! }));
-        } else if (result.transcript) {
+        } else {
           setTranscribeErrors((prev) => ({ ...prev, [index]: null }));
-          const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
-          const aligned = alignHomophonesAndPhonetics(result.transcript, task.sentences[index]);
-          const metrics = result.metrics;
-          setStates((prev) => {
-            const next = [...prev];
-            next[index] = {
-              ...next[index],
-              userInput: aligned,
-              metrics: metrics || next[index].metrics,
-              fillerWordsCount: metrics?.fillerCount ?? result.fillerWordsCount ?? 0,
-              fillerWordsList: metrics?.fillerWords || result.fillerWordsList || [],
-            };
-            return next;
-          });
+          const { transcript: cleanRes } = filterWhisperHallucinations(result.transcript || '', []);
+          if (cleanRes.trim()) {
+            const { alignHomophonesAndPhonetics } = await import('../../utils/phoneticMatcher');
+            const aligned = alignHomophonesAndPhonetics(cleanRes, task.sentences[index]);
+            alignedTranscript = aligned;
+            const metrics = result.metrics;
+            setStates((prev) => {
+              const next = [...prev];
+              next[index] = {
+                ...next[index],
+                userInput: aligned,
+                metrics: metrics || next[index].metrics,
+                fillerWordsCount: metrics?.fillerCount ?? result.fillerWordsCount ?? 0,
+                fillerWordsList: metrics?.fillerWords || result.fillerWordsList || [],
+              };
+              return next;
+            });
+          } else {
+            setStates((prev) => {
+              const next = [...prev];
+              next[index] = {
+                ...next[index],
+                userInput: '',
+              };
+              return next;
+            });
+          }
         }
       } catch (err: any) {
         setMicError(err.message || 'Error processing speech recording');
@@ -421,17 +537,25 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         setActiveMicIdx(null);
         setMicStatus('idle');
         setAudioLevel(0);
-        voiceSessionRef.current = null;
+      }
+      if (alignedTranscript.trim() || autoStartRef.current) {
+        await handleCheck(index, alignedTranscript);
       }
       return;
     }
 
-    // If currently recording another item, stop it first
-    if (voiceSessionRef.current) {
-      try {
-        await voiceSessionRef.current.stop();
-      } catch {}
+    // If currently recording another item, stop it first and preserve its blob
+    if (voiceSessionRef.current && activeMicIdx !== null) {
+      const prevIdx = activeMicIdx;
+      const prevSession = voiceSessionRef.current;
       voiceSessionRef.current = null;
+      try {
+        const prevResult = await prevSession.stop();
+        if (prevResult.audioBlob) {
+          blobsRef.current[prevIdx] = prevResult.audioBlob;
+          setAudioBlobs((prev) => ({ ...prev, [prevIdx]: prevResult.audioBlob! }));
+        }
+      } catch {}
       setAudioLevel(0);
     }
 
@@ -481,7 +605,6 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           }
         }
       },
-      autoStartThreshold: autoStart ? 5 : undefined,
     });
 
     voiceSessionRef.current = session;
@@ -499,76 +622,134 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   };
 
 
-  const handleCheck = (index: number) => {
-    // If mic is running, stop it first
+  const handleCheck = async (index: number, customTranscript?: string) => {
+    // If mic is running, stop it first and await its audioBlob before finalizing
     if (activeMicIdx === index && voiceSessionRef.current) {
-      voiceSessionRef.current.stop();
-      setActiveMicIdx(null);
-      setMicStatus('idle');
+      await stopSpeechRecognition(index);
     }
 
     const target = task.sentences[index];
-    const user = states[index].userInput;
+    const user = customTranscript !== undefined ? customTranscript : states[index].userInput;
     const { percentage, wordStatuses } = calculateSentenceMatch(target, user);
-    const metrics = states[index].metrics;
-
-    let itemBand = 1.0;
-    if (percentage >= 92) itemBand = 6.0;
-    else if (percentage >= 82) itemBand = 5.5;
-    else if (percentage >= 72) itemBand = 5.0;
-    else if (percentage >= 60) itemBand = 4.5;
-    else if (percentage >= 48) itemBand = 4.0;
-    else if (percentage >= 35) itemBand = 3.0;
-    else if (percentage >= 20) itemBand = 2.0;
-    else itemBand = 1.0;
-
-    if (metrics?.wpm) {
-      if (metrics.wpm < 85 || metrics.wpm > 180) itemBand = Math.max(1.0, itemBand - 0.5);
-    }
-    if (metrics?.pauseCount && metrics.pauseCount >= 3) {
-      itemBand = Math.max(1.0, itemBand - 0.5);
-    }
-
-    // Apply Band deduction for vocalized filler words
-    const fillerCount = states[index].fillerWordsCount ?? metrics?.fillerCount ?? 0;
-    if (fillerCount >= 2) {
-      itemBand = Math.max(1.0, itemBand - 0.5);
-    } else if (fillerCount === 1) {
-      itemBand = Math.max(1.0, itemBand - 0.25);
-    }
-    const bandScore = Math.round(itemBand * 2) / 2;
+    const rubric = scoreListenRepeatSentence(percentage, wordStatuses);
 
     setStates((prev) => {
       const next = [...prev];
       next[index] = {
         ...next[index],
+        userInput: user,
         scorePercent: percentage,
-        bandScore,
+        score5: rubric.score5,
+        descriptorLabel: rubric.descriptorLabel,
+        badgeColorClass: rubric.badgeColorClass,
         wordBreakdown: wordStatuses,
         checked: true,
       };
       return next;
     });
 
-    // Check if all checked to save record
+    // Check if all checked to save record and invoke onComplete once
     const allChecked = states.every((s, i) => (i === index ? true : s.checked));
-    if (allChecked) {
-      const avgPercent = Math.round(
-        states.reduce((acc, s, i) => acc + (i === index ? percentage : s.scorePercent || 0), 0) /
-          task.sentences.length
-      );
+    if (allChecked && !hasCompletedRef.current) {
+      hasCompletedRef.current = true;
+      const updatedSentenceScores = task.sentences.map((_, i) => {
+        if (i === index) {
+          return { score5: rubric.score5, accuracyPercent: percentage };
+        }
+        const st = states[i];
+        return st?.checked
+          ? { score5: st.score5 ?? 0, accuracyPercent: st.scorePercent ?? 0 }
+          : null;
+      });
+      const sessionResult = calculateListenRepeatSessionScore(updatedSentenceScores);
+
+      const formattedRepetition = task.sentences
+        .map((sent, i) => {
+          const spoken = i === index ? user : states[i]?.userInput || '';
+          const pct = i === index ? percentage : states[i]?.scorePercent ?? 0;
+          const sc5 = i === index ? rubric.score5 : states[i]?.score5 ?? 0;
+          const desc = i === index ? rubric.descriptorLabel : states[i]?.descriptorLabel ?? 'No / Unrelated Response';
+          return `Sentence ${i + 1} [Score ${sc5}/5 · ${pct}% · ${desc}]: "${spoken.trim() || '(No response)'}"`;
+        })
+        .join('\n');
+      const targetModelText = task.sentences
+        .map((sent, i) => `Sentence ${i + 1}: "${sent}"`)
+        .join('\n');
+
       savePracticeRecord({
         taskType: 'listen-repeat',
         taskTitle: task.title,
         section: 'Speaking',
-        score: avgPercent,
-        maxScore: 100,
-        scaledScore30: convertToScaledScore(avgPercent, 100),
+        score: sessionResult.totalRawScore35,
+        maxScore: sessionResult.maxRawScore35,
+        scaledScore30: sessionResult.scaledScore30,
+        bandScore6: sessionResult.overallBand,
         timeSpentSeconds: 120,
-        feedbackSummary: `Listen & Repeat: Average accuracy of ${avgPercent}% across 5 sentences`,
+        studentResponse: formattedRepetition,
+        feedbackSummary: `Listen & Repeat: Band ${sessionResult.overallBand.toFixed(1)}/6.0 (${sessionResult.cefrLevel}) · Cumulative Rubric Score ${sessionResult.totalRawScore35}/${sessionResult.maxRawScore35} (Avg ${sessionResult.avgScore5.toFixed(1)}/5.0) · ${sessionResult.overallAccuracyPercent}% Word Accuracy`,
+        modelAnswer: targetModelText,
       });
+      onComplete?.({
+        blobs: { ...blobsRef.current },
+        scaledScore: sessionResult.scaledScore30,
+        bandScore6: sessionResult.overallBand,
+        totalRawScore35: sessionResult.totalRawScore35,
+        avgScore5: sessionResult.avgScore5,
+        avgPercent: sessionResult.overallAccuracyPercent,
+      });
+      setTimeout(() => {
+        document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 150);
+    } else if (autoStartRef.current && index + 1 < task.sentences.length) {
+      // Auto-advance to the next sentence when Auto-Flow is active
+      const nextIdx = index + 1;
+      setCurrentIndex(nextIdx);
+      setTimeout(() => {
+        document.getElementById(`listen-repeat-item-${nextIdx}`)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+        handlePlay(nextIdx);
+      }, 500);
+    } else if (index === task.sentences.length - 1) {
+      setTimeout(() => {
+        document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 150);
     }
   };
+
+  // Auto-scroll to the active sentence card whenever currentIndex or activeMicIdx changes
+  useEffect(() => {
+    const activeIdx = activeMicIdx !== null ? activeMicIdx : activeAudioIdx !== null ? activeAudioIdx : currentIndex;
+    if (activeIdx > 0 || activeMicIdx !== null || activeAudioIdx !== null) {
+      document.getElementById(`listen-repeat-item-${activeIdx}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [currentIndex, activeMicIdx, activeAudioIdx]);
+
+  // Press Enter while recording to immediately stop recording, transcribe, and evaluate
+  const handleToggleMicRef = useRef(handleToggleMic);
+  handleToggleMicRef.current = handleToggleMic;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey && activeMicIdx !== null && micStatus === 'listening') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleToggleMicRef.current(activeMicIdx);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [activeMicIdx, micStatus]);
 
   const handleResetItem = (index: number) => {
     if (activeMicIdx === index && voiceSessionRef.current) {
@@ -617,14 +798,18 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
   };
 
   const completedCount = states.filter((s) => s.checked).length;
-  const avgAccuracy =
-    completedCount > 0
-      ? Math.round(
-          states
-            .filter((s) => s.checked)
-            .reduce((acc, s) => acc + (s.scorePercent || 0), 0) / completedCount
-        )
-      : 0;
+  const sessionSummary = useMemo(() => {
+    const items = task.sentences.map((_, idx) => {
+      const s = states[idx];
+      if (!s || !s.checked) return null;
+      const fallbackRubric = scoreListenRepeatSentence(s.scorePercent ?? 0, s.wordBreakdown);
+      return {
+        score5: s.score5 ?? fallbackRubric.score5,
+        accuracyPercent: s.scorePercent ?? 0,
+      };
+    });
+    return calculateListenRepeatSessionScore(items);
+  }, [states, task.sentences]);
 
   return (
     <div className="space-y-6">
@@ -638,39 +823,26 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         }}
       />
 
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Speaking Section</span>
-            <span aria-hidden="true">·</span>
-            <span>Listen & Repeat</span>
-            <span aria-hidden="true">·</span>
-            <span>{((task as any).source === 'ai') ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}` : '📚 Curated Bank'}</span>
-            <span aria-hidden="true">·</span>
-            <span>{task.sentences.length} Sentences</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level}</span>
-          </div>
+          <TaskSubtitleMeta
+            task={task}
+            extra={`Speaker: ${speakerName} · ${task.sentences.length} Sentences`}
+          />
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setIsTranscriberModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <HardDrive className="w-3.5 h-3.5 text-teal-700" />
-            <span>⚙️ Configure / Download Offline Transcriber</span>
-          </button>
-
           {completedCount > 0 && (
-            <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg">
+            <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg flex-wrap">
               <span>Completed: <strong className="font-mono">{completedCount}/{task.sentences.length}</strong></span>
               <span aria-hidden="true">·</span>
-              <span>Est. TOEFL: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(avgAccuracy, 100)).toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-[11px]">({convertToScaledScore(avgAccuracy, 100)}/30)</span></span>
+              <span>Rubric: <strong className="font-mono text-teal-800">{sessionSummary.totalRawScore35}/{sessionSummary.maxRawScore35}</strong> <span className="text-slate-500 font-mono text-[11px]">(Avg {sessionSummary.avgScore5.toFixed(1)}/5.0)</span></span>
+              <span aria-hidden="true">·</span>
+              <span>Overall Band: <strong className="font-mono text-teal-800">{sessionSummary.overallBand.toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-[11px]">({sessionSummary.scaledScore30}/30)</span></span>
             </div>
           )}
+          <TaskReportButton task={task} />
         </div>
       </div>
 
@@ -693,13 +865,83 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         </div>
       )}
 
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed">
-        <strong>Task Guidelines:</strong> Click <strong>Hear Sentence</strong> to listen to the prompt. Then repeat the
-        sentence aloud by clicking the <strong>Mic</strong> button (or type your response if no microphone is available).
-        Click <strong>Check</strong> to evaluate phonetic and lexical word accuracy.
+      <CollapsibleTaskInstructions
+        label="Task Instructions"
+        summary={`Listen to ${speakerName} speak 7 sentences → BEEP (0s prep) → repeat aloud (0–5 integer rubric per sentence)`}
+      >
+        <strong>Task Guidelines:</strong> You will hear <strong>{speakerName}</strong> speak 7 progressive sentences in a single campus scenario. Click <strong>Hear Prompt</strong> to listen, then repeat each sentence aloud by clicking <strong>Speak</strong> (press <strong>Enter</strong> anytime while recording to immediately stop and transcribe). Each sentence is scored on the official ETS <strong>0–5 integer rubric</strong>, and your cumulative session score (out of 35) maps to your TOEFL iBT Speaking Band Score (1.0–6.0).
         <span className="block mt-1.5 text-teal-700 font-medium">
           💡 Numbers and spoken times (e.g. <em>10:00</em> and <em>ten o'clock</em>, or <em>lab</em> and <em>laboratory</em>) are automatically recognized and matched.
         </span>
+      </CollapsibleTaskInstructions>
+
+      {/* Single Unified Top-Level Auto-Start & Auto-Sequence Control Bar */}
+      <div className="bg-teal-50/70 border border-teal-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <label
+            htmlFor="listen-repeat-global-autostart"
+            className="flex items-center gap-2 text-xs font-semibold text-slate-800 cursor-pointer select-none bg-white border border-teal-200 px-3 py-1.5 rounded-lg shadow-2xs"
+          >
+            <input
+              type="checkbox"
+              id="listen-repeat-global-autostart"
+              checked={autoStart}
+              onChange={(e) => setAutoStart(e.target.checked)}
+              className="rounded text-teal-600 focus:ring-teal-500 cursor-pointer"
+            />
+            <span>Auto-Flow (All {task.sentences.length} sentences)</span>
+          </label>
+          <span className="text-[11px] text-slate-600">
+            Plays sentence → <strong>BEEP (0s prep)</strong> → records your voice (8–12s timer, press <strong>Enter</strong> to finish) → checks accuracy → advances automatically.
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPromptText((prev) => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors bg-white hover:bg-slate-50 border-teal-300 text-teal-900 cursor-pointer shadow-2xs whitespace-nowrap"
+            title={showPromptText ? 'Hide written sentence prompts to match the official exam' : 'Show written sentence prompts for reading assistance'}
+          >
+            {showPromptText ? (
+              <>
+                <span>🙈</span>
+                <span>Hide Sentences</span>
+              </>
+            ) : (
+              <>
+                <span>👁️</span>
+                <span>Show Sentences</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              stopAllAudio();
+              setStates(
+                task.sentences.map(() => ({
+                  userInput: '',
+                  isRecording: false,
+                  checked: false,
+                }))
+              );
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setCurrentIndex(0);
+              setShowPromptText(false);
+              setAutoStart(true);
+              autoStartRef.current = true;
+              handlePlay(0);
+            }}
+            disabled={activeAudioIdx !== null || micStatus !== 'idle'}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Start Practice (Auto-Flow)</span>
+          </button>
+        </div>
       </div>
 
       {/* Headphone echo prevention hint */}
@@ -730,18 +972,32 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
           const isAudioPlaying = activeAudioIdx === idx;
           const isRecordingThis = activeMicIdx === idx && micStatus === 'listening';
           const isTranscribingThis = activeMicIdx === idx && micStatus === 'transcribing';
+          const isActiveCard =
+            currentIndex === idx || isAudioPlaying || isRecordingThis || isTranscribingThis;
           const wordCount = targetSentence.split(/\s+/).length;
+          const sentenceRubric = state.checked
+            ? scoreListenRepeatSentence(state.scorePercent ?? 0, state.wordBreakdown)
+            : null;
+          const itemScore5 = state.score5 ?? sentenceRubric?.score5 ?? 0;
+          const itemDescriptor = state.descriptorLabel || sentenceRubric?.descriptorLabel || 'No / Unrelated Response';
+          const itemBadgeClass = state.badgeColorClass || sentenceRubric?.badgeColorClass || 'bg-rose-100 text-rose-800 border-rose-300';
 
           return (
             <div
               key={idx}
-              className={`bg-white border rounded-xl p-5 shadow-xs transition-all ${
+              id={`listen-repeat-item-${idx}`}
+              onClick={() => setCurrentIndex(idx)}
+              className={`bg-white border rounded-xl p-5 transition-all ${
+                isActiveCard
+                  ? 'ring-2 ring-emerald-500 shadow-md border-emerald-400'
+                  : 'shadow-xs'
+              } ${
                 state.checked
-                  ? (state.scorePercent || 0) >= 75
+                  ? itemScore5 >= 4
                     ? 'border-emerald-200 bg-emerald-50/20'
                     : 'border-amber-200 bg-amber-50/20'
                   : isRecordingThis
-                  ? 'border-rose-300 ring-2 ring-rose-100'
+                  ? 'border-rose-300'
                   : 'border-slate-200'
               }`}
             >
@@ -770,16 +1026,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       ) : (
                         <Volume2 className="w-3.5 h-3.5" />
                       )}
-                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? '⏹ Stop Audio' : 'Hear Sentence'}
-                    </button>
-
-                    <button
-                      onClick={() => handleRestartSentence(idx)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                      title="Restart sentence audio from beginning"
-                    >
-                      <RotateCcw className="w-3 h-3 text-slate-500" />
-                      <span>Restart</span>
+                      {loadingAudioIdx === idx ? 'Loading...' : isAudioPlaying ? 'Stop Audio' : 'Hear Prompt'}
                     </button>
                   </div>
                   {audioErrors[idx] && (
@@ -790,22 +1037,34 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                 </div>
               </div>
 
+              {/* Question / Sentence Prompt: Hidden by default just like real exam */}
+              {!showPromptText && !state.checked ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-center gap-2">
+                  <Headphones className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>🎧 Listen to the sentence and speak after the beep (sentence text is hidden just like the real exam).</span>
+                </div>
+              ) : !state.checked ? (
+                <div className="p-3 bg-teal-50/50 border border-teal-200 rounded-lg text-sm text-slate-800 font-medium leading-relaxed">
+                  "{targetSentence}"
+                </div>
+              ) : null}
+
               {/* Input / Dictation Area */}
               <div className="space-y-3">
                 {/* Live input-level meter using AnalyserNode and recording timer */}
                 {isRecordingThis && (
                   <div className="flex items-center justify-between gap-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-lg animate-in fade-in flex-wrap shadow-xs">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="relative flex h-2.5 w-2.5 items-center justify-center shrink-0">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-600"></span>
                       </span>
                       <span className="font-bold text-rose-900">Recording Active</span>
                       <span className="px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-mono font-bold text-[11px]">
-                        {Math.floor(recordingSeconds / 60)}:{String(recordingSeconds % 60).padStart(2, '0')}
+                        0:{String(responseTimeLeft).padStart(2, '0')} left
                       </span>
                       <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">Speak clearly. Click Stop when done.</span>
+                      <span className="text-slate-600">Speak clearly (0s prep). Press <strong>Enter</strong> or click Stop when done.</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[11px] font-semibold text-slate-700">Mic Pulse:</span>
@@ -822,8 +1081,6 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   </div>
                 )}
 
-
-
                 <div className="space-y-3">
                   {/* Full-width text input line */}
                   <div className="w-full">
@@ -831,6 +1088,23 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       type="text"
                       value={state.userInput}
                       disabled={isTranscribingThis}
+                      spellCheck={false}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      autoComplete="off"
+                      data-gramm="false"
+                      data-gramm_editor="false"
+                      data-enable-grammarly="false"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (isRecordingThis) {
+                            handleToggleMic(idx);
+                          } else if (state.userInput.trim() && !isTranscribingThis) {
+                            handleCheck(idx);
+                          }
+                        }
+                      }}
                       onChange={(e) =>
                         setStates((prev) => {
                           const next = [...prev];
@@ -840,10 +1114,10 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                       }
                       placeholder={
                         isRecordingThis
-                          ? 'Listening... speak clearly into your mic...'
+                          ? 'Listening... speak clearly into your mic (press Enter to stop & transcribe)...'
                           : isTranscribingThis
                           ? `Processing voice... ${transcribeSeconds}s`
-                          : 'Click mic to speak, or edit/type your repetition...'
+                          : 'Click Speak to record (or type your repetition and press Enter)...'
                       }
                       className={`w-full px-3.5 py-2.5 text-sm rounded-lg text-slate-900 outline-hidden transition-colors ${
                         isRecordingThis
@@ -854,18 +1128,7 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                   </div>
 
                   {/* Action buttons and controls on a separate line below */}
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                      <input
-                        type="checkbox"
-                        id={`autostart-${idx}`}
-                        checked={autoStart}
-                        onChange={(e) => setAutoStart(e.target.checked)}
-                        className="rounded text-teal-600 focus:ring-teal-500"
-                      />
-                      <label htmlFor={`autostart-${idx}`}>Auto-start on sound</label>
-                    </div>
-
+                  <div className="flex items-center justify-end flex-wrap gap-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <button
                         onClick={() => handleToggleMic(idx)}
@@ -877,12 +1140,12 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                             ? 'bg-slate-100 border-slate-300 text-slate-600 cursor-wait'
                             : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400'
                         }`}
-                        title={isRecordingThis ? 'Click to finish speaking' : 'Click mic and speak'}
+                        title={isRecordingThis ? 'Click or press Enter to finish speaking' : 'Click mic and speak'}
                       >
                         {isRecordingThis ? (
                           <>
                             <MicOff className="w-4 h-4 text-white" />
-                            <span>Stop</span>
+                            <span>Stop (Enter)</span>
                           </>
                         ) : isTranscribingThis ? (
                           <>
@@ -902,87 +1165,67 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                           <button
                             type="button"
                             onClick={() => handlePlayUserRecording(idx)}
-                            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                            className={`px-2.5 py-2 text-xs font-medium rounded-lg border transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                               playingRecordingIdx === idx
                                 ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
-                                : 'border-teal-300 bg-teal-50 text-teal-900 hover:bg-teal-100'
+                                : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
                             }`}
-                            title={playingRecordingIdx === idx ? 'Click to stop playback' : 'Listen to your exact recorded voice'}
+                            title={playingRecordingIdx === idx ? 'Stop playback' : 'Listen to your recorded voice'}
                           >
                             {playingRecordingIdx === idx ? (
                               <>
                                 <Pause className="w-3.5 h-3.5 fill-current text-slate-950" />
-                                <span>⏹ Stop Playback</span>
+                                <span>Stop</span>
                               </>
                             ) : (
                               <>
                                 <Play className="w-3.5 h-3.5 text-teal-700 fill-teal-700" />
-                                <span>▶ Hear My Recording</span>
+                                <span>My Voice</span>
                               </>
                             )}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRetryTranscription(idx)}
-                            disabled={isRecordingThis || isTranscribingThis}
-                            className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                              transcribeErrors[idx]
-                                ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 font-semibold'
-                                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                            }`}
-                            title="Retry transcription from saved recording"
-                          >
-                            <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-slate-600'}`} />
-                            <span>Retry STT</span>
-                          </button>
+                          {transcribeErrors[idx] && (
+                            <button
+                              type="button"
+                              onClick={() => handleRetryTranscription(idx)}
+                              disabled={isRecordingThis || isTranscribingThis}
+                              className="px-2.5 py-2 text-xs font-semibold rounded-lg border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                              title="Retry transcription from saved recording"
+                            >
+                              <RefreshCw className={`w-3.5 h-3.5 ${isTranscribingThis ? 'animate-spin text-teal-600' : 'text-amber-700'}`} />
+                              <span>Retry STT</span>
+                            </button>
+                          )}
                         </>
                       )}
 
-                      <button
-                        onClick={() => handleCheck(idx)}
-                        disabled={!state.userInput.trim() || isRecordingThis || isTranscribingThis}
-                        className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        {state.checked ? 'Re-Check' : 'Check'}
-                      </button>
+                      {!state.checked && state.userInput.trim() && (
+                        <button
+                          onClick={() => handleCheck(idx)}
+                          disabled={!state.userInput.trim() || isRecordingThis || isTranscribingThis}
+                          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Check</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Real-time speaking status strip */}
-                {isRecordingThis && (
-                  <div className="flex items-center gap-2 text-xs text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg">
-                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping shrink-0" />
-                    <span className="font-medium">
-                      Microphone active · Speak clearly now. When finished, click <strong>Stop</strong> or <strong>Check</strong>.
-                    </span>
-                  </div>
-                )}
-
-                {/* Live Transcript / Word Accuracy Diff */}
+                {/* Live Transcript / Word Accuracy Diff with Official ETS 0-5 Per-Sentence Rubric */}
                 {state.checked && (
                   <div className="pt-3 border-t border-slate-200/80 space-y-2 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-slate-500">
-                          Accuracy Match: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
+                        <span className="text-slate-600">
+                          Accuracy: <strong className="font-mono text-slate-900 text-sm">{state.scorePercent}%</strong>
                         </span>
-                        <span className="text-xs font-mono font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                          Band {(state.bandScore ?? 5.0).toFixed(1)}/6.0
+                        <span className="text-xs font-mono font-bold text-teal-900 bg-teal-50 px-2.5 py-0.5 rounded-md border border-teal-200">
+                          ETS Sentence Score: {itemScore5} / 5
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          (state.scorePercent ?? 0) >= 85
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : (state.scorePercent ?? 0) >= 65
-                            ? 'bg-teal-100 text-teal-800 border border-teal-300'
-                            : 'bg-amber-100 text-amber-800 border border-amber-300'
-                        }`}>
-                          {(state.scorePercent ?? 0) >= 85
-                            ? 'Band 6.0 Exemplar Match'
-                            : (state.scorePercent ?? 0) >= 65
-                            ? 'Band 5.0 Competent Match'
-                            : 'Needs Refinement'}
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border ${itemBadgeClass}`}>
+                          {itemDescriptor}
                         </span>
                         {state.metrics?.wpm ? (
                           <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-sm">
@@ -991,60 +1234,111 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
                         ) : null}
 
                         {/* ALWAYS Display Filler Badge */}
-                        {((state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) === 0) ? (
-                          <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                            0 fillers ✓
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            ⚠️ {(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0)} filler{(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) > 1 ? 's' : ''} ({(state.fillerWordsList || state.metrics?.fillerWords || []).join(', ')})
-                          </span>
-                        )}
+                        {(() => {
+                          const detected = detectFillerWords(state.userInput);
+                          const fillerCount = state.fillerWordsCount ?? state.metrics?.fillerCount ?? detected.fillerCount;
+                          const fillerList =
+                            state.fillerWordsList && state.fillerWordsList.length > 0
+                              ? state.fillerWordsList
+                              : state.metrics?.fillerWords && state.metrics.fillerWords.length > 0
+                              ? state.metrics.fillerWords
+                              : detected.fillerWords;
+
+                          if (fillerCount === 0) {
+                            return (
+                              <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                0 fillers ✓
+                              </span>
+                            );
+                          }
+                          if (fillerCount <= 2) {
+                            return (
+                              <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                {fillerCount} natural filler{fillerCount > 1 ? 's' : ''} ✓
+                              </span>
+                            );
+                          }
+                          if (fillerCount < 5) {
+                            return (
+                              <span className="text-[10px] font-medium text-slate-700 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md">
+                                {fillerCount} fillers ({fillerList.join(', ')})
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              ⚠️ {fillerCount} fillers ({fillerList.join(', ')})
+                            </span>
+                          );
+                        })()}
                       </div>
                       <span className="text-slate-500">
-                        Band 6.0 Target: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
+                        Target Sentence: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
                       </span>
                     </div>
 
-                    {/* Word-by-word breakdown with filler chips */}
+                    {/* Word-by-word breakdown with extra words and filler chips */}
                     <div className="flex flex-wrap gap-1.5 pt-1 items-center">
                       {state.wordBreakdown?.map((wb, wIdx) => (
                         <span
                           key={wIdx}
+                          title={
+                            wb.status === 'matched'
+                              ? 'Matched in sequence'
+                              : wb.status === 'extra'
+                              ? 'Extra / inserted spoken word (not in target sentence)'
+                              : 'Missed or out-of-order target word'
+                          }
                           className={`px-2 py-0.5 rounded text-xs font-mono font-medium ${
                             wb.status === 'matched'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : wb.status === 'extra'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 font-semibold'
                               : 'bg-rose-100 text-rose-800 border border-rose-300 line-through'
                           }`}
                         >
-                          {wb.word}
+                          {wb.status === 'extra' ? `+ ${wb.word}` : wb.word}
                         </span>
                       ))}
 
                       {/* Render detected filler chips */}
-                      {(state.userInput.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || []).map((f, fIdx) => (
+                      {detectFillerWords(state.userInput).fillerWords.map((f, fIdx) => (
                         <span
                           key={`filler_${fIdx}`}
                           className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1"
                           title="Vocalized filler word detected"
                         >
-                          <span>(filler: {f.replace(/[\[\]]/g, '')})</span>
+                          <span>(filler: {f})</span>
                         </span>
                       ))}
                     </div>
 
                     {/* Fluency Coaching Tip Banner */}
-                    {(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) >= 1 && (
-                      <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
-                        <span className="text-base shrink-0">💡</span>
-                        <div>
-                          <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
-                          <span>
-                            You used <strong>{(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0)} filler word(s)</strong> ({(state.fillerWordsList || state.metrics?.fillerWords || []).join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                    {(() => {
+                      const detected = detectFillerWords(state.userInput);
+                      const fillerCount = state.fillerWordsCount ?? state.metrics?.fillerCount ?? detected.fillerCount;
+                      const fillerList =
+                        state.fillerWordsList && state.fillerWordsList.length > 0
+                          ? state.fillerWordsList
+                          : state.metrics?.fillerWords && state.metrics.fillerWords.length > 0
+                          ? state.metrics.fillerWords
+                          : detected.fillerWords;
+
+                      if (fillerCount >= 3) {
+                        return (
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
+                            <span className="text-base shrink-0">💡</span>
+                            <div>
+                              <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
+                              <span>
+                                You used <strong>{fillerCount} filler word(s)</strong> ({fillerList.join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
               </div>
@@ -1053,17 +1347,149 @@ export const ListenRepeatView: React.FC<Props> = ({ task, onNextTask }) => {
         })}
       </div>
 
-      {onNextTask && (
-        <div className="pt-2 flex justify-end">
+      {/* Cumulative Listen & Repeat Session Result Card */}
+      {completedCount > 0 && (
+        <div
+          id="listen-repeat-cumulative-result"
+          className="bg-white border-2 border-teal-200 rounded-xl p-6 shadow-xs space-y-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
+                Official 2026 ETS TOEFL iBT · Cumulative Session Evaluation
+              </span>
+              <h3 className="text-lg font-bold text-slate-900 mt-0.5">
+                Listen & Repeat Session Result ({sessionSummary.completedSentences} / {sessionSummary.totalSentences} Sentences Completed)
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Unanswered sentences count as 0 / 5 in the cumulative 35-point session rubric.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="px-3 py-1.5 rounded-lg bg-teal-900 text-white font-mono font-bold text-sm">
+                Overall Band: {sessionSummary.overallBand.toFixed(1)} / 6.0
+              </span>
+              <span className="px-2.5 py-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 font-semibold text-xs">
+                {sessionSummary.cefrLevel} · {sessionSummary.performanceDescriptor}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Overall Band</div>
+              <div className="text-lg font-bold font-mono text-teal-800 mt-0.5">
+                {sessionSummary.overallBand.toFixed(1)} / 6.0
+              </div>
+              <div className="text-[11px] text-slate-500">{sessionSummary.performanceDescriptor}</div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Cumulative Rubric Score</div>
+              <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
+                {sessionSummary.totalRawScore35} / {sessionSummary.maxRawScore35}
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono">
+                Avg {sessionSummary.avgScore5.toFixed(1)} / 5.0 per item
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Scaled Score</div>
+              <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
+                {sessionSummary.scaledScore30} / 30
+              </div>
+              <div className="text-[11px] text-slate-500">ETS 0–30 Speaking Scale</div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase">Overall Word Accuracy</div>
+              <div className="text-lg font-bold font-mono text-slate-900 mt-0.5">
+                {sessionSummary.overallAccuracyPercent}%
+              </div>
+              <div className="text-[11px] text-slate-500">
+                Completed: {sessionSummary.completedSentences} / {sessionSummary.totalSentences} Sentences
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {task.sentences.map((_, sIdx) => {
+              const st = states[sIdx];
+              const sc = st?.checked
+                ? st.score5 ?? scoreListenRepeatSentence(st.scorePercent ?? 0, st.wordBreakdown).score5
+                : null;
+              return (
+                <span
+                  key={sIdx}
+                  className={`px-2.5 py-1 rounded-md text-xs font-mono font-semibold border ${
+                    sc === null
+                      ? 'bg-slate-100 text-slate-500 border-slate-200'
+                      : sc >= 4
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                      : sc >= 3
+                      ? 'bg-sky-50 text-sky-900 border-sky-200'
+                      : 'bg-amber-50 text-amber-900 border-amber-200'
+                  }`}
+                >
+                  Sentence {sIdx + 1}: {sc !== null ? `${sc}/5 (${st.scorePercent ?? 0}%)` : '0/5 (Unanswered)'}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-2 flex items-center justify-end gap-3 flex-wrap">
+        {completedCount > 0 && (
           <button
-            onClick={onNextTask}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            type="button"
+            onClick={() => {
+              stopAllAudio();
+              setStates(
+                task.sentences.map(() => ({
+                  userInput: '',
+                  isRecording: false,
+                  checked: false,
+                }))
+              );
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setCurrentIndex(0);
+              setShowPromptText(false);
+              setAutoStart(false);
+              autoStartRef.current = false;
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Try Again</span>
+          </button>
+        )}
+        {onNextTask && (
+          <button
+            onClick={() => {
+              stopAllAudio();
+              setStates(
+                task.sentences.map(() => ({
+                  userInput: '',
+                  isRecording: false,
+                  checked: false,
+                }))
+              );
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setCurrentIndex(0);
+              setShowPromptText(false);
+              onNextTask();
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
           >
             Next Speaking Exercise
             <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

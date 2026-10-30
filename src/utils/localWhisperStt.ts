@@ -12,6 +12,7 @@
  */
 
 import { alignHomophonesAndPhonetics } from './phoneticMatcher';
+import { filterWhisperHallucinations } from './audio/fluencyMetrics';
 
 export type WhisperModelChoice = 'Xenova/whisper-small.en' | 'Xenova/whisper-base.en' | 'Xenova/whisper-tiny.en';
 
@@ -322,7 +323,7 @@ self.onmessage = async (e) => {
         payload: { status: 'transcribing', message: 'Running WASM SIMD Whisper inference...' },
       });
 
-      const max_new_tokens = Math.min(48, Math.max(16, Math.ceil(durationSec * 4)));
+      const max_new_tokens = Math.min(224, Math.max(24, Math.ceil(durationSec * 4.5)));
 
       const output = await currentTranscriber(audioData, {
         return_timestamps: false,
@@ -943,7 +944,8 @@ export async function transcribeWithLocalWhisper(
     });
   });
 
-  const rawFullText = resultText.trim();
+  const { transcript: filteredRawText } = filterWhisperHallucinations(resultText.trim(), []);
+  const rawFullText = filteredRawText.trim();
 
   // Detect genuine pause-isolated acoustic fillers omitted by Whisper
   const acousticEvents = detectAcousticFillerIslands(vad.trimmedAudio);

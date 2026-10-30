@@ -1,0 +1,172 @@
+[
+  {
+    "id": "lr-1",
+    "title": "Biology Laboratory Safety Orientation",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "speakerName": "Sarah (Lab Coordinator)",
+    "speakerGender": "female",
+    "sentences": [
+      "Welcome to the undergraduate biology laboratory.",
+      "Please store your backpacks inside the hallway lockers.",
+      "Safety goggles and lab coats are required at all times.",
+      "You will find clean glass slides inside the top cabinet drawer.",
+      "Make sure to calibrate your microscope carefully before examining the tissue samples.",
+      "Dispose of all used pipettes and gloves in the labeled biohazard container near the sink.",
+      "If any chemical spill occurs during the experiment, notify your laboratory supervisor immediately for assistance."
+    ]
+  },
+  {
+    "id": "lr-2",
+    "title": "University Library Research Tour",
+    "level": "upper-intermediate",
+    "topic": "campus-life",
+    "speakerName": "Marcus (Head Librarian)",
+    "speakerGender": "male",
+    "sentences": [
+      "Welcome to the main university library.",
+      "Our reference desk is located on this floor.",
+      "You can borrow up to ten books with your card.",
+      "Quiet individual study carrels are available on the third and fourth floors.",
+      "Group collaboration rooms must be reserved online at least one day in advance.",
+      "Our digital archive provides instant access to thousands of peer-reviewed academic journals and historical newspapers.",
+      "If you need help locating rare primary sources, please schedule a consultation with a research librarian."
+    ]
+  },
+  {
+    "id": "lr-3",
+    "title": "Campus Sustainability & Recycling Briefing",
+    "level": "intermediate",
+    "topic": "environment",
+    "speakerName": "Elena (Sustainability Coordinator)",
+    "speakerGender": "female",
+    "sentences": [
+      "Thank you for joining our workshop.",
+      "Our campus is committed to reducing plastic waste.",
+      "Water refill stations have been installed in every building.",
+      "Please separate paper, aluminum cans, and glass into the blue bins.",
+      "Food scraps from the dining halls are collected daily for our compost garden.",
+      "Students who bring reusable coffee mugs to campus cafes receive a discount on every beverage.",
+      "Volunteers are invited to help plant native wildflowers behind the student union this Saturday morning."
+    ]
+  },
+  {
+    "id": "lr-4",
+    "title": "Campus Observatory Night Sky Tour",
+    "level": "upper-intermediate",
+    "topic": "science-tech",
+    "speakerName": "Dr. Chen (Observatory Guide)",
+    "speakerGender": "male",
+    "sentences": [
+      "Welcome to the campus rooftop observatory.",
+      "Please keep flashlights turned off inside the dome.",
+      "Your eyes need several minutes to adjust to darkness.",
+      "Tonight our main telescope is pointed directly toward the Orion Nebula.",
+      "You can clearly observe four bright moons orbiting around the planet Jupiter.",
+      "The motorized dome rotates automatically throughout the evening to track celestial objects across the sky.",
+      "Before you leave tonight, feel free to pick up a monthly star chart by the exit."
+    ]
+  },
+  {
+    "id": "lr-5",
+    "title": "Natural History Museum Docent Tour",
+    "level": "intermediate",
+    "topic": "history-archaeology",
+    "speakerName": "Clara (Museum Docent)",
+    "speakerGender": "female",
+    "sentences": [
+      "Welcome to the university paleontology gallery.",
+      "Please stay behind the glass barriers at all times.",
+      "Flash photography is not permitted inside the fossil exhibition hall.",
+      "The dinosaur skeleton in the center was excavated in northern Montana.",
+      "Notice how the curved teeth were adapted for grinding tough fibrous plants.",
+      "Interactive touchscreens next to each display case explain how geological strata preserve ancient organisms.",
+      "Our guided tour will continue upstairs in ten minutes with a look at Ice Age mammals."
+    ]
+  },
+  {
+    "id": "lr-6",
+    "title": "Academic Advising & Course Registration Briefing",
+    "level": "intermediate",
+    "topic": "campus-life",
+    "speakerName": "David (Academic Advisor)",
+    "speakerGender": "male",
+    "sentences": [
+      "Welcome to the fall advising session.",
+      "Course registration opens next Monday at eight o'clock.",
+      "Please review your degree audit before selecting your classes.",
+      "Every declared major requires at least two upper-level seminar courses.",
+      "Check the course catalog carefully to confirm you meet all required prerequisites.",
+      "If a lecture section is full, you can join the automated waitlist through the student portal.",
+      "Feel free to book an individual appointment with me if you are considering a summer internship."
+    ]
+  },
+  {
+    "id": "lr-7",
+    "title": "Marine Biology Field Station Orientation",
+    "level": "upper-intermediate",
+    "topic": "environment",
+    "speakerName": "Dr. Alvarez (Field Station Director)",
+    "speakerGender": "female",
+    "sentences": [
+      "Welcome to the coastal research station.",
+      "Low tide begins at seven tomorrow morning.",
+      "Please wear waterproof boots when walking across the rocks.",
+      "We will record water temperature and salinity at five tidal pools.",
+      "Never remove live sea stars or crabs from their natural rocky habitat.",
+      "Take detailed photographs of each specimen so we can classify the species back in the lab.",
+      "All field notebooks and water samples must be logged into the station database before dinner."
+    ]
+  },
+  {
+    "id": "lr-8",
+    "title": "Economics Seminar & Group Presentation Guidelines",
+    "level": "upper-intermediate",
+    "topic": "business-economics",
+    "speakerName": "Prof. Ross (Seminar Instructor)",
+    "speakerGender": "male",
+    "sentences": [
+      "Let's review next week's presentation guidelines.",
+      "Each research team will have twelve minutes total.",
+      "Please upload your slide deck before class on Tuesday.",
+      "Your presentation should analyze one recent case of market price regulation.",
+      "Make sure every team member speaks for an equal amount of time.",
+      "Include clear charts and statistical evidence from at least three peer-reviewed economics articles.",
+      "Following your presentation, the class will have five minutes to ask questions about your findings."
+    ]
+  },
+  {
+    "id": "lr-9",
+    "title": "Engineering 3D Printing & Maker Space Orientation",
+    "level": "advanced",
+    "topic": "science-tech",
+    "speakerName": "Liam (Lab Director)",
+    "speakerGender": "male",
+    "sentences": [
+      "Welcome to the engineering maker space.",
+      "All students must sign in at the front desk.",
+      "Protective eyewear is mandatory near the laser cutting machines.",
+      "You can export your three-dimensional design files to a USB drive.",
+      "Always check that the printer bed is level before starting a print.",
+      "Please do not touch the heated nozzle while the printer is actively extruding plastic filament.",
+      "A student technician is on duty every afternoon to help you troubleshoot any hardware issues."
+    ]
+  },
+  {
+    "id": "lr-10",
+    "title": "University Rare Book & Special Collections Orientation",
+    "level": "advanced",
+    "topic": "arts-humanities",
+    "speakerName": "Ms. Bennett (Archive Curator)",
+    "speakerGender": "female",
+    "sentences": [
+      "Welcome to the rare book archive.",
+      "Food and beverages are strictly prohibited in here.",
+      "Please use only wooden pencils when taking research notes.",
+      "Ink pens could permanently damage the fragile nineteenth-century manuscript pages.",
+      "Place the foam book cradle on the table to support old bindings.",
+      "Turn each page slowly with clean, dry hands rather than wearing cotton archival gloves.",
+      "When you finish examining a manuscript, return the folder directly to the reading room supervisor."
+    ]
+  }
+]

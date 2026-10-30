@@ -24,7 +24,9 @@ import {
   getStoredApiKey,
   getStoredTranscriberKey,
   getAuthHeaders,
+  getProviderKeys,
 } from '../../utils/apiKey';
+import { PROVIDER_ORDER } from '../../config/models';
 import { redactSensitiveInfo } from '../../utils/redact';
 
 interface SystemStatusModalProps {
@@ -100,24 +102,19 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
     }
   };
 
-  // 2. AI Providers Check (test-key for each stored provider key)
+  // 2. AI Providers Check (test-key for each stored provider key across PROVIDER_ORDER)
   const runAiCheck = async () => {
     setAiCheck((prev) => ({ ...prev, status: 'checking' }));
     try {
-      const candidateProviders: ApiProvider[] = [
-        'gemini',
-        'groq',
-        'nvidia',
-        'openrouter',
-        'openai',
-        'deepseek',
-        'xai',
-        'anthropic',
-      ];
+      const keys = getProviderKeys();
+      const hasAnyKey = PROVIDER_ORDER.some((p) => Boolean(keys[p] || getStoredApiKey(p)));
+      const candidateProviders: ApiProvider[] = PROVIDER_ORDER.filter(
+        (p) => Boolean(keys[p] || getStoredApiKey(p)) || p === 'gemini' || p === 'groq'
+      );
 
-      const configuredProviders = candidateProviders.filter((p) => Boolean(getStoredApiKey(p)));
+      const configuredProviders = candidateProviders.filter((p) => Boolean(keys[p] || getStoredApiKey(p)));
 
-      if (configuredProviders.length === 0) {
+      if (!hasAnyKey || configuredProviders.length === 0) {
         setAiCheck({
           status: 'ok',
           detail: 'No custom API keys stored. Using default fallback & curated question bank.',
@@ -130,7 +127,7 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
       const errors: string[] = [];
 
       for (const provider of configuredProviders) {
-        const key = getStoredApiKey(provider);
+        const key = keys[provider] || getStoredApiKey(provider);
         const pName = PROVIDERS[provider]?.name || provider;
         try {
           const res = await fetch('/api/test-key', {
@@ -387,7 +384,7 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
       micTestResult ? `Mic Test: ${micTestResult}` : '',
       `Last Checked: ${sttCheck.lastChecked || 'N/A'}`,
       ``,
-      `Sentry Monitored: ${Boolean(import.meta.env.VITE_SENTRY_DSN)}`,
+      `Sentry Monitored: ${Boolean(process.env.VITE_SENTRY_DSN)}`,
     ]
       .filter((line) => line !== '')
       .join('\n');
@@ -402,7 +399,7 @@ export const SystemStatusModal: React.FC<SystemStatusModalProps> = ({ isOpen, on
   // Send Test Error button handler (unconditionally rendered in footer)
   const handleSendTestError = async () => {
     try {
-      const dsn = import.meta.env.VITE_SENTRY_DSN;
+      const dsn = process.env.VITE_SENTRY_DSN;
       if (dsn) {
         const Sentry = await import('@sentry/react');
         const eventId = Sentry.captureException(

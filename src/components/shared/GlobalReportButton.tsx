@@ -63,11 +63,13 @@ export const GlobalReportButton: React.FC = () => {
   return (
     <>
       <button
+        type="button"
         onClick={handleOpen}
-        className="fixed bottom-6 right-6 z-50 p-3 bg-teal-800 text-white rounded-full shadow-lg hover:bg-teal-900 transition-all cursor-pointer"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-teal-900 bg-slate-100 hover:bg-teal-50 border border-slate-200 hover:border-teal-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
         title="Report an Issue or Feedback"
       >
-        <MessageSquareWarning className="w-6 h-6" />
+        <MessageSquareWarning className="w-3.5 h-3.5 text-teal-700" />
+        <span>💬 Feedback / Report</span>
       </button>
 
       {isOpen && (

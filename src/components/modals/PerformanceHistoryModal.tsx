@@ -1,19 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Award, BarChart3, TrendingUp, Calendar, Download, Upload, Target } from 'lucide-react';
+import { X, Trash2, Award, BarChart3, TrendingUp, Calendar, Download, Upload, Target, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   getPracticeHistory,
   clearPracticeHistory,
+  clearAllUserProgress,
+  getCompletedQuestionIds,
   calculateToeflEstimate,
+  calculateMyBestScores,
+  convertScaledToBand6,
+  sanitizePracticeRecord,
+  getCurrentUserId,
   PracticeRecord,
 } from '../../utils/scoreTracker';
+import { getMistakesList } from '../../utils/mistakesTracker';
 import { PerformanceTrendChart } from './history/PerformanceTrendChart';
+import { HighlightedText } from '../shared/FeedbackComparison';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onResetProgress?: () => void;
 }
 
-export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) => {
+export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose, onResetProgress }) => {
   const [history, setHistory] = useState<PracticeRecord[]>([]);
   const [activeSectionTab, setActiveSectionTab] = useState<'All' | 'Reading' | 'Listening' | 'Speaking' | 'Writing'>('All');
   const [targetScore, setTargetScore] = useState(100);
@@ -21,6 +30,8 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -36,12 +47,28 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
       }
       setStatusMessage(null);
       setConfirmingClear(false);
+      setConfirmingReset(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    const syncOnReset = () => {
+      setHistory(getPracticeHistory());
+      setConfirmingReset(false);
+      setConfirmingClear(false);
+    };
+    window.addEventListener('toefl_progress_reset', syncOnReset);
+    return () => window.removeEventListener('toefl_progress_reset', syncOnReset);
+  }, []);
 
   if (!isOpen) return null;
 
   const stats = calculateToeflEstimate(history);
+  const myBest = calculateMyBestScores(history);
+  const hasAnyProgress =
+    history.length > 0 ||
+    getCompletedQuestionIds().length > 0 ||
+    getMistakesList().length > 0;
 
   // Countdown days
   const daysToTest = testDate ? Math.ceil((new Date(testDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30;
@@ -57,9 +84,15 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
 
   const handleClear = () => {
     clearPracticeHistory();
+    if (onResetProgress) {
+      onResetProgress();
+    } else {
+      clearAllUserProgress();
+    }
     setHistory([]);
     setConfirmingClear(false);
-    showNotification('Practice history cleared successfully.', 'success');
+    setConfirmingReset(false);
+    showNotification('All scores, MyBest® superscores, and practice history have been reset.', 'success');
   };
 
   // Export JSON
@@ -115,8 +148,9 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
         try {
           const parsed = JSON.parse(event.target?.result as string);
           if (Array.isArray(parsed)) {
-            localStorage.setItem('toefl_prep_history_v1', JSON.stringify(parsed));
-            setHistory(parsed);
+            const sanitized = parsed.map((item) => sanitizePracticeRecord(item).record);
+            localStorage.setItem(`toefl_prep_history_${getCurrentUserId()}`, JSON.stringify(sanitized));
+            setHistory(sanitized);
             showNotification('History imported successfully!', 'success');
           } else {
             showNotification('Invalid JSON format: expected an array of records.', 'error');
@@ -128,27 +162,111 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
     }
   };
 
-
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
               <BarChart3 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">TOEFL Analytics & Study Projection</h2>
-              <p className="text-xs text-slate-500">Track score trends, countdown, and manage backup data</p>
+              <h2 className="text-lg font-bold text-slate-900">TOEFL Analytics &amp; Study Projection</h2>
+              <p className="text-xs text-slate-500">Track score trends, MyBest® superscores, countdown, and backup data</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {hasAnyProgress && (
+              confirmingReset ? (
+                <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2.5 py-1.5 rounded-lg text-xs">
+                  <span className="text-rose-800 font-semibold">Confirm Reset Everything?</span>
+                  <button
+                    type="button"
+                    onClick={handleClear}
+                    className="px-2.5 py-1 font-bold bg-rose-600 text-white rounded-md hover:bg-rose-700 transition-colors cursor-pointer"
+                  >
+                    Yes, Clear All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReset(false)}
+                    className="px-2 py-1 text-slate-600 hover:text-slate-900 font-medium transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingReset(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>🗑️ Reset All Scores &amp; History</span>
+                </button>
+              )
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Official ETS MyBest® Scores Card */}
+        <div className="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-teal-700/50 shadow-md space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-800/60 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
+                  MyBest® Scores (Superscore)
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                    2026 ETS Scale
+                  </span>
+                </h3>
+                <p className="text-[11px] text-teal-200/80">
+                  Combination of your highest section scores across all completed practice sessions
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono font-bold text-teal-200 border border-white/15">
+                CEFR {myBest.cefrCode} ({myBest.cefrLevel})
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white/10 border border-white/15 rounded-xl p-3 text-center col-span-2 sm:col-span-1 flex flex-col justify-center">
+              <div className="text-[10px] text-amber-300 uppercase font-bold tracking-wider">MyBest® Overall</div>
+              <div className="text-2xl font-mono font-extrabold text-white mt-0.5">
+                {myBest.hasAnyAttempts ? `${myBest.overallBand6.toFixed(1)} / 6.0` : '—'}
+              </div>
+              <div className="text-[11px] text-teal-200 font-mono">
+                {myBest.hasAnyAttempts ? `${myBest.totalScaled120} / 120 Scaled` : 'No scores yet'}
+              </div>
+            </div>
+
+            {([
+              { label: 'Reading', data: myBest.reading },
+              { label: 'Listening', data: myBest.listening },
+              { label: 'Speaking', data: myBest.speaking },
+              { label: 'Writing', data: myBest.writing },
+            ] as const).map(({ label, data }) => (
+              <div key={label} className="bg-slate-900/55 border border-teal-800/60 rounded-xl p-3 text-center">
+                <div className="text-[11px] text-teal-200 font-semibold">{label}</div>
+                <div className="text-lg font-mono font-bold text-white mt-0.5">
+                  {data.attemptsCount > 0 ? `Band ${data.bandScore6.toFixed(1)}` : '—'}
+                </div>
+                <div className="text-[10px] text-teal-300/90 font-mono">
+                  {data.attemptsCount > 0 ? `${data.scaledScore30}/30 Scaled` : 'Not practiced'}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Goal & Countdown Banner */}
@@ -158,7 +276,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
             <div>
               <div className="text-xs text-teal-700 font-semibold uppercase tracking-wider">Target Score</div>
               <div className="text-xl font-bold font-mono text-teal-950">{targetScore} / 120</div>
-              <div className="text-[11px] text-teal-600">Current: {stats.overallScore} / 120</div>
+              <div className="text-[11px] text-teal-600">Current Avg: {stats.overallScore} / 120</div>
             </div>
           </div>
 
@@ -181,34 +299,34 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </div>
         </div>
 
-        {/* Scaled Score Overview Grid */}
+        {/* Scaled Score Overview Grid (Rolling Average) */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="bg-slate-900 text-white rounded-xl p-3.5 text-center col-span-2 sm:col-span-1">
-            <div className="text-[11px] text-slate-300 uppercase font-medium tracking-wider">Estimated Band</div>
+            <div className="text-[11px] text-slate-300 uppercase font-medium tracking-wider">Average Band</div>
             <div className="text-2xl font-mono font-bold text-teal-400 mt-0.5">{stats.overallBand6.toFixed(1)} / 6.0</div>
             <div className="text-[10px] text-slate-400 font-mono">({stats.overallScore} / 120 Scaled)</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Reading</div>
+            <div className="text-[11px] text-slate-500 font-medium">Reading Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.readingBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.readingScore}/30 Scaled</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Listening</div>
+            <div className="text-[11px] text-slate-500 font-medium">Listening Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.listeningBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.listeningScore}/30 Scaled</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Speaking</div>
+            <div className="text-[11px] text-slate-500 font-medium">Speaking Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.speakingBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.speakingScore}/30 Scaled</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Writing</div>
+            <div className="text-[11px] text-slate-500 font-medium">Writing Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.writingBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.writingScore}/30 Scaled</div>
           </div>
@@ -310,36 +428,118 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
               No completed exercises yet. Select a task above and complete it to see your score analysis here!
             </div>
           ) : (
-            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+            <div className="border border-slate-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10">
                   <tr>
                     <th className="py-2.5 px-3">Date</th>
                     <th className="py-2.5 px-3">Section</th>
                     <th className="py-2.5 px-3">Task Title</th>
                     <th className="py-2.5 px-3 text-center">Band (1-6)</th>
                     <th className="py-2.5 px-3 text-right">Scaled (0-30)</th>
+                    <th className="py-2.5 px-3 text-right">Saved Response</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {history.map((rec) => {
-                    const band = rec.bandScore6 ?? (rec.scaledScore30 >= 29 ? 6.0 : rec.scaledScore30 >= 26 ? 5.5 : rec.scaledScore30 >= 23 ? 5.0 : rec.scaledScore30 >= 20 ? 4.5 : rec.scaledScore30 >= 17 ? 4.0 : rec.scaledScore30 >= 14 ? 3.5 : rec.scaledScore30 >= 11 ? 3.0 : 2.5);
+                    const scaled30 = typeof rec.scaledScore30 === 'number' ? rec.scaledScore30 : Math.min(30, Number(rec.score || 0));
+                    const band = rec.bandScore6 ?? convertScaledToBand6(scaled30, rec.section);
+                    const hasSavedResponse = Boolean(rec.studentResponse && rec.studentResponse.trim().length > 0);
+                    const isExpanded = expandedRecordId === rec.id;
+                    const grammarErrors = Array.isArray(rec.grammarErrors) ? rec.grammarErrors : [];
                     return (
-                      <tr key={rec.id} className="hover:bg-slate-50/50">
-                        <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">
-                          {new Date(rec.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="py-2 px-3">
-                          <span className="font-medium text-slate-900">{rec.section}</span>
-                        </td>
-                        <td className="py-2 px-3 text-slate-800 truncate max-w-xs">{rec.taskTitle}</td>
-                        <td className="py-2 px-3 text-center font-mono font-bold text-teal-700">
-                          Band {band.toFixed(1)}
-                        </td>
-                        <td className="py-2 px-3 text-right font-mono font-medium text-slate-600">
-                          {rec.scaledScore30}/30
-                        </td>
-                      </tr>
+                      <React.Fragment key={rec.id}>
+                        <tr className="hover:bg-slate-50/50">
+                          <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">
+                            {new Date(rec.date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="font-medium text-slate-900">{rec.section}</span>
+                          </td>
+                          <td className="py-2 px-3 text-slate-800 truncate max-w-xs">{rec.taskTitle}</td>
+                          <td className="py-2 px-3 text-center font-mono font-bold text-teal-700">
+                            Band {band.toFixed(1)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-medium text-slate-600">
+                            {scaled30} / 30
+                          </td>
+                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                            {hasSavedResponse ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedRecordId(isExpanded ? null : rec.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors cursor-pointer"
+                              >
+                                <FileText className="w-3 h-3 text-teal-700" />
+                                <span>{isExpanded ? 'Hide Saved Response' : '📄 View Saved Response'}</span>
+                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-slate-300">—</span>
+                            )}
+                          </td>
+                        </tr>
+                        {hasSavedResponse && isExpanded && (
+                          <tr className="bg-slate-50/80">
+                            <td colSpan={6} className="p-4 border-t border-slate-200">
+                              <div className="space-y-4">
+                                {rec.feedbackSummary && (
+                                  <div className="text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-3 leading-relaxed">
+                                    <span className="font-bold text-slate-900 mr-1.5">Evaluation Summary:</span>
+                                    {rec.feedbackSummary}
+                                  </div>
+                                )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-800">
+                                        Your Saved Response {grammarErrors.length > 0 ? `(${grammarErrors.length} Highlighted Fixes)` : ''}
+                                      </h4>
+                                    </div>
+                                    <div className="p-3.5 bg-white border border-slate-200 rounded-lg text-xs leading-relaxed text-slate-900 whitespace-pre-line">
+                                      <HighlightedText text={rec.studentResponse || ''} corrections={grammarErrors as any} />
+                                    </div>
+                                  </div>
+                                  {rec.modelAnswer && (
+                                    <div className="space-y-1.5">
+                                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-teal-800 flex items-center gap-1">
+                                        <Award className="w-3.5 h-3.5 text-teal-600" />
+                                        <span>Band 6.0 Model Answer</span>
+                                      </h4>
+                                      <div className="p-3.5 bg-teal-50/50 border border-teal-200 rounded-lg text-xs leading-relaxed text-teal-950 whitespace-pre-line">
+                                        {rec.modelAnswer}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {grammarErrors.length > 0 && (
+                                  <div className="space-y-2">
+                                    <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                                      Grammar &amp; Wording Fixes ({grammarErrors.length})
+                                    </h5>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {grammarErrors.map((err, i) => (
+                                        <div key={i} className="p-2.5 bg-white border border-slate-200 rounded-lg text-xs space-y-1">
+                                          <div className="flex items-baseline flex-wrap gap-1.5">
+                                            <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-900 line-through font-semibold">
+                                              &ldquo;{err.original}&rdquo;
+                                            </span>
+                                            <span className="text-slate-400 font-bold">→</span>
+                                            <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-bold">
+                                              &ldquo;{err.corrected}&rdquo;
+                                            </span>
+                                          </div>
+                                          <p className="text-[11px] text-slate-600 leading-snug">{err.explanation}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

@@ -380,7 +380,7 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
             </p>
           </div>
           <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
-            Database Total
+            Database Total: {Object.values(questionCounts).reduce((a, b) => a + b, 0)} Questions
           </span>
         </div>
 

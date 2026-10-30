@@ -1,6 +1,6 @@
-import { callOpenAiCompatibleChat } from './llmClient.ts';
-import type { LlmCallOptions } from './llmClient.ts';
-import { resolveModelChains, isModelGone, markModelDead } from './modelRoles.ts';
+import { callOpenAiCompatibleChat } from './llmClient';
+import type { LlmCallOptions } from './llmClient';
+import { resolveModelChains, isModelGone, markModelDead } from './modelRoles';
 
 const FALLBACK_MODELS_BY_PROVIDER: Record<string, string[]> = {
   openrouter: [

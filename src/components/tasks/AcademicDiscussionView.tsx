@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AcademicDiscussionTask } from '../../data/curatedQuestions';
-import { evaluateLocally } from '../../utils/localEvaluator';
-import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Volume2, VolumeX, Loader2, Zap } from 'lucide-react';
+import { evaluateLocally, mergeAiAndLocalEvaluation } from '../../utils/localEvaluator';
+import { MessageSquare, Sparkles, Send, AlertCircle, ArrowRight, User, Zap, Clock, Play, Pause, RotateCcw } from 'lucide-react';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { FeedbackComparison } from '../shared/FeedbackComparison';
 import { auth } from '../../firebase';
@@ -9,30 +9,99 @@ import { saveMistake } from '../../utils/mistakes';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
 import { safeFetchJson } from '../../utils/apiHelper';
 import { markUserAiRequest } from '../../utils/userActivity';
-import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
-import { pickSingleVoice, inferGender } from '../../utils/voices';
+import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 interface Props {
   task: AcademicDiscussionTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
   onOpenApiKeySettings?: () => void;
+  spellCheck?: boolean;
+  annotatedReviewTitle?: string;
+  localGraderLabel?: string;
+  aiGraderLabel?: string;
+  apiKeyPromptText?: string;
+  isWritingTimerEnabled?: boolean;
+  onToggleWritingTimer?: (enabled: boolean) => void;
+  isWritingTimerRunning?: boolean;
+  onChangeWritingTimerRunning?: (running: boolean) => void;
+  writingTimerSeconds?: number;
+  onChangeWritingTimerSeconds?: (seconds: number) => void;
 }
 
-export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onComplete, onOpenApiKeySettings }) => {
+const OFFICIAL_DISCUSSION_TIME_SECONDS = 600; // 10 minutes official ETS Academic Discussion timing
+
+export const AcademicDiscussionView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+  onOpenApiKeySettings,
+  isWritingTimerEnabled: externalTimerEnabled,
+  onToggleWritingTimer,
+  isWritingTimerRunning: externalTimerRunning,
+  onChangeWritingTimerRunning,
+  writingTimerSeconds: externalTimerSeconds,
+  onChangeWritingTimerSeconds,
+}) => {
   const [response, setResponse] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
-  const [isPlayingProfAudio, setIsPlayingProfAudio] = useState(false);
-  const [isLoadingProfAudio, setIsLoadingProfAudio] = useState(false);
+
+  // Official 10-Minute Timer (auto-starts by default unless user toggled Timer Off)
+  const [localTimerEnabled, setLocalTimerEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('toefl_writing_timer_enabled') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const isWritingTimerEnabled = externalTimerEnabled ?? localTimerEnabled;
+
+  const [localTimeLeft, setLocalTimeLeft] = useState(OFFICIAL_DISCUSSION_TIME_SECONDS);
+  const [localTimerRunning, setLocalTimerRunning] = useState<boolean>(() => isWritingTimerEnabled);
+
+  const timeLeft = externalTimerSeconds ?? localTimeLeft;
+  const isWritingTimerRunning = externalTimerRunning ?? localTimerRunning;
+
+  const setTimeLeft = (val: number | ((prev: number) => number)) => {
+    const nextVal = typeof val === 'function' ? val(timeLeft) : val;
+    setLocalTimeLeft(nextVal);
+    onChangeWritingTimerSeconds?.(nextVal);
+  };
+
+  const setIsWritingTimerRunning = (val: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof val === 'function' ? val(isWritingTimerRunning) : val;
+    setLocalTimerRunning(nextVal);
+    onChangeWritingTimerRunning?.(nextVal);
+  };
+
+  const handleToggleTimerEnabled = (enabled: boolean) => {
+    setLocalTimerEnabled(enabled);
+    try {
+      localStorage.setItem('toefl_writing_timer_enabled', enabled ? 'true' : 'false');
+    } catch {}
+    onToggleWritingTimer?.(enabled);
+    if (enabled) {
+      if (timeLeft <= 0) {
+        setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
+      }
+      setIsWritingTimerRunning(true);
+    } else {
+      setIsWritingTimerRunning(false);
+    }
+  };
 
   useEffect(() => {
-    return () => {
-      stopSpeaking();
-    };
-  }, []);
+    let timer: any = null;
+    if (isWritingTimerEnabled && isWritingTimerRunning && timeLeft > 0 && externalTimerSeconds === undefined) {
+      timer = setInterval(() => {
+        setLocalTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isWritingTimerEnabled, isWritingTimerRunning, timeLeft, externalTimerSeconds]);
 
   useEffect(() => {
     let interval: any = null;
@@ -45,19 +114,35 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-
   React.useEffect(() => {
     setResponse('');
+    setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
+    setIsWritingTimerRunning(isWritingTimerEnabled);
     setIsEvaluating(false);
     setEvalResult(null);
     setEvalError(null);
+    try {
+      const draftStorageKey = `toefl_draft_academic_discussion_${task.id || task.title}`;
+      localStorage.removeItem(draftStorageKey);
+    } catch {}
   }, [task.id, task.title]);
+
+  const formatTimer = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const wordCount = response.trim() ? response.trim().split(/\s+/).filter(Boolean).length : 0;
   const isTargetMet = wordCount >= 100 && wordCount <= 150;
 
-  const handleEvaluate = async () => {
-    markUserAiRequest();
+  const handleEvaluate = async (mode: 'local' | 'ai' = hasAnyStoredApiKey() ? 'ai' : 'local') => {
+    // Automatically stop the countdown timer as soon as Evaluate Response is clicked
+    setIsWritingTimerRunning(false);
+
+    if (mode === 'ai') {
+      markUserAiRequest();
+    }
     if (wordCount < 40) {
       setEvalError('Please write at least 40 words before submitting for official TOEFL evaluation.');
       return;
@@ -66,21 +151,24 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
     setIsEvaluating(true);
     setEvalError(null);
 
+    const localBaseline = evaluateLocally(
+      'academic-discussion',
+      {
+        title: task.title,
+        professorPrompt: task.professorPrompt,
+        s1: task.s1,
+        s2: task.s2,
+        question: task.question,
+      },
+      response,
+      { task }
+    );
+
     let evalData: any = null;
 
-    if (!hasAnyStoredApiKey()) {
+    if (mode === 'local' || !hasAnyStoredApiKey()) {
       // 100% Zero-API Local Offline Evaluation (Instant)
-      evalData = evaluateLocally(
-        'academic-discussion',
-        {
-          title: task.title,
-          s1: task.s1?.name,
-          s2: task.s2?.name,
-          question: task.question,
-        },
-        response,
-        { task }
-      );
+      evalData = localBaseline;
     } else {
       try {
         const json = await safeFetchJson('/api/evaluate-response', {
@@ -90,6 +178,7 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             taskType: 'academic-discussion',
             promptData: {
               title: task.title,
+              professorPrompt: task.professorPrompt,
               professor: `${task.professorName}: ${task.professorPrompt}`,
               s1: `${task.s1?.name}: ${task.s1?.text}`,
               s2: `${task.s2?.name}: ${task.s2?.text}`,
@@ -103,33 +192,13 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
         });
 
         if (json.success && json.data) {
-          evalData = json.data;
+          evalData = mergeAiAndLocalEvaluation(json.data, localBaseline);
         } else {
-          evalData = evaluateLocally(
-            'academic-discussion',
-            {
-              title: task.title,
-              s1: task.s1?.name,
-              s2: task.s2?.name,
-              question: task.question,
-            },
-            response,
-            { task }
-          );
+          evalData = localBaseline;
         }
       } catch (err: any) {
         console.warn('[AcademicDiscussion] Network/API error, running local rubric evaluator:', err);
-        evalData = evaluateLocally(
-          'academic-discussion',
-          {
-            title: task.title,
-            s1: task.s1?.name,
-            s2: task.s2?.name,
-            question: task.question,
-          },
-          response,
-          { task }
-        );
+        evalData = localBaseline;
       }
     }
 
@@ -159,8 +228,22 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
         maxScore: 30,
         scaledScore30: scaled,
         bandScore6: band6,
-        timeSpentSeconds: 420,
-        feedbackSummary: `Academic Discussion: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/5.0 (${evalData.performanceLevel})`,
+        timeSpentSeconds: Math.max(10, OFFICIAL_DISCUSSION_TIME_SECONDS - timeLeft),
+        studentResponse: response,
+        feedbackSummary:
+          evalData.summary ||
+          `Academic Discussion: Band ${band6.toFixed(1)}/6.0 · Raw Rubric: ${evalData.rawRubricScore ?? evalData.bandScore}/5.0 (${evalData.performanceLevel})`,
+        grammarErrors: Array.isArray(evalData.corrections)
+          ? evalData.corrections
+          : Array.isArray(evalData.grammarErrors)
+          ? evalData.grammarErrors
+          : [],
+        modelAnswer:
+          evalData.modelBand6Rewrite ||
+          evalData.exemplar ||
+          (task as any).modelResponse ||
+          (task as any).sampleAnswer ||
+          '',
       });
 
       onComplete?.(scaled);
@@ -169,36 +252,79 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
   };
 
   return (
-    <div className="space-y-6">
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-4">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Writing Section</span>
-            <span aria-hidden="true">·</span>
-            <span>Writing for an Academic Discussion</span>
-            <span aria-hidden="true">·</span>
-            <span>{((task as any).source === 'ai') ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}` : '📚 Curated Bank'}</span>
-            <span aria-hidden="true">·</span>
-            <span>Target: 100-130 words</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level}</span>
-          </div>
+          <TaskSubtitleMeta task={task} extra="Target: 100-130 words" />
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-500">Word Count:</span>
-          <span
-            className={`font-mono font-bold px-2 py-0.5 rounded ${
-              isTargetMet
-                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                : wordCount > 0
-                ? 'bg-amber-100 text-amber-900'
-                : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            {wordCount} words
-          </span>
+        <div className="flex items-center gap-3 text-xs flex-wrap">
+          {/* Official 10-Minute Countdown Timer with Auto-Start & Timer Off/On Toggle */}
+          {isWritingTimerEnabled ? (
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+              <Clock className={`w-3.5 h-3.5 ${isWritingTimerRunning ? 'text-teal-600' : 'text-slate-500'}`} />
+              <span className={`font-mono font-bold ${timeLeft <= 60 ? 'text-rose-600 animate-pulse' : 'text-slate-800'}`}>
+                {formatTimer(timeLeft)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsWritingTimerRunning((r) => !r)}
+                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                title={isWritingTimerRunning ? 'Pause official timer' : 'Resume 10-minute countdown'}
+              >
+                {isWritingTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
+                  setIsWritingTimerRunning(true);
+                }}
+                className="p-1 hover:bg-slate-200 rounded text-slate-600 transition-colors cursor-pointer"
+                title="Reset timer to 10:00"
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+              <span className="text-slate-300 select-none">|</span>
+              <button
+                type="button"
+                onClick={() => handleToggleTimerEnabled(false)}
+                className="px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded transition-colors cursor-pointer"
+                title="Turn off countdown timer for untimed practice"
+              >
+                ⏱️ Timer Off
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600">
+              <span className="text-[11px] font-medium">Untimed Practice — Timer Off</span>
+              <button
+                type="button"
+                onClick={() => handleToggleTimerEnabled(true)}
+                className="px-2 py-0.5 text-[11px] font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded transition-colors cursor-pointer"
+                title="Turn on 10:00 official countdown timer"
+              >
+                ⏱️ Timer On
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500">Word Count:</span>
+            <span
+              className={`font-mono font-bold px-2 py-0.5 rounded ${
+                isTargetMet
+                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  : wordCount > 0
+                  ? 'bg-amber-100 text-amber-900'
+                  : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              {wordCount} words
+            </span>
+          </div>
+          <TaskReportButton task={task} />
         </div>
       </div>
 
@@ -218,44 +344,6 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
                   <span className="text-[11px] text-slate-400">Course Instructor · Discussion Board Topic</span>
                 </div>
               </div>
-
-              <button
-                disabled={isLoadingProfAudio}
-                onClick={() => {
-                  if (isPlayingProfAudio || isLoadingProfAudio || isAudioPlaying()) {
-                    stopSpeaking();
-                    setIsPlayingProfAudio(false);
-                    setIsLoadingProfAudio(false);
-                  } else {
-                    setIsLoadingProfAudio(true);
-                    playSpeech(stripSpeakerAndFormatting(task.professorPrompt), {
-                      voiceName: pickSingleVoice(`${task.id || task.title}|${task.professorName}`, inferGender(task.professorName)),
-                      onStart: () => {
-                        setIsLoadingProfAudio(false);
-                        setIsPlayingProfAudio(true);
-                      },
-                      onEnd: () => {
-                        setIsPlayingProfAudio(false);
-                        setIsLoadingProfAudio(false);
-                      },
-                      onError: () => {
-                        setIsPlayingProfAudio(false);
-                        setIsLoadingProfAudio(false);
-                      },
-                    });
-                  }
-                }}
-                className="px-2.5 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-teal-300 rounded border border-slate-700 flex items-center gap-1.5 transition cursor-pointer shrink-0"
-              >
-                {isLoadingProfAudio ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-teal-400" />
-                ) : isPlayingProfAudio ? (
-                  <VolumeX className="w-3.5 h-3.5" />
-                ) : (
-                  <Volume2 className="w-3.5 h-3.5 text-teal-400" />
-                )}
-                <span>{isLoadingProfAudio ? 'Loading...' : isPlayingProfAudio ? 'Stop' : 'Listen'}</span>
-              </button>
             </div>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-normal whitespace-pre-line">
               {task.professorPrompt}
@@ -306,34 +394,83 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             rows={12}
             value={response}
             onChange={(e) => setResponse(e.target.value)}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            data-gramm="false"
+            data-gramm_editor="false"
+            data-enable-grammarly="false"
             placeholder={`Write your response here. Express your perspective, respond directly to ${task.s1?.name || 'Student A'} or ${task.s2?.name || 'Student B'}, and provide reasons and examples...`}
             className="w-full p-3.5 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:bg-white focus:border-teal-600 focus:ring-2 focus:ring-teal-100 outline-hidden leading-relaxed font-normal"
           />
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            <span className="text-xs text-slate-500">
-              {wordCount < 100 ? `${100 - wordCount} more words to reach target (100-130 words)` : 'Optimal length reached.'}
-            </span>
+            <div className="space-y-1 text-left w-full sm:w-auto">
+              <span className="text-xs text-slate-500 block">
+                {wordCount < 100 ? `${100 - wordCount} more words to reach target (100-130 words)` : 'Optimal length reached.'}
+              </span>
+              {!hasAnyStoredApiKey() && onOpenApiKeySettings && (
+                <button
+                  type="button"
+                  onClick={onOpenApiKeySettings}
+                  className="text-[11px] text-teal-700 hover:text-teal-900 underline font-medium cursor-pointer"
+                >
+                  Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings
+                </button>
+              )}
+            </div>
 
-            <button
-              onClick={handleEvaluate}
-              disabled={isEvaluating}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
-            >
-              {isEvaluating ? (
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+              {hasAnyStoredApiKey() ? (
                 <>
-                  <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
-                </>
-              ) : !hasAnyStoredApiKey() ? (
-                <>
-                  <Zap className="w-4 h-4 text-amber-300" /> Evaluate Response (Instant Local Grader)
+                  <button
+                    type="button"
+                    onClick={() => handleEvaluate('local')}
+                    disabled={isEvaluating}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                    title="Grade instantly in 0ms using deterministic local rubric and mechanics scanner"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>⚡ Instant Local Grader</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEvaluate('ai')}
+                    disabled={isEvaluating}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    {isEvaluating ? (
+                      <>
+                        <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-teal-200" />
+                        <span>✨ Deep AI Grader</span>
+                      </>
+                    )}
+                  </button>
                 </>
               ) : (
-                <>
-                  <Send className="w-4 h-4" /> Evaluate with AI Rater
-                </>
+                <button
+                  type="button"
+                  onClick={() => handleEvaluate('local')}
+                  disabled={isEvaluating}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  {isEvaluating ? (
+                    <>
+                      <Sparkles className="w-4 h-4 animate-spin" /> Scoring your answer... {evalSeconds}s
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 text-amber-300" /> Evaluate Response (Instant Local Grader)
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -409,15 +546,17 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
           </div>
 
           {/* Criteria Grid */}
-          {evalResult.criteria && (
+          {Array.isArray(evalResult.criteria) && evalResult.criteria.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {evalResult.criteria.map((crit: any, i: number) => (
                 <div key={i} className="border border-slate-200 rounded-lg p-3.5 bg-white">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-semibold text-slate-900">{crit.name}</span>
-                    <span className="text-xs font-mono font-bold text-teal-800">{crit.score}</span>
+                    <span className="text-xs font-mono font-bold text-teal-800">
+                      {crit.displayScore || (typeof crit.score === 'number' && crit.score <= 5 ? `${crit.score.toFixed(1)} / 5.0` : crit.score)}
+                    </span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-snug">{crit.comment}</p>
+                  <p className="text-xs text-slate-600 leading-snug">{crit.feedback || crit.comment}</p>
                 </div>
               ))}
             </div>
@@ -428,8 +567,8 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
             <FeedbackComparison
               userResponse={response}
               exemplarResponse={evalResult.modelBand6Rewrite || evalResult.exemplar || (task as any).modelResponse || (task as any).sampleAnswer}
-              corrections={evalResult.corrections || []}
-              topFixes={evalResult.topFixes}
+              corrections={Array.isArray(evalResult.corrections) ? evalResult.corrections : Array.isArray(evalResult.grammarErrors) ? evalResult.grammarErrors : []}
+              topFixes={Array.isArray(evalResult.topFixes) ? evalResult.topFixes : []}
               modelBand6Rewrite={evalResult.modelBand6Rewrite || (task as any).modelResponse}
               benchmarkAnalysis={evalResult.benchmarkAnalysis}
               notice={evalResult.notice}
@@ -439,17 +578,39 @@ export const AcademicDiscussionView: React.FC<Props> = ({ task, onNextTask, onCo
         </div>
       )}
 
-      {onNextTask && (
-        <div className="pt-2 flex justify-end">
+      <div className="pt-2 flex items-center justify-end gap-3">
+        {(evalResult || response.trim().length > 0) && (
           <button
-            onClick={onNextTask}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            type="button"
+            onClick={() => {
+              setResponse('');
+              setEvalResult(null);
+              setEvalError(null);
+              setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
+              setIsWritingTimerRunning(isWritingTimerEnabled);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Try Again</span>
+          </button>
+        )}
+        {onNextTask && (
+          <button
+            onClick={() => {
+              setResponse('');
+              setEvalResult(null);
+              setEvalError(null);
+              setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
+              onNextTask();
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             Next Discussion Topic
             <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

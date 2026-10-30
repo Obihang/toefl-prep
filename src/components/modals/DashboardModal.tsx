@@ -19,8 +19,9 @@ import {
   calculateToeflEstimate,
   convertScaledToBand6,
 } from '../../utils/scoreTracker';
-import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
-import { getQuestionCountsPerTaskType } from '../../utils/sharedQuestions';
+import { getVocabularyWords, saveVocabularyWord as saveVocabRemote, deleteVocabularyWord as deleteVocabRemote, VocabularyWord } from '../../utils/vocabulary';
+import { getVocabularyList, saveVocabularyWord as saveVocabLocal, removeVocabularyWord as removeVocabLocal } from '../../utils/vocabularyStore';
+import { getQuestionCountsPerTaskType } from '../../utils/questionBankStorage';
 
 interface Props {
   isOpen: boolean;
@@ -29,6 +30,8 @@ interface Props {
   openRubrics: () => void;
   defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
   currentTaskType?: string;
+  onNavigateToTask?: (sectionOrTask: string) => void;
+  onResetProgress?: () => void;
 }
 
 export const DashboardModal: React.FC<Props> = ({
@@ -38,9 +41,12 @@ export const DashboardModal: React.FC<Props> = ({
   openRubrics,
   defaultTab = 'dashboard',
   currentTaskType,
+  onNavigateToTask,
+  onResetProgress,
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes'>(defaultTab || 'dashboard');
   const [stats, setStats] = useState<any>(null);
+  const [practiceHistory, setPracticeHistory] = useState<any[]>(() => getPracticeHistory());
   const [completedDays, setCompletedDays] = useState<string[]>([]);
   const [vocab, setVocab] = useState<VocabularyWord[]>([]);
 
@@ -56,13 +62,18 @@ export const DashboardModal: React.FC<Props> = ({
 
   const [questionCounts, setQuestionCounts] = useState<Record<string, number>>({
     'complete-words': 0,
+    'daily-life': 0,
+    'reading-academic': 0,
     'reading-passage': 0,
+    'listening-choose-response': 0,
     'listening-dialogue': 0,
-    'listen-repeat': 0,
-    'speaking-interview': 0,
+    'listening-announcement': 0,
+    'listening-academic-talk': 0,
     'build-sentence': 0,
     'write-email': 0,
     'academic-discussion': 0,
+    'listen-repeat': 0,
+    'speaking-interview': 0,
   });
   const [loadingQuestionCounts, setLoadingQuestionCounts] = useState(false);
 
@@ -73,21 +84,67 @@ export const DashboardModal: React.FC<Props> = ({
   }, [defaultTab]);
 
   useEffect(() => {
-    if (isOpen && (activeTab === 'goals' || activeTab === 'settings')) {
-      setLoadingQuestionCounts(true);
-      getQuestionCountsPerTaskType().then((counts) => {
-        setQuestionCounts(counts);
-        setLoadingQuestionCounts(false);
-      }).catch(() => setLoadingQuestionCounts(false));
-    }
+    let mounted = true;
+    setLoadingQuestionCounts(true);
+    getQuestionCountsPerTaskType()
+      .then((counts) => {
+        if (mounted) {
+          setQuestionCounts(counts);
+          setLoadingQuestionCounts(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) setLoadingQuestionCounts(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [isOpen, activeTab]);
 
   useEffect(() => {
     const loadUserData = () => {
       if (isOpen) {
+        setPracticeHistory(getPracticeHistory());
         setStats(getUserStats());
         getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
-        getVocabularyWords().then(setVocab).catch(() => setVocab([]));
+        
+        getVocabularyWords().then((remoteWords) => {
+          const localItems = getVocabularyList();
+          const mergedMap = new Map<string, VocabularyWord>();
+
+          localItems.forEach((lw) => {
+            mergedMap.set(lw.word.toLowerCase(), {
+              id: lw.id,
+              userId: 'local',
+              word: lw.word,
+              definition: lw.definition || '',
+              context: lw.contextSentence || '',
+              taskType: lw.section || 'general',
+              leitnerBox: 1,
+              nextReviewDate: new Date(),
+              createdAt: lw.timestamp,
+            });
+          });
+
+          remoteWords.forEach((rw) => {
+            mergedMap.set(rw.word.toLowerCase(), rw);
+          });
+
+          setVocab(Array.from(mergedMap.values()));
+        }).catch(() => {
+          const localItems = getVocabularyList();
+          setVocab(localItems.map((lw) => ({
+            id: lw.id,
+            userId: 'local',
+            word: lw.word,
+            definition: lw.definition || '',
+            context: lw.contextSentence || '',
+            taskType: lw.section || 'general',
+            leitnerBox: 1,
+            nextReviewDate: new Date(),
+            createdAt: lw.timestamp,
+          })));
+        });
 
         const storedTarget = localStorage.getItem('toefl_target_score') || '100';
         const storedDate = localStorage.getItem('toefl_test_date') || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -101,13 +158,17 @@ export const DashboardModal: React.FC<Props> = ({
 
     loadUserData();
     window.addEventListener('toefl_user_changed', loadUserData);
+    window.addEventListener('toefl_vocab_updated', loadUserData);
+    window.addEventListener('toefl_progress_reset', loadUserData);
     return () => {
       window.removeEventListener('toefl_user_changed', loadUserData);
+      window.removeEventListener('toefl_vocab_updated', loadUserData);
+      window.removeEventListener('toefl_progress_reset', loadUserData);
     };
   }, [isOpen]);
 
   const targetScoreNum = parseInt(targetScoreInput, 10) || 100;
-  const toeflEstimate = calculateToeflEstimate(getPracticeHistory());
+  const toeflEstimate = calculateToeflEstimate(practiceHistory);
   const readinessPct = Math.min(100, Math.round((toeflEstimate.overallScore / (targetScoreNum || 120)) * 100));
   const scoreGap = Math.max(0, targetScoreNum - toeflEstimate.overallScore);
 
@@ -115,8 +176,9 @@ export const DashboardModal: React.FC<Props> = ({
     ? Math.ceil((new Date(testDateInput).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
-  const weeklyCompleted = stats?.weeklyCompleted || 3;
+  const weeklyCompleted = practiceHistory.length === 0 ? 0 : (stats?.weeklyCompleted || practiceHistory.length);
   const sectionTargetScore = Math.round(targetScoreNum / 4);
+  const totalBankCount = Object.values(questionCounts).reduce((a, b) => a + b, 0);
 
   const handleSaveGoals = (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,17 +192,17 @@ export const DashboardModal: React.FC<Props> = ({
   const handleAddVocab = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWord.trim() || !newDef.trim()) return;
-    await saveVocabularyWord(newWord.trim(), newDef.trim());
+    saveVocabLocal(newWord.trim(), undefined, newDef.trim(), 'Manual');
+    await saveVocabRemote(newWord.trim(), newDef.trim());
     setNewWord('');
     setNewDef('');
-    const updated = await getVocabularyWords();
-    setVocab(updated);
+    window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
   };
 
-  const handleDeleteVocab = async (id: string) => {
-    await deleteVocabularyWord(id);
-    const updated = await getVocabularyWords();
-    setVocab(updated);
+  const handleDeleteVocab = async (id: string, word?: string) => {
+    removeVocabLocal(word || id);
+    await deleteVocabRemote(id);
+    window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
   };
 
   if (!isOpen) return null;
@@ -192,7 +254,7 @@ export const DashboardModal: React.FC<Props> = ({
             <Target className="w-4 h-4 text-teal-600" />
             <span>Study Goals</span>
             <span className="text-[10px] bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 rounded-full">
-              {targetScoreNum}
+              {totalBankCount > 0 ? String(totalBankCount) : '120'}
             </span>
           </button>
 
@@ -232,7 +294,32 @@ export const DashboardModal: React.FC<Props> = ({
 
         {/* Content Body - flex-1, min-h-0, overflow-y-auto */}
         <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-slate-50/30">
-          {activeTab === 'dashboard' && <OverviewTab toeflEstimate={toeflEstimate} stats={stats} />}
+          {activeTab === 'dashboard' && (
+            <OverviewTab
+              toeflEstimate={toeflEstimate}
+              stats={stats}
+              history={practiceHistory}
+              completedDays={completedDays}
+              vocab={vocab}
+              onOpenTask={(target) => {
+                onClose();
+                onNavigateToTask?.(target);
+              }}
+              onOpenHistory={openHistory}
+              onSwitchTab={(tab) => setActiveTab(tab)}
+              onResetProgress={() => {
+                onResetProgress?.();
+                setPracticeHistory([]);
+                setStats(null);
+                setCompletedDays([]);
+              }}
+              studyGoals={{
+                targetScore: targetScoreNum,
+                testDate: testDateInput,
+                weeklyGoal: weeklyGoalInput,
+              }}
+            />
+          )}
           {activeTab === 'goals' && (
             <GoalsTab
               targetScoreNum={targetScoreNum}

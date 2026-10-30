@@ -3,7 +3,7 @@ import {
   selectQuestionFromBankTiers,
   getQueryTiers,
   SharedQuestionRecord,
-} from '../src/utils/sharedQuestions.ts';
+} from '../src/utils/questionBankStorage.ts';
 import {
   LEVELS,
   ACADEMIC_TOPICS,

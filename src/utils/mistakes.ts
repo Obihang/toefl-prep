@@ -83,3 +83,17 @@ export async function deleteMistake(mistakeId: string) {
     console.warn('Failed to delete mistake (offline):', err);
   }
 }
+
+export async function clearAllFirestoreMistakes() {
+  if (!auth.currentUser) return;
+  try {
+    const q = query(
+      collection(db, 'mistakes'),
+      where('userId', '==', auth.currentUser.uid)
+    );
+    const snapshot = await getDocs(q);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, 'mistakes', d.id))));
+  } catch (err) {
+    console.warn('Failed to clear Firestore mistakes (offline):', err);
+  }
+}

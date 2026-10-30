@@ -1,16 +1,29 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { resolveModelChains } from './modelRoles.ts';
-import * as CURATED from '../data/curatedQuestions.ts';
-import { ACADEMIC_GLOSSARY } from '../utils/academicGlossary.ts';
-import { generateWithFallback } from './geminiUtils.ts';
-import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors.ts';
-import { inferGender } from '../utils/voices.ts';
-import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callOpenRouterTts, callWhisperTranscription } from './llmClient.ts';
-import { callChatWithHealing } from './chatHealing.ts';
-import { callGroqSpeech } from './groqSpeech.ts';
-import { callAudio8Speech } from './audio8Speech.ts';
-import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers.ts';
+import { resolveModelChains } from './modelRoles';
+import * as CURATED from '../data/curatedQuestions';
+import { ACADEMIC_GLOSSARY } from '../utils/academicGlossary';
+import { generateWithFallback } from './geminiUtils';
+import { redactKey, isKeyError, isTransientError, getStatus, extractErrorMessage, isQuotaExhaustedError, redactSensitiveInfo } from './geminiErrors';
+import { inferGender } from '../utils/voices';
+import { callOpenAiCompatibleChat, testOpenAiCompatible, callOpenAiTts, callOpenRouterTts, callWhisperTranscription } from './llmClient';
+import { callChatWithHealing } from './chatHealing';
+import { callGroqSpeech } from './groqSpeech';
+import { callAudio8Speech } from './audio8Speech';
+import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers';
+import { collectAvailableProviders, prioritizeForGeneration } from './providerRouter';
+import {
+  normalizeCompleteWordsTask,
+  normalizeBuildSentenceTask,
+  verifyAndNormalizeMcqQuestions,
+  normalizeDailyLifeTask,
+  normalizeReadingAcademicTask,
+  classifyReadingQuestionTypeBadge,
+  normalizeListeningChooseResponseTask,
+  normalizeListeningAnnouncementTask,
+  normalizeListeningAcademicTalkTask,
+  normalizeListeningDialogueTask,
+} from '../utils/taskNormalizer';
 
 export type ApiCallOptions = string | { provider?: string; apiKey?: string; baseUrl?: string; model?: string; sttModel?: string; ttsModel?: string; voiceApiKey?: string; ttsProvider?: string; audio8Url?: string; prompt?: string };
 
@@ -106,7 +119,14 @@ const Schemas = {
     speakers: z.record(z.string(), z.string()),
     speakerGenders: z.record(z.string(), z.string()).default({ A: 'female', B: 'male' }),
     script: z.string(),
-    questions: z.array(z.object({ q: z.string(), options: z.array(z.string()), answer: z.number(), why: z.string() })),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+      audioExcerpt: z.string().optional(),
+      questionType: z.string().optional(),
+    })),
   }),
   listenRepeat: z.object({
     title: z.string(),
@@ -123,7 +143,20 @@ const Schemas = {
   }),
   buildSentence: z.object({
     title: z.string(),
-    items: z.array(z.object({ context: z.string(), words: z.array(z.string()), answer: z.string(), explanation: z.string() })),
+    items: z.array(
+      z.object({
+        context: z.string(),
+        framePrefix: z.string().optional().default(''),
+        frameSuffix: z.string().optional().default('.'),
+        targetChunks: z.array(z.string()),
+        distractorChunks: z.array(z.string()).optional().default([]),
+        words: z.array(z.string()),
+        targetSentence: z.string().optional(),
+        answer: z.string(),
+        grammarRule: z.string().optional(),
+        explanation: z.string(),
+      })
+    ),
   }),
   writeEmail: z.object({
     title: z.string(),
@@ -151,9 +184,68 @@ const Schemas = {
     examples: z.array(z.string()).optional().default([]),
     synonyms: z.array(z.string()).optional().default([]),
   }),
+  dailyLife: z.object({
+    title: z.string(),
+    formatType: z.string().default('notice'),
+    context: z.string(),
+    contentText: z.string(),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+      questionType: z.string().optional(),
+    })),
+  }),
+  listeningChooseResponse: z.object({
+    title: z.string(),
+    category: z.string().optional().default('Campus Life'),
+    items: z.array(z.object({
+      audioPrompt: z.string(),
+      speakerName: z.string().default('Campus Speaker'),
+      speakerGender: z.string().default('male'),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+    })).optional(),
+    audioPrompt: z.string().optional(),
+    speakerName: z.string().optional().default('Campus Speaker'),
+    speakerGender: z.string().optional().default('male'),
+    options: z.array(z.string()).optional(),
+    answer: z.number().optional(),
+    why: z.string().optional(),
+  }),
+  listeningAnnouncement: z.object({
+    title: z.string(),
+    context: z.string(),
+    speakerName: z.string().default('University Administrator'),
+    speakerGender: z.string().default('female'),
+    script: z.string(),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+    })),
+  }),
+  listeningAcademicTalk: z.object({
+    title: z.string(),
+    topic: z.string(),
+    speakerName: z.string().default('Professor'),
+    speakerGender: z.string().default('male'),
+    script: z.string(),
+    questions: z.array(z.object({
+      q: z.string(),
+      options: z.array(z.string()),
+      answer: z.number(),
+      why: z.string(),
+      audioExcerpt: z.string().optional(),
+      questionType: z.string().optional(),
+    })),
+  }),
 };
 
-function cleanAndExtractJson(text: string): any {
+export function cleanAndExtractJson(text: string): any {
   if (!text || !text.trim()) {
     throw new Error('Model returned an empty response');
   }
@@ -237,18 +329,18 @@ function normalizeCompleteWords(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || 'Complete the Words').trim();
   if (!title) throw new Error('Complete the Words missing title');
-  const text = String(data.text || '').trim();
-  if (!text || !text.includes('[[') || !text.includes(']]')) {
-    throw new Error('AI response missing valid [[masked]] word blanks in text');
+  let rawText = String(data.text || '').trim();
+  if (!rawText || rawText.split(/\s+/).filter(Boolean).length < 25) {
+    throw new Error('AI response missing valid complete_words paragraph text');
   }
-  const blankMatches = text.match(/\[\[/g) || [];
-  if (blankMatches.length < 3) {
-    throw new Error(`Complete the Words generated insufficient blanks (${blankMatches.length}), at least 3 required`);
-  }
-  // The actual [[masked]] words in the text define the true blank count.
-  // We reconcile totalBlanks to blankMatches.length so mismatching totalBlanks never crashes valid generation.
-  const totalBlanks = blankMatches.length;
-  return { title, text, totalBlanks };
+
+  const normalized = normalizeCompleteWordsTask({ title, text: rawText });
+  return {
+    title: normalized.title,
+    text: normalized.text,
+    totalBlanks: normalized.totalBlanks,
+    blanks: normalized.blanks,
+  };
 }
 
 function normalizeReadingPassage(data: any) {
@@ -260,11 +352,11 @@ function normalizeReadingPassage(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length !== 3) {
-    throw new Error(`Reading comprehension requires exactly 3 questions (received ${rawQs.length})`);
+  if (rawQs.length < 3 || rawQs.length > 5) {
+    throw new Error(`Reading comprehension requires 3 to 5 questions (received ${rawQs.length})`);
   }
 
-  const questions = rawQs.map((q: any, idx: number) => {
+  const preValidated = rawQs.map((q: any, idx: number) => {
     if (!q || typeof q !== 'object') throw new Error(`Question ${idx + 1} is invalid`);
     const qText = String(q.q || q.question || '').trim();
     if (!qText) throw new Error(`Question ${idx + 1} missing question text`);
@@ -274,7 +366,7 @@ function normalizeReadingPassage(data: any) {
       throw new Error(`Question ${idx + 1} must have exactly 4 options (received ${options.length})`);
     }
 
-    let answer = q.answer;
+    let answer = q.answer ?? q.correctAnswer;
     if (typeof answer === 'string') {
       const char = answer.trim().toLowerCase();
       const mapped = ['a', 'b', 'c', 'd'].indexOf(char);
@@ -293,7 +385,17 @@ function normalizeReadingPassage(data: any) {
     };
   });
 
-  return { title, passage, questions };
+  const normalized = normalizeReadingAcademicTask({
+    title,
+    passage,
+    questions: preValidated,
+  });
+
+  return {
+    title: normalized.title,
+    passage: normalized.passage,
+    questions: normalized.questions,
+  };
 }
 
 function normalizeListeningDialogue(data: any) {
@@ -321,11 +423,11 @@ function normalizeListeningDialogue(data: any) {
   }
 
   const rawQs = Array.isArray(data.questions) ? data.questions : [];
-  if (rawQs.length !== 3) {
-    throw new Error(`Listening comprehension requires exactly 3 questions (received ${rawQs.length})`);
+  if (rawQs.length < 2 || rawQs.length > 5) {
+    throw new Error(`Listening conversation requires 2 to 5 questions (received ${rawQs.length})`);
   }
 
-  const questions = rawQs.map((q: any, idx: number) => {
+  const preValidated = rawQs.map((q: any, idx: number) => {
     if (!q || typeof q !== 'object') throw new Error(`Question ${idx + 1} is invalid`);
     const qText = String(q.q || q.question || '').trim();
     if (!qText) throw new Error(`Question ${idx + 1} missing question text`);
@@ -335,7 +437,7 @@ function normalizeListeningDialogue(data: any) {
       throw new Error(`Question ${idx + 1} must have exactly 4 options (received ${options.length})`);
     }
 
-    let answer = q.answer;
+    let answer = q.answer ?? q.correctAnswer;
     if (typeof answer === 'string') {
       const char = answer.trim().toLowerCase();
       const mapped = ['a', 'b', 'c', 'd'].indexOf(char);
@@ -351,10 +453,28 @@ function normalizeListeningDialogue(data: any) {
       options,
       answer,
       why: String(q.why || q.explanation || q.reason || 'Supported by dialogue.'),
+      ...(q.audioExcerpt ? { audioExcerpt: String(q.audioExcerpt).trim() } : {}),
+      ...(q.questionType ? { questionType: String(q.questionType).trim() } : {}),
     };
   });
 
-  return { title, context, speakers, speakerGenders, script, questions };
+  const normalized = normalizeListeningDialogueTask({
+    title,
+    context,
+    speakers,
+    speakerGenders,
+    script,
+    questions: preValidated.slice(0, 2),
+  });
+
+  return {
+    title: normalized.title,
+    context: normalized.context,
+    speakers: normalized.speakers,
+    speakerGenders: normalized.speakerGenders,
+    script: normalized.script,
+    questions: normalized.questions,
+  };
 }
 
 function normalizeListenRepeat(data: any) {
@@ -425,32 +545,42 @@ function normalizeBuildSentence(data: any) {
   if (rawItems.length !== 5) {
     throw new Error(`Build a sentence requires exactly 5 items (received ${rawItems.length})`);
   }
-  const items = rawItems.map((it: any, idx: number) => {
+  rawItems.forEach((it: any, idx: number) => {
     if (!it || typeof it !== 'object') throw new Error(`Build sentence item ${idx + 1} is invalid`);
     const context = String(it.context || '').trim();
     if (!context) throw new Error(`Build sentence item ${idx + 1} missing context`);
-    const words = Array.isArray(it.words) ? it.words.map(String).filter(Boolean) : [];
-    if (words.length < 2) {
-      throw new Error(`Build sentence item ${idx + 1} must have at least 2 words`);
-    }
-    const answer = String(it.answer || '').trim();
+    const answer = String(it.targetSentence || it.answer || it.correctSentence || '').trim();
     if (!answer) {
       throw new Error(`Build sentence item ${idx + 1} missing correct sentence answer`);
     }
-    const explanation = String(it.explanation || '').trim();
+    const explanation = String(it.grammarRule || it.explanation || '').trim();
     if (!explanation) {
       throw new Error(`Build sentence item ${idx + 1} missing explanation`);
     }
-    return { context, words, answer, explanation };
   });
-  return { title, items };
+  const normalized = normalizeBuildSentenceTask({ title, items: rawItems });
+  return {
+    title: normalized.title,
+    items: normalized.items.map((it) => ({
+      context: it.context,
+      framePrefix: it.framePrefix,
+      frameSuffix: it.frameSuffix,
+      targetChunks: it.targetChunks,
+      distractorChunks: it.distractorChunks,
+      words: it.words,
+      targetSentence: it.targetSentence,
+      answer: it.answer,
+      grammarRule: it.grammarRule,
+      explanation: it.explanation,
+    })),
+  };
 }
 
 function normalizeWriteEmail(data: any) {
   if (!data || typeof data !== 'object') throw new Error('AI response is not an object');
   const title = String(data.title || '').trim();
   if (!title) throw new Error('Write an Email missing title');
-  const situation = String(data.situation || '').trim();
+  const situation = String(data.situation || data.scenario || '').trim();
   if (!situation || situation.length < 15) {
     throw new Error('Write an Email missing valid situation description');
   }
@@ -458,11 +588,15 @@ function normalizeWriteEmail(data: any) {
   if (!recipient) {
     throw new Error('Write an Email missing recipient');
   }
-  const goals = Array.isArray(data.goals) ? data.goals.map(String).filter(Boolean) : [];
+  const goals = Array.isArray(data.goals)
+    ? data.goals.map(String).filter(Boolean)
+    : Array.isArray(data.bulletPoints)
+    ? data.bulletPoints.map(String).filter(Boolean)
+    : [];
   if (goals.length === 0) {
     throw new Error('Write an Email must have at least 1 goal');
   }
-  const suggestedWordCount = String(data.suggestedWordCount || '').trim();
+  const suggestedWordCount = String(data.suggestedWordCount || '100-130 words').trim();
   if (!suggestedWordCount) {
     throw new Error('Write an Email missing suggestedWordCount');
   }
@@ -511,20 +645,45 @@ export function normalizeTask(taskType: string, data: any): any {
 
   switch (taskType) {
     case 'complete-words':
+    case 'complete_words':
       return normalizeCompleteWords(data);
     case 'reading-passage':
+    case 'reading_academic':
+    case 'reading-academic':
       return normalizeReadingPassage(data);
+    case 'daily-life':
+    case 'daily_life':
+      return normalizeDailyLifeTask(data);
     case 'listening-dialogue':
+    case 'listening_dialogue':
+    case 'listening-conversation':
+    case 'listening_conversation':
       return normalizeListeningDialogue(data);
+    case 'listening-choose-response':
+    case 'listening_choose_response':
+      return normalizeListeningChooseResponseTask(data);
+    case 'listening-announcement':
+    case 'listening_announcement':
+      return normalizeListeningAnnouncementTask(data);
+    case 'listening-academic-talk':
+    case 'listening_academic_talk':
+    case 'listening-lecture':
+    case 'listening_lecture':
+      return normalizeListeningAcademicTalkTask(data);
     case 'listen-repeat':
+    case 'speaking_listen_repeat':
       return normalizeListenRepeat(data);
     case 'speaking-interview':
+    case 'speaking_interview':
       return normalizeSpeakingInterview(data);
     case 'build-sentence':
+    case 'writing_build_sentence':
       return normalizeBuildSentence(data);
     case 'write-email':
+    case 'writing_email':
       return normalizeWriteEmail(data);
     case 'academic-discussion':
+    case 'writing_discussion':
       return normalizeAcademicDiscussion(data);
     case 'vocabulary_explanation':
     case 'vocabulary-explanation':
@@ -534,7 +693,7 @@ export function normalizeTask(taskType: string, data: any): any {
   }
 }
 
-function getAiClient(customApiKey?: string) {
+export function getAiClient(customApiKey?: string) {
   let apiKey = '';
   if (customApiKey && customApiKey.trim()) {
     const trimmed = customApiKey.trim();
@@ -640,41 +799,77 @@ export async function handleTestApiKey(options?: ApiCallOptions): Promise<{
 }
 
 export async function handleGenerateTask(taskType: string, level: string, topic: string, options?: ApiCallOptions, promptData?: any) {
-  const opts = typeof options === 'string' ? { apiKey: options } : options || {};
-  let provider = opts.provider || 'gemini';
-  const customApiKey = (opts.apiKey || '').trim();
-
-  // If provider is gemini or auto, but key clearly belongs to another provider
-  if ((provider === 'gemini' || provider === 'auto') && customApiKey) {
-    if (/^nvapi-/i.test(customApiKey)) provider = 'nvidia';
-    else if (/^gsk_/.test(customApiKey)) provider = 'groq';
-    else if (/^sk-or-/i.test(customApiKey)) provider = 'openrouter';
-    else if (/^sk-/.test(customApiKey)) provider = 'openai';
-  }
-
-  const ai = provider === 'gemini' ? getAiClient(customApiKey) : null;
-  
   const taskMap: Record<string, string> = {
     'complete-words': 'completeWords',
+    complete_words: 'completeWords',
+    'daily-life': 'dailyLife',
+    daily_life: 'dailyLife',
+    'reading-academic': 'readingPassage',
+    reading_academic: 'readingPassage',
     'reading-passage': 'readingPassage',
+    'listening-choose-response': 'listeningChooseResponse',
+    listening_choose_response: 'listeningChooseResponse',
     'listening-dialogue': 'listeningDialogue',
+    listening_dialogue: 'listeningDialogue',
+    'listening-conversation': 'listeningDialogue',
+    listening_conversation: 'listeningDialogue',
+    'listening-announcement': 'listeningAnnouncement',
+    listening_announcement: 'listeningAnnouncement',
+    'listening-academic-talk': 'listeningAcademicTalk',
+    listening_academic_talk: 'listeningAcademicTalk',
+    'listening-lecture': 'listeningAcademicTalk',
+    listening_lecture: 'listeningAcademicTalk',
     'listen-repeat': 'listenRepeat',
+    speaking_listen_repeat: 'listenRepeat',
+    'speaking-listen-repeat': 'listenRepeat',
     'speaking-interview': 'speakingInterview',
+    speaking_interview: 'speakingInterview',
     'build-sentence': 'buildSentence',
+    writing_build_sentence: 'buildSentence',
+    'writing-build-sentence': 'buildSentence',
     'write-email': 'writeEmail',
+    writing_email: 'writeEmail',
+    'writing-email': 'writeEmail',
     'academic-discussion': 'academicDiscussion',
+    writing_discussion: 'academicDiscussion',
+    'writing-discussion': 'academicDiscussion',
     'vocabulary_explanation': 'vocabularyExplanation',
     'vocabulary-explanation': 'vocabularyExplanation',
   };
   const curatedMap: Record<string, string> = {
     'complete-words': 'CURATED_COMPLETE_WORDS',
+    complete_words: 'CURATED_COMPLETE_WORDS',
+    'daily-life': 'CURATED_READING_PASSAGES',
+    daily_life: 'CURATED_READING_PASSAGES',
+    'reading-academic': 'CURATED_READING_PASSAGES',
+    reading_academic: 'CURATED_READING_PASSAGES',
     'reading-passage': 'CURATED_READING_PASSAGES',
+    'listening-choose-response': 'CURATED_LISTENING',
+    listening_choose_response: 'CURATED_LISTENING',
     'listening-dialogue': 'CURATED_LISTENING',
+    listening_dialogue: 'CURATED_LISTENING',
+    'listening-conversation': 'CURATED_LISTENING',
+    listening_conversation: 'CURATED_LISTENING',
+    'listening-announcement': 'CURATED_LISTENING',
+    listening_announcement: 'CURATED_LISTENING',
+    'listening-academic-talk': 'CURATED_LISTENING',
+    listening_academic_talk: 'CURATED_LISTENING',
+    'listening-lecture': 'CURATED_LISTENING',
+    listening_lecture: 'CURATED_LISTENING',
     'listen-repeat': 'CURATED_LISTEN_REPEAT',
+    speaking_listen_repeat: 'CURATED_LISTEN_REPEAT',
+    'speaking-listen-repeat': 'CURATED_LISTEN_REPEAT',
     'speaking-interview': 'CURATED_SPEAKING_INTERVIEWS',
+    speaking_interview: 'CURATED_SPEAKING_INTERVIEWS',
     'build-sentence': 'CURATED_BUILD_SENTENCES',
+    writing_build_sentence: 'CURATED_BUILD_SENTENCES',
+    'writing-build-sentence': 'CURATED_BUILD_SENTENCES',
     'write-email': 'CURATED_WRITE_EMAILS',
+    writing_email: 'CURATED_WRITE_EMAILS',
+    'writing-email': 'CURATED_WRITE_EMAILS',
     'academic-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
+    writing_discussion: 'CURATED_ACADEMIC_DISCUSSIONS',
+    'writing-discussion': 'CURATED_ACADEMIC_DISCUSSIONS',
   };
 
   const schemaKey = taskMap[taskType];
@@ -686,25 +881,161 @@ export async function handleGenerateTask(taskType: string, level: string, topic:
   const getPrompt = (tType: string, lvl: string, top: string) => {
     const levelDesc =
       lvl === 'advanced'
-        ? 'Advanced (C1 CEFR / TOEFL 100-120)'
+        ? 'Advanced (C1-C2 CEFR / TOEFL 100-120)'
+        : lvl === 'beginner'
+        ? 'Beginner-Intermediate (A2-B1 CEFR / TOEFL 40-60)'
         : lvl === 'intermediate'
-        ? 'Intermediate (B1-B2 CEFR / TOEFL 60-80)'
-        : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 80-100)';
+        ? 'Intermediate (B1-B2 CEFR / TOEFL 60-85)'
+        : 'Upper-Intermediate (B2-C1 CEFR / TOEFL 85-100)';
     switch (tType) {
       case 'complete-words':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}. Requirements: 1. Write an academic paragraph of 75-90 words. 2. In the paragraph, select between 8 to 10 academic/content words (4 letters or more, starting from the second sentence, spaced out). 3. In the text, wrap the second half (or slightly more than half if odd length) of each chosen word in [[brackets]], leaving the first half visible outside. Return JSON format: {"title": "Short Academic Topic Title", "text": "The full paragraph with [[...]] wrapping the missing letters only", "totalBlanks": 10}`;
+      case 'complete_words':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write a cohesive, natural, 100% plain-English academic paragraph of strictly 65 to 85 words (exactly 3 to 4 sentences total) with ZERO brackets [ ].
+2. Sentence 1 MUST be a clear introductory sentence (10-15 words).
+3. Sentences 2 to 4 MUST be crisp, clear university-textbook prose exploring the academic topic with rich academic vocabulary.
+4. FORBIDDEN: Do NOT insert any brackets [ ] or split any words into prefixes/suffixes! Return pure, pristine plain English text.
+5. FORBIDDEN: Do NOT write repetitive filler sentences, redundant concluding summaries, or artificial buzzword lists. Write natural, authentic ETS TOEFL prose.
+Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 65-85 word plain-English academic paragraph with ZERO brackets", "totalBlanks": 10}`;
+      case 'daily-life':
+      case 'daily_life':
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Reading "Read in Daily Life" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Page 6):
+1. Choose an authentic daily life format (formatType): "notice", "email", "text-chain", "menu", "schedule", "invoice", or "social-post".
+2. Write a realistic text of 15 to 150 words (contentText) with relevant campus or everyday context. Avoid repetitive phrasing or filler text.
+3. Follow the official length-dependent question rule:
+   - If the text is shorter (15–70 words, such as a campus notice, sign, social post, or short text message chain), include EXACTLY 2 multiple-choice questions.
+   - If the text is longer (75–150 words, such as a detailed email, event schedule, itemized invoice, or dining menu), include EXACTLY 3 multiple-choice questions.
+4. Vary the question skills across the official Page 6 types and tag each question's \`questionType\` accurately using:
+   - "main_purpose" (identifying the main purpose or issuer of the communication)
+   - "inference" (making inferences based on the text)
+   - "factual_detail" (skimming and scanning for specific nonlinear information)
+   - "idiomatic_meaning" (understanding informal or telegraphic language in context)
+   - "negative_factual" (identifying which option is NOT true or EXCEPT)
+Return JSON format: {"title": "Title", "formatType": "notice", "context": "Campus context description", "contentText": "Full text...", "questions": [{"q": "What is the main purpose of this notice?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 0, "why": "Explanation...", "questionType": "main_purpose"}, {"q": "What can be inferred about...?", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation...", "questionType": "inference"}]}`;
       case 'reading-passage':
-        return `You are an official ETS TOEFL test content creator. Create an authentic TOEFL Reading Academic Passage with 3 multiple-choice questions for level: ${levelDesc}. Topic: ${top}. Requirements: 1. Academic passage between 160-200 words. 2. Exactly 3 multiple-choice questions: Main idea, Detail, Vocabulary/Inference. Return JSON format: {"title": "Passage Title", "passage": "Passage text...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+      case 'reading_academic':
+      case 'reading-academic': {
+        const hasSpecificFocus = promptData?.questionSkillFocus && promptData.questionSkillFocus !== 'all';
+        const skillDirective = hasSpecificFocus
+          ? `NOTE: Focus questions specifically on the skill: ${promptData.questionSkillFocus} (all 5 questions testing ${promptData.questionSkillFocus}).`
+          : `CRITICAL QUESTION TYPE REQUIREMENT (readingQuestionFocus === 'all'):
+Every 5-question passage MUST include EXACTLY 1 of each of the 5 official TOEFL iBT Reading question types (NO duplicate Factual Comprehension questions!), presented in a RANDOMIZED order across the 5 questions:
+  1. Factual Detail ("According to paragraph X...") -> questionType: "Factual Detail"
+  2. Negative Factual (EXCEPT / NOT) ("According to the passage, all of the following are true EXCEPT:" or "Which of the following is NOT mentioned in paragraph X?") -> questionType: "Negative Factual (EXCEPT/NOT)"
+  3. Vocabulary in Context ("The word 'X' in paragraph Y is closest in meaning to:") -> questionType: "Vocabulary in Context"
+  4. Inference ("What can be inferred from paragraph X about...?" or "Which of the following does the passage imply about...?") -> questionType: "Inference"
+  5. Rhetorical Purpose / Relationship ("Why does the author mention 'X' in paragraph Y?" or "How do the ideas in paragraph 2 relate to the ideas in paragraph 1?") -> questionType: "Rhetorical Purpose"`;
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL "Read an Academic Passage" item with 5 multiple-choice questions for level: ${levelDesc}. Topic: ${top}.
+${skillDirective}
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write a 180-210 word university-level academic passage (3 focused, cohesive paragraphs). Avoid repetitive phrasing or redundant concluding summaries.
+2. Provide EXACTLY 5 multiple-choice questions in a randomized sequence of question types (1 Factual Detail, 1 Negative Factual EXCEPT/NOT, 1 Vocabulary in Context, 1 Inference, 1 Rhetorical Purpose / Relationship).
+3. Every question MUST have 4 distinct, unique options (\`options.length === 4\`), \`answer\` (0..3, varied across questions), \`questionType\` ("Factual Detail", "Negative Factual (EXCEPT/NOT)", "Vocabulary in Context", "Inference", or "Rhetorical Purpose"), and a detailed \`why\` explanation that explicitly verifies why the option at index \`answer\` is right.
+Return JSON format: {"title": "Passage Title", "passage": "180-210 word passage...", "questions": [{"q": "Question prompt?", "options": ["Unique Option A", "Unique Option B", "Unique Option C", "Unique Option D"], "answer": 2, "why": "Detailed explanation verifying why the option at index 2 is correct...", "questionType": "Inference"}]}`;
+      }
+      case 'listening-choose-response':
+      case 'listening_choose_response':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a 5-item TOEFL Listening "Listen & Choose a Response" practice set for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 8-9):
+1. Provide EXACTLY 5 independent short items in the \`items\` array.
+2. Each item's \`audioPrompt\` MUST be a short, natural, 1-sentence everyday or campus question/statement of strictly 6 to 15 words (e.g., "Didn't I just see you in the library an hour ago?").
+3. Provide \`speakerName\` and \`speakerGender\` ('male' or 'female') for each item.
+4. For each item, provide EXACTLY 4 brief conversational reply \`options\` (each 5 to 12 words). Exactly ONE option is the natural, appropriate reply (\`answer\`: 0..3), and 3 are plausible distractors.
+5. Include a clear \`why\` explanation for each item.
+Return JSON format: {"title": "Campus Interaction Set", "category": "Campus Life", "items": [{"audioPrompt": "Short 6-15 word question?", "speakerName": "Sarah", "speakerGender": "female", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Direct and natural response."}]}`;
+      case 'listening-announcement':
+      case 'listening_announcement':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Announcement" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write a strictly 45 to 80 word spoken campus announcement (script) by 1 university official or professor (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or filler text.
+2. Follow with EXACTLY 2 comprehension questions. Each question must have 4 distinct options, answer index (0..3), and why explanation.
+Return JSON format: {"title": "Announcement Title", "context": "University announcement context", "speakerName": "Dean Williams", "speakerGender": "male", "script": "Attention all students...", "questions": [{"q": "Question 1?", "options": ["A", "B", "C", "D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "options": ["A", "B", "C", "D"], "answer": 2, "why": "Explanation 2..."}]}`;
+      case 'listening-academic-talk':
+      case 'listening_academic_talk':
+      case 'listening-lecture':
+      case 'listening_lecture':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to an Academic Talk" item for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Write a strictly 140 to 200 word academic talk or mini-lecture (script) by a university educator (speakerName, speakerGender: 'male'|'female'). Avoid repetitive phrasing or redundant concluding summaries.
+2. Follow with EXACTLY 4 comprehension questions covering:
+   - Gist / Main Idea ("questionType": "Gist / Main Idea")
+   - Detail ("questionType": "Detail")
+   - Inference / Implied Meaning ("questionType": "Inference / Implied Meaning")
+   - Pragmatic "Listen Again to an Excerpt" Function/Purpose question ("questionType": "Speaker's Purpose / Function"): On EXACTLY 1 of the 4 questions, include \`"audioExcerpt"\` containing an exact 1-sentence quote from the lecture \`script\`, and ask "Why does the professor say this?" or "What does the professor imply when saying this?".
+3. Each question must have 4 distinct options, answer index (0..3), questionType, and why explanation.
+Return JSON format: {"title": "Lecture Title", "topic": "${top}", "speakerName": "Dr. Angela Evans", "speakerGender": "female", "script": "Good morning class...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Exact 1-sentence quote from the script.", "questionType": "Speaker's Purpose / Function", "options": ["A", "B", "C", "D"], "answer": 0, "why": "..."}, {"q": "Question 2?", "questionType": "Detail", "options": ["A", "B", "C", "D"], "answer": 1, "why": "..."}, {"q": "Question 3?", "questionType": "Detail", "options": ["A", "B", "C", "D"], "answer": 2, "why": "..."}, {"q": "Question 4?", "questionType": "Inference / Implied Meaning", "options": ["A", "B", "C", "D"], "answer": 3, "why": "..."}]}`;
       case 'listening-dialogue':
-        return `You are an official ETS TOEFL test content creator. Create a TOEFL Listening task for level: ${levelDesc}. Topic: ${top}. Requirements: 1. A campus conversation OR a short classroom lecture with realistic first names and parenthetical gender tags for speakers (e.g. "Sarah (Female)", "Mark (Male)", "Prof. Davis (Male)"). 2. Format every script line with the speaker name and gender tag at the start of the line, e.g. "Sarah (Female): Hello Professor." or "Prof. Davis (Male): Welcome, Sarah." 3. Script must be 120-150 words. 4. Exactly 3 multiple-choice comprehension questions with 4 options each. Return JSON format: {"title": "Listening Context Title", "context": "Brief 1-sentence situation description", "speakers": {"A": "Sarah (student)", "B": "Prof. Davis"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Sarah (Female): ...\\nProf. Davis (Male): ...", "questions": [{"q": "Question prompt?", "options": ["A", "B", "C", "D"], "answer": 0, "why": "Explanation..."}]}`;
+      case 'listening_dialogue':
+      case 'listening-conversation':
+      case 'listening_conversation':
+        return `You are an official ETS 2026 TOEFL iBT test content creator. Create a TOEFL Listening "Listen to a Conversation" task for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS (Official PDF Pages 9-10):
+1. Write a short, natural 8 to 10 turn conversation of strictly 75 to 110 words total (5 to 15 words per turn, like a real 30-second spoken campus exchange—NOT a long multi-sentence monologue!) between two distinct speakers (1 female and 1 male with clear names, e.g., "Emma (Student)" & "Professor Miller", or "Lucas (Student)" & "Ms. Rivera (Librarian)").
+2. Format every script line with the speaker name at the start of the line, e.g. "Emma: Professor Miller, do you have a minute to look at my survey design?\\nProfessor Miller: Sure, Emma. Did you narrow down your topic on sleep and memory?"
+3. Follow with EXACTLY 2 multiple-choice questions testing official TOEFL Listening skills:
+   - Question 1 MUST be an official "Listen Again to an Excerpt" pragmatic/function/implication question: include \`"audioExcerpt"\` with an exact 1-sentence line from the conversation (including the speaker prefix, e.g. "Professor Miller: Relying only on self-reported sleep logs can be pretty inaccurate, though."), set \`"questionType"\` to \`"Speaker's Purpose / Function"\` or \`"Inference / Implied Meaning"\`, and ask "Why does the speaker say this?" or "What does the speaker imply when saying this?".
+   - Question 2 tests Detail or Gist / Main Idea (\`"questionType": "Detail"\` or \`"Gist / Main Idea"\`).
+4. Every question MUST have 4 distinct options (\`options.length === 4\`), a verified \`answer\` index (0..3), \`questionType\`, and a clear \`why\` explanation confirming why that option is correct.
+Return JSON format: {"title": "Conversation Title", "context": "Listen to a conversation between a student and a professor.", "speakers": {"A": "Emma (Student)", "B": "Professor Miller"}, "speakerGenders": {"A": "female", "B": "male"}, "script": "Emma: ...\\nProfessor Miller: ...", "questions": [{"q": "Why does the professor say this?", "audioExcerpt": "Professor Miller: Exact 1-sentence turn from the script.", "questionType": "Speaker's Purpose / Function", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 1, "why": "Explanation 1..."}, {"q": "Question 2?", "questionType": "Detail", "options": ["Option A", "Option B", "Option C", "Option D"], "answer": 2, "why": "Explanation 2..."}]}`;
       case 'listen-repeat':
-        return `You are an official ETS TOEFL test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}. Format speakerName with realistic first name and gender tag e.g. "Sarah (Female)" or "Mark (Male)". Return JSON format: {"title": "Listen & Repeat Exercise", "speakerName": "Sarah (Female)", "speakerGender": "female", "sentences": ["Sentence 1", "Sentence 2", "Sentence 3", "Sentence 4", "Sentence 5"]}`;
+      case 'speaking_listen_repeat':
+      case 'speaking-listen-repeat':
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create a TOEFL Speaking "Listen and Repeat" practice set for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 ETS TOEFL iBT "LISTEN AND REPEAT" SPECIFICATIONS:
+1. COHESIVE SINGLE-SPEAKER SCENARIO: All 7 sentences in the set MUST be spoken by ONE single person (e.g., "Sarah (Lab Coordinator)", "Marcus (Head Librarian)", "Dr. Chen (Observatory Guide)", "Clara (Museum Docent)", "David (Academic Advisor)") directly addressing the listener ("Welcome to...", "Please store...", "You will find...", "If you need...") in ONE continuous, coherent campus or academic orientation/tour scenario!
+2. FORBIDDEN: Do NOT write 7 random disconnected textbook statements about unrelated topics. Every sentence must belong to the same continuous briefing or guided tour.
+3. PROGRESSIVE WORD LENGTH: Provide EXACTLY 7 natural spoken sentences that progress smoothly in length and grammatical complexity:
+   - Sentence 1: 6–7 words (warm welcome or opening statement)
+   - Sentence 2: 8 words
+   - Sentence 3: 9–10 words
+   - Sentence 4: 11 words
+   - Sentence 5: 12 words
+   - Sentence 6: 14 words
+   - Sentence 7: 15–16 words
+Return JSON format: {"title": "Biology Laboratory Safety Orientation", "speakerName": "Sarah (Lab Coordinator)", "speakerGender": "female", "sentences": ["Welcome to the undergraduate biology laboratory.", "Please store your backpacks inside the hallway lockers.", "Safety goggles and lab coats are required at all times.", "You will find clean glass slides inside the top cabinet drawer.", "Make sure to calibrate your microscope carefully before examining the tissue samples.", "Dispose of all used pipettes and gloves in the labeled biohazard container near the sink.", "If any chemical spill occurs during the experiment, notify your laboratory supervisor immediately for assistance."]}`;
       case 'speaking-interview':
-        return `You are an official ETS TOEFL Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}. Format interviewerName with realistic name and gender tag e.g. "Prof. Lee (Male)" or "Dr. Patel (Female)". Return JSON format: {"title": "University Interview Simulation", "context": "Context description", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Question text...", "prepTimeSeconds": 20, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
+      case 'speaking_interview':
+        return `You are an official ETS 2026 TOEFL iBT Speaking examiner. Create a TOEFL Speaking "Take an Interview" practice simulation for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Format interviewerName with a realistic name and gender tag, e.g. "Prof. Lee (Male)" or "Dr. Patel (Female)".
+2. Provide a brief interviewer introduction (\`context\`) followed by EXACTLY 4 progressive interview questions on the topic:
+   - Q1: Personal preference or concrete personal experience.
+   - Q2: Specific examples or elaboration.
+   - Q3: Broader community or educational impact.
+   - Q4: Future policy or abstract evaluation.
+3. Each question has prepTimeSeconds: 15 and responseTimeSeconds: 45.
+Return JSON format: {"title": "University Interview Simulation", "context": "Brief interviewer introduction to the topic", "interviewerName": "Prof. Lee (Male)", "interviewerGender": "male", "questions": [{"question": "Q1...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q2...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q3...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}, {"question": "Q4...", "prepTimeSeconds": 15, "responseTimeSeconds": 45, "suggestedPoints": ["Point 1", "Point 2"]}]}`;
       case 'build-sentence':
-        return `You are an official ETS TOEFL test creator. Create 5 TOEFL Writing "Build a Sentence" (sentence scramble) items for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Build a Sentence Practice", "items": [{"context": "Context setup line...", "words": ["w1", "w2", "w3", "w4", "w5"], "answer": "The complete correct sentence.", "explanation": "Grammar rule explanation."}]}`;
+      case 'writing_build_sentence':
+        return `You are an official ETS 2026 TOEFL iBT test creator. Create a 5-item TOEFL Writing "Build a Sentence" set for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 ETS TOEFL iBT "BUILD A SENTENCE" SPECIFICATIONS:
+1. Provide EXACTLY 5 conversational exchanges in the \`items\` array.
+2. NEVER CAPITALIZE TILES IN THE WORD BANK: Every single word or phrase tile in \`targetChunks\`, \`distractorChunks\`, and \`words\` MUST be 100% lowercase (except the standalone pronoun "I"—avoid proper nouns in movable tiles so capitalization never gives away which tile goes first!).
+3. RANDOMIZE SENTENCE FRAME TYPES ACROSS THE 5 ITEMS: Mix these 4 official ETS frame layouts in randomized order across the 5 items:
+   - Frame Type 1 (Fixed Beginning + Fixed Ending): e.g., \`"framePrefix": "The", "frameSuffix": "fantastic."\`
+   - Frame Type 2 (Fixed Beginning Only): e.g., \`"framePrefix": "I'm not sure", "frameSuffix": "to the course website."\`
+   - Frame Type 3 (Fixed Ending Only): e.g., \`"framePrefix": "", "frameSuffix": "so early on weeknights?"\`
+   - Frame Type 4 (No Fixed Words — All Blanks + Final Punctuation \`.\` or \`?\`): e.g., \`"framePrefix": "", "frameSuffix": "?"\` or \`"."\`
+4. INCLUDE INTERROGATIVE (QUESTION) SENTENCES & DIVERSE GRAMMAR: Across the 5 items (in randomized order), include:
+   - Direct Interrogative / Question Sentences where Speaker 2 responds with a question ending in \`?\` (e.g., "How long has the science library been closing so early on weeknights?", "Wasn't the gallery reservation canceled earlier this week?")
+   - Embedded / Indirect Questions ("whether/what/where/when + subject + verb" without auxiliary inversion)
+   - Subject/Object Relative Clauses ("who", "which", "that", "whose")
+   - Passive Voice & Causatives ("has been approved", "cannot be checked out")
+   - Conditionals & Comparisons ("unless", "provided that", "far more efficient than")
+5. OFFICIAL ETS TILE BALANCE RULE (KEEP MOST TILES AS SINGLE WORDS!):
+   - Out of 6 or 7 blank slots (\`targetChunks\`), AT MOST 1 or 2 tiles should be a 2-3 word phrase (such as a noun phrase like \`"science library"\` or \`"tour guides"\`, or a short verb phrase like \`"showed us around"\`), while the REMAINING 4 to 5+ tiles MUST be SINGLE WORDS (especially question words, auxiliary verbs, main verbs, articles, pronouns, and connectors—e.g., \`["how", "long", "has", "the", "science library", "been", "closing"]\` or \`["tour guides", "who", "showed us around", "the", "old", "city", "were"]\`).
+   - On 2 to 3 items in the set, include 1 single-word grammatical distractor tile in \`distractorChunks\` (e.g., \`["was"]\`, \`["have"]\`, \`["weren't"]\`, \`["which"]\`) so \`words\` has 1 more tile than blank slots.
+   - \`words\` MUST be the shuffled array of \`[...targetChunks, ...distractorChunks]\`, 100% lowercase (except "I").
+Return JSON format: {"title": "Build a Sentence: Campus & Academic Syntax", "items": [{"context": "What did you think of the guided tour of the historical district?", "framePrefix": "The", "frameSuffix": "fantastic.", "targetChunks": ["tour guides", "who", "showed us around", "the", "old", "city", "were"], "distractorChunks": ["was"], "words": ["old", "were", "who", "was", "tour guides", "city", "the", "showed us around"], "targetSentence": "The tour guides who showed us around the old city were fantastic.", "answer": "The tour guides who showed us around the old city were fantastic.", "grammarRule": "Subject relative clause ('who showed us around the old city') modifying plural 'tour guides', requiring plural verb 'were' instead of 'was'.", "explanation": "Subject relative clause ('who showed us around the old city') modifying plural 'tour guides', requiring plural verb 'were' instead of 'was'."}]}`;
       case 'write-email':
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Email Task Title", "situation": "Situation description...", "recipient": "Recipient name/office", "goals": ["Goal 1", "Goal 2", "Goal 3"], "suggestedWordCount": "80-120 words"}`;
+      case 'writing_email':
+        return `You are an official ETS 2026 TOEFL iBT Writing test designer. Create a 7-minute TOEFL Writing "Write an Email" prompt for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Provide a clear campus or academic scenario (\`situation\`), \`recipient\` name and role, and EXACTLY 3 specific bullet points (\`goals\`) the student must accomplish in their email.
+2. Set \`suggestedWordCount\` to "85-130 words".
+Return JSON format: {"title": "Email Task Title", "situation": "Detailed campus or academic scenario description...", "recipient": "Recipient name and role", "goals": ["Specific bullet point 1", "Specific bullet point 2", "Specific bullet point 3"], "suggestedWordCount": "85-130 words"}`;
       case 'vocabulary_explanation':
       case 'vocabulary-explanation': {
         const targetWord = promptData?.word || top || 'word';
@@ -736,377 +1067,147 @@ Return valid JSON matching this schema:
 }`;
       }
       case 'academic-discussion':
+      case 'writing_discussion':
       default:
-        return `You are an official ETS TOEFL Writing test designer. Create a TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}. Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "Prompt text...", "s1": {"name": "Student A", "text": "Post text..."}, "s2": {"name": "Student B", "text": "Post text..."}, "question": "Instruction text..."}`;
+        return `You are an official ETS 2026 TOEFL iBT Writing test designer. Create a 10-minute TOEFL Writing "Writing for an Academic Discussion" prompt for level: ${levelDesc}. Topic: ${top}.
+STRICT 2026 TOEFL iBT SPECIFICATIONS:
+1. Provide a professor's course question (\`professorPrompt\`, 50-70 words) posing an open-ended academic debate question.
+2. Provide 2 contrasting student posts (\`s1\` and \`s2\`, 50-70 words each, with distinct student names and contrasting viewpoints/examples).
+Return JSON format: {"title": "Academic Discussion Board", "professorName": "Professor Name", "professorPrompt": "50-70 word professor question...", "s1": {"name": "Student A", "text": "50-70 word post taking viewpoint 1..."}, "s2": {"name": "Student B", "text": "50-70 word post taking contrasting viewpoint 2..."}, "question": "Express and support your personal opinion in the academic discussion forum, contributing a new point beyond the existing student posts."}`;
     }
   };
 
-  // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
-  if (provider !== 'gemini') {
-    try {
-      const prompt = getPrompt(taskType, level, topic);
-      const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
-      const { text, modelUsed } = await callChatWithHealing({
-        provider,
-        apiKey: opts.apiKey,
-        baseUrl: opts.baseUrl,
-        model: opts.model,
-        purpose: 'generation',
-        prompt: `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`,
-        systemInstruction,
-        responseJson: true,
-      });
+  const prompt = getPrompt(taskType, level, topic);
+  const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Write natural, authentic ETS TOEFL prose. Avoid repetitive phrasing, redundant concluding summaries, or artificial buzzword stuffing. Return valid JSON matching the schema only.';
+  const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
 
-      const parsed = cleanAndExtractJson(text);
-      const normalized = normalizeTask(taskType, parsed);
-      const result = schema.parse(normalized);
-      return { ...result, isFallback: false, modelUsed };
-    } catch (error: any) {
-      const errMsg = extractErrorMessage(error, provider);
-      if (!isKeyError(error)) {
-        console.warn(`Failed to generate task with ${provider}, falling back to curated:`, errMsg);
+  // Collect available providers and distribute via round-robin for question generation (high throughput)
+  const candidates = collectAvailableProviders(options);
+  const prioritized = prioritizeForGeneration(candidates);
+
+  let lastError: any = null;
+
+  for (const candidate of prioritized) {
+    try {
+      if (candidate.provider === 'gemini') {
+        const ai = getAiClient(candidate.apiKey);
+        if (!ai) continue;
+
+        const chains = await resolveModelChains('gemini', candidate.apiKey);
+        const { result, modelUsed } = await generateWithFallback(ai, chains.generation, async (model) => {
+          let response;
+          try {
+            response = await ai.models.generateContent({
+              model,
+              contents: fullPrompt,
+              config: {
+                responseMimeType: 'application/json',
+                temperature: 0.7,
+              },
+            });
+          } catch (firstErr: any) {
+            if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
+              throw firstErr;
+            }
+            console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, redactSensitiveInfo(firstErr?.message || firstErr));
+            response = await ai.models.generateContent({
+              model,
+              contents: fullPrompt,
+              config: {
+                temperature: 0.7,
+              },
+            });
+          }
+
+          const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
+          const parsed = cleanAndExtractJson(rawText);
+          const normalized = normalizeTask(taskType, parsed);
+          return schema.parse(normalized);
+        });
+
+        return { ...result, isFallback: false, modelUsed };
       } else {
-        console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
+        const { text, modelUsed } = await callChatWithHealing({
+          provider: candidate.provider,
+          apiKey: candidate.apiKey,
+          baseUrl: candidate.baseUrl,
+          model: candidate.model,
+          purpose: 'generation',
+          prompt: fullPrompt,
+          systemInstruction,
+          responseJson: true,
+        });
+
+        const parsed = cleanAndExtractJson(text);
+        const normalized = normalizeTask(taskType, parsed);
+        const result = schema.parse(normalized);
+        return { ...result, isFallback: false, modelUsed };
       }
-      if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
-        const targetWord = promptData?.word || topic || 'word';
-        const cleanW = targetWord.toLowerCase().trim();
-        const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
-        if (glossaryEntry) {
-          return {
-            word: targetWord,
-            phonetic: '',
-            meanings: [{
-              partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
-              definition: glossaryEntry.definition,
-              example: promptData?.context || '',
-            }],
-            examples: promptData?.context ? [promptData.context] : [],
-            synonyms: glossaryEntry.synonyms || [],
-            isFallback: false,
-            modelUsed: 'Academic Glossary',
-          };
-        }
-        const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
-        const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
-        const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
-        return {
-          word: targetWord,
-          phonetic: '',
-          meanings: [{
-            partOfSpeech: pos,
-            definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
-            example: promptData?.context || '',
-          }],
-          examples: promptData?.context ? [promptData.context] : [],
-          synonyms: [],
-          isFallback: true,
-          modelUsed: `Local fallback (${provider})`,
-        };
-      }
-      const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
-      const curatedTasks = CURATED[curatedKey] as any[];
-      const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
-      return {
-        ...item,
-        isFallback: true,
-        fallbackReason: errMsg,
-        modelUsed: `Curated ETS (${provider} fallback)`,
-      };
+    } catch (candidateErr: any) {
+      lastError = candidateErr;
+      const status = getStatus(candidateErr);
+      const isQuota = isQuotaExhaustedError(candidateErr) || status === 429;
+      console.warn(`Generation provider [${candidate.provider}] failed (${isQuota ? '429 Quota Exceeded' : candidateErr?.message || candidateErr}), continuing to next provider in chain...`);
+      continue;
     }
   }
 
-  try {
-    if (!ai) {
-      throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
-    }
-
-    const chains = await resolveModelChains('gemini', customApiKey || process.env.GEMINI_API_KEY || '');
-    const { result, modelUsed } = await generateWithFallback(ai, chains.generation, async (model) => {
-      const prompt = getPrompt(taskType, level, topic);
-      const systemInstruction = 'You are an expert ETS TOEFL test design specialist. Return valid JSON matching the schema only.';
-      const fullPrompt = `${systemInstruction}\n\n${prompt}\n\nIMPORTANT: Return valid JSON matching the schema only. Do not wrap in markdown fences.`;
-
-      let response;
-      try {
-        response = await ai.models.generateContent({
-          model,
-          contents: fullPrompt,
-          config: {
-            responseMimeType: 'application/json',
-            temperature: 0.7,
-          },
-        });
-      } catch (firstErr: any) {
-        if (isKeyError(firstErr) || isQuotaExhaustedError(firstErr)) {
-          throw firstErr;
-        }
-        console.warn(`Model ${model} JSON mime attempt failed, retrying plain contents:`, redactSensitiveInfo(firstErr?.message || firstErr));
-        response = await ai.models.generateContent({
-          model,
-          contents: fullPrompt,
-          config: {
-            temperature: 0.7,
-          },
-        });
-      }
-
-      const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
-      const parsed = cleanAndExtractJson(rawText);
-      const normalized = normalizeTask(taskType, parsed);
-      return schema.parse(normalized);
-    });
-
-    return { ...result, isFallback: false, modelUsed };
-  } catch (error: any) {
-    const isQuota = isQuotaExhaustedError(error) || getStatus(error) === 429;
-    const rateLimit = isQuota ? parseRateLimitFromError(error) : undefined;
-    const errMsg = extractErrorMessage(error, provider);
-    if (!isQuota && !isKeyError(error)) {
-      console.warn(`Failed to generate task ${taskType}, falling back to curated:`, errMsg);
-    } else {
-      console.info(`Using authentic curated ETS item for ${taskType} (${errMsg})`);
-    }
-    if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
-      const targetWord = promptData?.word || topic || 'word';
-      const cleanW = targetWord.toLowerCase().trim();
-      const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
-      if (glossaryEntry) {
-        return {
-          word: targetWord,
-          phonetic: '',
-          meanings: [{
-            partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
-            definition: glossaryEntry.definition,
-            example: promptData?.context || '',
-          }],
-          examples: promptData?.context ? [promptData.context] : [],
-          synonyms: glossaryEntry.synonyms || [],
-          isFallback: false,
-          modelUsed: 'Academic Glossary',
-        };
-      }
-      const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
-      const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
-      const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
+  // If all API providers fail, drop down to local/curated fallbacks
+  if (taskType === 'vocabulary_explanation' || taskType === 'vocabulary-explanation') {
+    const targetWord = promptData?.word || topic || 'word';
+    const cleanW = targetWord.toLowerCase().trim();
+    const glossaryEntry = ACADEMIC_GLOSSARY[cleanW];
+    if (glossaryEntry) {
       return {
         word: targetWord,
         phonetic: '',
         meanings: [{
-          partOfSpeech: pos,
-          definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
+          partOfSpeech: glossaryEntry.partOfSpeech || 'adjective',
+          definition: glossaryEntry.definition,
           example: promptData?.context || '',
         }],
         examples: promptData?.context ? [promptData.context] : [],
-        synonyms: [],
-        isFallback: true,
-        modelUsed: 'Local fallback',
+        synonyms: glossaryEntry.synonyms || [],
+        isFallback: false,
+        modelUsed: 'Academic Glossary',
       };
     }
-    const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
-    const curatedTasks = CURATED[curatedKey] as any[];
-    const item = curatedTasks[Math.floor(Math.random() * curatedTasks.length)];
+    const isAdj = /\b\w+(ic|al|ive|ous|less|able|ible|ful|ial|ical)\b/i.test(targetWord);
+    const isV = targetWord.endsWith('ing') || targetWord.endsWith('ed');
+    const pos = isAdj ? 'adjective' : isV ? 'verb' : 'noun';
     return {
-      ...item,
+      word: targetWord,
+      phonetic: '',
+      meanings: [{
+        partOfSpeech: pos,
+        definition: isAdj ? `Relating to or characterized by ${targetWord}` : `Pertaining to ${targetWord}`,
+        example: promptData?.context || '',
+      }],
+      examples: promptData?.context ? [promptData.context] : [],
+      synonyms: [],
       isFallback: true,
-      isQuotaExhausted: isQuota,
-      rateLimit,
-      fallbackReason: errMsg,
-      modelUsed: 'Curated ETS TOEFL Question Bank',
+      modelUsed: 'Local fallback',
     };
   }
+
+  const isQuota = isQuotaExhaustedError(lastError) || getStatus(lastError) === 429;
+  const rateLimit = isQuota ? parseRateLimitFromError(lastError) : undefined;
+  const errMsg = extractErrorMessage(lastError, 'AI Service');
+  const curatedKey = curatedMap[taskType] as keyof typeof CURATED;
+  const curatedTasks = CURATED[curatedKey] as any[];
+  const item = curatedTasks ? curatedTasks[Math.floor(Math.random() * curatedTasks.length)] : null;
+
+  return {
+    ...item,
+    isFallback: true,
+    isQuotaExhausted: isQuota,
+    rateLimit,
+    fallbackReason: errMsg,
+    modelUsed: 'Curated ETS TOEFL Question Bank',
+  };
 }
 
-export async function handleEvaluateResponse(
-  taskType: string,
-  promptData: any,
-  studentResponse: any,
-  options?: ApiCallOptions
-) {
-  try {
-    const opts = typeof options === 'string' ? { apiKey: options } : options || {};
-    let provider = opts.provider || 'gemini';
-    const customApiKey = (opts.apiKey || '').trim();
-
-    // If provider is gemini or auto, but key clearly belongs to another provider
-    if ((provider === 'gemini' || provider === 'auto') && customApiKey) {
-      if (/^nvapi-/i.test(customApiKey)) provider = 'nvidia';
-      else if (/^gsk_/.test(customApiKey)) provider = 'groq';
-      else if (/^sk-or-/i.test(customApiKey)) provider = 'openrouter';
-      else if (/^sk-/.test(customApiKey)) provider = 'openai';
-    }
-
-    const evaluationPrompt = `You are an official certified ETS TOEFL iBT scoring rater.
-Evaluate the student's submission for the following TOEFL task type: "${taskType}".
-
-Task Prompt and Requirements:
-${JSON.stringify(promptData, null, 2)}
-
-Student's Submission:
-${JSON.stringify(studentResponse, null, 2)}
-
-2026 TOEFL iBT (1.0–6.0 Band Scale) Scoring Calibration Anchors:
-Do NOT default every response to a 4.0 or 4.5. Strictly calibrate against these official 2026 ETS Band anchors:
-- Band 6.0 (Advanced): Fully addresses the prompt with natural flow, precise vocabulary, complex syntactic structures, and only minor/rare slips that do not obscure meaning.
-- Band 4.0–4.5 (High-Intermediate): Addresses the task clearly with generally good control, though noticeable pauses, minor repetition, or occasional grammatical inaccuracies occur.
-- Band 2.0–3.0 (Low-Intermediate / Basic): Limited development, frequent pauses or grammar errors that sometimes obscure meaning, or incomplete coverage of the prompt.
-- Band 1.0–1.5 (Below Basic): Minimal, largely unintelligible, or non-responsive attempt.
-
-Scoring Scale Reference:
-- bandScore6: Official section Band Score on the 1.0 to 6.0 scale in 0.5 increments (1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0).
-- rawRubricScore: Raw rubric score out of 5.0 (Writing tasks) or 4.0 (Speaking tasks).
-- scaledScore: Legacy scaled score out of 30 (Band 6.0 = 29-30, Band 5.5 = 27-28, Band 5.0 = 24-26, Band 4.5 = 21-23, Band 4.0 = 18-20, Band 3.0-3.5 = 14-17, Band 2.0-2.5 = 9-13, Band 1.0-1.5 = 0-8).
-- performanceLevel: "Advanced" (5.5-6.0), "High-Intermediate" (4.0-5.0), "Low-Intermediate" (2.5-3.5), or "Basic" (1.0-2.0).
-
-Required Feedback Elements:
-1. Provide a balanced, qualitative feedback summary explaining why this specific Band score was earned.
-2. Identify specific language, syntax, or word-choice errors with original text, corrected text, and brief pedagogical explanation.
-3. Top 2 Actionable Fixes: Exactly 2 highly specific, prioritized corrections the student must make next time to reach the next Band.
-4. Model Band 6.0 Rewrite: A complete, natural exemplar response demonstrating how an Advanced (Band 6.0) candidate would address the exact same prompt with sophisticated transitions, precise vocabulary, and cohesion.
-
-Return valid JSON format matching this schema:
-{
-  "bandScore6": 5.0,
-  "rawRubricScore": 4.0,
-  "scaledScore": 25,
-  "performanceLevel": "High-Intermediate",
-  "feedbackSummary": "Detailed qualitative feedback paragraph...",
-  "topFixes": [
-    "1. Top actionable fix...",
-    "2. Second actionable fix..."
-  ],
-  "modelBand6Rewrite": "Model Band 6.0 Exemplar response...",
-  "exemplarResponse": "Model Band 6.0 Exemplar response...",
-  "errors": [
-    {"original": "...", "corrected": "...", "explanation": "..."}
-  ],
-  "tips": ["Tip 1", "Tip 2", "Tip 3"]
-}`;
-
-    const normalizeEvalResult = (parsed: any, modelUsed: string) => {
-      const rawBand = typeof parsed?.bandScore6 === 'number' ? parsed.bandScore6 : (typeof parsed?.bandScore === 'number' ? parsed.bandScore : 4.5);
-      const bandScore6 = Math.min(6.0, Math.max(1.0, Math.round(rawBand * 2) / 2));
-      const rawRubric = typeof parsed?.rawRubricScore === 'number' ? parsed.rawRubricScore : (taskType.includes('speaking') ? 3.0 : 4.0);
-      const scaled = typeof parsed?.scaledScore === 'number' ? parsed.scaledScore : (bandScore6 >= 6.0 ? 30 : bandScore6 >= 5.5 ? 28 : bandScore6 >= 5.0 ? 25 : bandScore6 >= 4.5 ? 22 : bandScore6 >= 4.0 ? 19 : 15);
-      
-      const performanceLevel = parsed?.performanceLevel || (bandScore6 >= 5.5 ? 'Advanced' : bandScore6 >= 4.0 ? 'High-Intermediate' : bandScore6 >= 2.5 ? 'Low-Intermediate' : 'Basic');
-      const summary = String(parsed?.feedbackSummary || parsed?.summary || '').trim();
-      const rewrite = String(parsed?.modelBand6Rewrite || parsed?.exemplarResponse || parsed?.exemplar || '').trim();
-      
-      let topFixes: string[] = [];
-      if (Array.isArray(parsed?.topFixes) && parsed.topFixes.length > 0) {
-        topFixes = parsed.topFixes.map((f: any) => String(f).trim()).filter(Boolean).slice(0, 2);
-      } else if (Array.isArray(parsed?.tips) && parsed.tips.length > 0) {
-        topFixes = parsed.tips.map((t: any) => String(t).trim()).filter(Boolean).slice(0, 2);
-      }
-
-      const errorsList = Array.isArray(parsed?.errors)
-        ? parsed.errors.map((e: any) => ({
-            original: String(e.original || '').trim(),
-            corrected: String(e.corrected || '').trim(),
-            explanation: String(e.explanation || '').trim(),
-          }))
-        : Array.isArray(parsed?.corrections)
-        ? parsed.corrections.map((e: any) => ({
-            original: String(e.original || '').trim(),
-            corrected: String(e.corrected || '').trim(),
-            explanation: String(e.explanation || '').trim(),
-          }))
-        : [];
-
-      const tipsList = Array.isArray(parsed?.tips) ? parsed.tips.map((t: any) => String(t).trim()).filter(Boolean) : topFixes;
-
-      return {
-        bandScore6,
-        bandScore: bandScore6,
-        rawRubricScore: rawRubric,
-        scaledScore: scaled,
-        performanceLevel,
-        feedbackSummary: summary,
-        summary,
-        topFixes,
-        modelBand6Rewrite: rewrite,
-        exemplarResponse: rewrite,
-        exemplar: rewrite,
-        errors: errorsList,
-        corrections: errorsList,
-        tips: tipsList,
-        modelUsed,
-      };
-    };
-
-    // If using non-Gemini provider (OpenAI, Groq, DeepSeek, OpenRouter, Custom)
-    if (provider !== 'gemini') {
-      const { text, modelUsed } = await callChatWithHealing({
-        provider,
-        apiKey: opts.apiKey,
-        baseUrl: opts.baseUrl,
-        model: opts.model,
-        purpose: 'evaluation',
-        prompt: evaluationPrompt,
-        systemInstruction: 'You are an official certified ETS TOEFL iBT scoring rater. Return valid JSON only.',
-        responseJson: true,
-        temperature: 0.3,
-      });
-
-      const parsed = cleanAndExtractJson(text);
-      return normalizeEvalResult(parsed, modelUsed);
-    }
-
-    const ai = getAiClient(customApiKey);
-    if (!ai) {
-      throw new Error('No API key provided. Add yours in Dashboard > Settings & API Key');
-    }
-
-    const chains = await resolveModelChains('gemini', customApiKey || process.env.GEMINI_API_KEY || '');
-    const evalChain = chains.evaluation.length > 0 ? chains.evaluation : chains.generation;
-    const { result, modelUsed } = await generateWithFallback(ai, evalChain, async (model) => {
-      const thinkingConfig = getModelThinkingConfig(model, 'evaluation');
-      const response = await ai.models.generateContent({
-        model,
-        contents: evaluationPrompt,
-        config: {
-          responseMimeType: 'application/json',
-          temperature: 0.3,
-          ...(thinkingConfig ? { thinkingConfig } : {}),
-        } as any,
-      });
-
-      const rawText = response.text || response.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') || '';
-      const parsed = cleanAndExtractJson(rawText);
-      return normalizeEvalResult(parsed, model);
-    });
-
-    return { ...result, modelUsed };
-  } catch (err: any) {
-    if (isKeyError(err) || isQuotaExhaustedError(err) || getStatus(err) === 401 || !options) {
-      return {
-        bandScore6: 4.5,
-        bandScore: 4.5,
-        rawRubricScore: 4.0,
-        scaledScore: 22,
-        performanceLevel: 'High-Intermediate',
-        feedbackSummary: `Your response effectively addresses the prompt for ${taskType}. It demonstrates clear organization and appropriate academic vocabulary, though minor grammatical slips and phrasing variations are present. To reach an Advanced (Band 6.0) level, focus on integrating more sophisticated syntactic structures and precise academic transitions.`,
-        summary: `Your response effectively addresses the prompt for ${taskType}.`,
-        topFixes: [
-          '1. Vary sentence structures by combining simple clauses with participial phrases and subordinate conjunctions.',
-          '2. Ensure precise lexical choice by replacing general verbs with domain-specific academic terminology.'
-        ],
-        modelBand6Rewrite: `An Advanced (Band 6.0) candidate would address this prompt by establishing a clear thesis statement in the opening sentence, followed by meticulously supported arguments using precise academic phrasing, complex transition markers (e.g., 'Consequently,' 'Notwithstanding,' 'Conversely'), and a polished concluding synthesis.`,
-        exemplarResponse: `An Advanced (Band 6.0) candidate would address this prompt by establishing a clear thesis statement in the opening sentence, followed by meticulously supported arguments using precise academic phrasing.`,
-        errors: [
-          { original: 'shows', corrected: 'demonstrates', explanation: 'Use more precise academic verbs like "demonstrates" or "illustrates".' }
-        ],
-        corrections: [
-          { original: 'shows', corrected: 'demonstrates', explanation: "Use more precise academic verbs like 'demonstrates' or 'illustrates'." }
-        ],
-        tips: ['Incorporate advanced transitional phrases', 'Expand academic vocabulary range'],
-        modelUsed: 'TOEFL Local Expert Scoring Engine (Fallback)',
-      };
-    }
-    throw err;
-  }
-}
+export { handleEvaluateResponse } from './evaluationHandler';
 
 function addWavHeader(pcmBuffer: Buffer, sampleRate = 24000, numChannels = 1, bitsPerSample = 16): Buffer {
   return wrapWavHeaderIfNeeded(pcmBuffer, sampleRate, numChannels, bitsPerSample);

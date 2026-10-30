@@ -1,65 +1,119 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CompleteWordsTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, Info, Keyboard, Volume2, VolumeX } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, Keyboard } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { playSpeech, stopSpeaking, isAudioPlaying } from '../../utils/audioSpeech';
+import { normalizeCompleteWordsTask } from '../../utils/taskNormalizer';
+import { TaskSubtitleMeta, TaskReportButton, CollapsibleTaskInstructions } from '../shared/TaskHeaderMeta';
 
 interface Props {
   task: CompleteWordsTask;
   onNextTask?: () => void;
+  onComplete?: (score: number) => void;
+  wordWrapperClassName?: string;
+  blankInputClassName?: string;
 }
 
 interface BlankItem {
   prefix: string;
   solution: string;
+  trailingPunct: string;
   userValue: string;
   isCorrect?: boolean;
 }
 
-export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
+/**
+ * Canonicalizes same-length US/UK and standard academic spelling variants
+ * (e.g., advisors/advisers, -ize/-ise, -yze/-yse, -ization/-isation, -er/-re, -ense/-ence)
+ */
+function canonicalizeSameLengthVariant(word: string): string {
+  return word
+    .toLowerCase()
+    .replace(/adviser/g, 'advisor')
+    .replace(/sceptic/g, 'skeptic')
+    .replace(/artefact/g, 'artifact')
+    .replace(/grey/g, 'gray')
+    .replace(/(cent|theat|met|fib|calib|lust|somb|spect)re(s|d)?$/g, '$1er$2')
+    .replace(/(def|off|lic|pret)ence(s)?$/g, '$1ense$2')
+    .replace(/([a-z]{2,})isations$/g, '$1izations')
+    .replace(/([a-z]{2,})isation$/g, '$1ization')
+    .replace(/([a-z]{2,})ising$/g, '$1izing')
+    .replace(/([a-z]{2,})ised$/g, '$1ized')
+    .replace(/([a-z]{2,})isers$/g, '$1izers')
+    .replace(/([a-z]{2,})iser$/g, '$1izer')
+    .replace(/([a-z]{2,})ises$/g, '$1izes')
+    .replace(/([a-z]{2,})ise$/g, '$1ize')
+    .replace(/([a-z]{2,})ysing$/g, '$1yzing')
+    .replace(/([a-z]{2,})ysed$/g, '$1yzed')
+    .replace(/([a-z]{2,})yses$/g, '$1yzes')
+    .replace(/([a-z]{2,})yse$/g, '$1yze');
+}
+
+export function isAcceptedCTestAnswer(prefix: string, userValue: string, solution: string): boolean {
+  const cleanUser = userValue.trim().toLowerCase();
+  const cleanSol = solution.trim().toLowerCase();
+  if (!cleanUser) return false;
+  if (cleanUser === cleanSol) return true;
+  if (cleanUser.length !== cleanSol.length) return false;
+
+  const fullUserWord = `${prefix}${cleanUser}`.toLowerCase();
+  const fullExpectedWord = `${prefix}${cleanSol}`.toLowerCase();
+
+  return canonicalizeSameLengthVariant(fullUserWord) === canonicalizeSameLengthVariant(fullExpectedWord);
+}
+
+export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
   const [blanks, setBlanks] = useState<BlankItem[]>([]);
   const [segments, setSegments] = useState<Array<{ type: 'text' | 'blank'; value: string; blankIndex?: number }>>([]);
   const [checked, setChecked] = useState(false);
   const [score, setScore] = useState<{ correct: number; total: number } | null>(null);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Parse text formatted with [[missing_letters]] after enforcing strict 2026 C-Test normalization
   useEffect(() => {
-    return () => {
-      stopSpeaking();
-    };
-  }, []);
-
-  // Parse text formatted with [[missing_letters]]
-  useEffect(() => {
-    const parts = task.text.split(/\[\[(.+?)\]\]/);
+    const normalized = normalizeCompleteWordsTask(task);
+    const parts = [...normalized.text.split(/\[+([^\]]+)\]+/)];
     const newBlanks: BlankItem[] = [];
     const newSegments: Array<{ type: 'text' | 'blank'; value: string; blankIndex?: number }> = [];
+
+    // First pass: extract word prefix from preceding text segment and trailing punctuation from following text segment
+    for (let i = 1; i < parts.length; i += 2) {
+      const solution = parts[i];
+      const prevText = parts[i - 1] || '';
+      const nextText = parts[i + 1] || '';
+
+      const prefixMatch = prevText.match(/([a-zA-Z'\u2019-]+)$/);
+      const prefix = prefixMatch ? prefixMatch[1] : '';
+      if (prefix) {
+        parts[i - 1] = prevText.slice(0, prevText.length - prefix.length);
+      }
+
+      const punctMatch = nextText.match(/^([.,;:!?"')\]]+)/);
+      const trailingPunct = punctMatch ? punctMatch[1] : '';
+      if (trailingPunct) {
+        parts[i + 1] = nextText.slice(trailingPunct.length);
+      }
+
+      newBlanks.push({
+        prefix,
+        solution,
+        trailingPunct,
+        userValue: '',
+      });
+    }
 
     let blankCounter = 0;
     for (let i = 0; i < parts.length; i++) {
       if (i % 2 === 0) {
-        // Plain text segment
-        newSegments.push({ type: 'text', value: parts[i] });
+        if (parts[i]) {
+          newSegments.push({ type: 'text', value: parts[i] });
+        }
       } else {
-        // Blank solution
-        const solution = parts[i];
-        const prevText = parts[i - 1] || '';
-        const match = prevText.match(/([a-zA-Z]+)$/);
-        const prefix = match ? match[1] : '';
-
-        newBlanks.push({
-          prefix,
-          solution,
-          userValue: '',
-        });
-
         newSegments.push({
           type: 'blank',
-          value: solution,
+          value: parts[i],
           blankIndex: blankCounter,
         });
         blankCounter++;
@@ -76,7 +130,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
   const handleCheck = () => {
     let correctCount = 0;
     const evaluated = blanks.map((b) => {
-      const isRight = b.userValue.trim().toLowerCase() === b.solution.toLowerCase();
+      const isRight = isAcceptedCTestAnswer(b.prefix, b.userValue, b.solution);
       if (isRight) correctCount++;
       return { ...b, isCorrect: isRight };
     });
@@ -111,6 +165,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
       timeSpentSeconds: 60,
       feedbackSummary: `Complete the Words: scored ${correctCount}/${blanks.length} content words (${Math.round((correctCount / blanks.length) * 100)}%)`,
     });
+    onComplete?.(scaledScore);
   };
 
   // Keyboard shortcut Ctrl+Enter or Cmd+Enter to submit anywhere
@@ -175,66 +230,36 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-4">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Reading Section</span>
-            <span aria-hidden="true">·</span>
-            <span>Complete the Words (C-Test)</span>
-            <span aria-hidden="true">·</span>
-            <span>{((task as any).source === 'ai') ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}` : '📚 Curated Bank'}</span>
-            <span aria-hidden="true">·</span>
-            <span>{blanks.length} Word Underlines</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level}</span>
-          </div>
+          <TaskSubtitleMeta task={task} extra={`${blanks.length} Word Underlines`} />
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (isPlayingAudio || isAudioPlaying()) {
-                stopSpeaking();
-                setIsPlayingAudio(false);
-              } else {
-                setIsPlayingAudio(true);
-                const readableText = task.text.replace(/\[\[(.+?)\]\]/g, '$1');
-                playSpeech(readableText, {
-                  voiceName: 'Kore',
-                  onEnd: () => setIsPlayingAudio(false),
-                  onError: () => setIsPlayingAudio(false),
-                });
-              }
-            }}
-            className="px-3 py-1.5 text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
-          >
-            {isPlayingAudio ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
-            <span>{isPlayingAudio ? 'Stop' : 'Listen'}</span>
-          </button>
-
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
             <span><strong className="font-semibold text-slate-800">Enter</strong>: Next dash</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
+          <TaskReportButton task={task} />
         </div>
       </div>
 
-      {/* Official Exam Format Context Note */}
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed flex items-start gap-2.5">
-        <Info className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
-        <div>
-          <strong>Navigation Guide:</strong> A vertical blinking cursor line indicates your active typing position.
-          Press <strong>Enter</strong> to jump to the next word blank, and press <strong>Ctrl + Enter</strong> to check your answers.
-        </div>
-      </div>
+      {/* Collapsible Official Exam Format Context Note */}
+      <CollapsibleTaskInstructions
+        label="Task Instructions"
+        summary="Type missing letters in each word blank · Press Enter for next dash · Ctrl + Enter to submit"
+      >
+        <strong>Navigation Guide:</strong> A vertical blinking cursor line indicates your active typing position.
+        Press <strong>Enter</strong> to jump to the next word blank, and press <strong>Ctrl + Enter</strong> to check your answers.
+      </CollapsibleTaskInstructions>
 
       {/* Interactive C-Test Paragraph with Cursor and Discrete Slots */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs">
-        <p className="text-base sm:text-lg leading-loose text-slate-800 font-normal">
+        <p className="text-base leading-loose text-slate-800 font-normal">
           {segments.map((seg, idx) => {
             if (seg.type === 'text') {
               return <span key={idx}>{seg.value}</span>;
@@ -253,91 +278,99 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
             return (
               <span
                 key={idx}
-                onClick={() => inputRefs.current[bIndex]?.focus()}
-                className="inline-flex items-baseline align-baseline relative cursor-text select-none group"
+                className="inline-flex items-baseline whitespace-nowrap"
               >
-                {/* Hidden input capturing exact keystrokes */}
-                <input
-                  ref={(el) => {
-                    inputRefs.current[bIndex] = el;
-                  }}
-                  type="text"
-                  maxLength={targetLength}
-                  value={blank.userValue}
-                  disabled={checked}
-                  onFocus={() => setFocusedIndex(bIndex)}
-                  onBlur={() => setFocusedIndex(null)}
-                  onChange={(e) => handleInputChange(bIndex, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(bIndex, e)}
-                  className="absolute inset-0 opacity-0 cursor-text z-10 w-full h-full pointer-events-auto"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  aria-label={`Blank ${bIndex + 1} (${targetLength} letters)`}
-                />
+                {blank.prefix && <span className="text-base font-normal text-slate-800">{blank.prefix}</span>}
 
-                {/* Visible discrete letter slots with high-contrast cursor */}
                 <span
-                  className={`inline-flex items-baseline border-b-2 transition-colors relative ${
-                    checked
-                      ? isRight
-                        ? 'border-emerald-600 bg-emerald-50/70'
-                        : 'border-rose-500 bg-rose-50/70'
-                      : isFocused
-                      ? 'border-teal-700 bg-teal-50/40'
-                      : 'border-slate-900 bg-transparent'
-                  }`}
+                  onClick={() => inputRefs.current[bIndex]?.focus()}
+                  className="inline-flex items-baseline relative cursor-text select-none group"
                 >
-                  {Array.from({ length: targetLength }).map((_, charIdx) => {
-                    const char = blank.userValue[charIdx];
-                    const isCurrentSlot = isFocused && blank.userValue.length === charIdx;
+                  {/* Hidden input capturing exact keystrokes */}
+                  <input
+                    ref={(el) => {
+                      inputRefs.current[bIndex] = el;
+                    }}
+                    type="text"
+                    maxLength={targetLength}
+                    value={blank.userValue}
+                    disabled={checked}
+                    onFocus={() => setFocusedIndex(bIndex)}
+                    onBlur={() => setFocusedIndex(null)}
+                    onChange={(e) => handleInputChange(bIndex, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(bIndex, e)}
+                    className="absolute inset-0 opacity-0 cursor-text z-10 w-full h-full pointer-events-auto text-base font-semibold"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    aria-label={`Blank ${bIndex + 1} (${targetLength} letters)`}
+                  />
 
-                    return (
+                  {/* Visible discrete letter slots with high-contrast cursor */}
+                  <span
+                    className={`inline-flex items-baseline border-b-2 transition-colors relative ${
+                      checked
+                        ? isRight
+                          ? 'border-emerald-600 bg-emerald-50/70'
+                          : 'border-rose-500 bg-rose-50/70'
+                        : isFocused
+                        ? 'border-teal-700 bg-teal-50/40'
+                        : 'border-slate-900 bg-transparent'
+                    }`}
+                  >
+                    {Array.from({ length: targetLength }).map((_, charIdx) => {
+                      const char = blank.userValue[charIdx];
+                      const isCurrentSlot = isFocused && blank.userValue.length === charIdx;
+
+                      return (
+                        <span
+                          key={charIdx}
+                          className={`inline-flex items-center justify-center min-w-[10px] sm:min-w-[11px] h-5 px-[0.5px] text-base font-semibold tracking-normal transition-all relative ${
+                            checked
+                              ? isRight
+                                ? 'text-emerald-900'
+                                : 'text-rose-900'
+                              : char
+                              ? 'text-slate-950'
+                              : 'text-slate-900'
+                          }`}
+                        >
+                          {/* Blinking Vertical Cursor Bar */}
+                          {isCurrentSlot && !checked && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute -left-[1px] top-[2px] bottom-[2px] w-[2px] bg-teal-700 animate-pulse rounded-full z-20 shadow-xs"
+                            />
+                          )}
+
+                          {char ? (
+                            char
+                          ) : (
+                            // Clean high-contrast dash matching passage font scale
+                            <span className="text-slate-800 font-semibold leading-none pb-0.5">_</span>
+                          )}
+                        </span>
+                      );
+                    })}
+
+                    {/* Cursor at the end of word when full and focused */}
+                    {isFocused && isFullyFilled && !checked && (
                       <span
-                        key={charIdx}
-                        className={`inline-flex items-center justify-center min-w-[15px] sm:min-w-[17px] h-6 px-[1px] font-mono text-base sm:text-lg font-bold transition-all relative ${
-                          checked
-                            ? isRight
-                              ? 'text-emerald-900'
-                              : 'text-rose-900'
-                            : char
-                            ? 'text-slate-950'
-                            : 'text-slate-900 font-extrabold'
-                        }`}
-                      >
-                        {/* Blinking Vertical Cursor Bar */}
-                        {isCurrentSlot && !checked && (
-                          <span
-                            aria-hidden="true"
-                            className="absolute -left-[1px] top-[2px] bottom-[2px] w-[2.5px] bg-teal-700 animate-pulse rounded-full z-20 shadow-xs"
-                          />
-                        )}
+                        aria-hidden="true"
+                        className="absolute -right-[1px] top-[2px] bottom-[2px] w-[2px] bg-teal-700 animate-pulse rounded-full z-20 shadow-xs"
+                      />
+                    )}
+                  </span>
 
-                        {char ? (
-                          char
-                        ) : (
-                          // Bold, high-contrast, fully visible dash
-                          <span className="text-slate-800 font-extrabold leading-none pb-0.5">_</span>
-                        )}
-                      </span>
-                    );
-                  })}
-
-                  {/* Cursor at the end of word when full and focused */}
-                  {isFocused && isFullyFilled && !checked && (
-                    <span
-                      aria-hidden="true"
-                      className="absolute -right-[1px] top-[2px] bottom-[2px] w-[2.5px] bg-teal-700 animate-pulse rounded-full z-20 shadow-xs"
-                    />
+                  {/* Correction badge when checked and incorrect */}
+                  {checked && isWrong && (
+                    <span className="inline-flex items-center text-xs font-mono font-bold text-emerald-800 ml-1 bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-400">
+                      {blank.solution}
+                    </span>
                   )}
                 </span>
 
-                {/* Correction badge when checked and incorrect */}
-                {checked && isWrong && (
-                  <span className="inline-flex items-center text-xs font-mono font-bold text-emerald-800 ml-1.5 bg-emerald-100/90 px-1.5 py-0.5 rounded border border-emerald-400">
-                    {blank.solution}
-                  </span>
-                )}
+                {blank.trailingPunct && <span className="text-slate-800">{blank.trailingPunct}</span>}
               </span>
             );
           })}
@@ -387,7 +420,7 @@ export const CompleteWordsView: React.FC<Props> = ({ task, onNextTask }) => {
             </span>
             <span aria-hidden="true" className="text-slate-300">|</span>
             <span className="text-slate-600">
-              Est. TOEFL: <strong className="text-teal-800 font-mono">Band {convertScaledToBand6(convertToScaledScore(score.correct, score.total)).toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-xs">({convertToScaledScore(score.correct, score.total)}/30)</span>
+              Est. TOEFL: <strong className="text-teal-800 font-mono">Band {convertScaledToBand6(convertToScaledScore(score.correct, score.total), 'Reading').toFixed(1)} / 6.0</strong> <span className="text-slate-500 font-mono text-xs">({convertToScaledScore(score.correct, score.total)}/30)</span>
             </span>
           </div>
         )}

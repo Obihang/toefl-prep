@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getRoleModels } from '../src/server/modelRoles.ts';
-import { wrapApiHandler } from '../src/server/handlers.ts';
+import { getRoleModels } from '../src/server/modelRoles';
+import { wrapApiHandler } from '../src/server/handlers';
 
 export default wrapApiHandler(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== 'POST' && req.method !== 'GET') {
@@ -8,7 +8,7 @@ export default wrapApiHandler(async (req: VercelRequest, res: VercelResponse) =>
     return res.status(405).json({ success: false, error: `Method ${req.method} Not Allowed` });
   }
 
-  const apiKey = (req.headers['x-api-key'] || req.headers['authorization'] || '').toString().replace('Bearer ', '').trim();
+  const apiKey = (req.headers['x-gemini-key'] || req.headers['x-gemini-api-key'] || req.headers['x-api-key'] || req.headers['authorization'] || '').toString().replace('Bearer ', '').trim();
   const provider = (req.headers['x-api-provider'] || 'gemini').toString();
 
   const roleData = await getRoleModels(provider, apiKey);

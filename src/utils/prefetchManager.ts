@@ -1,4 +1,6 @@
 import { TaskTypeId, TASK_DEFINITIONS } from '../types/taskTypes';
+import { hasAnyProviderKey } from './apiKey';
+import { callBackendGenerate } from '../services/geminiService';
 
 export type PrefetchedItem = {
   id: string;
@@ -16,6 +18,82 @@ const STORAGE_KEY = 'toefl_prefetched_queue_v3';
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
 export const PREFETCH_GAP_MS = 12000;
+export const PREFETCH_COOLDOWN_MS = 30000;
+
+export let consecutiveFailures = 0;
+export let circuitBreakerOpen = false;
+let lastFailureTime = 0;
+
+export function resetPrefetchCircuitBreaker(): void {
+  consecutiveFailures = 0;
+  circuitBreakerOpen = false;
+  lastFailureTime = 0;
+}
+
+export function recordPrefetchSuccess(): void {
+  consecutiveFailures = 0;
+  circuitBreakerOpen = false;
+}
+
+export function recordPrefetchFailure(): void {
+  consecutiveFailures += 1;
+  lastFailureTime = Date.now();
+  if (consecutiveFailures >= 3) {
+    circuitBreakerOpen = true;
+  }
+}
+
+export function isPrefetchCircuitBreakerOpen(now: number = Date.now()): boolean {
+  if (!circuitBreakerOpen) return false;
+  if (now - lastFailureTime >= PREFETCH_COOLDOWN_MS) {
+    consecutiveFailures = 0;
+    circuitBreakerOpen = false;
+    return false;
+  }
+  return true;
+}
+
+export async function prefetchQuestions(
+  taskType: TaskTypeId,
+  level: string,
+  topic: string
+): Promise<PrefetchedItem | null> {
+  if (!hasAnyProviderKey()) {
+    return null;
+  }
+
+  // Reset circuit breaker when triggered with a valid provider key or after 30s cooldown
+  if (hasAnyProviderKey() || Date.now() - lastFailureTime >= PREFETCH_COOLDOWN_MS) {
+    consecutiveFailures = 0;
+    circuitBreakerOpen = false;
+  }
+
+  try {
+    const json = await callBackendGenerate(taskType, level, topic);
+    if (json && json.success && json.data && !json.data.isFallback) {
+      recordPrefetchSuccess();
+      const item: PrefetchedItem = {
+        ...json.data,
+        level,
+        topic,
+        id: json.data.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        isPrefetched: true,
+        createdAt: Date.now(),
+        source: 'ai',
+      };
+      const queue = loadPrefetchQueueFromStorage();
+      const currentItems = queue[taskType] || [];
+      queue[taskType] = [...currentItems, item].slice(-2);
+      savePrefetchQueueToStorage(queue);
+      return item;
+    }
+    recordPrefetchFailure();
+    return null;
+  } catch {
+    recordPrefetchFailure();
+    return null;
+  }
+}
 
 export interface RateLimitPauseState {
   kind: 'per-minute' | 'per-day' | 'unknown';
@@ -82,27 +160,19 @@ export function getPrefetchProgress(
   queue: PrefetchQueue,
   level: string,
   topic: string
-): { done: boolean; filled: number; total: 8 } {
+): { done: boolean; filled: number; total: number } {
   let totalFilled = 0;
   for (const task of TASK_DEFINITIONS) {
     const items = queue[task.id] || [];
     const matching = items.filter((item) => item.level === level && item.topic === topic);
     totalFilled += Math.min(matching.length, 1);
   }
-  const done = totalFilled >= 8;
-  return { done, filled: totalFilled, total: 8 };
+  const total = TASK_DEFINITIONS.length;
+  const done = totalFilled >= total;
+  return { done, filled: totalFilled, total };
 }
 
-export const BACKGROUND_PREFETCH_TASKS: TaskTypeId[] = [
-  'complete-words',
-  'reading-passage',
-  'listening-dialogue',
-  'listen-repeat',
-  'speaking-interview',
-  'build-sentence',
-  'write-email',
-  'academic-discussion',
-];
+export const BACKGROUND_PREFETCH_TASKS: TaskTypeId[] = TASK_DEFINITIONS.map((t) => t.id);
 
 export function getNextTaskToPrefetch(
   currentTaskType: TaskTypeId,
@@ -110,7 +180,8 @@ export function getNextTaskToPrefetch(
   level: string,
   topic: string,
   cooldowns: Record<string, number>,
-  now: number
+  now: number,
+  bankCounts?: Record<string, number>
 ): TaskTypeId | null {
   const getCount = (taskId: TaskTypeId) => {
     const items = queue[taskId] || [];
@@ -121,14 +192,20 @@ export function getNextTaskToPrefetch(
     return (cooldowns[taskId] || 0) <= now;
   };
 
-  const activeTaskIds = BACKGROUND_PREFETCH_TASKS;
-  const orderedTaskIds = [
-    activeTaskIds.find((id) => id === currentTaskType) || activeTaskIds[0],
-    ...activeTaskIds.filter((id) => id !== currentTaskType),
-  ];
+  // Prioritize the current active task if its instant-swap queue is empty
+  if (isEligible(currentTaskType) && getCount(currentTaskType) === 0) {
+    return currentTaskType;
+  }
 
-  for (const taskId of orderedTaskIds) {
-    if (isEligible(taskId) && getCount(taskId) === 0) return taskId;
+  // If bankCounts are provided, only background-prefetch for sections with < 12 questions,
+  // picking the section with the lowest count first instead of always index 0.
+  if (bankCounts && Object.keys(bankCounts).length > 0) {
+    const candidates = BACKGROUND_PREFETCH_TASKS.filter(
+      (id) => id !== currentTaskType && isEligible(id) && getCount(id) === 0 && (bankCounts[id] ?? 10) < 12
+    );
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => (bankCounts[a] ?? 10) - (bankCounts[b] ?? 10));
+    return candidates[0];
   }
 
   return null;

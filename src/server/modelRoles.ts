@@ -1,4 +1,4 @@
-import { GENERATION_MODELS, EVALUATION_MODELS } from '../config/models.ts';
+import { GENERATION_MODELS, EVALUATION_MODELS } from '../config/models';
 
 export interface ModelChainsResult {
   generation: string[];
@@ -340,6 +340,8 @@ export async function resolveModelChains(
     groq: 'https://api.groq.com/openai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     openai: 'https://api.openai.com/v1',
+    deepseek: 'https://api.deepseek.com/v1',
+    xai: 'https://api.x.ai/v1',
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
   };
 
@@ -488,8 +490,8 @@ export async function resolveModelChains(
   let genRanked = rankModelsForRole(p, chatCandidateIds, 'generation');
   let evalRanked = rankModelsForRole(p, chatCandidateIds, 'evaluation');
 
-  // If live discovery failed and yielded 0 candidates, use static fallback config
-  if (fetchFailed && genRanked.length === 0) {
+  // If live discovery failed or yielded 0 candidates (e.g. providers without /models discovery), use static fallback config
+  if (genRanked.length === 0) {
     const fallbacks = getFallbackChains(p);
     genRanked = fallbacks.generation;
     evalRanked = fallbacks.evaluation;
@@ -502,7 +504,7 @@ export async function resolveModelChains(
     evaluation: evalRanked,
     tts: ttsCandidates,
     stt: sttCandidates,
-    all,
+    all: all.length > 0 ? all : Array.from(new Set([...genRanked, ...evalRanked])),
   };
 
   if (!fetchFailed && (genRanked.length > 0 || all.length > 0)) {
@@ -515,16 +517,54 @@ export async function resolveModelChains(
   return result;
 }
 
+export function getModelsForRole(
+  role: 'generator' | 'evaluator' | 'generation' | 'evaluation',
+  provider: string = 'gemini',
+  dynamicModels: string[] = []
+): string[] {
+  const isGen = role === 'generator' || role === 'generation';
+  const normalizedRole = isGen ? 'generation' : 'evaluation';
+  const p = (provider || 'gemini').toLowerCase() as keyof typeof GENERATION_MODELS;
+
+  if (dynamicModels && dynamicModels.length > 0) {
+    const ranked = rankModelsForRole(p, dynamicModels, normalizedRole);
+    if (ranked.length > 0) return ranked;
+  }
+
+  switch (p) {
+    case 'gemini': {
+      const configured = isGen ? GENERATION_MODELS.gemini : EVALUATION_MODELS.gemini;
+      const list = configured && configured.length > 0 ? configured : ['gemini-2.5-flash', 'gemini-2.0-flash'];
+      return list.filter((m) => !isModelDead(m));
+    }
+    case 'groq':
+    case 'nvidia':
+    case 'openrouter':
+    case 'openai':
+    case 'deepseek':
+    case 'xai':
+    case 'anthropic': {
+      const configured = isGen ? GENERATION_MODELS[p] : EVALUATION_MODELS[p];
+      return (configured || []).filter((m) => !isModelDead(m));
+    }
+    default: {
+      const fallback = isGen
+        ? (GENERATION_MODELS as Record<string, string[]>)[p]
+        : (EVALUATION_MODELS as Record<string, string[]>)[p];
+      return (fallback || []).filter((m: string) => !isModelDead(m));
+    }
+  }
+}
+
 function getFallbackChains(provider: string): ModelChainsResult {
-  const p = (provider || '').toLowerCase() as keyof typeof GENERATION_MODELS;
-  const gen = (GENERATION_MODELS[p] || []).filter((m) => !isModelDead(m));
-  const ev = (EVALUATION_MODELS[p] || []).filter((m) => !isModelDead(m));
+  const gen = getModelsForRole('generator', provider);
+  const ev = getModelsForRole('evaluator', provider);
   return {
     generation: gen,
     evaluation: ev.length > 0 ? ev : gen,
     tts: [],
     stt: [],
-    all: [...gen, ...ev],
+    all: Array.from(new Set([...gen, ...ev])),
   };
 }
 

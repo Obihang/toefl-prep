@@ -1,69 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ReadingPassageTask } from '../../data/curatedQuestions';
-import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle, Volume2, VolumeX } from 'lucide-react';
+import { CheckCircle2, RotateCcw, ArrowRight, HelpCircle, Highlighter, AlertCircle, Target, Keyboard } from 'lucide-react';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
-import { playSpeech, stopSpeaking, isAudioPlaying, stripSpeakerAndFormatting } from '../../utils/audioSpeech';
-import { pickSingleVoice } from '../../utils/voices';
+import { inferReadingQuestionType } from '../../utils/taskNormalizer';
+import { ReadingQuestionSkill } from '../../types';
+import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 interface Props {
   task: ReadingPassageTask;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
+  skillFocus?: ReadingQuestionSkill;
+  leftColumnClassName?: string;
+  rightColumnClassName?: string;
+  footerBarClassName?: string;
 }
 
-export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComplete }) => {
+export const ReadingPassageView: React.FC<Props> = ({
+  task,
+  onNextTask,
+  onComplete,
+  skillFocus = 'all',
+  leftColumnClassName = 'lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
+  rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
+  footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
+}) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [isHighlightMode, setIsHighlightMode] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioStatus, setAudioStatus] = useState<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      stopSpeaking();
-    };
-  }, []);
-
-  const handleTogglePassageAudio = () => {
-    if (isPlayingAudio || isAudioPlaying()) {
-      stopSpeaking();
-      setIsPlayingAudio(false);
-      setAudioStatus(null);
-    } else {
-      setIsPlayingAudio(true);
-      setAudioStatus('Starting passage audio...');
-      playSpeech(stripSpeakerAndFormatting(task.passage), {
-        voiceName: pickSingleVoice(`${task.id || task.title}|passage`, 'female'),
-        onStart: () => setAudioStatus('Playing audio...'),
-        onStatus: (st) => setAudioStatus(st),
-        onEnd: () => {
-          setIsPlayingAudio(false);
-          setAudioStatus(null);
-        },
-        onError: (err) => {
-          setIsPlayingAudio(false);
-          setAudioStatus(`Audio error: ${err?.message || err}`);
-        },
-      });
-    }
-  };
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
 
   const handleSelect = (qIdx: number, optIdx: number) => {
     if (submitted) return;
+    setActiveQuestionIdx(qIdx);
     setSelectedAnswers((prev) => ({ ...prev, [qIdx]: optIdx }));
   };
 
-  const calculateScore = () => {
+  const calculateScore = useCallback(() => {
     let correct = 0;
     task.questions.forEach((q, i) => {
       if (selectedAnswers[i] === q.answer) correct++;
     });
     return correct;
-  };
+  }, [task.questions, selectedAnswers]);
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+    if (submitted || Object.keys(selectedAnswers).length === 0) return;
     setSubmitted(true);
     const correctCount = calculateScore();
     const total = task.questions.length;
@@ -95,16 +79,55 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
     });
 
     onComplete?.(scaledScore);
-  };
+  }, [submitted, selectedAnswers, calculateScore, task.questions, task.title, onComplete]);
 
   const handleReset = () => {
     setSelectedAnswers({});
     setSubmitted(false);
+    setActiveQuestionIdx(0);
   };
 
   const score = submitted ? calculateScore() : 0;
   const total = task.questions.length;
   const allAnswered = task.questions.every((_, i) => selectedAnswers[i] !== undefined);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          (target.tagName === 'INPUT' && (target as HTMLInputElement).type !== 'radio'))
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (!submitted && Object.keys(selectedAnswers).length > 0) {
+          handleSubmit();
+        }
+        return;
+      }
+
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+        if (submitted) return;
+        if (allAnswered && activeQuestionIdx >= total - 1) {
+          e.preventDefault();
+          handleSubmit();
+        } else if (selectedAnswers[activeQuestionIdx] !== undefined) {
+          e.preventDefault();
+          const nextIdx = Math.min(total - 1, activeQuestionIdx + 1);
+          setActiveQuestionIdx(nextIdx);
+          document.getElementById(`question-${nextIdx}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [submitted, selectedAnswers, allAnswered, activeQuestionIdx, total, handleSubmit]);
 
   const missedIndices = React.useMemo(() => {
     if (!submitted) return [];
@@ -114,36 +137,20 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
   }, [submitted, selectedAnswers, task.questions]);
 
   return (
-    <div className="space-y-6">
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-4">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Reading Section</span>
-            <span aria-hidden="true">·</span>
-            <span>Academic Passage</span>
-            <span aria-hidden="true">·</span>
-            <span>{((task as any).source === 'ai') ? `✨ Generated by @${(task as any).generatedBy || 'Scholar'}` : '📚 Curated Bank'}</span>
-            <span aria-hidden="true">·</span>
-            <span>{task.questions.length} Questions</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level}</span>
-          </div>
+          <TaskSubtitleMeta task={task} extra={`${task.questions.length} Questions`} />
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleTogglePassageAudio}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-              isPlayingAudio
-                ? 'bg-teal-700 text-white border-teal-800 animate-pulse'
-                : 'bg-teal-50 text-teal-900 border-teal-200 hover:bg-teal-100'
-            }`}
-          >
-            {isPlayingAudio ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-teal-700" />}
-            <span>{isPlayingAudio ? 'Stop Passage Audio' : 'Listen to Passage'}</span>
-          </button>
-
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+            <Keyboard className="w-3.5 h-3.5 text-slate-400" />
+            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
+          </div>
           <button
             onClick={() => setIsHighlightMode(!isHighlightMode)}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
@@ -155,22 +162,14 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
             <Highlighter className="w-3.5 h-3.5" />
             {isHighlightMode ? 'Highlighting Active' : 'Text Highlighter'}
           </button>
+          <TaskReportButton task={task} />
         </div>
       </div>
-
-      {audioStatus && (
-        <div className="px-3 py-1.5 text-xs font-medium text-teal-800 bg-teal-50 border border-teal-200 rounded-lg flex items-center justify-between">
-          <span>{audioStatus}</span>
-          <button onClick={handleTogglePassageAudio} className="text-teal-700 underline text-[11px]">
-            Stop
-          </button>
-        </div>
-      )}
 
       {/* Two-Column Official Layout on Desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Passage */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-xs lg:sticky lg:top-4 max-h-[75vh] overflow-y-auto">
+        <div className={`lg:col-span-7 bg-white border border-slate-200 rounded-xl p-6 shadow-xs ${leftColumnClassName}`}>
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Reading Passage</span>
             <span className="text-xs text-slate-400">
@@ -187,7 +186,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
         </div>
 
         {/* Right Column: Comprehension Questions */}
-        <div className="lg:col-span-5 space-y-5">
+        <div className={`lg:col-span-5 space-y-5 ${rightColumnClassName}`}>
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Comprehension Questions</span>
             <span className="text-xs text-slate-500 font-mono">
@@ -198,6 +197,27 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
+            const inferredSkill = (q as any).skillKey || inferReadingQuestionType(q.q);
+            const rawBadgeType = String((q as any).questionType || inferredSkill);
+            const isTargetSkill = skillFocus !== 'all' && inferredSkill === skillFocus;
+
+            const getSkillBadge = (type: string) => {
+              const lower = type.toLowerCase();
+              if (lower.includes('negative') || lower.includes('except')) {
+                return { label: 'Negative Factual (EXCEPT/NOT)', color: 'bg-rose-50 text-rose-700 border-rose-200' };
+              }
+              if (lower.includes('infer')) {
+                return { label: 'Inference', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+              }
+              if (lower.includes('vocab') || lower.includes('meaning')) {
+                return { label: 'Vocabulary in Context', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+              }
+              if (lower.includes('rhetorical') || lower.includes('purpose') || lower.includes('relate')) {
+                return { label: 'Rhetorical Purpose', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+              }
+              return { label: 'Factual Detail', color: 'bg-teal-50 text-teal-700 border-teal-200' };
+            };
+            const skillBadge = getSkillBadge(rawBadgeType);
 
             return (
               <div
@@ -208,15 +228,29 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
                     ? isCorrect
                       ? 'border-emerald-200 bg-emerald-50/20'
                       : 'border-rose-200 bg-rose-50/20'
+                    : isTargetSkill
+                    ? 'border-teal-400 ring-2 ring-teal-100'
                     : 'border-slate-200'
                 }`}
               >
-                <div className="flex items-start gap-2.5 mb-3.5">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold shrink-0">
-                    {qIdx + 1}
-                  </span>
-                  <p className="text-sm font-semibold text-slate-900 leading-snug">{q.q}</p>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
+                      {qIdx + 1}
+                    </span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${skillBadge.color}`}>
+                      {skillBadge.label}
+                    </span>
+                  </div>
+                  {isTargetSkill && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                      <Target className="w-3 h-3" />
+                      Target Skill
+                    </span>
+                  )}
                 </div>
+
+                <p className="text-sm font-semibold text-slate-900 leading-snug mb-3.5">{q.q}</p>
 
                 <div className="space-y-2">
                   {q.options.map((opt, optIdx) => {
@@ -277,7 +311,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
           })}
 
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div className={footerBarClassName}>
             {!submitted ? (
               <button
                 onClick={handleSubmit}
@@ -288,7 +322,7 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
                 Submit Answers
               </button>
             ) : (
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   onClick={handleReset}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0"
@@ -321,13 +355,13 @@ export const ReadingPassageView: React.FC<Props> = ({ task, onNextTask, onComple
             )}
 
             {submitted && (
-              <div className="flex items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg">
-                <span>
+              <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg whitespace-nowrap shrink-0">
+                <span className="whitespace-nowrap">
                   Score: <strong className="font-mono text-slate-900">{score}</strong>/{total}
                 </span>
                 <span aria-hidden="true" className="text-slate-300">·</span>
-                <span>
-                  Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total)).toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
+                <span className="whitespace-nowrap">
+                  Est. Scaled: <strong className="font-mono text-teal-800">Band {convertScaledToBand6(convertToScaledScore(score, total), 'Reading').toFixed(1)} / 6.0</strong> <span className="font-mono text-slate-500 text-xs">({convertToScaledScore(score, total)}/30)</span>
                 </span>
               </div>
             )}

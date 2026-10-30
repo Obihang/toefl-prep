@@ -159,8 +159,9 @@ export function mergeCompoundWords(spokenText: string, targetText: string): stri
 }
 
 /**
- * Aligns STT transcript against target sentence by substituting homophones,
- * phonetic equivalents (Soundex match), close Levenshtein matches, and >= 55% similarity.
+ * Aligns STT transcript against target sentence by substituting genuine homophones
+ * and compound-word splits/merges without overwriting distinct spoken words
+ * (such as "and", "in", "first") into unrelated target words (such as "wind").
  */
 export function alignHomophonesAndPhonetics(
   transcript: string,
@@ -173,12 +174,12 @@ export function alignHomophonesAndPhonetics(
 
   const rawTargetWords = targetSentence.split(/\s+/).filter(Boolean);
   const targetWordsClean = rawTargetWords.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, ''));
-  const targetSoundex = targetWordsClean.map(soundex);
 
   const rawTranscriptWords = mergedTranscript.split(/\s+/).filter(Boolean);
   const transcriptWordsClean = rawTranscriptWords.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, ''));
 
   const resultWords = [...rawTranscriptWords];
+  const consumedTargetIndices = new Set<number>();
 
   for (let i = 0; i < rawTranscriptWords.length; i++) {
     const single = transcriptWordsClean[i];
@@ -186,53 +187,49 @@ export function alignHomophonesAndPhonetics(
 
     const double = i < rawTranscriptWords.length - 1 ? `${single} ${transcriptWordsClean[i + 1]}` : '';
 
-    // Search target words nearby (within +-3 index window)
+    // Search target words nearby (within +-2 index window) in sequence
     const targetIdx = Math.min(i, targetWordsClean.length - 1);
-    const searchStart = Math.max(0, targetIdx - 3);
-    const searchEnd = Math.min(targetWordsClean.length - 1, targetIdx + 3);
+    const searchStart = Math.max(0, targetIdx - 2);
+    const searchEnd = Math.min(targetWordsClean.length - 1, targetIdx + 2);
 
     for (let t = searchStart; t <= searchEnd; t++) {
+      if (consumedTargetIndices.has(t)) continue;
       const targetClean = targetWordsClean[t];
-      const origTarget = rawTargetWords[t].replace(/[^a-zA-Z0-9']/g, '');
+      const origTarget = rawTargetWords[t].replace(/[^a-zA-Z0-9'-]/g, '');
 
-      // Direct clean match
+      // Direct clean match: lock this target word so a duplicate spoken word cannot re-match or morph
       if (single === targetClean) {
+        consumedTargetIndices.add(t);
         break;
       }
 
-      // Check double-word bigram match (e.g. "sent in" matches "sentence")
+      // Check double-word bigram homophone match (e.g. "sent in" matches "sentence")
       if (double && HOMOPHONE_MAP[targetClean]?.includes(double)) {
         const trailingPunct = rawTranscriptWords[i + 1].match(/[^a-zA-Z0-9']+$/)?.[0] || '';
         resultWords[i] = origTarget + trailingPunct;
         resultWords[i + 1] = '';
+        consumedTargetIndices.add(t);
+        i++;
         break;
       }
 
-      // Check single-word homophone match (e.g. "here" matches "Hear")
+      // Check explicit single-word homophone match (e.g. "here" -> "hear", "there" -> "their")
       if (HOMOPHONE_MAP[targetClean]?.includes(single)) {
         const trailingPunct = rawTranscriptWords[i].match(/[^a-zA-Z0-9']+$/)?.[0] || '';
         resultWords[i] = origTarget + trailingPunct;
+        consumedTargetIndices.add(t);
         break;
       }
 
-      // Check Soundex, Levenshtein, or >= 55% similarity / consonant skeleton similarity
-      if (single.length >= 2 && targetClean.length >= 2) {
+      // For long academic words (>= 7 chars) with a 1-character STT typo (>= 86% Levenshtein similarity)
+      if (single.length >= 7 && targetClean.length >= 7 && single[0] === targetClean[0]) {
         const dist = levenshteinDistance(single, targetClean);
         const maxLen = Math.max(single.length, targetClean.length);
         const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
-
-        const c1 = single.replace(/[aeiouy]/g, '');
-        const c2 = targetClean.replace(/[aeiouy]/g, '');
-        const cDist = levenshteinDistance(c1, c2);
-        const cMax = Math.max(c1.length, c2.length);
-        const consSimilarity = cMax > 0 ? 1 - cDist / cMax : 0;
-
-        const sndMatch = targetSoundex[t] && soundex(single) === targetSoundex[t];
-        const prefixMatch = (single.length >= 4 && targetClean.startsWith(single)) || (targetClean.length >= 4 && single.startsWith(targetClean));
-
-        if (similarity >= 0.55 || consSimilarity >= 0.55 || prefixMatch || (sndMatch && dist <= 3)) {
+        if (dist <= 1 && similarity >= 0.86) {
           const trailingPunct = rawTranscriptWords[i].match(/[^a-zA-Z0-9']+$/)?.[0] || '';
           resultWords[i] = origTarget + trailingPunct;
+          consumedTargetIndices.add(t);
           break;
         }
       }
@@ -241,3 +238,4 @@ export function alignHomophonesAndPhonetics(
 
   return resultWords.filter(Boolean).join(' ');
 }
+

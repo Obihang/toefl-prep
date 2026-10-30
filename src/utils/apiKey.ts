@@ -129,6 +129,9 @@ export function migrateLegacyKeys(): void {
       else if (/^gsk_/.test(k)) target = 'groq';
       else if (/^nvapi-/i.test(k)) target = 'nvidia';
       else if (/^sk-or-/i.test(k)) target = 'openrouter';
+      else if (/^sk-ant-/i.test(k)) target = 'anthropic';
+      else if (/^xai-/i.test(k)) target = 'xai';
+      else if (/^sk-/i.test(k)) target = 'openai';
 
       if (target && !localStorage.getItem(`toefl_key_${target}`)) {
         localStorage.setItem(`toefl_key_${target}`, k);
@@ -260,14 +263,42 @@ export function setStoredRoles(provider: string, roles: StoredRoles): void {
   localStorage.setItem(`toefl_roles_${provider}`, JSON.stringify(roles));
 }
 
+import { PROVIDER_ORDER } from '../config/models';
+
+export function getProviderKeys(): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (typeof localStorage === 'undefined') return result;
+  const providers: ApiProvider[] = [...PROVIDER_ORDER, 'custom'];
+  for (const p of providers) {
+    const k = (
+      localStorage.getItem(`toefl_key_${p}`) ||
+      localStorage.getItem(`${p}_api_key`) ||
+      (p === 'gemini' ? localStorage.getItem('toefl_gemini_api_key') : '') ||
+      ''
+    ).trim();
+    if (k) {
+      result[p] = k;
+    }
+  }
+  return result;
+}
+
+export const getAllProviderKeys = getProviderKeys;
+
+export function hasAnyProviderKey(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  const keys = getProviderKeys();
+  for (const p of PROVIDER_ORDER) {
+    if (keys[p] && keys[p].trim()) return true;
+  }
+  if (Object.values(keys).some((v) => v && v.trim())) return true;
+  if ((localStorage.getItem('toefl_custom_api_key') || '').trim()) return true;
+  return false;
+}
+
 export function hasAnyStoredApiKey(): boolean {
   if (typeof localStorage === 'undefined') return false;
-  const providers: ApiProvider[] = ['gemini', 'openrouter', 'groq', 'nvidia', 'openai', 'deepseek', 'xai', 'anthropic', 'custom'];
-  for (const p of providers) {
-    if ((localStorage.getItem(`toefl_key_${p}`) || '').trim()) return true;
-  }
-  if ((localStorage.getItem('toefl_gemini_api_key') || '').trim()) return true;
-  if ((localStorage.getItem('toefl_custom_api_key') || '').trim()) return true;
+  if (hasAnyProviderKey()) return true;
   if ((localStorage.getItem('toefl_voice_api_key') || '').trim()) return true;
   return false;
 }
@@ -365,8 +396,20 @@ export function setStoredTtsBaseUrl(provider: string, url: string): void {
 }
 
 export function getApiHeaders(): Record<string, string> {
-  const provider = getStoredProvider();
-  const key = getStoredApiKey();
+  const allKeys = getProviderKeys();
+  let provider = getStoredProvider();
+  let key = getStoredApiKey(provider) || allKeys[provider] || '';
+
+  if (!key) {
+    for (const candidate of PROVIDER_ORDER) {
+      if (allKeys[candidate]) {
+        provider = candidate;
+        key = allKeys[candidate];
+        break;
+      }
+    }
+  }
+
   const voiceKey = getStoredVoiceKey();
   const baseUrl = getStoredBaseUrl();
   const model = getStoredModel();
@@ -423,6 +466,28 @@ export function getApiHeaders(): Record<string, string> {
 
   if (ttsBaseUrl) {
     headers['x-tts-base-url'] = ttsBaseUrl;
+  }
+
+  // Pass ALL configured keys in headers for dynamic backend failover
+  if (typeof localStorage !== 'undefined') {
+    const ALL_PROVIDERS = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'nvidia', 'deepseek', 'xai'];
+    for (const p of ALL_PROVIDERS) {
+      const k = (
+        localStorage.getItem(`${p}_api_key`) ||
+        localStorage.getItem(`toefl_key_${p}`) ||
+        (p === 'gemini' ? localStorage.getItem('toefl_gemini_api_key') : '') ||
+        ''
+      ).trim();
+      if (k) {
+        headers[`x-api-key-${p}`] = k;
+        if (p === 'gemini' && !headers['x-gemini-api-key']) {
+          headers['x-gemini-api-key'] = k;
+        }
+        if (p === 'groq' && !headers['x-groq-key']) {
+          headers['x-groq-key'] = k;
+        }
+      }
+    }
   }
 
   return headers;
@@ -496,12 +561,19 @@ export async function safeGenerateTaskWithFailover(payload: {
   topic: string;
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   const keys = getAvailableGenerationKeys();
+  const allProviderKeys = getProviderKeys();
+  const fullBody = JSON.stringify({
+    ...payload,
+    availableKeys: allProviderKeys,
+    providerKeys: allProviderKeys,
+  });
+
   if (keys.length === 0) {
     try {
       const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers: getApiHeaders(),
-        body: JSON.stringify(payload),
+        body: fullBody,
       });
       return json;
     } catch (err: any) {
@@ -512,6 +584,7 @@ export async function safeGenerateTaskWithFailover(payload: {
   for (let i = 0; i < keys.length; i++) {
     const kp = keys[i];
     const headers: Record<string, string> = {
+      ...getApiHeaders(),
       'Content-Type': 'application/json',
       'x-api-provider': kp.provider,
       'x-api-key': kp.key,
@@ -523,7 +596,7 @@ export async function safeGenerateTaskWithFailover(payload: {
       const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload),
+        body: fullBody,
       });
       if (json.success && json.data && !json.data.isFallback) {
         return json;
@@ -537,7 +610,7 @@ export async function safeGenerateTaskWithFailover(payload: {
     const json = await safeFetchJson('/api/generate-task', {
       method: 'POST',
       headers: getApiHeaders(),
-      body: JSON.stringify(payload),
+      body: fullBody,
     });
     return json;
   } catch (err: any) {

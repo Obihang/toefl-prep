@@ -30,7 +30,7 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    if (import.meta.env.VITE_SENTRY_DSN) {
+    if (process.env.VITE_SENTRY_DSN) {
       import('@sentry/react')
         .then((Sentry) => {
           Sentry.captureException(error, {
@@ -53,7 +53,7 @@ class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErrorBound
 
   render() {
     if (this.state.hasError) {
-      const isSentryEnabled = Boolean(import.meta.env.VITE_SENTRY_DSN);
+      const isSentryEnabled = Boolean(process.env.VITE_SENTRY_DSN);
 
       return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
@@ -106,14 +106,14 @@ ReactDOM.createRoot(rootElement).render(
 
 // Initialize Sentry after first render via dynamic import to keep initial bundle size lean
 const initSentryDeferred = () => {
-  const dsn = import.meta.env.VITE_SENTRY_DSN;
+  const dsn = process.env.VITE_SENTRY_DSN;
   if (!dsn) return;
 
   import('@sentry/react')
     .then((Sentry) => {
       Sentry.init({
         dsn,
-        release: import.meta.env.VITE_COMMIT_SHA || undefined,
+        release: process.env.VITE_COMMIT_SHA || undefined,
         sendDefaultPii: false,
         integrations: [Sentry.browserTracingIntegration()],
         tracesSampleRate: 0.1,

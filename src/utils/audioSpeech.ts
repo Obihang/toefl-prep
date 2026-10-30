@@ -21,7 +21,12 @@ export {
 import { getAuthHeaders } from './apiKey';
 import { isRiffWav, parseSampleRateFromMime, stitchTranscripts } from './audioHelpers';
 import { parseDialogueLine, detectSpeakerGender, DialogueVoiceManager, inferGender, getBrowserSpeechPitchAndRate } from './voices';
-import { filterWhisperHallucinations } from './speakingMetrics';
+import { filterWhisperHallucinations, calculateSpeakingMetrics, calculateWpm, detectFillerWords, calculatePauses } from './audio/fluencyMetrics';
+import { mergeCompoundWords } from './phoneticMatcher';
+import type { SpeakingMetrics, WordTimestamp } from './audio/fluencyMetrics';
+import { calculateAudioLevel, calculateRms, calculateDbfs, trimPcmSilence, trimAudioSilence, applyNoiseGate } from './audio/audioProcessing';
+export * from './audio/audioProcessing';
+export * from './audio/fluencyMetrics';
 import { isWhisperWorkerBusy, transcribeWithLocalWhisper } from './localWhisperStt';
 import {
   recordVoiceEngineFailure,
@@ -35,6 +40,123 @@ export interface SpeechVoiceOption {
   default: boolean;
 }
 
+export const MALE_NEURAL_VOICES = [
+  'en-US-ChristopherNeural',
+  'en-US-GuyNeural',
+  'en-US-AndrewNeural',
+  'en-US-BrianNeural',
+  'en-GB-RyanNeural',
+  'en-GB-ThomasNeural',
+  'en-AU-WilliamNeural',
+];
+
+export const FEMALE_NEURAL_VOICES = [
+  'en-US-AriaNeural',
+  'en-US-JennyNeural',
+  'en-US-AvaNeural',
+  'en-US-EmmaNeural',
+  'en-GB-SoniaNeural',
+  'en-GB-LibbyNeural',
+  'en-AU-NatashaNeural',
+];
+
+const COMMON_FEMALE_NAMES = new Set([
+  'sarah', 'emily', 'jessica', 'rachel', 'hannah', 'olivia', 'sophia', 'emma', 'claire', 'chloe',
+  'megan', 'lauren', 'amanda', 'samantha', 'ashley', 'nicole', 'elizabeth', 'stephanie', 'rebecca',
+  'katherine', 'anna', 'maria', 'lisa', 'laura', 'michelle', 'kimberly', 'amy', 'angela', 'melissa',
+  'brenda', 'elena', 'maya', 'priya', 'lin', 'zoe', 'nina', 'alice', 'diana', 'victoria', 'natalie',
+  'grace', 'lily', 'haley', 'julia', 'jenny', 'aria', 'sonia', 'libby', 'ava', 'susan', 'karen',
+  'nancy', 'betty', 'helen', 'sandra', 'donna', 'carol', 'ruth', 'sharon', 'cynthia', 'kathleen',
+  'deborah', 'shirley', 'catherine', 'christine', 'janet', 'debra', 'carolyn', 'heather', 'diane',
+  'julie', 'joyce', 'kelly', 'christina', 'joan', 'evelyn', 'judith', 'andrea', 'cheryl', 'marilyn',
+]);
+
+const COMMON_MALE_NAMES = new Set([
+  'michael', 'david', 'john', 'james', 'robert', 'william', 'richard', 'thomas', 'charles', 'daniel',
+  'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua', 'kenneth', 'kevin',
+  'brian', 'george', 'timothy', 'ronald', 'edward', 'jason', 'jeffrey', 'ryan', 'jacob', 'gary',
+  'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon', 'benjamin',
+  'samuel', 'gregory', 'alexander', 'patrick', 'frank', 'raymond', 'jack', 'dennis', 'jerry',
+  'tyler', 'aaron', 'jose', 'adam', 'nathan', 'henry', 'douglas', 'zachary', 'peter', 'kyle',
+  'ethan', 'walter', 'noah', 'jeremy', 'christian', 'keith', 'roger', 'terry', 'gerald', 'harold',
+  'sean', 'austin', 'carl', 'arthur', 'lawrence', 'dylan', 'jesse', 'jordan', 'bryan', 'billy',
+  'joe', 'bruce', 'gabriel', 'logan', 'albert', 'willie', 'alan', 'juan', 'wayne', 'elijah',
+  'randy', 'roy', 'vincent', 'ralph', 'eugene', 'russell', 'bobby', 'mason', 'philip', 'louis',
+  'marcus', 'leo', 'carlos', 'omar', 'chen', 'raj', 'liam', 'lucas', 'alex', 'sam', 'ben', 'tom',
+  'dan', 'matt', 'chris', 'nick', 'mike', 'dave', 'steve', 'jim', 'bob', 'bill', 'ted', 'christopher',
+  'guy', 'steffan',
+]);
+
+export function inferGenderFromSpeaker(speakerLabelOrName: string): 'male' | 'female' | null {
+  if (!speakerLabelOrName) return null;
+  const lower = speakerLabelOrName.toLowerCase();
+
+  // Check explicit gender markers or titles first (check female before male)
+  if (/\b(female|woman|girl|ms\.?|mrs\.?|miss|she|her|chairwoman|spokeswoman|actress|waitress|mother|sister|daughter|lady|madam)\b/i.test(lower)) {
+    return 'female';
+  }
+  if (/\b(male|man|boy|mr\.?|he|him|his|chairman|spokesman|actor|waiter|father|brother|son|gentleman|sir)\b/i.test(lower)) {
+    return 'male';
+  }
+
+  // Strip generic role words so names inside "Emma (Student)" or "Student: Emma" are matched cleanly
+  const cleaned = lower.replace(
+    /\b(student|professor|prof|doctor|dr|advisor|librarian|instructor|dean|staff|speaker|narrator|interviewer|participant|coach|assistant|receptionist|lecturer|undergraduate|classmate|peer)\b/gi,
+    ' '
+  );
+
+  // Tokenize words and check against name sets (stripping optional 'neural' suffix)
+  const tokens = cleaned.replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  for (const rawToken of tokens) {
+    const token = rawToken.replace(/neural$/i, '');
+    if (COMMON_FEMALE_NAMES.has(token)) return 'female';
+    if (COMMON_MALE_NAMES.has(token)) return 'male';
+  }
+
+  const detected = detectSpeakerGender(speakerLabelOrName);
+  if (detected === 'female' || detected === 'male') {
+    return detected;
+  }
+
+  return null;
+}
+
+export function pickRandomVoice(
+  gender?: 'male' | 'female',
+  excludeVoice?: string
+): { gender: 'male' | 'female'; voiceId: string } {
+  const resolvedGender: 'male' | 'female' =
+    gender === 'male' || gender === 'female'
+      ? gender
+      : Math.random() < 0.5
+      ? 'male'
+      : 'female';
+
+  const basePool = resolvedGender === 'male' ? MALE_NEURAL_VOICES : FEMALE_NEURAL_VOICES;
+  const filteredPool =
+    excludeVoice && basePool.length > 1
+      ? basePool.filter((v) => v !== excludeVoice)
+      : basePool;
+
+  const voiceId = filteredPool[Math.floor(Math.random() * filteredPool.length)] || basePool[0];
+  return { gender: resolvedGender, voiceId };
+}
+
+export async function speakWithCloudTTS(
+  text: string,
+  gender?: 'male' | 'female',
+  options?: PlaySpeechOptions,
+  specificVoiceId?: string
+): Promise<void> {
+  const voice = specificVoiceId || options?.voice || options?.voiceName;
+  return playSpeech(text, {
+    ...options,
+    gender: gender || options?.gender,
+    voice,
+    voiceName: voice,
+  });
+}
+
 let cachedVoices: SpeechSynthesisVoice[] = [];
 const activeUtterances = new Set<SpeechSynthesisUtterance>();
 let activeHtmlAudio: HTMLAudioElement | null = null;
@@ -45,7 +167,7 @@ let currentDialogueSessionId = 0;
 let isAudioPlayingState = false;
 import { openDB } from 'idb';
 
-const DB_NAME = 'toefl_tts_cache_v4';
+const DB_NAME = 'toefl_tts_cache_v5';
 const DB_VERSION = 1;
 const STORE_NAME = 'audio_blobs';
 
@@ -56,6 +178,7 @@ if (typeof window !== 'undefined' && 'indexedDB' in window) {
     indexedDB.deleteDatabase('toefl_tts_cache_v1');
     indexedDB.deleteDatabase('toefl_tts_cache_v2');
     indexedDB.deleteDatabase('toefl_tts_cache_v3');
+    indexedDB.deleteDatabase('toefl_tts_cache_v4');
   } catch {}
 }
 
@@ -103,48 +226,240 @@ export function stripSpeakerAndFormatting(text: string): string {
 }
 
 const audioBufferMemoryCache = new Map<string, AudioBuffer>();
+const inFlightTtsPromises = new Map<
+  string,
+  Promise<{
+    audioBuffer: AudioBuffer;
+    engine: string;
+    audioUrl?: string;
+    base64?: string;
+    mimeType?: string;
+  } | null>
+>();
 
-// Pre-fetch speech audio silently in the background
-export async function prefetchSpeechAudio(text: string, voiceName?: string, gender?: string): Promise<void> {
+/**
+ * Splits text into sentence/clause chunks for fast TTS startup:
+ * - First chunk is shorter (~110 chars max) so playback starts twice as fast.
+ * - Subsequent chunks are up to ~220 chars and pre-fetched while chunk 0 plays.
+ */
+export function chunkTextForTTS(
+  text: string,
+  firstChunkMaxLen: number = 110,
+  subsequentMaxLen: number = 220
+): string[] {
+  const cleaned = stripSpeakerAndFormatting(text);
+  if (!cleaned) return [];
+  if (cleaned.length <= firstChunkMaxLen) return [cleaned];
+
+  // Split by sentence boundaries first
+  const rawSentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  let current = '';
+
+  const flushSubChunks = (segment: string, maxLen: number) => {
+    let rem = segment.trim();
+    while (rem.length > maxLen) {
+      // Try splitting at clause boundary (, ; : —) before maxLen
+      let splitIdx = -1;
+      const slice = rem.slice(0, maxLen);
+      const clauseMatch = slice.match(/^.*[,;:—-]\s+/);
+      if (clauseMatch && clauseMatch[0].length >= 35) {
+        splitIdx = clauseMatch[0].length;
+      } else {
+        const lastSpace = slice.lastIndexOf(' ');
+        splitIdx = lastSpace > 30 ? lastSpace : maxLen;
+      }
+      chunks.push(rem.slice(0, splitIdx).trim());
+      rem = rem.slice(splitIdx).trim();
+    }
+    if (rem) chunks.push(rem);
+  };
+
+  for (const sentence of rawSentences) {
+    const targetMax = chunks.length === 0 ? firstChunkMaxLen : subsequentMaxLen;
+    if (!current) {
+      if (sentence.length > targetMax) {
+        flushSubChunks(sentence, targetMax);
+      } else {
+        current = sentence;
+      }
+    } else if (current.length + 1 + sentence.length <= targetMax) {
+      current = `${current} ${sentence}`;
+    } else {
+      chunks.push(current);
+      const nextTargetMax = subsequentMaxLen;
+      if (sentence.length > nextTargetMax) {
+        flushSubChunks(sentence, nextTargetMax);
+        current = '';
+      } else {
+        current = sentence;
+      }
+    }
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks.length > 0 ? chunks : [cleaned];
+}
+
+function getCanonicalTtsCacheKey(voiceId: string, cleanChunk: string): string {
+  return `cache_v5_${voiceId || 'default'}_${cleanChunk}`;
+}
+
+/**
+ * Fetches or retrieves from memory/IndexedDB cache a single TTS chunk with a strictly locked voiceId.
+ */
+export async function fetchCloudTtsAudio(
+  chunk: string,
+  gender?: 'male' | 'female',
+  specificVoiceId?: string
+): Promise<{
+  audioBuffer: AudioBuffer;
+  engine: string;
+  audioUrl?: string;
+  base64?: string;
+  mimeType?: string;
+} | null> {
+  if (typeof window === 'undefined') return null;
+  const cleanChunk = stripSpeakerAndFormatting(chunk);
+  if (!cleanChunk) return null;
+
+  const lockedVoice =
+    specificVoiceId ||
+    (gender === 'male' ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  const provider = getStoredProvider();
+  const primaryKey = getCanonicalTtsCacheKey(lockedVoice, cleanChunk);
+  const legacyKey = `cache_${provider}_${lockedVoice}_${cleanChunk}`;
+
+  const memHit =
+    audioBufferMemoryCache.get(primaryKey) || audioBufferMemoryCache.get(legacyKey);
+  if (memHit) {
+    return { audioBuffer: memHit, engine: 'Cached Neural TTS' };
+  }
+
+  const inflight = inFlightTtsPromises.get(primaryKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const taskPromise = (async () => {
+    try {
+      const db = await dbPromise;
+      if (db) {
+        const cached =
+          (await db.get(STORE_NAME, primaryKey)) ||
+          (await db.get(STORE_NAME, legacyKey));
+        if (cached && cached.base64) {
+          const { audioBuffer } = await decodeSpeech(
+            cached.base64,
+            cached.mimeType || 'audio/mpeg'
+          );
+          audioBufferMemoryCache.set(primaryKey, audioBuffer);
+          return {
+            audioBuffer,
+            engine: `Cached (${cached.engine || 'Neural TTS'})`,
+            audioUrl: cached.audioUrl,
+            base64: cached.base64,
+            mimeType: cached.mimeType,
+          };
+        }
+      }
+    } catch {}
+
+    try {
+      const authHdrs = await getAuthHeaders();
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { ...getApiHeaders(), ...authHdrs },
+        body: JSON.stringify({
+          text: cleanChunk,
+          voice: lockedVoice,
+          voiceName: lockedVoice,
+          gender,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.audioBase64) {
+        incrementTtsQuota();
+        const engineName = json.modelUsed || 'Neural TTS';
+        const { audioBuffer } = await decodeSpeech(
+          json.audioBase64,
+          json.mimeType || 'audio/mpeg'
+        );
+        audioBufferMemoryCache.set(primaryKey, audioBuffer);
+        try {
+          const db = await dbPromise;
+          if (db) {
+            await db.put(
+              STORE_NAME,
+              {
+                base64: json.audioBase64,
+                mimeType: json.mimeType,
+                engine: engineName,
+                audioUrl: json.audioUrl,
+              },
+              primaryKey
+            );
+          }
+        } catch {}
+        return {
+          audioBuffer,
+          engine: engineName,
+          audioUrl: json.audioUrl,
+          base64: json.audioBase64,
+          mimeType: json.mimeType,
+        };
+      }
+    } catch {}
+
+    return null;
+  })();
+
+  inFlightTtsPromises.set(primaryKey, taskPromise);
+  try {
+    return await taskPromise;
+  } finally {
+    inFlightTtsPromises.delete(primaryKey);
+  }
+}
+
+// Pre-fetch speech audio silently in the background (pre-warming the fast first chunk first!)
+export async function prefetchSpeechAudio(
+  text: string,
+  voiceName?: string,
+  gender?: string
+): Promise<void> {
   if (typeof window === 'undefined') return;
   const cleanText = stripSpeakerAndFormatting(text);
   if (!cleanText) return;
 
-  const provider = getStoredProvider();
-  const cacheKey = `cache_${provider}_${voiceName || 'default'}_${cleanText}`;
+  const inferredFromVoice = voiceName ? inferGender(voiceName) : undefined;
+  const resolvedGender: 'male' | 'female' | undefined =
+    gender === 'male' || gender === 'female'
+      ? gender
+      : inferredFromVoice === 'male' || inferredFromVoice === 'female'
+      ? inferredFromVoice
+      : undefined;
+  const lockedVoice =
+    voiceName ||
+    (resolvedGender === 'male' ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-  if (audioBufferMemoryCache.has(cacheKey)) return;
+  const chunks = chunkTextForTTS(cleanText);
+  if (chunks.length === 0) return;
 
-  try {
-    const db = await dbPromise;
-    if (db) {
-      const cached = await db.get(STORE_NAME, cacheKey);
-      if (cached && cached.base64) {
-        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/wav');
-        audioBufferMemoryCache.set(cacheKey, audioBuffer);
-        return;
-      }
-    }
-  } catch {}
+  // 1. Pre-warm the short first chunk immediately so clicking Play has 0ms latency
+  await fetchCloudTtsAudio(chunks[0], resolvedGender, lockedVoice);
 
-  try {
-    const authHdrs = await getAuthHeaders();
-    const res = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { ...getApiHeaders(), ...authHdrs },
-      body: JSON.stringify({ text: cleanText, voice: voiceName, voiceName, gender }),
-    });
-    const json = await res.json();
-    if (res.ok && json.success && json.audioBase64) {
-      incrementTtsQuota();
-      const { audioBuffer } = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/mpeg');
-      audioBufferMemoryCache.set(cacheKey, audioBuffer);
-      try {
-        const db = await dbPromise;
-        await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: json.modelUsed || 'Neural TTS' }, cacheKey);
-      } catch {}
-    }
-  } catch {}
+  // 2. Pre-warm remaining chunks in sequence with the exact same lockedVoice
+  for (let i = 1; i < chunks.length; i++) {
+    await fetchCloudTtsAudio(chunks[i], resolvedGender, lockedVoice);
+  }
 }
 
 // Pre-cache available browser voices synchronously
@@ -857,100 +1172,79 @@ export async function playSpeech(
   const hasKey = !!(getStoredApiKey() || getStoredVoiceKey());
   const breakerBlocked = isTtsCircuitBreakerBlocked();
 
-  // Helper 1: Try Cloud Voice (uses zero-key free neural server TTS as default)
+  // Helper 1: Try Cloud Voice (uses chunked pre-warmed cache + strictly locked voiceName across all chunks)
   const tryCloud = async (): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }> => {
-    // Check IndexedDB cache first
-    const cacheKey = `cache_${provider}_${voiceName}_${cleanText}`;
-    try {
-      const db = await dbPromise;
-      const cached = await db.get(STORE_NAME, cacheKey);
-      if (cached && cached.base64) {
-        const { audioBuffer } = await decodeSpeech(cached.base64, cached.mimeType || 'audio/mpeg');
-        if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-          options.onStatus?.(`Voice: Cached (${cached.engine || 'Neural TTS'})`);
-          options.onEngineDetected?.(`Voice: Cached (${cached.engine || 'Neural TTS'})`);
-          options.onStart?.();
-          await playDecodedSpeech(audioBuffer, options.onEnd);
-          return { ok: true };
-        }
-      }
-    } catch {}
+    const lockedVoice =
+      voice ||
+      voiceName ||
+      (gender === 'male' ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
 
-    // Neural server fetch with 20 second timeout
-    options.onStatus?.('Generating neural voice...');
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    // 1. Check if the entire unchunked text is already in memory or IndexedDB cache
+    const fullPrimaryKey = getCanonicalTtsCacheKey(lockedVoice, cleanText);
+    const fullLegacyKey = `cache_${provider}_${lockedVoice}_${cleanText}`;
+    const fullMemHit =
+      audioBufferMemoryCache.get(fullPrimaryKey) ||
+      audioBufferMemoryCache.get(fullLegacyKey);
 
-    try {
-      const authHdrs = await getAuthHeaders();
-      const res = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { ...getApiHeaders(), ...authHdrs },
-        body: JSON.stringify({
-          text: cleanText,
-          voice,
-          voiceName,
-          gender,
-          speaker: options.speaker,
-          rate: options.rate,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-
-      const json = await res.json();
-      if (res.status === 429) {
-        const retryAfter = (json.rateLimit?.retryAfterSeconds || 60) * 1000;
-        const blockDuration = Math.min(retryAfter + 5000, 60000);
-        localStorage.setItem(TTS_BLOCKED_UNTIL_KEY, (Date.now() + blockDuration).toString());
-        const reason = 'Voice server busy. Please wait a moment.';
-        console.warn(reason);
-        return { ok: false, reason };
-      }
-
-      if (!res.ok || !json.success || (!json.audioBase64 && !json.audioUrl)) {
-        const reason = json.error || 'Server voice synthesis failed.';
-        console.warn(`Voice server error: ${reason}`);
-        return { ok: false, reason };
-      }
-
-      incrementTtsQuota();
-      const engineName = json.modelUsed || 'Neural TTS';
-
-      // If audioBase64 returned, decode and cache immediately
-      let audioBuffer: AudioBuffer | null = null;
-      if (json.audioBase64) {
-        const decoded = await decodeSpeech(json.audioBase64, json.mimeType || 'audio/mpeg');
-        audioBuffer = decoded.audioBuffer;
-        try {
-          const db = await dbPromise;
-          await db.put(STORE_NAME, { base64: json.audioBase64, mimeType: json.mimeType, engine: engineName }, cacheKey);
-        } catch {}
-      }
-
-      // If user is still on this sentence, play it!
+    if (fullMemHit) {
       if (isAudioPlayingState && currentDialogueSessionId === currentSession) {
-        options.onStatus?.(`Voice: ${engineName}`);
-        options.onEngineDetected?.(`Voice: ${engineName}`);
-        try {
-          if (audioBuffer) {
-            await playDecodedSpeech(audioBuffer, options.onEnd);
-          } else if (json.audioUrl) {
-            await playAudioDataUri(json.audioUrl, false);
-            options.onEnd?.();
-          }
-          return { ok: true };
-        } catch (playErr: any) {
-          const reason = `Voice playback failed: ${playErr?.message || playErr}`;
-          console.warn(reason);
-          return { ok: false, reason };
-        }
+        options.onStatus?.('Voice: Cached (Neural TTS)');
+        options.onEngineDetected?.('Voice: Cached (Neural TTS)');
+        options.onStart?.();
+        await playDecodedSpeech(fullMemHit, options.onEnd);
+        return { ok: true };
       }
       return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+    }
+
+    // 2. Chunk text so chunk 0 (~110 chars) starts immediately and subsequent chunks pre-fetch in parallel
+    const chunks = chunkTextForTTS(cleanText, 110, 220);
+    if (chunks.length === 0) return { ok: false, reason: 'Empty text' };
+
+    options.onStatus?.('Generating neural voice...');
+
+    try {
+      let nextChunkPromise = fetchCloudTtsAudio(chunks[0], gender, lockedVoice);
+
+      for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
+          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+        }
+
+        const currentResult = await nextChunkPromise;
+
+        // Kick off next chunk immediately in parallel using the EXACT SAME lockedVoice & gender
+        if (cIdx + 1 < chunks.length) {
+          nextChunkPromise = fetchCloudTtsAudio(chunks[cIdx + 1], gender, lockedVoice);
+        }
+
+        if (!currentResult || !currentResult.audioBuffer) {
+          return { ok: false, reason: 'Server voice synthesis failed.' };
+        }
+
+        if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) {
+          return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
+        }
+
+        if (cIdx === 0) {
+          options.onStatus?.(`Voice: ${currentResult.engine}`);
+          options.onEngineDetected?.(`Voice: ${currentResult.engine}`);
+          options.onStart?.();
+        }
+
+        const isLastChunk = cIdx === chunks.length - 1;
+        await playDecodedSpeech(
+          currentResult.audioBuffer,
+          isLastChunk ? options.onEnd : undefined
+        );
+      }
+
+      return { ok: true };
     } catch (err: any) {
-      clearTimeout(timer);
       const isTimeout = err?.name === 'AbortError' || String(err).includes('abort');
-      const reason = isTimeout ? 'Voice request timed out after 20 seconds.' : (err?.message || 'Voice service unavailable.');
+      const reason = isTimeout
+        ? 'Voice request timed out after 20 seconds.'
+        : err?.message || 'Voice service unavailable.';
       console.warn(`Voice synthesis failed: ${reason}`);
       return { ok: false, reason };
     }
@@ -981,10 +1275,18 @@ export async function playSpeech(
 
     try {
       const spk = options.speaker || voiceName;
-      const g = options.speaker ? detectSpeakerGender(spk, '') : inferGender(voiceName);
-      const gender = g === 'male' ? 'male' : 'female';
-      const pitchRate = getBrowserSpeechPitchAndRate(spk, gender);
-      const voiceObj = pickBrowserVoiceForGender(gender) || englishVoices[0];
+      const inferredFromSpk = options.speaker
+        ? inferGenderFromSpeaker(options.speaker) || detectSpeakerGender(spk, '')
+        : inferGender(voiceName);
+      const resolvedG =
+        gender === 'male' || gender === 'female'
+          ? gender
+          : inferredFromSpk === 'male' || inferredFromSpk === 'female'
+          ? inferredFromSpk
+          : inferGender(voiceName);
+      const targetGender: 'male' | 'female' = resolvedG === 'male' ? 'male' : 'female';
+      const pitchRate = getBrowserSpeechPitchAndRate(spk, targetGender);
+      const voiceObj = pickBrowserVoiceForGender(targetGender) || englishVoices[0];
 
       let finalPitch = pitchRate.pitch;
       let finalRate = pitchRate.rate;
@@ -995,10 +1297,10 @@ export async function playSpeech(
         const hasMale = maleKeywords.some(kw => nameLower.includes(kw));
         const hasFemale = femaleKeywords.some(kw => nameLower.includes(kw));
 
-        if (gender === 'male' && !hasMale) {
+        if (targetGender === 'male' && !hasMale) {
           finalPitch = 0.96;
           finalRate = 0.98;
-        } else if (gender === 'female' && !hasFemale) {
+        } else if (targetGender === 'female' && !hasFemale) {
           finalPitch = 1.04;
         }
       }
@@ -1328,10 +1630,28 @@ export async function playDialogue(
     if (!parsed.spokenText) continue;
 
     const speakerName = parsed.speakerName || (i % 2 === 0 ? 'Speaker A' : 'Speaker B');
-    const voiceToUse = manager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
+    const lowerSpk = `${speakerName} ${parsed.speakerHint || ''}`.toLowerCase();
+    const isAuthority =
+      /\b(professor|prof\.?|advisor|librarian|instructor|doctor|dr\.?|staff|dean|coordinator|director|coach|assistant|receptionist|narrator|lecturer|faculty|teacher|speaker\s*a|^a$)\b/i.test(
+        lowerSpk
+      );
+    const isExplicitStudent =
+      /\b(student|undergraduate|grad student|classmate|peer|speaker\s*b|^b$)\b/i.test(
+        lowerSpk
+      );
+    // Any first-name-only speaker (like "Emma") who is not an authority figure maps to Speaker B (student)
+    const isSpeakerB = isExplicitStudent || (!isAuthority && Boolean(parsed.speakerName)) || (!isAuthority && i % 2 === 1);
+
+    const mappedVoice = isSpeakerB ? voiceMapping?.B : voiceMapping?.A;
+    const voiceToUse =
+      mappedVoice || manager.getVoiceForSpeaker(speakerName, parsed.speakerHint);
+    const inferredSpkGender = inferGenderFromSpeaker(`${speakerName} ${parsed.speakerHint || ''}`);
+    const genderToUse = inferredSpkGender || inferGender(voiceToUse);
 
     await playSpeech(parsed.spokenText, {
+      voice: voiceToUse,
       voiceName: voiceToUse,
+      gender: genderToUse,
       speaker: speakerName,
       sessionId: currentSession,
       skipStop: true,
@@ -1340,7 +1660,7 @@ export async function playDialogue(
     });
 
     if (!isAudioPlayingState || currentDialogueSessionId !== currentSession) break;
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 150));
   }
 
   if (currentDialogueSessionId === currentSession) {
@@ -1348,6 +1668,8 @@ export async function playDialogue(
     options.onEnd?.();
   }
 }
+
+export const speakDialogue = playDialogue;
 
 export async function clearAudioCache(): Promise<void> {
   try {
@@ -1378,6 +1700,61 @@ export function playChime(freq = 880, durationMs = 200, type: OscillatorType = '
     osc.stop(ctx.currentTime + durationMs / 1000);
   } catch {
     // AudioContext blocked or unavailable
+  }
+}
+
+// Official TOEFL iBT acoustic "BEEP" cue right before microphone recording starts
+export async function playRecordingBeep(): Promise<void> {
+  // Brief 400ms pause so the speaker's final word finishes cleanly
+  await new Promise((r) => setTimeout(r, 400));
+
+  if (typeof window === 'undefined') {
+    await new Promise((r) => setTimeout(r, 300));
+    return;
+  }
+
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      await new Promise((r) => setTimeout(r, 300));
+      return;
+    }
+
+    const ctx = getAudioContext() || new AudioCtx();
+    if (ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        await new Promise((r) => setTimeout(r, 300));
+        return;
+      }
+    }
+
+    if (ctx.state !== 'running') {
+      await new Promise((r) => setTimeout(r, 300));
+      return;
+    }
+
+    const durationSec = 0.22; // 220ms
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + durationSec);
+
+    // Resolve 150ms after the 220ms beep ends so the microphone never records the beep itself
+    await new Promise((r) => setTimeout(r, 220 + 150));
+  } catch {
+    await new Promise((r) => setTimeout(r, 300));
   }
 }
 
@@ -1765,7 +2142,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
       volumeSamples = 0;
       quietWarningFired = false;
       isDeviceUnplugged = false;
-      waitingForVoice = Boolean(options.autoStartThreshold && options.autoStartThreshold > 0);
+      waitingForVoice = false;
 
       // Stop any TTS playback immediately to avoid microphone picking up app voice
       stopSpeaking();
@@ -1861,10 +2238,7 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
               }
 
               analyserNode.getByteFrequencyData(dataArray);
-              let sum = 0;
-              for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-              const avg = sum / dataArray.length;
-              const lvl = Math.min(100, Math.round((avg / 120) * 100));
+              const lvl = calculateAudioLevel(dataArray);
               options.onAudioLevel?.(lvl);
 
               if (waitingForVoice && lvl > (options.autoStartThreshold || 0)) {
@@ -2054,27 +2428,31 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
         }
       }
 
-      if (isSilentClip && !accumulatedTranscript.trim()) {
+      // Clean any live Web Speech transcript against silence/punctuation hallucinations
+      const { transcript: cleanedLive } = filterWhisperHallucinations(accumulatedTranscript, []);
+      const liveTranscript = cleanedLive.trim();
+
+      if (isSilentClip && !liveTranscript) {
         console.warn(`[Audio Timing] Silent clip detected (size: ${blobSize}B, duration: ${recordingDurationSec.toFixed(1)}s, ${Math.round(bytesPerSec)} B/s, ctxRunning: ${audioContextAlwaysRunning}). Skipping transcription.`);
         options.onStatusChange?.('error', 'No sound was detected in your recording. Please check your microphone or speak closer to it, then try again.');
         return { transcript: '', audioBlob: finalAudioBlob, isSilent: true };
       }
 
       // If we have live transcript from Web Speech, return immediately
-      const liveTranscript = accumulatedTranscript.trim();
       if (liveTranscript.length > 0) {
         console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via Web Speech)`);
         options.onStatusChange?.('idle');
         return { transcript: liveTranscript, audioBlob: finalAudioBlob };
       }
 
-      // Fallback: If Web Speech produced no text, use fast Gemini transcription with 20s timeout
+      // Fallback: If Web Speech produced no text, use Whisper / STT transcription
       if (finalAudioBlob && (finalAudioBlob as Blob).size > 150) {
         options.onStatusChange?.('processing');
         try {
           const { transcript: aiTranscribed, durationMs, metrics } = await transcribeAudioBlob(finalAudioBlob);
-          const cleaned = aiTranscribed.trim();
-          console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via Gemini /api/transcribe, model duration: ${durationMs || 'N/A'}ms)`);
+          const { transcript: filteredAi } = filterWhisperHallucinations(aiTranscribed || '', []);
+          const cleaned = filteredAi.trim() || liveTranscript;
+          console.log(`[Audio Timing] stop -> transcript: ${Date.now() - stopRequestedTime}ms (via STT, model duration: ${durationMs || 'N/A'}ms)`);
           if (cleaned) {
             options.onTranscriptUpdate?.(cleaned);
           }
@@ -2089,6 +2467,10 @@ export function createVoiceSession(options: VoiceSessionOptions): VoiceSession {
           };
         } catch (err: any) {
           console.warn('[Audio] AI speech transcription fallback error:', err);
+          if (liveTranscript) {
+            options.onStatusChange?.('idle');
+            return { transcript: liveTranscript, audioBlob: finalAudioBlob };
+          }
           const errCode: 'TRANSCRIPTION_TIMEOUT' | 'TRANSCRIPTION_FAILED' =
             err?.message === 'TRANSCRIPTION_TIMEOUT' ? 'TRANSCRIPTION_TIMEOUT' : 'TRANSCRIPTION_FAILED';
 
@@ -2257,150 +2639,216 @@ function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
-// Check if two words are equivalent in TOEFL speaking context
+// Check if two words are equivalent in TOEFL speaking context (strict — never matches "and" to "wind")
 function areWordsEquivalent(targetWord: string, candidate: string): boolean {
+  if (!targetWord || !candidate) return false;
   if (targetWord === candidate) return true;
 
-  // Contraction or o'clock without quote
-  const cleanTarget = targetWord.replace(/'/g, '').toLowerCase();
-  const cleanCandidate = candidate.replace(/'/g, '').toLowerCase();
+  // Contraction or punctuation-stripped exact match
+  const cleanTarget = targetWord.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const cleanCandidate = candidate.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (!cleanTarget || !cleanCandidate) return false;
   if (cleanTarget === cleanCandidate) return true;
 
-  // Common synonyms / abbreviations
-  const synonyms: Record<string, string[]> = {
+  // Strict TOEFL abbreviations & true homophones only
+  const equivalents: Record<string, string[]> = {
     laboratory: ['lab', 'labs'],
     lab: ['laboratory'],
-    professor: ['prof', 'professors'],
-    professors: ['prof', 'professor'],
+    professor: ['prof'],
+    prof: ['professor'],
     doctor: ['dr'],
-    assistants: ['assistant'],
-    assistant: ['assistants'],
-    reports: ['report'],
-    report: ['reports'],
-    slides: ['slide'],
-    slide: ['slides'],
-    sessions: ['session'],
-    session: ['sessions'],
-    hours: ['hour'],
-    hour: ['hours'],
-    concepts: ['concept'],
-    concept: ['concepts'],
-    datasets: ['dataset'],
-    dataset: ['datasets'],
-    panels: ['panel'],
-    panel: ['panels'],
-    trials: ['trial'],
-    trial: ['trials'],
-    organisms: ['organism'],
-    organism: ['organisms'],
-    layers: ['layer'],
-    layer: ['layers'],
-    communities: ['community'],
-    community: ['communities'],
+    dr: ['doctor'],
+    there: ['their', 'theyre'],
+    their: ['there', 'theyre'],
+    theyre: ['there', 'their'],
+    to: ['too', 'two'],
+    too: ['to', 'two'],
+    two: ['to', 'too'],
+    hear: ['here'],
+    here: ['hear'],
+    for: ['four'],
+    four: ['for'],
+    right: ['write'],
+    write: ['right'],
+    know: ['no'],
+    no: ['know'],
+    new: ['knew'],
+    knew: ['new'],
+    our: ['hour'],
+    hour: ['our'],
+    by: ['buy'],
+    buy: ['by'],
   };
 
-  if (synonyms[cleanTarget]?.includes(cleanCandidate)) return true;
-  if (synonyms[cleanCandidate]?.includes(cleanTarget)) return true;
+  if (equivalents[cleanTarget]?.includes(cleanCandidate)) return true;
+  if (equivalents[cleanCandidate]?.includes(cleanTarget)) return true;
 
-  // Single-letter morphological difference (plural 's' or 'ed')
+  // Minor plural/past inflection ONLY on content words of 6+ letters
   if (
-    cleanTarget.length >= 5 &&
-    (cleanTarget + 's' === cleanCandidate || cleanCandidate + 's' === cleanTarget || cleanTarget + 'ed' === cleanCandidate)
+    cleanTarget.length >= 6 &&
+    cleanCandidate.length >= 6 &&
+    (cleanTarget + 's' === cleanCandidate ||
+      cleanCandidate + 's' === cleanTarget ||
+      cleanTarget + 'ed' === cleanCandidate ||
+      cleanCandidate + 'ed' === cleanTarget)
   ) {
     return true;
   }
 
-  // Prefix overlap (e.g., "maint" vs "maintenance", "lab" vs "laboratory")
-  if (
-    (cleanTarget.length >= 4 && cleanCandidate.startsWith(cleanTarget)) ||
-    (cleanCandidate.length >= 4 && cleanTarget.startsWith(cleanCandidate))
-  ) {
-    return true;
-  }
-
-  // Fuzzy phonetic & Levenshtein similarity for accented speech / Whisper mishearings (>= 55% match)
-  const dist = levenshteinDistance(cleanTarget, cleanCandidate);
-  const maxLen = Math.max(cleanTarget.length, cleanCandidate.length);
-  const similarity = maxLen > 0 ? 1 - dist / maxLen : 0;
-  if (similarity >= 0.55) return true;
-
-  // Consonant skeleton similarity (>= 55%)
-  const c1 = cleanTarget.replace(/[aeiouy]/g, '');
-  const c2 = cleanCandidate.replace(/[aeiouy]/g, '');
-  if (c1 && c2) {
-    const cDist = levenshteinDistance(c1, c2);
-    const cMax = Math.max(c1.length, c2.length);
-    if (cMax > 0 && 1 - cDist / cMax >= 0.55) return true;
+  // Allow at most 1 character edit ONLY on long words (>= 7 chars) that start with the same letter
+  if (cleanTarget.length >= 7 && cleanCandidate.length >= 7 && cleanTarget[0] === cleanCandidate[0]) {
+    const dist = levenshteinDistance(cleanTarget, cleanCandidate);
+    if (dist <= 1) return true;
   }
 
   return false;
 }
 
-// Compare target sentence vs student spoken transcript with smart time & number equivalence
+const FILLER_TOKENS_SET = new Set(['um', 'uh', 'er', 'erm', 'ah', 'hmm', 'uhm', 'umm']);
+
+/**
+ * Strict Sequence Alignment (Needleman-Wunsch / Longest Common Subsequence)
+ * for TOEFL Listen & Repeat accuracy scoring:
+ * 1. Aligns target words and spoken words in strict sequential order (0..N).
+ *    Each spoken word can match at most one target word in sequence.
+ * 2. Penalizes both omitted/missed target words AND extra/inserted/repeated spoken words.
+ * 3. Any missing target word OR any extra/inserted word guarantees accuracy < 100%.
+ * 4. Returns ordered wordStatuses with 'matched' (green), 'missed' (red), and 'extra' (amber "+ word").
+ */
 export function calculateSentenceMatch(
   target: string,
   spoken: string
 ): {
   percentage: number;
   wordStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }>;
+  matchedCount?: number;
+  missedCount?: number;
+  extraCount?: number;
 } {
-  const { mergeCompoundWords } = require('./phoneticMatcher');
   const mergedSpoken = mergeCompoundWords ? mergeCompoundWords(spoken, target) : spoken;
-  const rawTargetWords = target.split(/\s+/).filter(Boolean);
+  const rawTargetWords = target.trim().split(/\s+/).filter(Boolean);
   if (rawTargetWords.length === 0) {
-    return { percentage: 0, wordStatuses: [] };
+    return { percentage: 0, wordStatuses: [], matchedCount: 0, missedCount: 0, extraCount: 0 };
   }
 
-  const spokenTokens = tokenizeNormalizedWords(mergedSpoken);
-  const spokenFreq = new Map<string, number>();
-  for (const t of spokenTokens) {
-    spokenFreq.set(t, (spokenFreq.get(t) || 0) + 1);
-  }
+  // Expand target words so each display word has its normalized comparison token(s)
+  const targetItems = rawTargetWords.map((raw) => {
+    const tokens = tokenizeNormalizedWords(raw);
+    return {
+      display: raw,
+      norm: tokens.join(' ') || raw.toLowerCase().replace(/[^a-z0-9]/g, ''),
+      tokens,
+    };
+  });
 
-  const wordStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }> = [];
-  let matchedCount = 0;
+  // Tokenize spoken words while preserving display tokens and excluding pure vocalized fillers
+  // (vocalized fillers are tracked separately by the filler detector)
+  const rawSpokenWords = mergedSpoken
+    .trim()
+    .split(/\s+/)
+    .map((w) => w.replace(/^\[|\]$/g, '').trim())
+    .filter((w) => {
+      if (!w) return false;
+      const clean = w.toLowerCase().replace(/[^a-z0-9']/g, '');
+      return Boolean(clean) && !FILLER_TOKENS_SET.has(clean);
+    });
 
-  for (const rawWord of rawTargetWords) {
-    const normTokens = tokenizeNormalizedWords(rawWord);
-    let allTokensMatched = true;
-
-    if (normTokens.length === 0) {
-      allTokensMatched = true;
-    } else {
-      for (const token of normTokens) {
-        // Direct match
-        const directCount = spokenFreq.get(token) || 0;
-        if (directCount > 0) {
-          spokenFreq.set(token, directCount - 1);
-          continue;
-        }
-
-        // Equivalence / synonym match
-        let foundEquivalent = false;
-        for (const [candidate, count] of spokenFreq.entries()) {
-          if (count > 0 && areWordsEquivalent(token, candidate)) {
-            spokenFreq.set(candidate, count - 1);
-            foundEquivalent = true;
-            break;
-          }
-        }
-
-        if (!foundEquivalent) {
-          allTokensMatched = false;
-        }
+  // Collapse multi-word spoken time expressions (e.g. "ten" + "o'clock" when target has "10:00")
+  const spokenItems: Array<{ display: string; norm: string }> = [];
+  for (let idx = 0; idx < rawSpokenWords.length; idx++) {
+    const w1 = rawSpokenWords[idx];
+    const w2 = idx + 1 < rawSpokenWords.length ? rawSpokenWords[idx + 1] : '';
+    if (w2) {
+      const combinedNorm = tokenizeNormalizedWords(`${w1} ${w2}`).join(' ');
+      if (combinedNorm && targetItems.some((ti) => ti.norm === combinedNorm && ti.tokens.length >= 2)) {
+        spokenItems.push({ display: `${w1} ${w2}`, norm: combinedNorm });
+        idx++;
+        continue;
       }
     }
+    const norm = tokenizeNormalizedWords(w1).join(' ') || w1.toLowerCase().replace(/[^a-z0-9]/g, '');
+    spokenItems.push({ display: w1, norm });
+  }
 
-    if (allTokensMatched) {
-      matchedCount++;
-      wordStatuses.push({ word: rawWord, status: 'matched' });
-    } else {
-      wordStatuses.push({ word: rawWord, status: 'missed' });
+  const M = targetItems.length;
+  const N = spokenItems.length;
+
+  if (N === 0) {
+    return {
+      percentage: 0,
+      wordStatuses: targetItems.map((ti) => ({ word: ti.display, status: 'missed' as const })),
+      matchedCount: 0,
+      missedCount: M,
+      extraCount: 0,
+    };
+  }
+
+  // Dynamic Programming LCS table for strict sequential alignment
+  const dp: number[][] = Array.from({ length: M + 1 }, () => Array(N + 1).fill(0));
+
+  for (let i = 1; i <= M; i++) {
+    for (let j = 1; j <= N; j++) {
+      if (areWordsEquivalent(targetItems[i - 1].norm, spokenItems[j - 1].norm)) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
     }
   }
 
-  const percentage = Math.round((matchedCount / rawTargetWords.length) * 100);
-  return { percentage, wordStatuses };
+  // Backtrack from (M, N) to (0, 0) to reconstruct exact sequential diff (matched, missed, extra)
+  const reversedStatuses: Array<{ word: string; status: 'matched' | 'missed' | 'extra' }> = [];
+  let i = M;
+  let j = N;
+  let alignedMatchesCount = 0;
+  let extraWordsCount = 0;
+
+  while (i > 0 || j > 0) {
+    if (
+      i > 0 &&
+      j > 0 &&
+      areWordsEquivalent(targetItems[i - 1].norm, spokenItems[j - 1].norm) &&
+      dp[i][j] === dp[i - 1][j - 1] + 1
+    ) {
+      reversedStatuses.push({ word: targetItems[i - 1].display, status: 'matched' });
+      alignedMatchesCount++;
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      reversedStatuses.push({ word: spokenItems[j - 1].display, status: 'extra' });
+      extraWordsCount++;
+      j--;
+    } else {
+      reversedStatuses.push({ word: targetItems[i - 1].display, status: 'missed' });
+      i--;
+    }
+  }
+
+  const wordStatuses = reversedStatuses.reverse();
+  const missedWordsCount = M - alignedMatchesCount;
+
+  // Compute strict accuracy score with penalty for extra/inserted/repeated words
+  let percentage = Math.max(
+    0,
+    Math.round(((alignedMatchesCount - extraWordsCount * 0.5) / M) * 100)
+  );
+
+  // If ANY target word was missed OR ANY extra word was inserted, accuracy MUST be < 100%
+  if (missedWordsCount > 0 || extraWordsCount > 0) {
+    const maxAllowed =
+      missedWordsCount === 0 && extraWordsCount > 0
+        ? Math.max(0, Math.min(94, 100 - extraWordsCount * 6))
+        : Math.min(95, Math.floor((alignedMatchesCount / M) * 100));
+    percentage = Math.min(percentage, maxAllowed);
+  }
+
+  return {
+    percentage,
+    wordStatuses,
+    matchedCount: alignedMatchesCount,
+    missedCount: missedWordsCount,
+    extraCount: extraWordsCount,
+  };
 }
 
 // Play short beep tone for real exam auto-flow

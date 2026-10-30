@@ -12,6 +12,8 @@ export interface ReadingQuestion {
   options: string[];
   answer: number;
   why: string;
+  audioExcerpt?: string;
+  questionType?: string;
 }
 
 export interface ReadingPassageTask {
@@ -53,10 +55,12 @@ export interface ListenRepeatTask {
 }
 
 export interface InterviewQuestionItem {
+  id?: string;
   question: string;
   prepTimeSeconds: number;
   responseTimeSeconds: number;
   suggestedPoints: string[];
+  sampleAnswer?: string;
 }
 
 export interface SpeakingInterviewTask {
@@ -68,12 +72,23 @@ export interface SpeakingInterviewTask {
   questions: InterviewQuestionItem[];
   interviewerName: string;
   interviewerGender: 'male' | 'female' | 'unknown';
+  sampleAnswer?: string;
+  modelAnswers?: string[];
 }
 
 export interface BuildSentenceItem {
+  id?: string;
   context: string;
+  framePrefix?: string;
+  frameSuffix?: string;
+  targetChunks: string[];
+  distractorChunks?: string[];
   words: string[];
+  scrambledWords?: string[];
+  targetSentence: string;
   answer: string;
+  correctSentence?: string;
+  grammarRule?: string;
   explanation: string;
 }
 
@@ -114,7 +129,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Synaptic Plasticity and Long-Term Memory',
     level: 'upper-intermediate',
     topic: 'science-tech',
-    text: 'Synaptic plasticity is the biological foundation of human learning. Neuroscien[[tists]] have discov[[ered]] that syna[[pses]] strengthen throu[[gh]] repeated elect[[rical]] stimulation. This phenom[[enon]], known as long-term potentiation, ena[[bles]] neurons to st[[ore]] vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.',
+    text: 'Synaptic plasticity is the biological foundation of human learning. Neurosc[[ientists]] have disco[[vered]] that syna[[pses]] stren[[gthen]] thr[[ough]] repe[[ated]] elect[[rical]] stimulation. This pheno[[menon]], known as long-term potentiation, ena[[bles]] neurons to store vast quant[[ities]] of infor[[mation]] across distributed cerebral circuits.',
     totalBlanks: 10,
   },
   {
@@ -122,7 +137,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Urban Heat Islands and Microclimate Mitigation',
     level: 'intermediate',
     topic: 'environment',
-    text: 'Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[[tern]] occurs beca[[use]] concrete struc[[tures]] absorb solar radi[[ation]] during the day. Enviro[[nmental]] planners advo[[cate]] installing refl[[ective]] roofs and expan[[ding]] urban cano[[pies]] to miti[[gate]] excessive heat stress.',
+    text: 'Metropolitan areas frequently experience elevated temperatures relative to surrounding rural zones. This pat[[tern]] occ[[urs]] bec[[ause]] conc[[rete]] struc[[tures]] absorb solar radi[[ation]] during the day. Enviro[[nmental]] plan[[ners]] advo[[cate]] installing refl[[ective]] roofs and expanding urban canopies to mitigate excessive heat stress.',
     totalBlanks: 10,
   },
   {
@@ -130,7 +145,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Algorithmic Pricing in Competitive Markets',
     level: 'advanced',
     topic: 'business-economics',
-    text: 'Modern digital retailers increasingly rely upon automated dynamic pricing models. Soft[[ware]] algorithms moni[[tor]] competitor rates and pred[[ict]] consumer dem[[and]] in real time. While this stra[[tegy]] maximizes prof[[its]], regulatory agen[[cies]] express conc[[ern]] regarding taci[[t]] collusion among rival market part[[icipants]].',
+    text: 'Modern digital retailers increasingly rely upon automated dynamic pricing models. Soft[[ware]] algor[[ithms]] mon[[itor]] compe[[titor]] rates and pre[[dict]] consumer dem[[and]] in real time. While this stra[[tegy]] maxi[[mizes]] pro[[fits]], regulatory agen[[cies]] express concern regarding tacit collusion among rival market participants.',
     totalBlanks: 10,
   },
   {
@@ -138,7 +153,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Glacial Dynamics and Permafrost Thawing',
     level: 'upper-intermediate',
     topic: 'environment',
-    text: 'Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[[bal]] temperatures acceler[[ate]] seasonal melt[[ing]], reducing sum[[mer]] streamflow in agricult[[ural]] valleys. Simultaneously, thaw[[ing]] subterranean perma[[frost]] destabil[[izes]] mountain slopes, increa[[sing]] the frequ[[ency]] of catastrophic rockfall hazards.',
+    text: 'Alpine glaciers serve as crucial hydrological reservoirs for downstream ecosystems. Rising glo[[bal]] temper[[atures]] accel[[erate]] seas[[onal]] mel[[ting]], redu[[cing]] sum[[mer]] strea[[mflow]] in agricu[[ltural]] valleys. Simultaneously, tha[[wing]] subterranean permafrost destabilizes mountain slopes, increasing the frequency of catastrophic rockfall hazards.',
     totalBlanks: 10,
   },
   {
@@ -146,7 +161,7 @@ export const CURATED_COMPLETE_WORDS: CompleteWordsTask[] = [
     title: 'Behavioral Economics and Choice Architecture',
     level: 'advanced',
     topic: 'social-sciences',
-    text: 'Classical economic theory assumes consumers make completely rational choices. However, behav[[ioral]] economists dem[[onstrate]] that cogni[[tive]] biases systema[[tically]] distort decis[[ion]] making. By modif[[ying]] the cho[[ice]] architecture, institu[[tions]] can gently nud[[ge]] citizens toward pref[[erable]] retirement savings outcomes.',
+    text: 'Classical economic theory assumes consumers make completely rational choices. However, behav[[ioral]] econo[[mists]] demon[[strate]] that cogn[[itive]] bia[[ses]] systema[[tically]] dis[[tort]] deci[[sion]] making. By modi[[fying]] the cho[[ice]] architecture, institutions can gently nudge citizens toward preferable retirement savings outcomes.',
     totalBlanks: 10,
   },
 ];
@@ -161,7 +176,7 @@ export const CURATED_READING_PASSAGES: ReadingPassageTask[] = [
       'Odontocetes, or toothed whales, navigate and hunt in turbid waters using sophisticated bio-sonar known as echolocation. By contracting muscle plugs around their nasal passages, these cetaceans emit rapid acoustic clicks that pass through the melon—a lipid-rich organ located in the forehead that acts as an acoustic lens. The sound waves propagate through the water column until they strike an object, reflecting back toward the animal. The echoes are received not through external ear canals, which are vestigial, but through specialized acoustic fat channels within the lower jawbone that conduct vibrations directly to the middle and inner ear. This extraordinary sensory adaptation allows dolphins and sperm whales to ascertain the exact range, speed, shape, and internal density of prey in environments where ambient light cannot penetrate.',
     questions: [
       {
-        q: 'What is the primary function of the melon described in the passage?',
+        q: 'According to the passage, what is the primary function of the melon?',
         options: [
           'It generates the muscular contractions needed for nasal sounds.',
           'It acts as an acoustic lens focusing emitted sound waves.',
@@ -172,21 +187,43 @@ export const CURATED_READING_PASSAGES: ReadingPassageTask[] = [
         why: 'The passage explicitly states that acoustic clicks pass through the melon, "which acts as an acoustic lens."',
       },
       {
-        q: 'According to the passage, how do toothed whales receive acoustic echoes?',
+        q: 'According to the passage, all of the following are determined by toothed whales using echolocation EXCEPT:',
         options: [
-          'Through highly developed external ear canals.',
-          'Through sensitive tactile receptors along their dorsal fin.',
-          'Through specialized fat pads within the lower jawbone.',
-          'Through the resonant cavity of the melon.',
+          'The exact range and speed of prey',
+          'The shape and internal density of prey',
+          'The color and bioluminescent pigment of prey',
+          'The location of objects in turbid waters where light cannot penetrate',
         ],
         answer: 2,
-        why: 'The text notes that echoes are received through "specialized acoustic fat channels within the lower jawbone that conduct vibrations directly to the middle and inner ear."',
+        why: 'The passage states that echolocation allows whales to ascertain range, speed, shape, and internal density, but never mentions color or pigment.',
       },
       {
         q: 'The word "vestigial" in the passage is closest in meaning to:',
         options: ['Vital and essential', 'Rudimentary and nonfunctional', 'Highly sensitive', 'Acoustically tuned'],
         answer: 1,
         why: '"Vestigial" describes an organ or structure that has lost its ancestral function through evolutionary divergence, functioning here as rudimentary or obsolete.',
+      },
+      {
+        q: 'What can be inferred from the passage about how toothed whales hunt in deep, pitch-black ocean environments?',
+        options: [
+          'They rely on bio-sonar rather than vision to detect and track prey in darkness.',
+          'They must ascend to sunlit surface waters before capturing prey.',
+          'Their external ear canals open wider at extreme depths.',
+          'They cease emitting acoustic clicks when water becomes turbid.',
+        ],
+        answer: 0,
+        why: 'Because echolocation determines the exact range, speed, shape, and density of prey where ambient light cannot penetrate, whales can hunt effectively without relying on sight.',
+      },
+      {
+        q: 'Why does the author mention "specialized acoustic fat channels within the lower jawbone"?',
+        options: [
+          'To explain the anatomical pathway that conducts returning sound vibrations to the inner ear',
+          'To illustrate how cetaceans store metabolic energy for winter migrations',
+          'To contrast the diet of sperm whales with that of baleen whales',
+          'To show how the forehead melon produces nasal clicks',
+        ],
+        answer: 0,
+        why: 'The author mentions the lower jawbone fat channels to explain how echoes are received and conducted to the middle and inner ear instead of through external ear canals.',
       },
     ],
   },
@@ -199,7 +236,7 @@ export const CURATED_READING_PASSAGES: ReadingPassageTask[] = [
       'Heavy industries such as steelmaking, cement production, and chemical synthesis account for nearly a third of global greenhouse gas emissions. Unlike light passenger transportation, which can transition relatively smoothly to lithium-ion electrification, heavy industrial processes require high-grade thermal heat exceeding 1,000 degrees Celsius, temperatures difficult to attain economically via standard electric resistive heating. Furthermore, chemical reactions inherent to cement calcination release carbon dioxide as an unavoidable stoichiometric byproduct, independent of fuel choice. Consequently, deep decarbonization in these "hard-to-abate" sectors necessitates a multipronged technological portfolio: green hydrogen derived from water electrolysis for blast furnace reduction, point-source carbon capture and geological sequestration (CCS), and the development of alternative pozzolanic binders.',
     questions: [
       {
-        q: 'Why is heavy industrial decarbonization more challenging than passenger vehicle electrification?',
+        q: 'According to the passage, why is heavy industrial decarbonization more challenging than passenger vehicle electrification?',
         options: [
           'Heavy industries lack sufficient investment capital compared to automakers.',
           'High thermal temperature requirements and chemical reaction emissions cannot be solved by simple electrification.',
@@ -210,26 +247,43 @@ export const CURATED_READING_PASSAGES: ReadingPassageTask[] = [
         why: 'The passage explains that heavy processes require intense thermal heat (>1000°C) and produce CO2 as an unavoidable stoichiometric byproduct.',
       },
       {
-        q: 'The author mentions "pozzolanic binders" in order to:',
+        q: 'Why does the author mention "pozzolanic binders" in the passage?',
         options: [
-          'Illustrate an alternative material to mitigate emissions in cement manufacturing.',
-          'Demonstrate how steel blast furnaces utilize green hydrogen.',
-          'Argue that carbon capture is technically obsolete.',
-          'Criticize traditional geological sequestration projects.',
+          'To illustrate an alternative material in the technological portfolio needed to mitigate cement emissions',
+          'To demonstrate how steel blast furnaces utilize green hydrogen',
+          'To argue that carbon capture is technically obsolete',
+          'To criticize traditional geological sequestration projects',
         ],
         answer: 0,
-        why: 'The author lists alternative pozzolanic binders as part of the technological portfolio to substitute for clinker in cement production.',
+        why: 'The author lists alternative pozzolanic binders as part of the multipronged technological portfolio for deep decarbonization.',
       },
       {
-        q: 'Which of the following can be inferred regarding green hydrogen in steelmaking?',
+        q: 'What can be inferred from the passage about powering a traditional cement kiln purely with solar or wind electricity?',
         options: [
-          'It serves directly as an electrical storage medium in vehicles.',
-          'It can substitute for metallurgical coal as a reducing agent in blast furnaces.',
-          'It causes higher greenhouse gas emissions than coke.',
-          'It is exclusively utilized to heat pozzolanic binders.',
+          'It would still release carbon dioxide because cement calcination emits CO2 chemically as a reaction byproduct.',
+          'It would eliminate 100 percent of greenhouse gas emissions from cement manufacturing.',
+          'It would prevent limestone from reaching temperatures above 500 degrees Celsius.',
+          'It would automatically convert carbon dioxide into green hydrogen.',
         ],
-        answer: 1,
-        why: 'The passage specifies "green hydrogen derived from water electrolysis for blast furnace reduction" as a decarbonization solution.',
+        answer: 0,
+        why: 'The passage states that chemical reactions inherent to cement calcination release CO2 as an unavoidable byproduct "independent of fuel choice."',
+      },
+      {
+        q: 'The word "inherent" in the passage is closest in meaning to:',
+        options: ['Intrinsic and built-in', 'Accidental and rare', 'Preventable and optional', 'Temporary and seasonal'],
+        answer: 0,
+        why: '"Inherent" means existing in something as a permanent, essential, or intrinsic characteristic.',
+      },
+      {
+        q: 'According to the passage, all of the following are part of the technological portfolio for decarbonizing heavy industry EXCEPT:',
+        options: [
+          'Green hydrogen derived from water electrolysis',
+          'Point-source carbon capture and geological sequestration',
+          'Alternative pozzolanic binders',
+          'Standard lithium-ion passenger vehicle batteries',
+        ],
+        answer: 3,
+        why: 'The passage contrasts passenger vehicle lithium-ion electrification with the heavy industrial portfolio of green hydrogen, CCS, and pozzolanic binders.',
       },
     ],
   },
@@ -242,7 +296,7 @@ export const CURATED_READING_PASSAGES: ReadingPassageTask[] = [
       'The flipped classroom is an instructional strategy that reverses traditional educational dynamics by delivering didactic instructional content outside the classroom—frequently via pre-recorded video lectures—while moving homework and problem-solving activities into the physical classroom session. Proponents argue this inverted structure fosters higher student engagement because instructional contact hours are dedicated to active peer collaboration, dialectic inquiry, and direct instructor mentorship rather than passive listening. However, educational researchers note that the model relies heavily on autonomous student self-regulation; undergraduates who fail to complete foundational preparatory viewings struggle to participate meaningfully in synchronous discussions, exacerbating achievement divides between highly self-directed and less disciplined cohorts.',
     questions: [
       {
-        q: 'What is the core premise of the flipped classroom model?',
+        q: 'According to the passage, what is the core premise of the flipped classroom model?',
         options: [
           'Traditional lectures are delivered outside class so that in-person time is reserved for interactive collaborative activities.',
           'Examinations are eliminated in favor of independent term papers.',
@@ -253,21 +307,43 @@ export const CURATED_READING_PASSAGES: ReadingPassageTask[] = [
         why: 'The passage defines the model as delivering instructional lectures outside class while moving problem-solving into class sessions.',
       },
       {
-        q: 'What main limitation of the flipped classroom does the author identify?',
+        q: 'What can be inferred from the passage about students with low self-regulation in a flipped course?',
         options: [
-          'Pre-recorded videos are prohibitively expensive to produce.',
-          'Success depends on independent student preparation, potentially widening achievement gaps.',
-          'University accreditors generally forbid asynchronous video lectures.',
-          'Instructors receive lower course evaluation ratings.',
+          'They may fall further behind their more disciplined peers if they skip pre-class video lectures.',
+          'They prefer dialectic inquiry over passive listening.',
+          'They consistently outperform highly self-directed students on synchronous discussions.',
+          'They spend more time mentoring classmates during in-person sessions.',
         ],
-        answer: 1,
-        why: 'The author explicitly explains that the model requires self-regulation, and unprepared students struggle, exacerbating achievement divides.',
+        answer: 0,
+        why: 'The author explains that the model relies on self-regulation, and unprepared students struggle, exacerbating achievement divides.',
       },
       {
         q: 'The word "didactic" in the passage is closest in meaning to:',
         options: ['Instructional and informative', 'Entertaining and playful', 'Experimental and unproven', 'Controversial'],
         answer: 0,
         why: '"Didactic" refers to material intended to instruct, convey information, or teach a lesson.',
+      },
+      {
+        q: 'Why does the author mention "active peer collaboration, dialectic inquiry, and direct instructor mentorship"?',
+        options: [
+          'To specify the interactive learning activities that replace passive lecturing during in-person class hours',
+          'To list the tasks students must complete alone at home before watching videos',
+          'To explain why educational researchers oppose the flipped classroom model',
+          'To describe how traditional podium lectures are graded',
+        ],
+        answer: 0,
+        why: 'The author lists these activities to explain why proponents argue that dedicating contact hours to active learning fosters higher engagement.',
+      },
+      {
+        q: 'According to the passage, all of the following characterize the flipped classroom model EXCEPT:',
+        options: [
+          'Pre-recorded video lectures watched outside of class',
+          'Problem-solving activities conducted during physical classroom sessions',
+          'Heavy reliance on autonomous student self-regulation',
+          'Elimination of all synchronous in-person class discussions',
+        ],
+        answer: 3,
+        why: 'The passage explicitly states that synchronous discussions and active peer collaboration take place during physical classroom sessions.',
       },
     ],
   },
@@ -279,131 +355,92 @@ export const CURATED_LISTENING: ListeningTask[] = [
     title: 'Undergraduate Research Assistantship Application',
     level: 'intermediate',
     topic: 'campus-life',
-    context: 'A student visits Professor Alvarez during office hours to inquire about an undergraduate research assistant opening in her biochemistry laboratory.',
+    context: 'Listen to a conversation between a student and a biochemistry professor.',
     speakers: {
-      A: 'Student (Marcus)',
+      A: 'Marcus (Student)',
       B: 'Professor Alvarez',
     },
     speakerGenders: {
       A: 'male',
       B: 'female',
     },
-    script: `Speaker A: Good afternoon, Professor Alvarez. Do you have a few minutes? I saw the flyer posted outside the department office regarding the undergraduate research position in your biochemistry lab.
-Speaker B: Hello Marcus! Yes, certainly, take a seat. We are expanding our investigations into enzyme kinetics this term, specifically isolating recombinant alkaline phosphatase from bacterial cultures.
-Speaker A: That aligns perfectly with what I hope to study in graduate school. I took Biochemistry 301 last semester with an A-, and our lab sections covered spectrophotometric assays and SDS-PAGE gel electrophoresis.
-Speaker B: Having practical bench experience with gel electrophoresis is definitely advantageous. In this role, however, you would also be responsible for early-morning bacterial cell harvesting, high-speed centrifugation, and preparing Bradford protein assays before our graduate researchers begin their kinetic runs.
-Speaker A: I am very comfortable with pipetting and quantitative assays, and I understand the precision required when balancing centrifuge rotors.
-Speaker B: That is reassuring to hear. Now, the position requires ten hours per week, primarily on Tuesday and Thursday mornings starting at 7:30 AM. Would that conflict with your lecture schedule?
-Speaker A: Not at all. My Tuesday and Thursday lectures don't begin until 11:00 AM in the science building next door, so arriving by 7:30 fits my schedule well.
-Speaker B: Excellent. There is one additional administrative requirement. Our project works with genetically modified bacterial strains, which means university safety regulations require all laboratory personnel to hold active Biosafety Level 2 certification. Have you completed that module through Environmental Health and Safety?
-Speaker A: In my introductory biology course, we only completed the Level 1 general hazard training. Does the Level 2 certification take a long time to obtain?
-Speaker B: Not at all. It is a two-hour self-paced online module available through the campus EHS portal. If you can complete the module over the weekend, you will be cleared for wet-lab orientation by Monday.
-Speaker A: That sounds completely manageable. I will log onto the portal tonight and finish the modules.
-Speaker B: Great. Please email me your unofficial transcript, a brief summary of your prior lab techniques, and your Biosafety Level 2 certificate of completion by Friday afternoon. Once I review those, we can schedule your safety walkthrough.`,
+    script: `Marcus: Professor Alvarez, I saw the flyer for the undergraduate research position in your biochemistry lab.
+Professor Alvarez: Hello, Marcus! Did you take Biochemistry 301 last semester?
+Marcus: Yes, I earned an A-minus and practiced gel electrophoresis in every lab section.
+Professor Alvarez: Great, though this role also requires early-morning centrifuge runs on Tuesdays and Thursdays.
+Marcus: My Tuesday and Thursday classes don't start until eleven, so morning shifts work well.
+Professor Alvarez: Have you completed the Biosafety Level Two training module yet?
+Marcus: Only Level One so far. Does Level Two take long?
+Professor Alvarez: Just a two-hour online module—email me the certificate by Friday so we can start.`,
     questions: [
       {
-        q: 'Why does Marcus visit Professor Alvarez during office hours?',
+        q: 'Why is Marcus able to work the early-morning laboratory shifts?',
         options: [
-          'To request an extension on his Biochemistry 301 research paper.',
-          'To apply for an open undergraduate research assistant position in her laboratory.',
-          'To ask for a letter of recommendation for graduate school admission.',
-          'To dispute a grade he received on a protein purification exam.',
+          'He is only enrolled in evening courses this semester.',
+          'His Tuesday and Thursday lectures do not begin until eleven o’clock.',
+          'His dormitory is located inside the biochemistry building.',
+          'He has already finished all of his required science courses.',
         ],
         answer: 1,
-        why: 'Marcus states at the beginning that he saw the posted flyer and wants to inquire about the undergraduate research assistant position.',
+        why: 'Marcus states that his Tuesday and Thursday classes do not start until eleven, so morning shifts fit his schedule well.',
       },
       {
-        q: 'What laboratory duty will Marcus be expected to perform in the mornings?',
+        q: 'What must Marcus do before Friday?',
         options: [
-          'Synthesizing synthetic DNA sequences from chemical precursors.',
-          'Harvesting bacterial cells, running centrifuges, and setting up Bradford protein assays.',
-          'Grading introductory biology laboratory notebooks for underclassmen.',
-          'Calibrating electron microscopes for graduate researchers.',
+          'Retake the Biochemistry 301 final examination.',
+          'Complete an online Biosafety Level Two module and email the certificate.',
+          'Order replacement centrifuge rotors from the department office.',
+          'Submit two letters of recommendation from his previous instructors.',
         ],
         answer: 1,
-        why: 'Professor Alvarez specifies that he would be responsible for "early-morning bacterial cell harvesting, high-speed centrifugation, and preparing Bradford protein assays."',
-      },
-      {
-        q: 'Why does Professor Alvarez mention Biosafety Level 2 certification?',
-        options: [
-          'Because the university requires it for all students enrolling in Biochemistry 301.',
-          'Because Marcus received an incomplete grade in laboratory safety.',
-          'Because the research involves genetically modified bacterial strains that require specific safety compliance.',
-          'Because the campus EHS portal will be shutting down at the end of the term.',
-        ],
-        answer: 2,
-        why: 'Professor Alvarez clarifies that because the project works with "genetically modified bacterial strains," university regulations mandate active Biosafety Level 2 certification.',
-      },
-      {
-        q: 'What can be inferred about Marcus’s qualification for the position?',
-        options: [
-          'He has never performed laboratory work before applying.',
-          'His strong academic record in Biochemistry 301 and familiarity with gel electrophoresis make him a viable candidate.',
-          'He cannot meet the morning time commitment due to overlapping lectures.',
-          'He has already completed all graduate-level research certifications.',
-        ],
-        answer: 1,
-        why: 'Professor Alvarez notes that his A- in Biochemistry 301 and previous experience with spectrophotometry and gel electrophoresis are definite advantages.',
-      },
-      {
-        q: 'What three items must Marcus submit by Friday afternoon?',
-        options: [
-          'His formal diploma, tuition receipt, and financial aid application.',
-          'His unofficial transcript, a summary of lab techniques, and the Biosafety Level 2 completion certificate.',
-          'A faculty recommendation letter, a published manuscript, and a syllabus.',
-          'A revised course schedule signed by his major advisor.',
-        ],
-        answer: 1,
-        why: 'At the end of the conversation, Professor Alvarez instructs him to email his "unofficial transcript, a brief summary of your prior lab techniques, and your Biosafety Level 2 certificate of completion by Friday afternoon."',
+        why: 'Professor Alvarez instructs Marcus to complete the two-hour online Biosafety Level Two module and email her the certificate by Friday.',
       },
     ],
   },
   {
     id: 'lis-2',
-    title: 'Geology Lecture: Caldera Formation',
+    title: 'Geology Field Trip Equipment Check',
     level: 'upper-intermediate',
     topic: 'science-tech',
-    context: 'An excerpt from an introductory Earth Sciences lecture discussing volcanic calderas.',
+    context: 'Listen to a conversation between a student and her earth sciences professor.',
     speakers: {
-      A: 'Professor Vance (Lecturer)',
-      B: 'Student Question',
+      A: 'Elena (Student)',
+      B: 'Professor Vance',
     },
     speakerGenders: {
-      A: 'male',
-      B: 'female',
+      A: 'female',
+      B: 'male',
     },
-    script: `Speaker A: Today we will distinguish volcanic craters from calderas. While a crater is created by the explosive excavation of rock during an eruption, a caldera forms by structural collapse.
-Speaker B: Professor, does that mean a caldera is basically a crater that has caved in?
-Speaker A: In a sense, yes, but the scale and mechanism differ fundamentally. When a massive magma chamber empties rapidly during an explosive super-eruption, the unsupported roof above the reservoir can no longer withstand the immense weight of the overlying volcanic edifice.
-Speaker A: Consequently, the entire summit collapses inward along ring-shaped fractures. The resulting basin can span tens of kilometers in diameter, as seen in Crater Lake in Oregon or Yellowstone. Over thousands of years, these calderas often fill with rainwater, forming pristine crater lakes, or experience renewed resurgent doming from rising magma below.`,
+    script: `Elena: Professor Vance, I'm picking up my field kit for Sunday's trip to the volcanic basin.
+Professor Vance: Here's your hand lens and rock hammer, Elena. Did you bring hiking boots?
+Elena: I only have running sneakers at my dorm right now.
+Professor Vance: The basalt ridges around the caldera rim are sharp, so ankle-high boots are mandatory.
+Elena: Oh, I didn't realize the terrain was that rocky. Where can I get boots before Sunday?
+Professor Vance: The Campus Outdoor Recreation Center rents hiking gear to students for five dollars.
+Elena: Perfect, I'll stop by their desk before five o'clock today.
+Professor Vance: Also grab a waterproof field notebook while you're there in case it rains.`,
     questions: [
       {
-        q: 'What is the fundamental difference between a crater and a caldera according to the lecturer?',
+        q: 'Why does the professor tell the student she cannot wear running sneakers on the field trip?',
         options: [
-          'Craters are formed by water erosion, whereas calderas are created by wind.',
-          'Craters are formed by explosive excavation, while calderas result from structural roof collapse.',
-          'Calderas only occur in oceanic trenches, whereas craters occur on land.',
-          'Calderas are much smaller than traditional volcanic craters.',
+          'The university bus company requires leather footwear.',
+          'The sharp basalt ridges around the caldera require ankle-high boots.',
+          'The trail is covered in deep snow at this time of year.',
+          'Sneakers are not permitted inside the geology laboratory.',
         ],
         answer: 1,
-        why: 'The lecturer highlights that "a crater is created by explosive excavation of rock... while a caldera forms by structural collapse."',
+        why: 'Professor Vance explains that the basalt ridges around the caldera rim are sharp, making ankle-high hiking boots mandatory.',
       },
       {
-        q: 'Why does the summit of a volcano collapse into the magma chamber?',
+        q: 'What does the professor suggest the student get from the Campus Outdoor Recreation Center?',
         options: [
-          'Heavy rainfall increases the weight beyond the rock threshold.',
-          'Rapid evacuation of magma leaves the overlying volcanic edifice unsupported.',
-          'Tectonic plates collide directly beneath the crater rim.',
-          'Resurgent domes exert downward pressure on the chamber.',
+          'A rock hammer and a magnifying hand lens.',
+          'A topographic map of the volcanic basin.',
+          'Rental hiking boots and a waterproof field notebook.',
+          'A camping tent and a sleeping bag.',
         ],
-        answer: 1,
-        why: 'When the magma chamber empties rapidly, "the unsupported roof above the reservoir can no longer withstand the immense weight of the overlying volcanic edifice."',
-      },
-      {
-        q: 'What example does the professor provide of a caldera filled with water?',
-        options: ['Mount St. Helens', 'Crater Lake in Oregon', 'Mauna Loa in Hawaii', 'Mount Vesuvius in Italy'],
-        answer: 1,
-        why: 'The professor cites "Crater Lake in Oregon or Yellowstone" as prominent examples of calderas.',
+        answer: 2,
+        why: 'Professor Vance tells Elena she can rent hiking boots at the Campus Outdoor Recreation Center and advises her to grab a waterproof field notebook there as well.',
       },
     ],
   },
@@ -412,54 +449,45 @@ Speaker A: Consequently, the entire summit collapses inward along ring-shaped fr
     title: 'Academic Advising: Course Prerequisite Waiver',
     level: 'intermediate',
     topic: 'campus-life',
-    context: 'A student speaks with an academic advisor regarding registration for an advanced genetics course.',
+    context: 'Listen to a conversation between a student and an academic advisor.',
     speakers: {
-      A: 'Student (Chloe)',
-      B: 'Academic Advisor (Dr. Campbell)',
+      A: 'Chloe (Student)',
+      B: 'Dr. Campbell (Advisor)',
     },
     speakerGenders: {
       A: 'female',
       B: 'male',
     },
-    script: `Speaker A: Dr. Campbell, thank you for meeting with me. The registration portal blocked me from enrolling in Advanced Molecular Genetics 410 because I haven't taken Organic Chemistry Lab II.
-Speaker B: Yes, Chloe, that lab is listed as a mandatory prerequisite to ensure students are familiar with chromatography techniques before working with recombinant DNA.
-Speaker A: I understand, but I actually performed extensive column chromatography during my summer internship at the State Agricultural Biotechnology Institute. Here is the formal verification letter from my research supervisor.
-Speaker B: Oh, that is impressive! Working in a professional research facility often provides more hands-on bench experience than our undergraduate teaching labs.
-Speaker B: If Professor Martinez, who teaches the lecture, signs this departmental waiver form, I can override the prerequisite lock in the registrar's system today.
-Speaker A: Wonderful! Professor Martinez has office hours this afternoon, so I will take the waiver form directly to her office.`,
+    script: `Chloe: Dr. Campbell, the portal blocked me from enrolling in Molecular Genetics 410.
+Dr. Campbell: That's because Organic Chemistry Lab Two is listed as a mandatory prerequisite, Chloe.
+Chloe: Right, the course requires experience with column chromatography techniques.
+Dr. Campbell: Have you done chromatography outside of our regular undergraduate labs?
+Chloe: Yes, I ran chromatography daily during my summer internship at the Biotechnology Institute.
+Dr. Campbell: Did your research supervisor write an official verification letter?
+Chloe: I brought the signed letter right here in my folder.
+Dr. Campbell: Wonderful—ask Professor Martinez to sign this waiver form during her afternoon office hours.`,
     questions: [
       {
-        q: 'Why was Chloe unable to enroll in Advanced Molecular Genetics?',
+        q: 'How does Chloe show that she is prepared for Molecular Genetics 410?',
         options: [
-          'The course reached maximum enrollment capacity.',
-          'She had not satisfied the Organic Chemistry Lab II prerequisite.',
-          'Her academic transcript had not been submitted to the university.',
-          'She missed the initial course registration deadline.',
+          'She passed a departmental placement exam last week.',
+          'She provides a verification letter from her biotechnology summer internship.',
+          'She completed an online organic chemistry course at another college.',
+          'She worked as a teaching assistant for Dr. Campbell last semester.',
         ],
         answer: 1,
-        why: 'The registration system blocked her because she had not completed the required Organic Chemistry Lab II prerequisite.',
+        why: 'Chloe explains that she performed chromatography daily during her summer internship and brings a signed verification letter from her supervisor.',
       },
       {
-        q: 'How does Chloe demonstrate that she already possesses the required lab skills?',
+        q: 'What will Chloe most likely do this afternoon?',
         options: [
-          'She shows an official verification letter from her biotechnology summer internship.',
-          'She passes a credit-by-exam test administered by Dr. Campbell.',
-          'She presents a letter of recommendation from high school.',
-          'She agrees to co-author a paper with Professor Martinez.',
+          'Register for Organic Chemistry Lab Two instead.',
+          'Visit the Biotechnology Institute to request a transcript.',
+          'Have Professor Martinez sign a prerequisite waiver form during office hours.',
+          'Submit a tuition payment at the bursar’s office.',
         ],
-        answer: 0,
-        why: 'Chloe explains that she performed column chromatography during her summer internship and provides a formal verification letter from her supervisor.',
-      },
-      {
-        q: 'What must Chloe do before Dr. Campbell can override the registration system?',
-        options: [
-          'Pay an administrative late registration fee.',
-          'Obtain Professor Martinez’s signature on the departmental waiver form.',
-          'Complete an online safety orientation module.',
-          'Submit a petition to the academic dean.',
-        ],
-        answer: 1,
-        why: 'Dr. Campbell states that if Professor Martinez signs the departmental waiver form, he can override the lock.',
+        answer: 2,
+        why: 'Dr. Campbell instructs Chloe to take the waiver form to Professor Martinez during her afternoon office hours for a signature.',
       },
     ],
   },
@@ -468,32 +496,36 @@ Speaker A: Wonderful! Professor Martinez has office hours this afternoon, so I w
 export const CURATED_LISTEN_REPEAT: ListenRepeatTask[] = [
   {
     id: 'lr-1',
-    title: 'Academic Life & Campus Communication',
+    title: 'Biology Laboratory Safety Orientation',
     level: 'intermediate',
     topic: 'campus-life',
-    speakerName: 'Sarah',
+    speakerName: 'Sarah (Lab Coordinator)',
     speakerGender: 'female',
     sentences: [
-      "The seminar begins at ten o'clock tomorrow.",
-      'Students must submit their laboratory reports before Friday afternoon.',
-      'The university library will remain open throughout the entire midterm examination period.',
-      'Professors usually recommend reviewing lecture slides thoroughly before participating in discussion sessions.',
-      'Attending weekly office hours allows undergraduates to clarify complicated theoretical concepts with teaching assistants.',
+      'Welcome to the undergraduate biology laboratory.',
+      'Please store your backpacks inside the hallway lockers.',
+      'Safety goggles and lab coats are required at all times.',
+      'You will find clean glass slides inside the top cabinet drawer.',
+      'Make sure to calibrate your microscope carefully before examining the tissue samples.',
+      'Dispose of all used pipettes and gloves in the labeled biohazard container near the sink.',
+      'If any chemical spill occurs during the experiment, notify your laboratory supervisor immediately for assistance.',
     ],
   },
   {
     id: 'lr-2',
-    title: 'Scientific Research & Technology',
+    title: 'University Library Research Tour',
     level: 'upper-intermediate',
-    topic: 'science-tech',
-    speakerName: 'Marcus',
+    topic: 'campus-life',
+    speakerName: 'Marcus (Head Librarian)',
     speakerGender: 'male',
     sentences: [
-      'Solar panels convert sunlight directly into clean electricity.',
-      'Recent clinical trials demonstrated remarkable improvements in cognitive memory retention.',
-      'Researchers discovered that marine organisms migrate toward deeper oceanic layers during seasonal warming.',
-      'Artificial intelligence systems require extensive training datasets to achieve reliable predictive accuracy across diverse scenarios.',
-      'The engineering department recently unveiled an innovative water filtration mechanism designed specifically for remote agricultural communities.',
+      'Welcome to the main university library.',
+      'Our reference desk is located on this floor.',
+      'You can borrow up to ten books with your card.',
+      'Quiet individual study carrels are available on the third and fourth floors.',
+      'Group collaboration rooms must be reserved online at least one day in advance.',
+      'Our digital archive provides instant access to thousands of peer-reviewed academic journals and historical newspapers.',
+      'If you need help locating rare primary sources, please schedule a consultation with a research librarian.',
     ],
   },
 ];
@@ -517,6 +549,7 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
           'Provide specific reasons (concentration, diverse viewpoints, accountability)',
           'Give a concrete personal example from your academic experience',
         ],
+        sampleAnswer: 'Personally, I definitely prefer studying alone in a quiet space like the upper floors of the university library. When I study by myself, I can concentrate deeply on complex lecture concepts without external distractions and work through problem sets at my own pace. For example, during midterms last semester, reviewing my economics notes in complete silence allowed me to master difficult quantitative formulas much faster than trying to coordinate discussion times with a large study group.',
       },
       {
         question: 'How do you prioritize your time when you have multiple academic deadlines approaching in the same week?',
@@ -527,6 +560,7 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
           'Discuss how you manage stress and maintain consistency',
           'Explain the outcome of applying this strategy',
         ],
+        sampleAnswer: 'When facing multiple overlapping deadlines in the same week, I prioritize by creating a structured digital schedule and tackling assignments that carry the heaviest academic weight first. For example, last term I had a research paper and a biology midterm due on the same Friday. I broke the essay into daily writing milestones and studied for the exam in the evenings, which kept me consistent, preserved my energy, and eliminated last-minute stress.',
       },
       {
         question: 'Some universities are replacing traditional paper textbooks entirely with digital e-books. Do you think this is a beneficial policy?',
@@ -537,6 +571,7 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
           'Take a balanced stance and offer a reasoned conclusion',
           'Highlight impact on student equity',
         ],
+        sampleAnswer: 'In my view, transitioning to digital e-books is a very beneficial policy for university students. Digital textbooks significantly reduce semester textbook expenses and allow students to search for specific terms across hundreds of pages instantaneously. Furthermore, carrying one lightweight laptop is far more convenient than lugging several heavy physical books across campus every day. Although screen fatigue can occasionally occur, the financial savings and accessibility make digital textbooks a far better choice.',
       },
       {
         question: 'If you could introduce one new facility or service on your university campus to improve student well-being, what would it be and why?',
@@ -547,6 +582,7 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
           'Justify its necessity with current campus challenges',
           'Detail the long-term benefits to the university community',
         ],
+        sampleAnswer: 'If I could introduce one new facility on campus to support student well-being, I would establish a dedicated 24-hour quiet wellness and relaxation lounge. University coursework often induces immense psychological stress, especially during final examinations, and currently students have very few quiet spaces specifically reserved for unwinding. Providing restorative rest spaces, guided meditation workshops, and complimentary herbal tea would give students a peaceful retreat between rigorous seminars, substantially enhancing mental well-being and academic productivity.',
       },
     ],
   },
@@ -555,39 +591,84 @@ export const CURATED_SPEAKING_INTERVIEWS: SpeakingInterviewTask[] = [
 export const CURATED_BUILD_SENTENCES: BuildSentenceTask[] = [
   {
     id: 'bs-1',
-    title: 'Academic Syntax & Inversions',
+    title: 'Campus & Academic Sentence Building',
     level: 'upper-intermediate',
     topic: 'science-tech',
     items: [
       {
-        context: 'What did the environmental researchers observe in the coastal wetlands?',
-        words: ['did', 'the scientists', 'observe', 'rarely', 'such rapid', 'habitat loss'],
-        answer: 'Rarely did the scientists observe such rapid habitat loss.',
-        explanation: 'Negative inversion: When a sentence begins with a negative adverbial like "Rarely", subject-auxiliary inversion is required ("did the scientists observe").',
+        id: 'bs-1-1',
+        context: 'What did you think of the guided tour of the historical district?',
+        framePrefix: 'The',
+        frameSuffix: 'fantastic.',
+        targetChunks: ['tour guides', 'who', 'showed us around', 'the', 'old', 'city', 'were'],
+        distractorChunks: ['was'],
+        words: ['old', 'were', 'who', 'was', 'tour guides', 'city', 'the', 'showed us around'],
+        scrambledWords: ['old', 'were', 'who', 'was', 'tour guides', 'city', 'the', 'showed us around'],
+        targetSentence: 'The tour guides who showed us around the old city were fantastic.',
+        answer: 'The tour guides who showed us around the old city were fantastic.',
+        correctSentence: 'The tour guides who showed us around the old city were fantastic.',
+        grammarRule: 'Subject relative clause ("who showed us around the old city") modifying the plural noun "tour guides", which requires the plural verb "were" rather than "was".',
+        explanation: 'Subject relative clause ("who showed us around the old city") modifying the plural noun "tour guides", which requires the plural verb "were" rather than "was".',
       },
       {
-        context: 'Why is peer review considered essential in scholarly publishing?',
-        words: ['it ensures', 'that only', 'rigorous methodologies', 'are accepted', 'for publication'],
-        answer: 'It ensures that only rigorous methodologies are accepted for publication.',
-        explanation: 'Noun clause with passive voice: "It ensures that [noun clause: subject + passive verb + prepositional phrase]".',
+        id: 'bs-1-2',
+        context: 'Why was the student art exhibition moved to the main auditorium?',
+        framePrefix: '',
+        frameSuffix: 'by the facilities office?',
+        targetChunks: ["wasn't", 'the', 'gallery reservation', 'canceled', 'earlier', 'this week'],
+        distractorChunks: ["weren't"],
+        words: ['earlier', 'canceled', "weren't", 'gallery reservation', 'this week', 'the', "wasn't"],
+        scrambledWords: ['earlier', 'canceled', "weren't", 'gallery reservation', 'this week', 'the', "wasn't"],
+        targetSentence: "Wasn't the gallery reservation canceled earlier this week by the facilities office?",
+        answer: "Wasn't the gallery reservation canceled earlier this week by the facilities office?",
+        correctSentence: "Wasn't the gallery reservation canceled earlier this week by the facilities office?",
+        grammarRule: 'Negative passive interrogative: singular subject "the gallery reservation" takes the auxiliary "wasn\'t" (not "weren\'t") + past participle "canceled".',
+        explanation: 'Negative passive interrogative: singular subject "the gallery reservation" takes the auxiliary "wasn\'t" (not "weren\'t") + past participle "canceled".',
       },
       {
-        context: 'How does high inflation affect everyday consumer spending habits?',
-        words: ['consumers tend to', 'reduce their', 'discretionary purchases', 'significantly'],
-        answer: 'Consumers tend to reduce their discretionary purchases significantly.',
-        explanation: 'Subject + verb phrase + object + adverb: "Consumers tend to reduce [object] [adverb]".',
+        id: 'bs-1-3',
+        context: 'Has Professor Miller posted the revised laboratory schedule yet?',
+        framePrefix: "I'm not sure",
+        frameSuffix: 'to the course portal.',
+        targetChunks: ['whether', 'the', 'new schedule', 'has', 'been', 'uploaded'],
+        distractorChunks: ['have'],
+        words: ['uploaded', 'whether', 'have', 'the', 'new schedule', 'been', 'has'],
+        scrambledWords: ['uploaded', 'whether', 'have', 'the', 'new schedule', 'been', 'has'],
+        targetSentence: "I'm not sure whether the new schedule has been uploaded to the course portal.",
+        answer: "I'm not sure whether the new schedule has been uploaded to the course portal.",
+        correctSentence: "I'm not sure whether the new schedule has been uploaded to the course portal.",
+        grammarRule: 'Embedded indirect question: "whether" is followed by statement word order ("the new schedule has been uploaded") with singular auxiliary "has".',
+        explanation: 'Embedded indirect question: "whether" is followed by statement word order ("the new schedule has been uploaded") with singular auxiliary "has".',
       },
       {
-        context: 'What happened after the university modernized its digital library system?',
-        words: ['not only did', 'usage increase', 'but student', 'satisfaction also', 'improved'],
-        answer: 'Not only did usage increase but student satisfaction also improved.',
-        explanation: 'Correlative conjunction with inversion: "Not only did [subject] [verb], but [subject] also [verb]".',
+        id: 'bs-1-4',
+        context: 'I tried studying in the science library last night, but the doors were locked at eight.',
+        framePrefix: '',
+        frameSuffix: 'so early on weeknights?',
+        targetChunks: ['how', 'long', 'has', 'the', 'science library', 'been', 'closing'],
+        distractorChunks: ['have'],
+        words: ['closing', 'science library', 'how', 'have', 'long', 'been', 'has', 'the'],
+        scrambledWords: ['closing', 'science library', 'how', 'have', 'long', 'been', 'has', 'the'],
+        targetSentence: 'How long has the science library been closing so early on weeknights?',
+        answer: 'How long has the science library been closing so early on weeknights?',
+        correctSentence: 'How long has the science library been closing so early on weeknights?',
+        grammarRule: 'Direct wh-interrogative in present perfect continuous: "How + long + has + the + science library + been + closing + modifiers?".',
+        explanation: 'Direct wh-interrogative in present perfect continuous: "How + long + has + the + science library + been + closing + modifiers?".',
       },
       {
-        context: 'Why was the chemical synthesis experiment conducted under strict temperature controls?',
-        words: ['had the temperature', 'fluctuated', 'the delicate compounds', 'would have broken down'],
-        answer: 'Had the temperature fluctuated the delicate compounds would have broken down.',
-        explanation: 'Inverted third conditional: "Had + subject + past participle" replaces "If the temperature had fluctuated".',
+        id: 'bs-1-5',
+        context: 'Can undergraduates use the electron microscope without a lab supervisor present?',
+        framePrefix: '',
+        frameSuffix: '.',
+        targetChunks: ['nobody', 'is', 'permitted', 'to operate', 'the', 'microscope', 'without training'],
+        distractorChunks: [],
+        words: ['microscope', 'the', 'nobody', 'without training', 'to operate', 'is', 'permitted'],
+        scrambledWords: ['microscope', 'the', 'nobody', 'without training', 'to operate', 'is', 'permitted'],
+        targetSentence: 'Nobody is permitted to operate the microscope without training.',
+        answer: 'Nobody is permitted to operate the microscope without training.',
+        correctSentence: 'Nobody is permitted to operate the microscope without training.',
+        grammarRule: 'Passive permission ("Nobody is permitted to operate") where singular indefinite pronoun "nobody" takes singular verb "is".',
+        explanation: 'Passive permission ("Nobody is permitted to operate") where singular indefinite pronoun "nobody" takes singular verb "is".',
       },
     ],
   },

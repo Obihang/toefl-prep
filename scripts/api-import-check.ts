@@ -1,10 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, '..');
+const rootDir = process.cwd();
 const serverDir = path.resolve(rootDir, 'src/server');
 const apiDir = path.resolve(rootDir, 'api');
 

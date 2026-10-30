@@ -2,7 +2,6 @@
   "name": "toefl-prep-studio",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
   "engines": {
     "node": "22.x"
   },
@@ -10,7 +9,7 @@
     "dev": "tsx server.ts",
     "prebuild": "node scripts/build-dictionary.mjs",
     "build": "vite build",
-    "start": "node server.ts",
+    "start": "tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
@@ -21,7 +20,6 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "@sentry/node": "^8.0.0",
     "@sentry/react": "^8.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vercel/blob": "^2.8.2",
@@ -52,7 +50,7 @@
     "esbuild": "^0.28.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
+    "typescript": "5.8.3",
     "wordnet-db": "^3.1.14"
   }
 }

@@ -1,42 +1,22 @@
 import type { Request as ExpressReq, Response as ExpressRes } from 'express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { head, put } from '@vercel/blob';
-import { getApiConfig } from './apiConfig.ts';
-import { handleGenerateTask, handleEvaluateResponse, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler.ts';
-import { callOpenAiTts } from './llmClient.ts';
-import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors.ts';
-import { STT_MODEL } from '../config/models.ts';
-import { filterWhisperHallucinations } from '../utils/speakingMetrics.ts';
+import { getApiConfig } from './apiConfig';
+import { handleGenerateTask, handleTestApiKey, handleSynthesizeSpeech, synthesizeGeminiTts } from './geminiHandler';
+import { handleEvaluateResponse } from './evaluationHandler';
+import { callOpenAiTts } from './llmClient';
+import { getRoleModels } from './modelRoles';
+import { extractErrorMessage, isKeyError, isTransientError, getStatus, redactSensitiveInfo } from './geminiErrors';
+import { STT_MODEL } from '../config/models';
+import { filterWhisperHallucinations } from '../utils/speakingMetrics';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices.ts';
-import { firebasePublicConfig } from './firebasePublicConfig.ts';
+import { parseDialogueLine, detectSpeakerGender, inferGender } from '../utils/voices';
+import { firebasePublicConfig } from './firebasePublicConfig';
 import os from 'os';
 import WebSocket from 'ws';
-import { scrubSentryEvent } from '../utils/redact.ts';
-
-let sentryNodeModule: typeof import('@sentry/node') | null = null;
-
-async function initServerSentry() {
-  if (!process.env.SENTRY_DSN_SERVER) return null;
-  if (sentryNodeModule) return sentryNodeModule;
-
-  try {
-    const Sentry = await import('@sentry/node');
-    Sentry.init({
-      dsn: process.env.SENTRY_DSN_SERVER,
-      sendDefaultPii: false,
-      beforeSend(event) {
-        return scrubSentryEvent(event);
-      },
-    });
-    sentryNodeModule = Sentry;
-    return Sentry;
-  } catch {
-    return null;
-  }
-}
+import { synthesizeEdge, EdgeTtsError } from './edgeTts';
 
 export function wrapApiHandler<TReq = any, TRes = any>(
   handler: (req: TReq, res: TRes) => Promise<any> | any
@@ -64,28 +44,6 @@ export function wrapApiHandler<TReq = any, TRes = any>(
         })
       );
 
-      if (process.env.SENTRY_DSN_SERVER) {
-        try {
-          const Sentry = await initServerSentry();
-          if (Sentry) {
-            const redactedErr = new Error(redactedMsg);
-            redactedErr.name = rawError?.name ? redactSensitiveInfo(String(rawError.name)) : 'Error';
-            if (rawError?.stack) {
-              redactedErr.stack = redactSensitiveInfo(String(rawError.stack));
-            }
-
-            Sentry.withScope((scope) => {
-              scope.setTag('requestId', requestId);
-              scope.setTag('route', route);
-              Sentry.captureException(redactedErr);
-            });
-            await Sentry.flush(2000);
-          }
-        } catch {
-          // ignore Sentry reporting failure
-        }
-      }
-
       if (!res.headersSent) {
         return res.status(status).json({
           error: redactedMsg,
@@ -101,8 +59,10 @@ export const FEMALE_VOICES = [
   "en-US-EmmaNeural",
   "en-US-AriaNeural",
   "en-US-JennyNeural",
+  "en-US-MichelleNeural",
   "en-GB-SoniaNeural",
-  "en-GB-LibbyNeural"
+  "en-GB-LibbyNeural",
+  "en-AU-NatashaNeural"
 ];
 
 export const MALE_VOICES = [
@@ -110,8 +70,12 @@ export const MALE_VOICES = [
   "en-US-GuyNeural",
   "en-US-BrianNeural",
   "en-US-ChristopherNeural",
+  "en-US-EricNeural",
+  "en-US-RogerNeural",
+  "en-US-SteffanNeural",
   "en-GB-RyanNeural",
-  "en-GB-ThomasNeural"
+  "en-GB-ThomasNeural",
+  "en-AU-WilliamNeural"
 ];
 
 export const ALL_EDGE_VOICES = [...FEMALE_VOICES, ...MALE_VOICES];
@@ -179,6 +143,7 @@ async function verifyFirebaseToken(req: Req): Promise<string | null> {
 
 // Allowed Edge voices allowlist including natural multi-speaker & professor voices
 const ALLOWED_EDGE_VOICES = new Set([
+  ...ALL_EDGE_VOICES,
   'en-US-AriaNeural',
   'en-US-JennyNeural',
   'en-US-MichelleNeural',
@@ -189,11 +154,13 @@ const ALLOWED_EDGE_VOICES = new Set([
   'en-US-EricNeural',
   'en-US-RogerNeural',
   'en-US-SteffanNeural',
-  'en-US-RyanNeural',
-  'en-US-SoniaNeural',
   'en-US-AndrewNeural',
   'en-US-BrianNeural',
   'en-US-AvaNeural',
+  'en-GB-SoniaNeural',
+  'en-GB-LibbyNeural',
+  'en-GB-RyanNeural',
+  'en-GB-ThomasNeural',
 ]);
 
 export function stripSpeakerAndFormatting(text: string): string {
@@ -242,6 +209,27 @@ export async function handleHealth(req: Req, res: Res) {
   });
 }
 
+export async function handleModelsEndpoint(req: Req, res: Res) {
+  const apiKey = (
+    req.headers['x-gemini-key'] ||
+    req.headers['x-gemini-api-key'] ||
+    req.headers['x-api-key'] ||
+    req.headers['authorization'] ||
+    ''
+  )
+    .toString()
+    .replace('Bearer ', '')
+    .trim();
+  const provider = (req.headers['x-api-provider'] || 'gemini').toString();
+  const roleData = await getRoleModels(provider, apiKey);
+  return res.status(200).json({
+    success: true,
+    models: roleData.all,
+    generationModel: roleData.generationModel,
+    evaluationModel: roleData.evaluationModel,
+  });
+}
+
 export async function handleTestKeyEndpoint(req: Req, res: Res) {
   try {
     const config = getApiConfig(req.headers, req.body);
@@ -257,8 +245,10 @@ export async function handleTestKeyEndpoint(req: Req, res: Res) {
 export async function handleGenerateTaskEndpoint(req: Req, res: Res) {
   try {
     const config = getApiConfig(req.headers, req.body);
+    const groqKey = (req.headers['x-groq-key'] as string) || (config.provider === 'groq' ? config.apiKey : '') || process.env.GROQ_API_KEY || '';
+    const mergedConfig = { ...config, groqKey };
     const { taskType, level, topic, promptData } = req.body || {};
-    const result = await handleGenerateTask(taskType, level, topic, config, promptData);
+    const result = await handleGenerateTask(taskType, level, topic, mergedConfig, promptData);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     console.error('Generate task error:', redactSensitiveInfo(error));
@@ -270,8 +260,10 @@ export async function handleGenerateTaskEndpoint(req: Req, res: Res) {
 export async function handleEvaluateResponseEndpoint(req: Req, res: Res) {
   try {
     const config = getApiConfig(req.headers, req.body);
+    const groqKey = (req.headers['x-groq-key'] as string) || (config.provider === 'groq' ? config.apiKey : '') || process.env.GROQ_API_KEY || '';
+    const mergedConfig = { ...config, groqKey };
     const { taskType, promptData, studentResponse } = req.body || {};
-    const result = await handleEvaluateResponse(taskType, promptData, studentResponse, config);
+    const result = await handleEvaluateResponse(taskType, promptData, studentResponse, mergedConfig);
     return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     console.error('Evaluate response error:', redactSensitiveInfo(error));
@@ -398,18 +390,44 @@ function splitTextIntoSentences(text: string, maxLen = 180): string[] {
   return chunks.length > 0 ? chunks : [text.trim()];
 }
 
-import { synthesizeEdge, EdgeTtsError } from './edgeTts.ts';
-
-// ... (other imports)
-
 async function synthesizeWithZeroKeyFetch(
   text: string,
-  speakerName: string,
-  gender: string,
-  voiceName?: string
+  speakerNameOrGender: string,
+  genderOrSelectedVoice?: string,
+  voiceNameArg?: string
 ): Promise<{ buffer: Buffer; modelUsed: string } | null> {
-  const isMale = gender === 'male' || (voiceName && MALE_VOICES.includes(voiceName as any)) || (speakerName && detectSpeakerGender(speakerName) === 'male');
-  const selectedVoice = voiceName || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  // Support both 3-arg (text, gender, selectedVoice) and 4-arg (text, speakerName, gender, selectedVoice) signatures
+  let speakerName = '';
+  let gender = '';
+  let voiceName = '';
+
+  if (
+    voiceNameArg !== undefined ||
+    genderOrSelectedVoice === 'male' ||
+    genderOrSelectedVoice === 'female'
+  ) {
+    speakerName = speakerNameOrGender || '';
+    gender = (genderOrSelectedVoice || '').toLowerCase();
+    voiceName = (voiceNameArg || '').trim();
+  } else {
+    gender = (speakerNameOrGender || '').toLowerCase();
+    voiceName = (genderOrSelectedVoice || '').trim();
+  }
+
+  let selectedVoice = '';
+  if (voiceName && ALLOWED_EDGE_VOICES.has(voiceName)) {
+    selectedVoice = voiceName;
+  } else {
+    const isMale =
+      gender === 'male' ||
+      (voiceName ? MALE_VOICES.includes(voiceName) : false) ||
+      (gender !== 'female' && Boolean(speakerName && detectSpeakerGender(speakerName) === 'male'));
+    const pool = isMale ? MALE_VOICES : FEMALE_VOICES;
+    const absHash = Math.abs(
+      text.split('').reduce((acc, ch) => ((acc << 5) - acc + ch.charCodeAt(0)) | 0, 0)
+    );
+    selectedVoice = pool[absHash % pool.length] || (isMale ? 'en-US-ChristopherNeural' : 'en-US-AriaNeural');
+  }
 
   try {
     const buffer = await synthesizeEdge(text, selectedVoice);
@@ -439,7 +457,8 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const text = body.text || '';
-    const voiceName = body.voiceName || '';
+    const customVoice = (body.voice || body.voiceName || '').toString().trim();
+    const voiceName = customVoice;
     const speaker = body.speaker || '';
     const rate = body.rate || 1.0;
 
@@ -464,23 +483,29 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 
     const isTest = req.headers['x-tts-test'] === 'true';
 
-    const isMaleExplicit = body.isMale === true || body.gender === 'male';
-    let isMale = isMaleExplicit || /Male|Guy|Christopher|Eric|onyx|alloy|Puck/i.test(voiceName || speaker);
+    const reqGender = (body.gender || (body.isMale === true ? 'male' : body.isMale === false ? 'female' : '')).toString().toLowerCase();
+    const isMaleExplicit = body.isMale === true || reqGender === 'male';
+    const isFemaleExplicit = body.isMale === false || reqGender === 'female';
+    let isMale =
+      isMaleExplicit ||
+      (!isFemaleExplicit &&
+        (MALE_VOICES.includes(customVoice) ||
+          /Male|Guy|Christopher|Eric|Andrew|Brian|Ryan|Thomas|William|Roger|Steffan|onyx|alloy|Puck/i.test(voiceName || speaker)));
     let cleanText = text;
     const prefixMatch = text.match(/^\s*(?:\*\*|__)?([A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\(([^)]+)\))?(?:\*\*|__)?\s*:/i);
     if (prefixMatch) {
       const pSpeakerName = prefixMatch[1].trim();
       const pSpeakerHint = prefixMatch[2] ? prefixMatch[2].trim() : '';
-      if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'male' || /male/i.test(pSpeakerHint)) {
+      if (!isFemaleExplicit && (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'male' || /\bmale\b/i.test(pSpeakerHint))) {
         isMale = true;
-      } else if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'female' || /female/i.test(pSpeakerHint)) {
+      } else if (detectSpeakerGender(pSpeakerName, pSpeakerHint) === 'female' || /\bfemale\b/i.test(pSpeakerHint)) {
         if (!isMaleExplicit) isMale = false;
       }
       cleanText = text.replace(/^\s*(?:\*\*|__)?(?:[A-Z][a-zA-Z0-9.\s'-]{0,28}?)(?:\s*\([^)]+\))?(?:\*\*|__)?\s*:\s*/i, '').trim();
     }
     const speakerName = speaker || (prefixMatch ? prefixMatch[1].trim() : '');
     const speakerHint = body.speakerHint || (prefixMatch ? (prefixMatch[2] || '') : '');
-    if (!isMale && (detectSpeakerGender(speakerName, speakerHint) === 'male' || /male/i.test(speakerHint))) {
+    if (!isMale && !isFemaleExplicit && (detectSpeakerGender(speakerName, speakerHint) === 'male' || /\bmale\b/i.test(speakerHint))) {
       isMale = true;
     }
 
@@ -494,26 +519,27 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       });
     }
 
-    const reqVoice = (body.voice || body.voiceName || voiceName || '').toString().trim();
-    const reqGender = (body.gender || (body.isMale === true ? 'male' : body.isMale === false ? 'female' : '')).toString().toLowerCase();
+    const reqVoice = customVoice;
 
     let selectedVoice = '';
-    if (reqVoice && (FEMALE_VOICES.includes(reqVoice) || MALE_VOICES.includes(reqVoice))) {
+    if (
+      reqVoice &&
+      (ALLOWED_EDGE_VOICES.has(reqVoice) ||
+        FEMALE_VOICES.includes(reqVoice) ||
+        MALE_VOICES.includes(reqVoice) ||
+        /^en-[A-Z]{2}-[A-Za-z]+Neural$/.test(reqVoice))
+    ) {
       selectedVoice = reqVoice;
     } else if (reqGender === 'male' || reqGender === 'female') {
       const pool = reqGender === 'male' ? MALE_VOICES : FEMALE_VOICES;
-      selectedVoice = pool[Math.floor(Math.random() * pool.length)];
+      selectedVoice = pool[0];
     } else {
       const gender = isMale ? 'male' : detectSpeakerGender(speakerName, prefixMatch ? (prefixMatch[2] || '') : '');
-      if (gender === 'male' || gender === 'female') {
-        const pool = gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
-        selectedVoice = pool[Math.floor(Math.random() * pool.length)];
-      } else {
-        selectedVoice = ALL_EDGE_VOICES[Math.floor(Math.random() * ALL_EDGE_VOICES.length)];
-      }
+      const pool = gender === 'male' ? MALE_VOICES : FEMALE_VOICES;
+      selectedVoice = pool[0];
     }
 
-    isMale = MALE_VOICES.includes(selectedVoice) || reqGender === 'male';
+    isMale = MALE_VOICES.includes(selectedVoice) || (reqGender === 'male' && !FEMALE_VOICES.includes(selectedVoice));
 
     const pitch = (body.pitch || '0Hz').toString().trim();
     const ratePercent = Math.round((numRate - 1.0) * 100);
@@ -555,7 +581,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     let modelUsed = `Neural Stream (${selectedVoice})`;
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
-    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice);
+    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice || customVoice);
     if (zeroKeyRes) {
       audioBuffer = zeroKeyRes.buffer;
       mimeType = 'audio/mpeg';
@@ -608,12 +634,75 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     });
   }
 }
-export { handleTtsCheckEndpoint } from './api/tts-check.ts';
+export { handleTtsCheckEndpoint } from './api/tts-check';
+
+function getDictionaryCandidates(rawWord: string): string[] {
+  const w = rawWord.trim().toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, '');
+  if (!w) return [];
+  const candidates: string[] = [w];
+
+  // 1. If ending in 'ies' -> w.slice(0, -3) + 'y' (e.g. cavities -> cavity)
+  if (w.endsWith('ies') && w.length > 4) {
+    candidates.push(w.slice(0, -3) + 'y');
+  }
+  // 2. If ending in 'es' -> w.slice(0, -2) and w.slice(0, -1) (e.g. classes -> class, boxes -> box, juices -> juice)
+  if (w.endsWith('es') && w.length > 3) {
+    candidates.push(w.slice(0, -2));
+    candidates.push(w.slice(0, -1));
+  }
+  // 3. If ending in 's' (and not 'ss', 'us', 'is') -> w.slice(0, -1) (e.g. fosters -> foster)
+  if (w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us') && !w.endsWith('is') && w.length > 3) {
+    candidates.push(w.slice(0, -1));
+  }
+  // 4. If ending in 'ed' -> w.slice(0, -2) and w.slice(0, -1) (e.g. juxtaposed -> juxtapose, mitigated -> mitigate)
+  if (w.endsWith('ed') && w.length > 4) {
+    candidates.push(w.slice(0, -2));
+    candidates.push(w.slice(0, -1));
+    if (w.length > 5 && w[w.length - 3] === w[w.length - 4]) {
+      candidates.push(w.slice(0, -3)); // stopped -> stop
+    }
+  }
+  // 5. If ending in 'ing' -> w.slice(0, -3) and w.slice(0, -3) + 'e' (e.g. fostering -> foster, making -> make)
+  if (w.endsWith('ing') && w.length > 5) {
+    candidates.push(w.slice(0, -3));
+    candidates.push(w.slice(0, -3) + 'e');
+    if (w.length > 6 && w[w.length - 4] === w[w.length - 5]) {
+      candidates.push(w.slice(0, -4)); // running -> run
+    }
+  }
+  // 6. If ending in 'ly' -> w.slice(0, -2) (e.g. empirically -> empirical)
+  if (w.endsWith('ly') && w.length > 4) {
+    candidates.push(w.slice(0, -2));
+  }
+
+  return Array.from(new Set(candidates.filter((c) => c && c.length >= 2)));
+}
+
+function cleanHtmlAndEntities(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, '$1')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&[a-z]+;/gi, '')
+    .replace(/^\([^)]+\)\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const { word } = req.query;
   if (!word || typeof word !== 'string') return res.status(400).json({ success: false, error: 'Word required' });
-  const w = word.trim().toLowerCase();
+  const rawClean = word.trim().toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, '');
+  if (!rawClean) return res.status(400).json({ success: false, error: 'Valid word required' });
+
+  const candidates = getDictionaryCandidates(rawClean);
 
   const isArchaicOrPlato = (def: string) =>
     /\b(plato|platonist|sect|obsolete|archaic|historical|dated|rare|misspelling of|alternative form of|urine)\b/i.test(def);
@@ -637,27 +726,82 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
     return score;
   };
 
-  // Cascade logic: 1. Wikimedia Wiktionary REST, 2. FreeDictionaryAPI, 3. Datamuse
-  const sources = [
-    async () => { // 1. Wikimedia Wiktionary REST API
+  // Step 1: Try dictionaryapi.dev for the exact word first, then stem/lemma candidates
+  for (const cand of candidates) {
+    try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(w)}`, {
-          signal: controller.signal,
-          headers: { 'User-Agent': 'TOEFLPrepStudio/1.0 (educational app)' }
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const data = await res.json();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cand)}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data) && data[0] && Array.isArray(data[0].meanings)) {
+          const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
+          for (const m of data[0].meanings) {
+            const pos = String(m.partOfSpeech || 'noun').toLowerCase();
+            for (const d of (m.definitions || [])) {
+              if (!d.definition) continue;
+              const cleanDef = cleanHtmlAndEntities(String(d.definition));
+              if (cleanDef.split(/\s+/).length <= 1) continue;
+              if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(cleanDef)) continue;
+              meanings.push({
+                partOfSpeech: pos,
+                definition: cleanDef,
+                example: typeof d.example === 'string' ? cleanHtmlAndEntities(d.example) : '',
+              });
+            }
+          }
+
+          if (meanings.length > 0) {
+            const modernMeanings = meanings.filter((m) => !isArchaicOrPlato(m.definition));
+            const finalMeanings = (modernMeanings.length > 0 ? modernMeanings : meanings).sort((a, b) => {
+              const aScore = scoreDefinition(a.definition);
+              const bScore = scoreDefinition(b.definition);
+              if (aScore !== bScore) return bScore - aScore;
+              if (a.example && !b.example) return -1;
+              if (!a.example && b.example) return 1;
+              return 0;
+            });
+
+            return res.json({
+              word: cand,
+              lookupWord: rawClean,
+              meanings: finalMeanings.slice(0, 4),
+              phonetic: data[0].phonetic || data[0].phonetics?.find((p: any) => p.text)?.text || '',
+              source: 'dictionaryapi',
+            });
+          }
+        }
+      }
+    } catch {
+      // continue to next candidate
+    }
+  }
+
+  // Step 2: Fallback to Wikimedia Wiktionary REST for candidate words
+  for (const cand of candidates) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const resp = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(cand)}`, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'TOEFLPrepStudio/1.0 (educational app)' }
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
         const enEntries = data.en || [];
         const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
         for (const entry of enEntries) {
           const pos = String(entry.partOfSpeech || 'noun').toLowerCase();
           for (const defObj of (entry.definitions || [])) {
             const defHtml = defObj.definition || '';
-            const cleanDef = String(defHtml).replace(/<[^>]*>?/gm, '').replace(/^\([^)]+\)\s*/, '').trim();
-            if (!cleanDef || /(obsolete|archaic|dated|rare|misspelling of|alternative form of)/i.test(cleanDef)) continue;
+            const cleanDef = cleanHtmlAndEntities(defHtml);
+            // Skip 1-word stub lines and empty lines
+            if (!cleanDef || cleanDef.split(/\s+/).length <= 1) continue;
+            if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of)/i.test(cleanDef)) continue;
             meanings.push({
               partOfSpeech: pos,
               definition: cleanDef,
@@ -665,124 +809,67 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
             });
           }
         }
-        if (meanings.length === 0) return null;
-        return {
-          meanings: meanings.slice(0, 3),
-          source: 'wiktionary_rest',
-        };
-      } catch {
-        clearTimeout(timeout);
-        return null;
-      }
-    },
-    async () => { // 2. DictionaryAPI (clean definitions, real examples, audio)
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`, {
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (!Array.isArray(data) || !data[0] || !Array.isArray(data[0].meanings)) return null;
-
-        const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
-        for (const m of data[0].meanings) {
-          const pos = String(m.partOfSpeech || 'noun').toLowerCase();
-          for (const d of (m.definitions || [])) {
-            if (!d.definition) continue;
-            const cleanDef = String(d.definition).replace(/^\([^)]+\)\s*/, '').trim();
-            if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(cleanDef)) continue;
-            meanings.push({
-              partOfSpeech: pos,
-              definition: cleanDef,
-              example: typeof d.example === 'string' ? d.example.trim() : '',
-            });
-          }
+        if (meanings.length > 0) {
+          return res.json({
+            word: cand,
+            lookupWord: rawClean,
+            meanings: meanings.slice(0, 3),
+            source: 'wiktionary_rest',
+          });
         }
-        if (meanings.length === 0) return null;
-
-        const modernMeanings = meanings.filter((m) => !isArchaicOrPlato(m.definition));
-        const finalMeanings = (modernMeanings.length > 0 ? modernMeanings : meanings).sort((a, b) => {
-          const aScore = scoreDefinition(a.definition);
-          const bScore = scoreDefinition(b.definition);
-          if (aScore !== bScore) return bScore - aScore;
-          if (a.example && !b.example) return -1;
-          if (!a.example && b.example) return 1;
-          return 0;
-        });
-
-        return {
-          meanings: finalMeanings,
-          phonetic: data[0].phonetic || data[0].phonetics?.find((p: any) => p.text)?.text || '',
-          source: 'dictionaryapi',
-        };
-      } catch {
-        clearTimeout(timeout);
-        return null;
       }
-    },
-    async () => { // 2. Datamuse with STRICT exact-word check
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(w)}&md=dprs&max=5`, {
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (!Array.isArray(data)) return null;
-
-        const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
-        for (const item of data) {
-          // STRICT CHECK: NEVER include definitions from rhyming, similar, or neighboring words
-          if (!item.word || item.word.toLowerCase() !== w) continue;
-          if (!Array.isArray(item.defs)) continue;
-
-          for (const defStr of item.defs) {
-            const parts = defStr.split('\t');
-            if (parts.length < 2) continue;
-            const posCode = parts[0].trim().toLowerCase();
-            const defText = parts[1].replace(/^\([^)]+\)\s*/, '').trim();
-            if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(defText)) continue;
-
-            const posMap: Record<string, string> = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: 'noun' };
-            meanings.push({
-              partOfSpeech: posMap[posCode] || posCode || 'noun',
-              definition: defText,
-              example: '',
-            });
-          }
-        }
-        const modernMeanings = meanings.filter((m) => !isArchaicOrPlato(m.definition));
-        const finalMeanings = (modernMeanings.length > 0 ? modernMeanings : meanings).sort((a, b) => {
-          const aScore = scoreDefinition(a.definition);
-          const bScore = scoreDefinition(b.definition);
-          if (aScore !== bScore) return bScore - aScore;
-          return 0;
-        });
-
-        if (finalMeanings.length === 0) return null;
-        return {
-          meanings: finalMeanings,
-          source: 'datamuse',
-        };
-      } catch {
-        clearTimeout(timeout);
-        return null;
-      }
-    },
-  ];
-
-  for (const source of sources) {
-    try {
-      const result = await source();
-      if (result && Array.isArray(result.meanings) && result.meanings.length > 0) {
-        return res.json(result);
-      }
-    } catch {}
+    } catch {
+      // continue
+    }
   }
-  return res.status(404).json({ success: false, error: 'Not found' });
+
+  // Step 3: Datamuse fallback
+  for (const cand of candidates) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const resp = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cand)}&md=dprs&max=5`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+          const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
+          for (const item of data) {
+            if (!item.word || item.word.toLowerCase() !== cand) continue;
+            if (!Array.isArray(item.defs)) continue;
+
+            for (const defStr of item.defs) {
+              const parts = defStr.split('\t');
+              if (parts.length < 2) continue;
+              const posCode = parts[0].trim().toLowerCase();
+              const defText = cleanHtmlAndEntities(parts[1]);
+              if (!defText || defText.split(/\s+/).length <= 1) continue;
+              if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(defText)) continue;
+
+              const posMap: Record<string, string> = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: 'noun' };
+              meanings.push({
+                partOfSpeech: posMap[posCode] || posCode || 'noun',
+                definition: defText,
+                example: '',
+              });
+            }
+          }
+          if (meanings.length > 0) {
+            return res.json({
+              word: cand,
+              lookupWord: rawClean,
+              meanings: meanings.slice(0, 3),
+              source: 'datamuse',
+            });
+          }
+        }
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  return res.status(404).json({ success: false, error: 'Word not found' });
 }

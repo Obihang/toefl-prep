@@ -1,4 +1,4 @@
-import { FEMALE_VOICES, MALE_VOICES } from '../utils/voices.ts';
+import { FEMALE_VOICES, MALE_VOICES } from '../utils/voices';
 
 const GROQ_FEMALE_VOICES = ['autumn', 'diana', 'hannah'];
 const GROQ_MALE_VOICES = ['austin', 'daniel', 'troy'];

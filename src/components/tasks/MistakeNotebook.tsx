@@ -12,6 +12,16 @@ export const MistakeNotebook: React.FC = () => {
 
   useEffect(() => {
     loadMistakes();
+    const handleReset = () => {
+      setMistakes([]);
+      setReviewMode(false);
+    };
+    window.addEventListener('toefl_progress_reset', handleReset);
+    window.addEventListener('toefl_mistakes_updated', loadMistakes);
+    return () => {
+      window.removeEventListener('toefl_progress_reset', handleReset);
+      window.removeEventListener('toefl_mistakes_updated', loadMistakes);
+    };
   }, []);
 
   async function loadMistakes() {

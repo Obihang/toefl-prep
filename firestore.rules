@@ -10,6 +10,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.get('admin', false) == true;
+    }
+
     function isValidLevel(l) {
       return l in ['beginner', 'intermediate', 'upper-intermediate', 'advanced'];
     }
@@ -21,15 +25,35 @@ service cloud.firestore {
     function isValidTaskType(t) {
       return t in [
         'complete-words',
+        'complete_words',
+        'daily-life',
+        'daily_life',
+        'reading-academic',
+        'reading_academic',
         'reading-passage',
-        'listening-dialogue',
-        'listen-repeat',
-        'speaking-interview',
-        'build-sentence',
-        'write-email',
-        'academic-discussion',
         'reading',
-        'listening'
+        'listening-choose-response',
+        'listening_choose_response',
+        'listening-dialogue',
+        'listening_dialogue',
+        'listening-conversation',
+        'listening_conversation',
+        'listening-announcement',
+        'listening_announcement',
+        'listening-academic-talk',
+        'listening_academic_talk',
+        'listening-lecture',
+        'listening',
+        'build-sentence',
+        'writing_build_sentence',
+        'write-email',
+        'writing_email',
+        'academic-discussion',
+        'writing_discussion',
+        'listen-repeat',
+        'speaking_listen_repeat',
+        'speaking-interview',
+        'speaking_interview'
       ];
     }
 
@@ -62,27 +86,18 @@ service cloud.firestore {
         && (clips.size() <= 9 || isValidAudioClip(clips[9]));
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    function isValidQuestion(data) {
+      return isValidTaskType(data.taskType)
+        && data.content is map
+        && (!data.keys().hasAll(['schemaVersion']) || data.schemaVersion is number || data.schemaVersion is string)
+        && (!data.keys().hasAll(['contentHash']) || (data.contentHash is string && data.contentHash.size() <= 200))
+        && (!data.keys().hasAll(['useCount']) || (data.useCount is number && data.useCount >= 0))
+        && (!data.keys().hasAll(['audioUrl']) || data.audioUrl == null || (data.audioUrl is string && isValidUrl(data.audioUrl)))
+        && (!data.keys().hasAll(['audioClips']) || data.audioClips == null || isValidAudioClips(data.audioClips));
     }
 
-    // Shared Question Bank
-    match /questions/{questionId} {
-      allow read: if true;
-
-      allow create: if isSignedIn()
-        && isValidTaskType(request.resource.data.taskType)
-        && request.resource.data.contentHash is string
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.useCount is number
-        && request.resource.data.useCount >= 0
-        && request.resource.data.content is map
-        && request.resource.data.contentHash.size() <= 200
-        && (!request.resource.data.keys().hasAll(['audioUrl']) || (request.resource.data.audioUrl is string && isValidUrl(request.resource.data.audioUrl)))
-        && (!request.resource.data.keys().hasAll(['audioClips']) || isValidAudioClips(request.resource.data.audioClips));
-
-      allow update: if isSignedIn()
-        && request.resource.data.createdBy == resource.data.createdBy
+    function isQuestionIncrementOnly() {
+      return request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.taskType == resource.data.taskType
         && request.resource.data.contentHash == resource.data.contentHash
         && request.resource.data.content == resource.data.content
@@ -103,12 +118,6 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['audioClips'])
           ) ||
           (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
-            && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)
-            && !exists(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
-            && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
-          ) ||
-          (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['topic', 'level'])
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['topic']) || (
               !isValidTopic(resource.data.get('topic', ''))
@@ -120,8 +129,31 @@ service cloud.firestore {
             ))
           )
         );
+    }
 
-      allow delete: if false;
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared Question Bank
+    match /questions/{questionId} {
+      allow read: if true;
+
+      allow create: if isValidQuestion(request.resource.data);
+
+      allow update: if isQuestionIncrementOnly()
+        || isAdmin()
+        || (isValidQuestion(request.resource.data) && request.resource.data.id == resource.data.id && request.resource.data.taskType == resource.data.taskType)
+        || (isValidQuestion(request.resource.data) && request.resource.data.get('id', questionId) == resource.data.get('id', questionId) && request.resource.data.taskType == resource.data.taskType)
+        || (
+          isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
+          && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)
+          && !exists(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+          && existsAfter(/databases/$(database)/documents/questionReports/$(questionId + '__' + request.auth.uid))
+        );
+
+      allow delete: if isSignedIn();
     }
 
     // Global User Reports
