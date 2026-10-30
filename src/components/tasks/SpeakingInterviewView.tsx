@@ -20,7 +20,7 @@ import {
   pickRandomVoice,
   inferGenderFromSpeaker,
 } from '../../utils/audioSpeech';
-import { filterWhisperHallucinations } from '../../utils/audio/fluencyMetrics';
+import { filterWhisperHallucinations, detectFillerWords } from '../../utils/audio/fluencyMetrics';
 import { calculateSpeakingMetrics, SpeakingMetrics } from '../../utils/speakingMetrics';
 import { savePracticeRecord } from '../../utils/scoreTracker';
 import { getApiHeaders, hasAnyStoredApiKey } from '../../utils/apiKey';
@@ -47,12 +47,12 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   onNextTask,
   onComplete,
   onOpenApiKeySettings,
-  keyboardShortcutHint = '⌨️ Enter: Stop Recording & Transcribe',
 }) => {
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [, setStep] = useState<'idle' | 'speaking' | 'done'>('idle');
   const [answers, setAnswers] = useState<Record<string | number, any>>({});
   const answersRef = useRef<Record<string | number, any>>({});
+  const [showPromptText, setShowPromptText] = useState(false);
 
   const [activeAudioIdx, setActiveAudioIdx] = useState<number | null>(null);
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
@@ -858,28 +858,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg whitespace-nowrap">
-            {keyboardShortcutHint}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setShowMicTest((prev) => !prev)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <Mic className="w-3.5 h-3.5 text-teal-700" />
-            <span>{showMicTest ? 'Hide Mic Test' : '🎙 Test Mic'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsTranscriberModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <HardDrive className="w-3.5 h-3.5 text-teal-700" />
-            <span>⚙️ Configure / Download Offline Transcriber</span>
-          </button>
-
           {/* Question selector tabs */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg">
             {task.questions.map((_, i) => (
@@ -910,12 +888,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           </div>
         </div>
       </div>
-
-      {showMicTest && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-          <MicrophoneTestWidget compact={true} />
-        </div>
-      )}
 
       {!isAnyModelCached && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-900 animate-in fade-in">
@@ -971,21 +943,42 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setAutoStart(true);
-            autoStartRef.current = true;
-            const nextUnanswered = task.questions.findIndex((_, idx) => !answers[idx]?.trim());
-            const startIdx = nextUnanswered >= 0 ? nextUnanswered : 0;
-            handlePlayQuestion(startIdx);
-          }}
-          disabled={activeAudioIdx !== null || micStatus !== 'idle'}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
-        >
-          <Play className="w-3.5 h-3.5 fill-current" />
-          <span>Start Interview (Auto-Flow)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPromptText((prev) => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors bg-white hover:bg-slate-50 border-teal-300 text-teal-900 cursor-pointer shadow-2xs whitespace-nowrap"
+            title={showPromptText ? 'Hide written question prompts to match the official exam' : 'Show written question prompts for reading assistance'}
+          >
+            {showPromptText ? (
+              <>
+                <span>🙈</span>
+                <span>Hide Questions</span>
+              </>
+            ) : (
+              <>
+                <span>👁️</span>
+                <span>Show Questions</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAutoStart(true);
+              autoStartRef.current = true;
+              const nextUnanswered = task.questions.findIndex((_, idx) => !answers[idx]?.trim());
+              const startIdx = nextUnanswered >= 0 ? nextUnanswered : 0;
+              handlePlayQuestion(startIdx);
+            }}
+            disabled={activeAudioIdx !== null || micStatus !== 'idle'}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Start Interview (Auto-Flow)</span>
+          </button>
+        </div>
       </div>
 
       {/* Headphone echo prevention hint */}
@@ -1056,6 +1049,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                 onManualMicToggle={() => handleToggleMic(idx)}
                 audioLevel={audioLevel}
                 recordingSeconds={recordingSeconds}
+                showPromptText={showPromptText || Boolean(evaluationResult)}
+                hasAnswerText={Boolean(qAnswer.trim())}
               />
 
               <div className="space-y-2">
@@ -1116,13 +1111,13 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                             ? Math.round(wordCount / timeInMinutes)
                             : 0;
 
-                        const detectedMatches =
-                          qAnswer.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || [];
+                        const detected = detectFillerWords(qAnswer);
                         const fillerCount =
-                          metrics?.fillerCount ?? metrics?.fillerWordCount ?? detectedMatches.length;
+                          metrics?.fillerCount ?? metrics?.fillerWordCount ?? detected.fillerCount;
                         const fillerList =
-                          metrics?.fillerWords ||
-                          Array.from(new Set(detectedMatches.map((f) => f.replace(/[\[\]]/g, ''))));
+                          metrics?.fillerWords && metrics.fillerWords.length > 0
+                            ? metrics.fillerWords
+                            : detected.fillerWords;
 
                         return (
                           <>
@@ -1145,9 +1140,17 @@ export const SpeakingInterviewView: React.FC<Props> = ({
                               <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                                 0 fillers ✓
                               </div>
+                            ) : fillerCount <= 2 ? (
+                              <div className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                {fillerCount} natural filler{fillerCount > 1 ? 's' : ''} ✓
+                              </div>
+                            ) : fillerCount < 5 ? (
+                              <div className="text-[11px] font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+                                {fillerCount} fillers ({fillerList.join(', ')})
+                              </div>
                             ) : (
                               <div className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                                ⚠️ {fillerCount} filler{fillerCount > 1 ? 's' : ''} ({fillerList.join(', ')})
+                                ⚠️ {fillerCount} fillers ({fillerList.join(', ')})
                               </div>
                             )}
                           </>

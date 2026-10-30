@@ -37,8 +37,10 @@ export interface SpeakingControlsProps {
   onManualMicToggle: () => void;
   autoStart?: boolean;
   onSetAutoStart?: (val: boolean) => void;
-  audioLevel: number;
-  recordingSeconds: number;
+  audioLevel?: number;
+  recordingSeconds?: number;
+  showPromptText?: boolean;
+  hasAnswerText?: boolean;
 }
 
 export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
@@ -58,13 +60,16 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
   transcribeSeconds,
   onManualMicToggle,
   audioLevel,
+  showPromptText = true,
+  hasAnswerText = false,
 }) => {
   const allowedSeconds = currentQ.responseTimeSeconds || 45;
+  const isRevealed = showPromptText || hasRecording || hasAnswerText;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-teal-700 uppercase tracking-wider">
               Question {currentQIndex + 1} of {totalQuestions}
@@ -74,9 +79,16 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
               0s Prep · {allowedSeconds}s Response
             </span>
           </div>
-          <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug">
-            {currentQ.question}
-          </h3>
+          {isRevealed ? (
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900 leading-snug">
+              {currentQ.question}
+            </h3>
+          ) : (
+            <div className="p-3 bg-teal-50/70 border border-teal-200/90 rounded-lg text-xs text-teal-900 flex items-center gap-2">
+              <span className="text-sm">🎧</span>
+              <span>Listen to the interviewer's question and speak after the beep (question text is hidden just like the real exam).</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -167,8 +179,8 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
         </div>
       </div>
 
-      {/* Suggested Talking Points */}
-      {currentQ.suggestedPoints && currentQ.suggestedPoints.length > 0 && (
+      {/* Suggested Talking Points (only shown when question text is revealed) */}
+      {isRevealed && currentQ.suggestedPoints && currentQ.suggestedPoints.length > 0 && (
         <div className="border border-slate-100 bg-slate-50/60 rounded-lg p-3 text-xs">
           <span className="font-semibold text-slate-700">Key Points to Address:</span>
           <ul className="list-disc list-inside mt-1 space-y-0.5 text-slate-600">
@@ -201,10 +213,10 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
             <div className="w-24 h-2.5 bg-rose-100 rounded-full overflow-hidden border border-rose-200 p-0.5 flex items-center">
               <div
                 className="h-full bg-rose-500 rounded-full transition-all duration-75"
-                style={{ width: `${Math.min(100, Math.max(5, audioLevel))}%` }}
+                style={{ width: `${Math.min(100, Math.max(5, audioLevel ?? 0))}%` }}
               />
             </div>
-            <span className="text-[10px] font-mono font-semibold text-slate-600 w-8 text-right">{audioLevel}%</span>
+            <span className="text-[10px] font-mono font-semibold text-slate-600 w-8 text-right">{audioLevel ?? 0}%</span>
           </div>
         </div>
       )}

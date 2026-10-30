@@ -1793,7 +1793,6 @@ export default function App() {
                 <ListenRepeatView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as ListenRepeatTask}
-                  keyboardShortcutHint="⌨️ Enter: Stop Recording & Transcribe"
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   onComplete={() => {
                     document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
@@ -1809,7 +1808,6 @@ export default function App() {
                 <SpeakingInterviewView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as SpeakingInterviewTask}
-                  keyboardShortcutHint="⌨️ Enter: Stop Recording & Transcribe"
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   localGraderLabel="⚡ Instant Local Grader"
                   aiGraderLabel="✨ Deep AI Grader"

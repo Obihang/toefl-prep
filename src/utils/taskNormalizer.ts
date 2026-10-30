@@ -1221,6 +1221,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
           const qText = String(typeof q === 'string' ? q : q?.question || q?.prompt || '').trim();
           if (!qText) return null;
           return {
+            id: q?.id,
             question: qText,
             prepTimeSeconds: Number(q?.prepTimeSeconds) || 15,
             responseTimeSeconds: Number(q?.responseTimeSeconds) || 45,
@@ -1232,13 +1233,16 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
                     'Support your argument with a concrete academic or personal example',
                     'Synthesize the broader implications of your view',
                   ],
+            sampleAnswer: typeof q?.sampleAnswer === 'string' ? q.sampleAnswer.trim() : undefined,
           };
         })
         .filter(Boolean) as Array<{
+        id?: string;
         question: string;
         prepTimeSeconds: number;
         responseTimeSeconds: number;
         suggestedPoints: string[];
+        sampleAnswer?: string;
       }>;
 
       const defaultFollowUps = [
@@ -1292,6 +1296,10 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         normalizedQs.push(defaultFollowUps[fIdx++]);
       }
 
+      const modelAnswers = normalizedQs
+        .map((q) => q.sampleAnswer)
+        .filter((sa): sa is string => typeof sa === 'string' && sa.trim().length > 0);
+
       return {
         ...task,
         title,
@@ -1299,6 +1307,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         interviewerName,
         interviewerGender,
         questions: normalizedQs.slice(0, 4),
+        ...(modelAnswers.length > 0 ? { modelAnswers } : {}),
       };
     }
 

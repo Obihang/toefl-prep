@@ -24,17 +24,13 @@ export interface SpeakingMetrics {
 export const COMMON_FILLERS = new Set([
   'um',
   'uh',
-  'like',
+  'uhm',
   'er',
+  'erm',
   'ah',
-  'basically',
-  'actually',
-  'literally',
-  'well',
+  'hmm',
   'you know',
   'i mean',
-  'sort of',
-  'kind of',
 ]);
 
 // Known Whisper silence hallucination patterns
@@ -100,7 +96,36 @@ export function calculateWpm(wordCount: number, durationSeconds: number): number
 }
 
 /**
- * Detects common spoken filler words from text or transcripts.
+ * Words preceding "like" that prove it is used as a verb, preposition, or comparative conjunction
+ */
+const LIKE_PRECEDING_WORDS = new Set([
+  'i', 'you', 'he', 'she', 'it', 'we', 'they', 'people', 'students', 'who',
+  "don't", "doesn't", "didn't", 'dont', 'doesnt', 'didnt',
+  'would', "wouldn't", 'wouldnt', 'should', "shouldn't", 'shouldnt', 'could', "couldn't", 'couldnt',
+  'might', 'also', 'really', 'feel', 'feels', 'felt', 'feeling',
+  'look', 'looks', 'looked', 'looking', 'sound', 'sounds', 'sounded', 'sounding',
+  'seem', 'seems', 'seemed', 'seeming', 'taste', 'tastes', 'smell', 'smells',
+  'act', 'acts', 'acted', 'things', 'places', 'activities', 'subjects', 'courses',
+  'just', 'more', 'much', 'something', 'anything', 'nothing', 'someone', 'anyone',
+  'not', 'such', 'what', 'which', 'quite', 'always', 'still', 'never', 'often',
+]);
+
+/**
+ * Words following "like" that prove it is used as a preposition, conjunction, or infinitive verb
+ */
+const LIKE_FOLLOWING_WORDS = new Set([
+  'to', 'the', 'a', 'an', 'it', 'this', 'that', 'these', 'those',
+  'what', 'how', 'when', 'where', 'why', 'who', 'whom', 'which',
+  'my', 'your', 'his', 'her', 'its', 'our', 'their',
+  'some', 'any', 'all', 'most', 'many', 'much', 'more',
+  'studying', 'working', 'reading', 'living', 'going', 'having', 'doing', 'playing', 'eating', 'using',
+  'campus', 'library', 'cafeteria', 'park', 'parks', 'class', 'classes',
+]);
+
+/**
+ * Detects genuine spoken filler words from text or transcripts.
+ * Excludes grammatical uses of "like" (verbs, prepositions, comparative conjunctions).
+ * 1-2 natural fillers are normal conversational English per ETS Speaking rubrics.
  */
 export function detectFillerWords(transcript: string): {
   fillerCount: number;
@@ -108,11 +133,40 @@ export function detectFillerWords(transcript: string): {
 } {
   const detectedFillers: string[] = [];
   const textWords = transcript.toLowerCase().match(/\b[a-z']+\b/g) || [];
+
   for (let i = 0; i < textWords.length; i++) {
     const single = textWords[i];
+
+    // Standard genuine hesitation fillers: um, uh, er, ah, etc.
     if (COMMON_FILLERS.has(single)) {
       detectedFillers.push(single);
+      continue;
     }
+
+    // Special context-aware check for "like":
+    // Only count as filler if NOT preceded by a subject/verb/helper AND NOT followed by an object/clause/article.
+    if (single === 'like') {
+      const prevWord = i > 0 ? textWords[i - 1] : '';
+      const nextWord = i < textWords.length - 1 ? textWords[i + 1] : '';
+
+      const isLegitimatePreceding = LIKE_PRECEDING_WORDS.has(prevWord);
+      const isLegitimateFollowing = LIKE_FOLLOWING_WORDS.has(nextWord);
+
+      // Only count "like" as hesitation if it's repeated ("like like") or not used as verb/preposition
+      const isRepetition = (nextWord === 'like' || prevWord === 'like');
+      if (isRepetition) {
+        if (nextWord === 'like') {
+          detectedFillers.push('like, like');
+        }
+      } else if (!isLegitimatePreceding && !isLegitimateFollowing) {
+        // Only isolated hesitation or "and like and"
+        if (prevWord === 'and' && (nextWord === 'and' || nextWord === 'so' || !nextWord)) {
+          detectedFillers.push('like');
+        }
+      }
+    }
+
+    // Check two-word fillers ("you know", "i mean", "sort of", "kind of")
     if (i < textWords.length - 1) {
       const double = `${textWords[i]} ${textWords[i + 1]}`;
       if (COMMON_FILLERS.has(double)) {
@@ -125,6 +179,14 @@ export function detectFillerWords(transcript: string): {
     fillerCount: detectedFillers.length,
     fillerWords: Array.from(new Set(detectedFillers)),
   };
+}
+
+/**
+ * 1–2 natural spoken fillers ("um", "uh") are completely normal and natural
+ * in conversational TOEFL speaking responses per official ETS Scoring Rubrics.
+ */
+export function isNaturalFillerCount(count: number): boolean {
+  return count <= 2;
 }
 
 /**

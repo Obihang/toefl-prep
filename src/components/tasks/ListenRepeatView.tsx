@@ -6,7 +6,7 @@ import { Volume2, Mic, MicOff, Check, RefreshCw, ArrowRight, AlertCircle, Loader
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
 import { speakScriptLine, speakWithCloudTTS, chunkTextForTTS, fetchCloudTtsAudio, stopSpeaking, createVoiceSession, VoiceSession, calculateSentenceMatch, transcribeAudioBlob, prefetchSpeechAudio, stripSpeakerAndFormatting, pickRandomVoice, inferGenderFromSpeaker, playRecordingBeep } from '../../utils/audioSpeech';
-import { filterWhisperHallucinations } from '../../utils/audio/fluencyMetrics';
+import { filterWhisperHallucinations, detectFillerWords } from '../../utils/audio/fluencyMetrics';
 import { SpeakingMetrics, calculateSpeakingMetrics } from '../../utils/speakingMetrics';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import {
@@ -44,7 +44,6 @@ export const ListenRepeatView: React.FC<Props> = ({
   task,
   onNextTask,
   onComplete,
-  keyboardShortcutHint = '⌨️ Enter: Stop Recording & Transcribe',
 }) => {
   const [states, setStates] = useState<SentenceState[]>(() =>
     task.sentences.map(() => ({
@@ -59,6 +58,7 @@ export const ListenRepeatView: React.FC<Props> = ({
   const [loadingAudioIdx, setLoadingAudioIdx] = useState<number | null>(null);
   const [activeMicIdx, setActiveMicIdx] = useState<number | null>(null);
   const [micStatus, setMicStatus] = useState<'idle' | 'listening' | 'transcribing'>('idle');
+  const [showPromptText, setShowPromptText] = useState(false);
   const [autoStart, setAutoStart] = useState(true);
   const autoStartRef = useRef(autoStart);
   autoStartRef.current = autoStart;
@@ -835,19 +835,6 @@ export const ListenRepeatView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg whitespace-nowrap">
-            {keyboardShortcutHint}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => setIsTranscriberModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-          >
-            <HardDrive className="w-3.5 h-3.5 text-teal-700" />
-            <span>⚙️ Configure / Download Offline Transcriber</span>
-          </button>
-
           {completedCount > 0 && (
             <div className="flex items-center gap-2 text-xs bg-teal-50 border border-teal-200 text-teal-900 px-3 py-1.5 rounded-lg flex-wrap">
               <span>Completed: <strong className="font-mono">{completedCount}/{task.sentences.length}</strong></span>
@@ -907,20 +894,41 @@ export const ListenRepeatView: React.FC<Props> = ({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setAutoStart(true);
-            const nextUnchecked = states.findIndex((s) => !s.checked);
-            const startIdx = nextUnchecked >= 0 ? nextUnchecked : 0;
-            handlePlay(startIdx);
-          }}
-          disabled={activeAudioIdx !== null || micStatus !== 'idle'}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
-        >
-          <Play className="w-3.5 h-3.5 fill-current" />
-          <span>Start Practice (Auto-Flow)</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPromptText((prev) => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors bg-white hover:bg-slate-50 border-teal-300 text-teal-900 cursor-pointer shadow-2xs whitespace-nowrap"
+            title={showPromptText ? 'Hide written sentence prompts to match the official exam' : 'Show written sentence prompts for reading assistance'}
+          >
+            {showPromptText ? (
+              <>
+                <span>🙈</span>
+                <span>Hide Sentences</span>
+              </>
+            ) : (
+              <>
+                <span>👁️</span>
+                <span>Show Sentences</span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAutoStart(true);
+              const nextUnchecked = states.findIndex((s) => !s.checked);
+              const startIdx = nextUnchecked >= 0 ? nextUnchecked : 0;
+              handlePlay(startIdx);
+            }}
+            disabled={activeAudioIdx !== null || micStatus !== 'idle'}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Start Practice (Auto-Flow)</span>
+          </button>
+        </div>
       </div>
 
       {/* Headphone echo prevention hint */}
@@ -1015,6 +1023,18 @@ export const ListenRepeatView: React.FC<Props> = ({
                   )}
                 </div>
               </div>
+
+              {/* Question / Sentence Prompt: Hidden by default just like real exam */}
+              {!showPromptText && !state.checked && !audioBlobs[idx] && !state.userInput.trim() ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-center gap-2">
+                  <Headphones className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>🎧 Listen to the sentence and speak after the beep (sentence text is hidden just like the real exam).</span>
+                </div>
+              ) : !state.checked ? (
+                <div className="p-3 bg-teal-50/50 border border-teal-200 rounded-lg text-sm text-slate-800 font-medium leading-relaxed">
+                  "{targetSentence}"
+                </div>
+              ) : null}
 
               {/* Input / Dictation Area */}
               <div className="space-y-3">
@@ -1201,15 +1221,43 @@ export const ListenRepeatView: React.FC<Props> = ({
                         ) : null}
 
                         {/* ALWAYS Display Filler Badge */}
-                        {((state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) === 0) ? (
-                          <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                            0 fillers ✓
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            ⚠️ {(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0)} filler{(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) > 1 ? 's' : ''} ({(state.fillerWordsList || state.metrics?.fillerWords || []).join(', ')})
-                          </span>
-                        )}
+                        {(() => {
+                          const detected = detectFillerWords(state.userInput);
+                          const fillerCount = state.fillerWordsCount ?? state.metrics?.fillerCount ?? detected.fillerCount;
+                          const fillerList =
+                            state.fillerWordsList && state.fillerWordsList.length > 0
+                              ? state.fillerWordsList
+                              : state.metrics?.fillerWords && state.metrics.fillerWords.length > 0
+                              ? state.metrics.fillerWords
+                              : detected.fillerWords;
+
+                          if (fillerCount === 0) {
+                            return (
+                              <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                0 fillers ✓
+                              </span>
+                            );
+                          }
+                          if (fillerCount <= 2) {
+                            return (
+                              <span className="text-[10px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                {fillerCount} natural filler{fillerCount > 1 ? 's' : ''} ✓
+                              </span>
+                            );
+                          }
+                          if (fillerCount < 5) {
+                            return (
+                              <span className="text-[10px] font-medium text-slate-700 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-md">
+                                {fillerCount} fillers ({fillerList.join(', ')})
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              ⚠️ {fillerCount} fillers ({fillerList.join(', ')})
+                            </span>
+                          );
+                        })()}
                       </div>
                       <span className="text-slate-500">
                         Target Sentence: <span className="font-medium text-slate-800 italic">"{targetSentence}"</span>
@@ -1241,29 +1289,43 @@ export const ListenRepeatView: React.FC<Props> = ({
                       ))}
 
                       {/* Render detected filler chips */}
-                      {(state.userInput.match(/\[(um|uh|er)\]|\b(um+|uh+|er+|erm+|ah+|hmm+|like|you know)\b/gi) || []).map((f, fIdx) => (
+                      {detectFillerWords(state.userInput).fillerWords.map((f, fIdx) => (
                         <span
                           key={`filler_${fIdx}`}
                           className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1"
                           title="Vocalized filler word detected"
                         >
-                          <span>(filler: {f.replace(/[\[\]]/g, '')})</span>
+                          <span>(filler: {f})</span>
                         </span>
                       ))}
                     </div>
 
                     {/* Fluency Coaching Tip Banner */}
-                    {(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0) >= 1 && (
-                      <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
-                        <span className="text-base shrink-0">💡</span>
-                        <div>
-                          <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
-                          <span>
-                            You used <strong>{(state.fillerWordsCount ?? state.metrics?.fillerCount ?? 0)} filler word(s)</strong> ({(state.fillerWordsList || state.metrics?.fillerWords || []).join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                    {(() => {
+                      const detected = detectFillerWords(state.userInput);
+                      const fillerCount = state.fillerWordsCount ?? state.metrics?.fillerCount ?? detected.fillerCount;
+                      const fillerList =
+                        state.fillerWordsList && state.fillerWordsList.length > 0
+                          ? state.fillerWordsList
+                          : state.metrics?.fillerWords && state.metrics.fillerWords.length > 0
+                          ? state.metrics.fillerWords
+                          : detected.fillerWords;
+
+                      if (fillerCount >= 3) {
+                        return (
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in shadow-2xs">
+                            <span className="text-base shrink-0">💡</span>
+                            <div>
+                              <strong className="font-bold block text-amber-950">Fluency Coaching Tip:</strong>
+                              <span>
+                                You used <strong>{fillerCount} filler word(s)</strong> ({fillerList.join(', ')}). We recommend using fewer filler words—on the TOEFL iBT Speaking section, frequent <em>"ums"</em> and <em>"uhs"</em> reduce your Delivery score. Try replacing <em>"um"</em> or <em>"uh"</em> with a brief silent pause while thinking of your next word!
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
               </div>

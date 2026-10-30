@@ -55,10 +55,12 @@ export interface ListenRepeatTask {
 }
 
 export interface InterviewQuestionItem {
+  id?: string;
   question: string;
   prepTimeSeconds: number;
   responseTimeSeconds: number;
   suggestedPoints: string[];
+  sampleAnswer?: string;
 }
 
 export interface SpeakingInterviewTask {
@@ -70,6 +72,8 @@ export interface SpeakingInterviewTask {
   questions: InterviewQuestionItem[];
   interviewerName: string;
   interviewerGender: 'male' | 'female' | 'unknown';
+  sampleAnswer?: string;
+  modelAnswers?: string[];
 }
 
 export interface BuildSentenceItem {

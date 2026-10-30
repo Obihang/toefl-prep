@@ -62,6 +62,16 @@ export interface LocalEvaluationResult {
   exemplar: string;
   exemplarResponse: string;
   modelBand6Rewrite: string;
+  questionModelAnswers?: string[];
+  submissionData?: Array<{
+    question: string;
+    transcript: string;
+    metrics?: any;
+    corrections?: GrammarErrorItem[];
+    modelAnswer?: string;
+    fillerCount?: number;
+    wpm?: number;
+  }>;
   corrections: GrammarErrorItem[];
   errors: GrammarErrorItem[];
   grammarErrors: GrammarErrorItem[];
@@ -149,6 +159,69 @@ const STOP_WORDS = new Set([
   'students', 'question', 'questions', 'explain', 'describe', 'discuss',
   'points', 'point', 'using', 'follow', 'following', 'include', 'make', 'sure',
   'least', 'words', 'minutes', 'time', 'read', 'listen', 'speak', 'answer',
+]);
+
+/**
+ * Valid common English words that should NEVER be flagged as typos of prompt words.
+ * (e.g. "reading" is a valid word and must never be corrected to "regarding").
+ */
+export const COMMON_VALID_WORDS = new Set([
+  'reading', 'reads', 'reader', 'readers', 'study', 'studies', 'studying', 'studied',
+  'student', 'students', 'school', 'schools', 'place', 'places', 'placed', 'placing',
+  'group', 'groups', 'grouped', 'grouping', 'friend', 'friends', 'friendly', 'friendship',
+  'cafeteria', 'cafeterias', 'library', 'libraries', 'campus', 'campuses', 'college', 'colleges',
+  'class', 'classes', 'course', 'courses', 'lecture', 'lectures', 'seminar', 'seminars',
+  'morning', 'mornings', 'evening', 'evenings', 'afternoon', 'afternoons', 'night', 'nights',
+  'writing', 'writes', 'writer', 'writers', 'written', 'wrote',
+  'speaking', 'speaks', 'speaker', 'speakers', 'spoken', 'spoke',
+  'working', 'works', 'worker', 'workers', 'worked',
+  'learning', 'learns', 'learner', 'learners', 'learned', 'learnt',
+  'meeting', 'meetings', 'building', 'buildings', 'feeling', 'feelings',
+  'playing', 'plays', 'player', 'players', 'played',
+  'living', 'lives', 'lived', 'talking', 'talks', 'talked',
+  'holding', 'holds', 'held', 'leading', 'leads', 'leader', 'leaders',
+  'looking', 'looks', 'looked', 'seeming', 'seems', 'seemed', 'sounding', 'sounds', 'sounded',
+  'helping', 'helps', 'helped', 'giving', 'gives', 'given', 'taking', 'takes', 'taken',
+  'thinking', 'thinks', 'thought', 'knowing', 'knows', 'known', 'knew',
+  'starting', 'starts', 'started', 'ending', 'ends', 'ended',
+  'moving', 'moves', 'moved', 'growing', 'grows', 'grown', 'growth',
+  'paying', 'pays', 'paid', 'buying', 'buys', 'bought', 'selling', 'sells', 'sold',
+  'sending', 'sends', 'sent', 'spending', 'spends', 'spent',
+  'waiting', 'waits', 'waited', 'serving', 'serves', 'served',
+  'staying', 'stays', 'stayed', 'sitting', 'sits', 'sat', 'standing', 'stands', 'stood',
+  'losing', 'loses', 'lost', 'following', 'follows', 'followed',
+  'creating', 'creates', 'created', 'creation', 'creative',
+  'bringing', 'brings', 'brought', 'understanding', 'understands', 'understood',
+  'beginning', 'begins', 'began', 'begun', 'including', 'includes', 'included',
+  'continuing', 'continues', 'continued', 'setting', 'sets',
+  'running', 'runs', 'ran', 'walking', 'walks', 'walked',
+  'watching', 'watches', 'watched', 'hearing', 'hears', 'heard',
+  'stopping', 'stops', 'stopped', 'opening', 'opens', 'opened', 'closing', 'closes', 'closed',
+  'changing', 'changes', 'changed', 'showing', 'shows', 'showed', 'shown',
+  'trying', 'tries', 'tried', 'asking', 'asks', 'asked', 'answering', 'answers', 'answered',
+  'calling', 'calls', 'called', 'remembering', 'remembers', 'remembered',
+  'considering', 'considers', 'considered', 'allowing', 'allows', 'allowed',
+  'appearing', 'appears', 'appeared', 'providing', 'provides', 'provided',
+  'offering', 'offers', 'offered', 'producing', 'produces', 'produced',
+  'suggesting', 'suggests', 'suggested', 'expecting', 'expects', 'expected',
+  'requiring', 'requires', 'required', 'becoming', 'becomes', 'became',
+  'happening', 'happens', 'happened', 'believing', 'believes', 'believed',
+  'preferring', 'prefers', 'preferred', 'preference', 'preferences',
+  'relaxing', 'relaxes', 'relaxed', 'relaxation', 'focusing', 'focuses', 'focused',
+  'quiet', 'peaceful', 'noisy', 'crowded', 'comfortable', 'environment', 'atmosphere',
+  'habit', 'habits', 'energy', 'waste', 'recycling', 'plastic', 'parks', 'responsibility',
+  'modern', 'technology', 'devices', 'smartphones', 'internet', 'artificial', 'intelligence',
+  'research', 'assignments', 'regulation', 'information', 'media', 'literacy', 'platforms',
+  'opinion', 'opinions', 'freelance', 'career', 'careers', 'employment',
+  'museum', 'museums', 'exhibition', 'exhibitions', 'concert', 'concerts',
+  'culture', 'cultural', 'history', 'historical', 'preservation', 'heritage', 'artifacts',
+  'transportation', 'commute', 'commuting', 'transit', 'congestion', 'pricing', 'emissions',
+  'innovation', 'innovations', 'consumption', 'internship', 'internships', 'leadership',
+  'degree', 'degrees', 'undergraduate', 'graduate', 'exams', 'projects',
+  'breakthrough', 'breakthroughs', 'medicine', 'medical', 'vaccines', 'exploration',
+  'ethics', 'ethical', 'genetic', 'engineering', 'biotechnology', 'autonomous', 'liability',
+  'reputation', 'sustainability', 'sustainable', 'globalization', 'traditions', 'developing',
+  'nations', 'economic', 'planetary', 'balance', 'balanced', 'balancing', 'perspective',
 ]);
 
 const COMMON_ACADEMIC_MISSPELLINGS: Record<string, string> = {
@@ -773,6 +846,7 @@ export function detectGrammarAndMechanicsErrors(
     if (
       lowerWord.length < 6 ||
       validLookup.has(lowerWord) ||
+      COMMON_VALID_WORDS.has(lowerWord) ||
       COMMON_ACADEMIC_MISSPELLINGS[lowerWord] ||
       STOP_WORDS.has(lowerWord)
     ) {
@@ -813,8 +887,75 @@ export function detectGrammarAndMechanicsErrors(
     }
   }
 
-  // 5. Common ESL Grammar & Collocation Patterns
-  // 5a. "you office hours" / "you office" / "you class" / "you course" / "you help" / "you lecture"
+  // 5. Common ESL Grammar, Spoken Disfluency & Collocation Patterns
+  // 5a-1. Spoken Stutters & Phrase Repetitions (e.g. "I don't I don't I don't", "I don't like I don't like", "For example, for example", "The, the")
+  const stutterPhraseRegex = /\b(i\s+don't\s+like|i\s+dont\s+like|i\s+don't|i\s+dont|for\s+example|in\s+the|on\s+the|at\s+the|to\s+the|it\s+is|there\s+is|there\s+are|we\s+can|they\s+are|you\s+know|i\s+mean),?\s+(?:\1)\b/gi;
+  while ((m = stutterPhraseRegex.exec(text)) !== null) {
+    const orig = m[0];
+    const cleaned = m[1].replace(/dont/i, "don't");
+    const cap = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    pushError(
+      orig,
+      cap,
+      `Speech Disfluency / Repetition: remove repeated spoken stutter ("${orig}") for fluent spoken delivery.`,
+      'grammar'
+    );
+  }
+
+  const tripleStutterRegex = /\b(i\s+don't|i\s+dont)\s+(?:i\s+don't|i\s+dont)\s+(?:i\s+don't|i\s+dont)\b/gi;
+  while ((m = tripleStutterRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      "I don't",
+      'Speech Disfluency / Repetition: remove repeated spoken stutter ("I don\'t I don\'t I don\'t") for fluent spoken delivery.',
+      'grammar'
+    );
+  }
+
+  const doubleTheRegex = /\b(the),?\s+(the)\b/gi;
+  while ((m = doubleTheRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'The',
+      'Speech Disfluency / Repetition: remove repeated article ("the the").',
+      'grammar'
+    );
+  }
+
+  // 5a-2. Double prepositions ("on in campus", "in on campus")
+  const doublePrepCampusRegex = /\b(on\s+in|in\s+on)\s+(campus|university|school|my\s+schedule)\b/gi;
+  while ((m = doublePrepCampusRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      `on ${m[2]}`,
+      `Preposition error: use a single preposition "on ${m[2]}" instead of double prepositions "${m[0]}".`,
+      'grammar'
+    );
+  }
+
+  // 5a-3. Missing article before singular countable campus locations ("like cafeteria" -> "like the cafeteria")
+  const missingCampusArticleRegex = /\b(like|in|at|to|visit|into)\s+(cafeteria|library|auditorium|gymnasium|dormitory|dining\s+hall|student\s+union)\b/gi;
+  while ((m = missingCampusArticleRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      `${m[1]} the ${m[2]}`,
+      `Article error: singular countable location "${m[2]}" requires the definite article ("${m[1]} the ${m[2]}").`,
+      'grammar'
+    );
+  }
+
+  // 5a-4. "is such good" / "such peaceful" -> "is so good" / "so peaceful"
+  const suchAdjRegex = /\b(is|are|was|were|seems?|feels?|look(?:s|ed)?|sound(?:s|ed)?)\s+such\s+(good|peaceful|quiet|noisy|crowded|expensive|helpful|important|useful|difficult|easy|nice|calm|relaxing)\b/gi;
+  while ((m = suchAdjRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      `${m[1]} so ${m[2]}`,
+      `Grammar error: use "so" before a bare adjective ("${m[1]} so ${m[2]}"), or "such a/an" before an adjective with a noun.`,
+      'grammar'
+    );
+  }
+
+  // 5b. "you office hours" / "you office" / "you class" / "you course" / "you help" / "you lecture"
   const youPossessiveRegex = /\b(you)\s+(office\s+hours|office|class(?:es)?|course(?:s)?|lecture(?:s)?|help|guidance|time|schedule|email|question(?:s)?|syllabus|department)\b/gi;
   while ((m = youPossessiveRegex.exec(text)) !== null) {
     const isCap = m[1][0] === 'Y';
@@ -2044,6 +2185,8 @@ export function evaluateLocally(
 
   // Build Band 6.0 Exemplar
   let exemplar = '';
+  const specificInterviewModelAnswers: string[] = [];
+  const interviewSubmissionData: any[] = [];
   const existingModelAnswer =
     promptData?.modelAnswer ||
     promptData?.modelResponse ||
@@ -2168,6 +2311,51 @@ export function evaluateLocally(
     const s1Name = String(promptData?.s1?.name || promptData?.s1 || extra?.task?.s1?.name || 'my classmate').split(':')[0];
     const s2Name = String(promptData?.s2?.name || promptData?.s2 || extra?.task?.s2?.name || 'the other student').split(':')[0];
     exemplar = `While ${s1Name} raises a valid point regarding immediate practical benefits, I strongly agree with ${s2Name}'s perspective that long-term institutional sustainability must take precedence. In my view, addressing ${promptData?.title ? promptData.title.toLowerCase() : 'this policy issue'} requires a balanced, evidence-based framework rather than short-term measures.\n\nSpecifically, empirical studies consistently demonstrate that when universities and policymakers invest in foundational infrastructure and transparent governance, both efficiency and equity improve significantly over time. Therefore, adopting a comprehensive strategy ensures lasting benefits for the entire academic community.`;
+  } else if (canonicalType === 'speaking-interview') {
+    specificInterviewModelAnswers.length = 0;
+    interviewSubmissionData.length = 0;
+    const rawQuestions: any[] = Array.isArray(promptData?.questions)
+      ? promptData.questions
+      : Array.isArray(extra?.task?.questions)
+      ? extra.task.questions
+      : [];
+
+    const parsedInterview = parseSpeakingInterviewResponses(studentResponse, extra);
+
+    for (let i = 0; i < 4; i++) {
+      const qObj = rawQuestions[i];
+      const qText = String(qObj?.question || qObj?.prompt || `Question ${i + 1}`).trim();
+      let qModel = qObj?.sampleAnswer || extra?.task?.modelAnswers?.[i];
+
+      if (!qModel || typeof qModel !== 'string' || qModel.trim().length < 30) {
+        const pts = Array.isArray(qObj?.suggestedPoints) && qObj.suggestedPoints.length > 0
+          ? qObj.suggestedPoints.join(', ')
+          : 'concrete examples and analytical reasoning';
+        qModel = `Regarding ${qText.toLowerCase().replace(/[?.]+$/, '')}, I believe this plays a crucial role in modern higher education. Specifically, taking into account ${pts.toLowerCase()} enables students and faculty to navigate academic challenges with greater confidence. For instance, in my own coursework experience, maintaining consistent preparation and collaborative dialogue significantly improved our analytical results. Ultimately, fostering this balanced perspective supports sustained personal and professional excellence.`;
+      }
+
+      specificInterviewModelAnswers.push(qModel.trim());
+
+      const userTranscript = parsedInterview.slotResponses[i] || '';
+      const qCorrections = userTranscript.trim()
+        ? detectGrammarAndMechanicsErrors(userTranscript, promptData, extra)
+        : [];
+      const qMetrics = extra?.submissionData?.[i]?.metrics || (extra as any)?.[`metrics_${i}`];
+
+      interviewSubmissionData.push({
+        question: qText,
+        transcript: userTranscript,
+        metrics: qMetrics,
+        corrections: qCorrections,
+        modelAnswer: qModel.trim(),
+        fillerCount: qMetrics?.fillerCount ?? 0,
+        wpm: qMetrics?.wpm ?? 0,
+      });
+    }
+
+    exemplar = specificInterviewModelAnswers
+      .map((ans, idx) => `Q${idx + 1} Model Answer (${rawQuestions[idx]?.question || `Question ${idx + 1}`}):\n${ans}`)
+      .join('\n\n');
   } else {
     exemplar = `From my perspective, ${promptData?.title || 'this academic topic'} plays a pivotal role in modern higher education. First, when institutions prioritize structured, evidence-based practices, students develop stronger analytical and problem-solving capabilities. For instance, in my own academic coursework, collaborative seminars allowed us to synthesize theoretical models with real-world applications. Ultimately, balancing innovation with rigorous standards ensures long-term success.`;
   }
@@ -2270,6 +2458,8 @@ export function evaluateLocally(
     exemplar,
     exemplarResponse: exemplar,
     modelBand6Rewrite: exemplar,
+    questionModelAnswers: canonicalType === 'speaking-interview' ? specificInterviewModelAnswers : undefined,
+    submissionData: canonicalType === 'speaking-interview' && interviewSubmissionData.length > 0 ? interviewSubmissionData : undefined,
     corrections,
     errors: corrections,
     grammarErrors: corrections,
