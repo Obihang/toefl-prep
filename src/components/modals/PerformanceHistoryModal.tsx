@@ -4,6 +4,7 @@ import {
   getPracticeHistory,
   clearPracticeHistory,
   calculateToeflEstimate,
+  calculateMyBestScores,
   convertScaledToBand6,
   sanitizePracticeRecord,
   getCurrentUserId,
@@ -47,6 +48,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
   if (!isOpen) return null;
 
   const stats = calculateToeflEstimate(history);
+  const myBest = calculateMyBestScores(history);
 
   // Countdown days
   const daysToTest = testDate ? Math.ceil((new Date(testDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 30;
@@ -134,8 +136,6 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
     }
   };
 
-
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
@@ -146,7 +146,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900">TOEFL Analytics & Study Projection</h2>
-              <p className="text-xs text-slate-500">Track score trends, countdown, and manage backup data</p>
+              <p className="text-xs text-slate-500">Track score trends, MyBest® superscores, countdown, and backup data</p>
             </div>
           </div>
           <button
@@ -157,6 +157,60 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </button>
         </div>
 
+        {/* Official ETS MyBest® Scores Card */}
+        <div className="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-teal-700/50 shadow-md space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-800/60 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold tracking-tight flex items-center gap-2">
+                  MyBest® Scores (Superscore)
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                    2026 ETS Scale
+                  </span>
+                </h3>
+                <p className="text-[11px] text-teal-200/80">
+                  Combination of your highest section scores across all completed practice sessions
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono font-bold text-teal-200 border border-white/15">
+                CEFR {myBest.cefrCode} ({myBest.cefrLevel})
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white/10 border border-white/15 rounded-xl p-3 text-center col-span-2 sm:col-span-1 flex flex-col justify-center">
+              <div className="text-[10px] text-amber-300 uppercase font-bold tracking-wider">MyBest® Overall</div>
+              <div className="text-2xl font-mono font-extrabold text-white mt-0.5">
+                {myBest.hasAnyAttempts ? `${myBest.overallBand6.toFixed(1)} / 6.0` : '—'}
+              </div>
+              <div className="text-[11px] text-teal-200 font-mono">
+                {myBest.hasAnyAttempts ? `${myBest.totalScaled120} / 120 Scaled` : 'No scores yet'}
+              </div>
+            </div>
+
+            {([
+              { label: 'Reading', data: myBest.reading },
+              { label: 'Listening', data: myBest.listening },
+              { label: 'Speaking', data: myBest.speaking },
+              { label: 'Writing', data: myBest.writing },
+            ] as const).map(({ label, data }) => (
+              <div key={label} className="bg-slate-900/55 border border-teal-800/60 rounded-xl p-3 text-center">
+                <div className="text-[11px] text-teal-200 font-semibold">{label}</div>
+                <div className="text-lg font-mono font-bold text-white mt-0.5">
+                  {data.attemptsCount > 0 ? `Band ${data.bandScore6.toFixed(1)}` : '—'}
+                </div>
+                <div className="text-[10px] text-teal-300/90 font-mono">
+                  {data.attemptsCount > 0 ? `${data.scaledScore30}/30 Scaled` : 'Not practiced'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Goal & Countdown Banner */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-center gap-3">
@@ -164,7 +218,7 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
             <div>
               <div className="text-xs text-teal-700 font-semibold uppercase tracking-wider">Target Score</div>
               <div className="text-xl font-bold font-mono text-teal-950">{targetScore} / 120</div>
-              <div className="text-[11px] text-teal-600">Current: {stats.overallScore} / 120</div>
+              <div className="text-[11px] text-teal-600">Current Avg: {stats.overallScore} / 120</div>
             </div>
           </div>
 
@@ -187,34 +241,34 @@ export const PerformanceHistoryModal: React.FC<Props> = ({ isOpen, onClose }) =>
           </div>
         </div>
 
-        {/* Scaled Score Overview Grid */}
+        {/* Scaled Score Overview Grid (Rolling Average) */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           <div className="bg-slate-900 text-white rounded-xl p-3.5 text-center col-span-2 sm:col-span-1">
-            <div className="text-[11px] text-slate-300 uppercase font-medium tracking-wider">Estimated Band</div>
+            <div className="text-[11px] text-slate-300 uppercase font-medium tracking-wider">Average Band</div>
             <div className="text-2xl font-mono font-bold text-teal-400 mt-0.5">{stats.overallBand6.toFixed(1)} / 6.0</div>
             <div className="text-[10px] text-slate-400 font-mono">({stats.overallScore} / 120 Scaled)</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Reading</div>
+            <div className="text-[11px] text-slate-500 font-medium">Reading Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.readingBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.readingScore}/30 Scaled</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Listening</div>
+            <div className="text-[11px] text-slate-500 font-medium">Listening Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.listeningBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.listeningScore}/30 Scaled</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Speaking</div>
+            <div className="text-[11px] text-slate-500 font-medium">Speaking Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.speakingBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.speakingScore}/30 Scaled</div>
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-            <div className="text-[11px] text-slate-500 font-medium">Writing</div>
+            <div className="text-[11px] text-slate-500 font-medium">Writing Avg</div>
             <div className="text-xl font-mono font-bold text-slate-900 mt-0.5">Band {stats.writingBand6.toFixed(1)}</div>
             <div className="text-[10px] text-slate-400">{stats.writingScore}/30 Scaled</div>
           </div>

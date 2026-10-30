@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Trophy, Flame, CheckCircle2, Circle, ArrowRight, Play, Sparkles, Clock, AlertTriangle, BookOpen, FileText, ChevronDown, ChevronUp, Award } from 'lucide-react';
-import { PracticeRecord, getUserStats, convertScaledToBand6 } from '../../../utils/scoreTracker';
+import { PracticeRecord, getUserStats, convertScaledToBand6, calculateMyBestScores } from '../../../utils/scoreTracker';
 import { HighlightedText } from '../../shared/FeedbackComparison';
 import { streak } from '../../../utils/dashboardStats';
 import {
@@ -47,6 +47,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const st = streak(completedDays);
   const weeklyCompleted = stats?.weeklyCompleted || 3;
   const weeklyGoal = parseInt(localStorage.getItem('WEEKLY_GOAL') || '5', 10);
+  const myBest = calculateMyBestScores(history);
 
   const [dailyPlan, setDailyPlan] = useState<DailyStudyPlan>(() =>
     generateDailyPlan(history, mistakes, vocab, studyGoals)
@@ -98,7 +99,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Projected Score */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
-          <p className="text-xs font-semibold text-slate-500">Projected Score</p>
+          <p className="text-xs font-semibold text-slate-500">Projected Score (Avg)</p>
           <div className="flex items-baseline gap-2">
             <p className="text-2xl font-extrabold text-teal-900">{toeflEstimate.overallScore}</p>
             <span className="text-xs text-slate-400">/ 120</span>
@@ -145,6 +146,58 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           <p className="text-xs font-semibold text-slate-500">Tests Completed</p>
           <p className="text-2xl font-extrabold text-slate-900 mt-1">{stats?.completedTests || history.length || 0}</p>
           <p className="text-[10px] text-slate-400">Practice sessions logged</p>
+        </div>
+      </div>
+
+      {/* 1b. Official ETS MyBest® Scores (Superscore) Summary Card */}
+      <div className="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-teal-700/50 shadow-sm space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-800/60 pb-2.5">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <h4 className="text-sm font-bold tracking-tight flex items-center gap-2">
+                MyBest® Scores (Official ETS Superscore)
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  Band 1.0–6.0 & 0–120
+                </span>
+              </h4>
+              <p className="text-[11px] text-teal-200/80">
+                Highest section scores achieved across all your Reading, Listening, Speaking, and Writing sessions
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg bg-white/10 text-xs font-mono font-bold text-teal-200 border border-white/15">
+            CEFR {myBest.cefrCode} ({myBest.cefrLevel})
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="bg-white/10 border border-white/15 rounded-xl p-3 text-center col-span-2 sm:col-span-1 flex flex-col justify-center">
+            <div className="text-[10px] text-amber-300 uppercase font-bold tracking-wider">MyBest® Overall</div>
+            <div className="text-2xl font-mono font-extrabold text-white mt-0.5">
+              {myBest.hasAnyAttempts ? `${myBest.overallBand6.toFixed(1)} / 6.0` : '—'}
+            </div>
+            <div className="text-[11px] text-teal-200 font-mono">
+              {myBest.hasAnyAttempts ? `${myBest.totalScaled120} / 120 Scaled` : 'No scores yet'}
+            </div>
+          </div>
+
+          {([
+            { label: 'Reading', data: myBest.reading },
+            { label: 'Listening', data: myBest.listening },
+            { label: 'Speaking', data: myBest.speaking },
+            { label: 'Writing', data: myBest.writing },
+          ] as const).map(({ label, data }) => (
+            <div key={label} className="bg-slate-900/55 border border-teal-800/60 rounded-xl p-3 text-center">
+              <div className="text-[11px] text-teal-200 font-semibold">{label}</div>
+              <div className="text-lg font-mono font-bold text-white mt-0.5">
+                {data.attemptsCount > 0 ? `Band ${data.bandScore6.toFixed(1)}` : '—'}
+              </div>
+              <div className="text-[10px] text-teal-300/90 font-mono">
+                {data.attemptsCount > 0 ? `${data.scaledScore30}/30 Scaled` : 'Not practiced'}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

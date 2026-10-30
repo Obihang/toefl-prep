@@ -18,6 +18,7 @@ import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { ReadingQuestionSkill } from '../../types';
+import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 interface QuestionItem {
   q: string;
@@ -27,14 +28,16 @@ interface QuestionItem {
   questionType?: string;
 }
 
-interface DailyLifeTask {
+export interface DailyLifeTask {
   id?: string;
   title: string;
   formatType?: string;
   format?: string;
+  category?: string;
   context?: string;
   contentText?: string;
   text?: string;
+  passage?: string;
   notice?: string;
   level?: string;
   difficulty?: string;
@@ -316,43 +319,43 @@ export const DailyLifeView: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.color}`}>
               <BadgeIcon className="w-3.5 h-3.5" />
               {badge.label}
             </span>
-            <span className="text-xs text-slate-400">·</span>
-            <span className="text-xs text-slate-500 font-medium">Reading Section</span>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>2026 Official Daily Life Format</span>
-            <span aria-hidden="true">·</span>
-            <span>{task.questions.length} Questions</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level || 'Intermediate'}</span>
-            {skillFocus !== 'all' && (
+          <TaskSubtitleMeta
+            task={task}
+            extra={
               <>
-                <span aria-hidden="true">·</span>
-                <span className="text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-sm">
-                  Focus: {skillFocus.replace('_', ' ')}
-                </span>
+                <span>{task.questions.length} Questions</span>
+                {skillFocus !== 'all' && (
+                  <>
+                    <span aria-hidden="true" className="mx-1">·</span>
+                    <span className="text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-sm">
+                      Focus: {skillFocus.replace('_', ' ')}
+                    </span>
+                  </>
+                )}
               </>
-            )}
-          </div>
+            }
+          />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
             <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
+          <TaskReportButton task={task} />
         </div>
       </div>
 

@@ -136,6 +136,93 @@ export function getPracticeHistory(): PracticeRecord[] {
   }
 }
 
+export const COMPLETED_QUESTIONS_KEY = 'toefl_completed_question_ids';
+
+export function getCompletedQuestionIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(COMPLETED_QUESTIONS_KEY);
+    const stored: string[] = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(stored) ? [...stored] : [];
+
+    // Also include titles/IDs from existing practice history so prior completions count immediately
+    const historyRaw =
+      localStorage.getItem(getStorageKey()) || localStorage.getItem('toefl_score_history');
+    if (historyRaw) {
+      const parsed = JSON.parse(historyRaw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item?.taskTitle && typeof item.taskTitle === 'string') {
+            list.push(item.taskTitle.trim().toLowerCase());
+          }
+          if (item?.questionId && typeof item.questionId === 'string') {
+            list.push(item.questionId.trim());
+          }
+        }
+      }
+    }
+    return Array.from(new Set(list.filter(Boolean)));
+  } catch {
+    return [];
+  }
+}
+
+export function markQuestionCompleted(questionOrId: any): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const current = new Set(getCompletedQuestionIds());
+    if (typeof questionOrId === 'string' && questionOrId.trim()) {
+      current.add(questionOrId.trim());
+      current.add(questionOrId.trim().toLowerCase());
+    } else if (questionOrId && typeof questionOrId === 'object') {
+      const candidates = [
+        questionOrId.id,
+        questionOrId.questionDocId,
+        questionOrId.content?.id,
+        questionOrId.title,
+        questionOrId.content?.title,
+      ];
+      for (const c of candidates) {
+        if (typeof c === 'string' && c.trim()) {
+          current.add(c.trim());
+          current.add(c.trim().toLowerCase());
+        }
+      }
+    }
+    const updated = Array.from(current);
+    localStorage.setItem(COMPLETED_QUESTIONS_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('toefl_completed_questions_updated'));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
+export function isQuestionCompleted(question: any, completedIds?: string[] | Set<string>): boolean {
+  if (!question) return false;
+  const set =
+    completedIds instanceof Set
+      ? completedIds
+      : new Set(Array.isArray(completedIds) ? completedIds : getCompletedQuestionIds());
+  if (set.size === 0) return false;
+
+  const candidates = [
+    question.id,
+    question.questionDocId,
+    question.content?.id,
+    question.title,
+    question.content?.title,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) {
+      if (set.has(c.trim()) || set.has(c.trim().toLowerCase())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'date'>): Promise<PracticeRecord> {
   const { record: fullRecord } = sanitizePracticeRecord({
     ...record,
@@ -151,6 +238,10 @@ export async function savePracticeRecord(record: Omit<PracticeRecord, 'id' | 'da
     const trimmed = history.slice(0, 100);
     localStorage.setItem(getStorageKey(), JSON.stringify(trimmed));
     localStorage.setItem('toefl_score_history', JSON.stringify(trimmed));
+
+    if (fullRecord.taskTitle) {
+      markQuestionCompleted(fullRecord.taskTitle);
+    }
 
     if (auth.currentUser) {
       await saveTaskCompletion(fullRecord.taskType, fullRecord);
@@ -376,6 +467,120 @@ export function calculateToeflEstimate(history: PracticeRecord[]): {
   };
 }
 
+export interface MyBestSectionScore {
+  section: 'Reading' | 'Listening' | 'Speaking' | 'Writing';
+  scaledScore30: number;
+  bandScore6: number;
+  date?: string;
+  taskTitle?: string;
+  attemptsCount: number;
+}
+
+export interface MyBestScoresSummary {
+  overallBand6: number;
+  totalScaled120: number;
+  cefrCode: string;
+  cefrLevel: string;
+  reading: MyBestSectionScore;
+  listening: MyBestSectionScore;
+  speaking: MyBestSectionScore;
+  writing: MyBestSectionScore;
+  hasAnyAttempts: boolean;
+}
+
+export function calculateMyBestScores(history: PracticeRecord[]): MyBestScoresSummary {
+  const getBestForSection = (
+    sec: 'Reading' | 'Listening' | 'Speaking' | 'Writing'
+  ): MyBestSectionScore => {
+    const records = (history || []).filter((h) => h.section === sec);
+    if (records.length === 0) {
+      return {
+        section: sec,
+        scaledScore30: 0,
+        bandScore6: 0,
+        attemptsCount: 0,
+      };
+    }
+
+    let bestScaled = 0;
+    let bestBand = 0;
+    let bestDate: string | undefined;
+    let bestTitle: string | undefined;
+
+    for (const r of records) {
+      const s =
+        typeof r.scaledScore30 === 'number'
+          ? Math.max(0, Math.min(30, Math.round(r.scaledScore30)))
+          : Math.max(0, Math.min(30, Math.round(Number(r.score || 0))));
+      const b = r.bandScore6 ?? convertScaledToBand6(s, sec);
+
+      if (b > bestBand || (b === bestBand && s >= bestScaled)) {
+        bestBand = b;
+        bestScaled = Math.max(bestScaled, s);
+        bestDate = r.date;
+        bestTitle = r.taskTitle;
+      } else if (s > bestScaled) {
+        bestScaled = s;
+      }
+    }
+
+    return {
+      section: sec,
+      scaledScore30: bestScaled,
+      bandScore6: bestBand,
+      date: bestDate,
+      taskTitle: bestTitle,
+      attemptsCount: records.length,
+    };
+  };
+
+  const reading = getBestForSection('Reading');
+  const listening = getBestForSection('Listening');
+  const speaking = getBestForSection('Speaking');
+  const writing = getBestForSection('Writing');
+  const hasAnyAttempts = Boolean(history && history.length > 0);
+
+  if (!hasAnyAttempts) {
+    return {
+      overallBand6: 0,
+      totalScaled120: 0,
+      cefrCode: 'N/A',
+      cefrLevel: 'N/A (Need Data)',
+      reading,
+      listening,
+      speaking,
+      writing,
+      hasAnyAttempts: false,
+    };
+  }
+
+  const totalScaled120 =
+    reading.scaledScore30 +
+    listening.scaledScore30 +
+    speaking.scaledScore30 +
+    writing.scaledScore30;
+  const rawAvgBand =
+    (reading.bandScore6 +
+      listening.bandScore6 +
+      speaking.bandScore6 +
+      writing.bandScore6) /
+    4;
+  const overallBand6 = Math.max(1.0, Math.round(rawAvgBand * 2) / 2);
+  const cefr = getCefrFromBand6(overallBand6);
+
+  return {
+    overallBand6,
+    totalScaled120,
+    cefrCode: cefr.code,
+    cefrLevel: cefr.name,
+    reading,
+    listening,
+    speaking,
+    writing,
+    hasAnyAttempts: true,
+  };
+}
+
 export function convertToScaledScore(score: number, maxScore: number): number {
   if (maxScore <= 0) return 0;
   const ratio = Math.min(1, Math.max(0, score / maxScore));
@@ -406,3 +611,4 @@ export function getWeakAreas(history: PracticeRecord[]): { section: string, avgS
   }
   return weakAreas;
 }
+

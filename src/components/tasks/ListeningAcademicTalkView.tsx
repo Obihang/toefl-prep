@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Play,
   Pause,
@@ -22,11 +22,13 @@ import {
   stripSpeakerAndFormatting,
   fetchCloudTtsAudio,
   chunkTextForTTS,
+  pickRandomVoice,
 } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { inferListeningQuestionType } from '../../utils/taskNormalizer';
+import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 interface QuestionItem {
   q: string;
@@ -91,7 +93,7 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
   const cleanScript = stripSpeakerAndFormatting(scriptText);
   const speakerName = task.speakerName || 'Professor';
   const gender: 'male' | 'female' = task.speakerGender === 'female' ? 'female' : 'male';
-  const voiceName = gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+  const voiceName = useMemo(() => pickRandomVoice(gender).voiceId, [task.id, task.title, gender]);
 
   // Reset state on task change and pre-warm lecture audio chunk + any audioExcerpt on mount
   useEffect(() => {
@@ -343,43 +345,25 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
   }, [submitted, selectedAnswers, allAnswered, activeQuestionIdx, total, handleSubmit]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200">
-              <Headphones className="w-3.5 h-3.5" />
-              Listening Section
-            </span>
-            <span className="text-xs text-slate-400">·</span>
-            <span className="text-xs text-slate-500 font-medium">Academic Talk</span>
-          </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Official 2026 Academic Lecture (~2 mins)</span>
-            <span aria-hidden="true">·</span>
-            <span>Speaker: {speakerName} ({gender})</span>
-            <span aria-hidden="true">·</span>
-            <span>{task.questions.length} Questions</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level || 'Advanced'}</span>
-            {task.topic && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="capitalize text-slate-600 font-medium">{task.topic}</span>
-              </>
-            )}
-          </div>
+          <TaskSubtitleMeta
+            task={task}
+            extra={`Speaker: ${speakerName} (${gender}) · ${task.questions.length} Questions`}
+          />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
             <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
+          <TaskReportButton task={task} />
         </div>
       </div>
 
@@ -522,6 +506,7 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
+            const skillBadge = inferListeningQuestionType(q.q, q.questionType, Boolean(q.audioExcerpt));
 
             return (
               <div
@@ -534,10 +519,53 @@ export const ListeningAcademicTalkView: React.FC<Props> = ({
                     : 'border-slate-200'
                 }`}
               >
-                <div className="flex items-start gap-2.5 mb-3.5">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-bold shrink-0">
-                    {qIdx + 1}
-                  </span>
+                <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-700 text-xs font-bold shrink-0">
+                      {qIdx + 1}
+                    </span>
+                    <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
+                      {skillBadge}
+                    </span>
+                  </div>
+                </div>
+
+                {q.audioExcerpt && (
+                  <div className="mb-3.5 p-3 rounded-xl bg-slate-900 text-white flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-200 font-medium">
+                      <Headphones className="w-4 h-4 text-teal-400 shrink-0" />
+                      <span>{excerptBadgeLabel}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePlayExcerpt(qIdx, q.audioExcerpt!)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                        playingExcerptIdx === qIdx
+                          ? 'bg-amber-500 text-slate-950 animate-pulse'
+                          : 'bg-teal-500 hover:bg-teal-400 text-slate-950'
+                      }`}
+                    >
+                      {loadingExcerptIdx === qIdx ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Loading...</span>
+                        </>
+                      ) : playingExcerptIdx === qIdx ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5" />
+                          <span>Stop Excerpt</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Play Excerpt</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                <div className="mb-3.5">
                   <p className="text-sm font-semibold text-slate-900 leading-snug">{q.q}</p>
                 </div>
 

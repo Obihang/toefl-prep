@@ -62,6 +62,7 @@ export interface LocalEvaluationResult {
   exemplar: string;
   exemplarResponse: string;
   modelBand6Rewrite: string;
+  modelAnswer: string;
   questionModelAnswers?: string[];
   submissionData?: Array<{
     question: string;
@@ -1730,6 +1731,7 @@ function evaluateListenRepeatLocally(
     exemplar,
     exemplarResponse: exemplar,
     modelBand6Rewrite: exemplar,
+    modelAnswer: exemplar,
     corrections: corrections.slice(0, 10),
     errors: corrections.slice(0, 10),
     grammarErrors: corrections.slice(0, 10),
@@ -2560,6 +2562,7 @@ export function evaluateLocally(
     exemplar,
     exemplarResponse: exemplar,
     modelBand6Rewrite: exemplar,
+    modelAnswer: exemplar,
     questionModelAnswers: canonicalType === 'speaking-interview' ? specificInterviewModelAnswers : undefined,
     submissionData: canonicalType === 'speaking-interview' && interviewSubmissionData.length > 0 ? interviewSubmissionData : undefined,
     corrections,
@@ -2675,6 +2678,7 @@ export function mergeAiAndLocalEvaluation(aiEval: any, localEval: LocalEvaluatio
     exemplar: cleanExemplar,
     exemplarResponse: cleanExemplar,
     modelBand6Rewrite: cleanExemplar,
+    modelAnswer: cleanExemplar,
     isLocalEvaluation: Boolean(aiEval.isLocalEvaluation),
   };
 }

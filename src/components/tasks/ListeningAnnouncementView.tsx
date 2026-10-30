@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Play,
   Pause,
@@ -21,11 +21,13 @@ import {
   stripSpeakerAndFormatting,
   fetchCloudTtsAudio,
   chunkTextForTTS,
+  pickRandomVoice,
 } from '../../utils/audioSpeech';
 import { convertToScaledScore, convertScaledToBand6, savePracticeRecord } from '../../utils/scoreTracker';
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { inferListeningQuestionType } from '../../utils/taskNormalizer';
+import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 interface QuestionItem {
   q: string;
@@ -78,13 +80,16 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
   const [playCount, setPlayCount] = useState(0);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
 
+  const [playingExcerptIdx, setPlayingExcerptIdx] = useState<number | null>(null);
+  const [loadingExcerptIdx, setLoadingExcerptIdx] = useState<number | null>(null);
+
   const playbackSessionRef = useRef(0);
 
   const scriptText = task.script || task.announcement || task.text || '';
   const cleanScript = stripSpeakerAndFormatting(scriptText);
   const speakerName = task.speakerName || 'Campus Speaker';
   const gender: 'male' | 'female' = task.speakerGender === 'female' ? 'female' : 'male';
-  const voiceName = gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+  const voiceName = useMemo(() => pickRandomVoice(gender).voiceId, [task.id, task.title, gender]);
 
   // Reset state on task change and pre-warm audio chunk on mount
   useEffect(() => {
@@ -94,15 +99,88 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
     setShowTranscript(false);
     setIsPlaying(false);
     setIsLoadingAudio(false);
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(null);
     setPlayCount(0);
     setActiveQuestionIdx(0);
     if (cleanScript) {
       prefetchSpeechAudio(cleanScript, voiceName, gender).catch(() => {});
     }
+    task.questions?.forEach((q) => {
+      if (q?.audioExcerpt) {
+        const cleanEx = stripSpeakerAndFormatting(q.audioExcerpt);
+        if (cleanEx) {
+          prefetchSpeechAudio(cleanEx, voiceName, gender).catch(() => {});
+        }
+      }
+    });
     return () => {
       stopSpeaking();
     };
-  }, [task.id, task.title, cleanScript, voiceName, gender]);
+  }, [task.id, task.title, cleanScript, voiceName, gender, task.questions]);
+
+  const handlePlayExcerpt = async (qIdx: number, rawExcerpt: string) => {
+    const cleanEx = stripSpeakerAndFormatting(rawExcerpt);
+    if (!cleanEx) return;
+
+    if (playingExcerptIdx === qIdx) {
+      playbackSessionRef.current++;
+      stopSpeaking();
+      setPlayingExcerptIdx(null);
+      setLoadingExcerptIdx(null);
+      return;
+    }
+
+    const currentSession = ++playbackSessionRef.current;
+    stopSpeaking();
+    setIsPlaying(false);
+    setIsLoadingAudio(false);
+    setPlayingExcerptIdx(null);
+    setLoadingExcerptIdx(qIdx);
+
+    try {
+      const chunks = chunkTextForTTS(cleanEx);
+      if (chunks.length > 0) {
+        await fetchCloudTtsAudio(chunks[0], gender, voiceName);
+      }
+      if (playbackSessionRef.current !== currentSession) return;
+
+      await speakWithCloudTTS(
+        cleanEx,
+        gender,
+        {
+          rate: 0.95,
+          voice: voiceName,
+          voiceName,
+          gender,
+          onStart: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setLoadingExcerptIdx(null);
+              setPlayingExcerptIdx(qIdx);
+            }
+          },
+          onEnd: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setPlayingExcerptIdx(null);
+              setLoadingExcerptIdx(null);
+            }
+          },
+          onError: () => {
+            if (playbackSessionRef.current === currentSession) {
+              setPlayingExcerptIdx(null);
+              setLoadingExcerptIdx(null);
+            }
+          },
+        },
+        voiceName
+      );
+    } catch {
+      if (playbackSessionRef.current === currentSession) {
+        setPlayingExcerptIdx(null);
+        setLoadingExcerptIdx(null);
+      }
+    }
+  };
 
   const handlePlayAudio = async () => {
     if (isPlaying) {
@@ -261,37 +339,25 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
   }, [submitted, selectedAnswers, allAnswered, activeQuestionIdx, total, handleSubmit]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200">
-              <Headphones className="w-3.5 h-3.5" />
-              Listening Section
-            </span>
-            <span className="text-xs text-slate-400">·</span>
-            <span className="text-xs text-slate-500 font-medium">Campus Announcement</span>
-          </div>
           <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Official 2026 Short Campus Broadcast</span>
-            <span aria-hidden="true">·</span>
-            <span>Speaker: {speakerName} ({gender})</span>
-            <span aria-hidden="true">·</span>
-            <span>{task.questions.length} Questions</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level || 'Intermediate'}</span>
-          </div>
+          <TaskSubtitleMeta
+            task={task}
+            extra={`Speaker: ${speakerName} (${gender}) · ${task.questions.length} Questions`}
+          />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
             <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
+          <TaskReportButton task={task} />
         </div>
       </div>
 
@@ -431,6 +497,41 @@ export const ListeningAnnouncementView: React.FC<Props> = ({
                     </span>
                   </div>
                 </div>
+
+                {q.audioExcerpt && (
+                  <div className="mb-3.5 p-3 rounded-xl bg-slate-900 text-white flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs text-slate-200 font-medium">
+                      <Headphones className="w-4 h-4 text-teal-400 shrink-0" />
+                      <span>🎧 Listen again to part of the announcement</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePlayExcerpt(qIdx, q.audioExcerpt!)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer ${
+                        playingExcerptIdx === qIdx
+                          ? 'bg-amber-500 text-slate-950 animate-pulse'
+                          : 'bg-teal-500 hover:bg-teal-400 text-slate-950'
+                      }`}
+                    >
+                      {loadingExcerptIdx === qIdx ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Loading...</span>
+                        </>
+                      ) : playingExcerptIdx === qIdx ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5" />
+                          <span>Stop Excerpt</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Play Excerpt</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 <div className="mb-3.5">
                   <p className="text-sm font-semibold text-slate-900 leading-snug">{q.q}</p>

@@ -21,6 +21,7 @@ import {
   stripSpeakerAndFormatting,
   fetchCloudTtsAudio,
   chunkTextForTTS,
+  pickRandomVoice,
 } from '../../utils/audioSpeech';
 import {
   convertToScaledScore,
@@ -30,6 +31,7 @@ import {
 import { auth } from '../../firebase';
 import { saveMistake } from '../../utils/mistakes';
 import { normalizeListeningChooseResponseTask } from '../../utils/taskNormalizer';
+import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 export interface ListeningChooseResponseItem {
   audioPrompt?: string;
@@ -140,6 +142,13 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     setPlayCounts({});
   }, [task.id, task.title]);
 
+  const itemVoices = useMemo(() => {
+    return items.map((it) => {
+      const g: 'male' | 'female' = it.speakerGender === 'female' ? 'female' : 'male';
+      return pickRandomVoice(g).voiceId;
+    });
+  }, [items]);
+
   const currentItem = items[chooseResponseActiveIdx] || items[0];
   const promptText =
     currentItem?.audioPrompt ||
@@ -152,8 +161,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
   const speakerName = currentItem?.speakerName || task.speakerName || 'Campus Speaker';
   const gender: 'male' | 'female' =
     currentItem?.speakerGender === 'female' ? 'female' : 'male';
-  const voiceName =
-    gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+  const voiceName = itemVoices[chooseResponseActiveIdx] || (gender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural');
 
   const correctAnswerIdx =
     typeof currentItem?.answer === 'number'
@@ -166,12 +174,12 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
 
   // Pre-warm TTS audio for all items on mount
   useEffect(() => {
-    items.forEach((it) => {
+    items.forEach((it, idx) => {
       const text = stripSpeakerAndFormatting(
         it.audioPrompt || it.promptAudioScript || it.script || it.spokenPrompt || it.prompt || ''
       );
       const g: 'male' | 'female' = it.speakerGender === 'female' ? 'female' : 'male';
-      const v = g === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+      const v = itemVoices[idx] || (g === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural');
       if (text) {
         prefetchSpeechAudio(text, v, g).catch(() => {});
       }
@@ -179,11 +187,12 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     return () => {
       stopSpeaking();
     };
-  }, [items]);
+  }, [items, itemVoices]);
 
   // Pre-fetch/warm the TTS audio for the next item (chooseResponseActiveIdx + 1) as soon as current item loads
   useEffect(() => {
-    const nextItem = items[chooseResponseActiveIdx + 1];
+    const nextIdx = chooseResponseActiveIdx + 1;
+    const nextItem = items[nextIdx];
     if (!nextItem) return;
     const nextText = stripSpeakerAndFormatting(
       nextItem.audioPrompt ||
@@ -194,11 +203,11 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         ''
     );
     const nextGender: 'male' | 'female' = nextItem.speakerGender === 'female' ? 'female' : 'male';
-    const nextVoice = nextGender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+    const nextVoice = itemVoices[nextIdx] || (nextGender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural');
     if (nextText) {
       prefetchSpeechAudio(nextText, nextVoice, nextGender).catch(() => {});
     }
-  }, [chooseResponseActiveIdx, items]);
+  }, [chooseResponseActiveIdx, items, itemVoices]);
 
   const playPromptForIndex = useCallback(
     async (targetIdx: number) => {
@@ -217,7 +226,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
       const itemGender: 'male' | 'female' =
         item.speakerGender === 'female' ? 'female' : 'male';
       const itemVoiceName =
-        itemGender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural';
+        itemVoices[targetIdx] || (itemGender === 'female' ? 'en-US-AriaNeural' : 'en-US-ChristopherNeural');
 
       hasStartedSetRef.current = true;
       const currentSession = ++playbackSessionRef.current;
@@ -267,7 +276,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         }
       }
     },
-    [items]
+    [items, itemVoices]
   );
 
   // Auto-play spoken prompt when advancing to the next item (chooseResponseActiveIdx changing to 1, 2, 3, 4 when !chooseResponseSubmitted)
@@ -426,52 +435,37 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
   const currentPlayCount = playCounts[currentIndex] || 0;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-4 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="border-b border-slate-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="border-b border-slate-200 pb-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border bg-blue-50 text-blue-700 border-blue-200">
-              <Headphones className="w-3.5 h-3.5" />
-              Listening Section
-            </span>
-            <span className="text-xs text-slate-400">·</span>
-            <span className="text-xs text-slate-500 font-medium">
-              Listen &amp; Choose a Response
-            </span>
-            <span className="text-xs text-slate-400">·</span>
+            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              {task.title}
+            </h2>
             <span className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md">
               Item {currentIndex + 1} of {totalItems}
             </span>
           </div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-            {task.title}
-          </h2>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1 flex-wrap">
-            <span>Official 2026 Short Campus Exchange (6–15 words)</span>
-            <span aria-hidden="true">·</span>
-            <span>Speaker: {speakerName} ({gender})</span>
-            <span aria-hidden="true">·</span>
-            <span className="capitalize">{task.level || 'Intermediate'}</span>
-            {task.category && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="text-slate-600 font-medium">{task.category}</span>
-              </>
-            )}
-          </div>
+          <TaskSubtitleMeta
+            task={task}
+            extra={`Speaker: ${speakerName} (${gender})`}
+          />
         </div>
 
         <div className="flex flex-col sm:items-end gap-2 self-start sm:self-center">
-          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-            <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-            <span>
-              ⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item
-            </span>
-            <span aria-hidden="true" className="text-slate-300">·</span>
-            <span>
-              <strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit
-            </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+              <Keyboard className="w-3.5 h-3.5 text-slate-400" />
+              <span>
+                ⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item
+              </span>
+              <span aria-hidden="true" className="text-slate-300">·</span>
+              <span>
+                <strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit
+              </span>
+            </div>
+            <TaskReportButton task={task} />
           </div>
 
           {/* Item Stepper Pills (1 .. 5) */}

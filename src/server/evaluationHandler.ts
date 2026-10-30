@@ -462,6 +462,11 @@ function normalizeEvalResult(parsed: any, localGuard: LocalEvaluationResult): an
     exemplar,
     exemplarResponse: exemplar,
     modelBand6Rewrite: exemplar,
+    modelAnswer: exemplar,
+    questionModelAnswers:
+      Array.isArray(parsed?.questionModelAnswers) && parsed.questionModelAnswers.length > 0
+        ? parsed.questionModelAnswers
+        : localGuard.questionModelAnswers,
     corrections,
     errors: corrections,
     grammarErrors: corrections,

@@ -4,12 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { getPracticeHistory } from './utils/scoreTracker';
-import { getRecommendedLevel, DifficultyLevel } from './utils/difficulty';
 import { useAuth } from './context/AuthContext';
 import { stopSpeaking } from './utils/audioSpeech';
 import {
-  saveSharedQuestion,
   fetchRandomSharedQuestion,
   reportSharedQuestion,
   triggerBackgroundPrefetchIfNeeded,
@@ -23,7 +20,7 @@ import {
   isValidAcademicTopic,
   AcademicTopic,
 } from './constants/filters';
-import { getApiHeaders, getStoredApiKey, hasAnyStoredApiKey, hasAnyProviderKey, getScholarUsername } from './utils/apiKey';
+import { getApiHeaders, hasAnyProviderKey, getScholarUsername } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
 import { normalizeTaskData } from './utils/taskNormalizer';
 
@@ -46,30 +43,24 @@ function markReportedByMe(id: string) {
 }
 
 import {
-  BookOpen,
-  Headphones,
-  Mic,
-  PenTool,
   Sparkles,
   BarChart2,
-  FileText,
-  Clock,
   RotateCcw,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
-  ChevronLeft,
-  ChevronRight,
-  Settings,
   Sun,
   Moon,
-  Flag,
   X,
   Volume2,
   Database,
   Activity,
   Target,
 } from 'lucide-react';
+import {
+  getCompletedQuestionIds,
+  markQuestionCompleted,
+  isQuestionCompleted,
+} from './utils/scoreTracker';
 import { SystemStatusModal } from './components/shared/SystemStatusModal';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
 import { GlobalReportButton } from './components/shared/GlobalReportButton';
@@ -118,18 +109,16 @@ import { BuildSentenceView } from './components/tasks/BuildSentenceView';
 import { WriteEmailView } from './components/tasks/WriteEmailView';
 import { AcademicDiscussionView } from './components/tasks/AcademicDiscussionView';
 import { RubricGuideModal } from './components/modals/RubricGuideModal';
-import { WeeklyGoalTracker } from './components/WeeklyGoalTracker';
 import { VoiceDiagnosticToast } from './components/shared/VoiceDiagnosticToast';
 import { ReadingQuestionSkill, READING_SKILL_OPTIONS } from './types';
 
-import { TaskTypeId, TaskDefinition, TASK_DEFINITIONS } from './types/taskTypes';
+import { TaskTypeId, TASK_DEFINITIONS } from './types/taskTypes';
 import {
   PrefetchQueue,
   PrefetchedItem,
   loadPrefetchQueueFromStorage,
   savePrefetchQueueToStorage,
   getNextTaskToPrefetch,
-  getPrefetchProgress,
   hasReadyTask,
   popPrefetchedTask,
   evaluateRateLimitPause,
@@ -139,7 +128,7 @@ import { markUserAiRequest, getLastUserAiRequestTime } from './utils/userActivit
 
 const DashboardModal = lazy(() => import('./components/modals/DashboardModal').then(m => ({ default: m.DashboardModal })));
 const PerformanceHistoryModal = lazy(() => import('./components/modals/PerformanceHistoryModal').then(m => ({ default: m.PerformanceHistoryModal })));
-const MockTestView = lazy(() => import('./components/tasks/MockTestView').then(m => ({ default: m.MockTestView })));
+const MockTestView = lazy(() => import('./components/ExamEngine').then(m => ({ default: m.ExamEngine })));
 
 export default function App() {
   const { user, displayName } = useAuth();
@@ -168,6 +157,23 @@ export default function App() {
       stopSpeaking();
     };
   }, [currentTaskType, isMockTest]);
+
+  // Track completed question IDs so we prioritize unpracticed questions and show ✓ Z practiced
+  const [completedQuestionIds, setCompletedQuestionIds] = useState<string[]>(() =>
+    getCompletedQuestionIds()
+  );
+
+  useEffect(() => {
+    const syncCompleted = () => {
+      setCompletedQuestionIds(getCompletedQuestionIds());
+    };
+    window.addEventListener('toefl_completed_questions_updated', syncCompleted);
+    window.addEventListener('toefl_user_changed', syncCompleted);
+    return () => {
+      window.removeEventListener('toefl_completed_questions_updated', syncCompleted);
+      window.removeEventListener('toefl_user_changed', syncCompleted);
+    };
+  }, []);
 
   // Ensure fresh start on reload: purge any legacy draft keys
   useEffect(() => {
@@ -235,7 +241,6 @@ export default function App() {
     prefetchedQueueRef.current = prefetchedQueue;
   }, [prefetchedQueue]);
 
-  const [isPrefetching, setIsPrefetching] = useState(false);
   const isPrefetchingRef = React.useRef<Record<string, boolean>>({});
   const failedRecentlyRef = React.useRef<Record<string, number>>({});
   const quotaExhaustedUntilRef = React.useRef<number>(0);
@@ -292,11 +297,6 @@ export default function App() {
     window.addEventListener('apiKeyUpdated', handleKeyChange);
     return () => window.removeEventListener('apiKeyUpdated', handleKeyChange);
   }, []);
-
-  // Exam mode timer (optional simulation clock)
-  const [isExamMode, setIsExamMode] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [examSecondsRemaining, setExamSecondsRemaining] = useState(1800); // 30 min timer
 
   // Writing Task Countdown Timer (Write an Email = 07:00 [420s], Academic Discussion = 10:00 [600s])
   const [isWritingTimerEnabled, setIsWritingTimerEnabled] = useState<boolean>(() => {
@@ -359,7 +359,7 @@ export default function App() {
     return () => window.removeEventListener('prefetchSettingChanged', handlePrefetchChange);
   }, []);
 
-  // Keyboard shortcuts: 'N' for next task, 'Space' to pause/resume exam timer
+  // Keyboard shortcut: 'N' for next task
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -369,36 +369,15 @@ export default function App() {
         e.preventDefault();
         handleNextQuestion(currentTaskType);
       }
-      if (e.key === ' ') {
-        if (isExamMode) {
-          e.preventDefault();
-          setIsPaused((prev) => !prev);
-        }
-      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isExamMode, currentTaskType]);
+  }, [currentTaskType]);
 
-  useEffect(() => {
-    let interval: any = null;
-    if (isExamMode && !isPaused && examSecondsRemaining > 0) {
-      interval = setInterval(() => {
-        setExamSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isExamMode, isPaused, examSecondsRemaining]);
-
-  const formatTimer = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Next item in curated pool (drawing from loaded shard questions)
+  // Next item in curated pool (prioritizing unpracticed questions first)
   const handleNextCurated = (type: TaskTypeId) => {
     const loadedPool = getLoadedCuratedTasks(type, level, topic);
+    const completedSet = new Set(getCompletedQuestionIds());
     let max = loadedPool.length;
     if (max === 0) {
       if (type === 'complete-words') max = CURATED_COMPLETE_WORDS.length;
@@ -421,6 +400,20 @@ export default function App() {
     setCuratedIndices((prev) => {
       const current = prev[type] || 0;
       if (max <= 1) return { ...prev, [type]: 0 };
+
+      if (loadedPool.length > 1) {
+        const unpracticedIndices: number[] = [];
+        for (let i = 0; i < loadedPool.length; i++) {
+          if (i !== current % loadedPool.length && !isQuestionCompleted(loadedPool[i], completedSet)) {
+            unpracticedIndices.push(i);
+          }
+        }
+        if (unpracticedIndices.length > 0) {
+          const chosen = unpracticedIndices[Math.floor(Math.random() * unpracticedIndices.length)];
+          return { ...prev, [type]: chosen };
+        }
+      }
+
       let next;
       do {
         next = Math.floor(Math.random() * max);
@@ -429,26 +422,47 @@ export default function App() {
     });
   };
 
-  // Serve a random question: either from shared bank (using tier plan) or curated pool
+  // Serve a random question: always prioritizing unpracticed questions in the filtered bank first
   const handleNextQuestion = async (type: TaskTypeId) => {
     setReportedQuestionId(null);
     setReportError(null);
 
-    // 100% of the time if either filter is not 'all', query shared bank first;
-    // 60% probability if both are 'all'.
+    const completedSet = new Set(getCompletedQuestionIds());
+    const loadedPool = getLoadedCuratedTasks(type, level, topic);
+    const activeId = activeTask?.id || (activeTask as any)?.questionDocId;
+    const activeTitle = (activeTask as any)?.title;
+
+    const unpracticedPool = loadedPool.filter(
+      (q) =>
+        !isQuestionCompleted(q, completedSet) &&
+        (!activeId || (q.id !== activeId && q.questionDocId !== activeId)) &&
+        (!activeTitle || q.title !== activeTitle)
+    );
+
+    // 1. If we have unpracticed questions in the local/synced filtered bank, pick one immediately
+    if (unpracticedPool.length > 0) {
+      const chosen = unpracticedPool[Math.floor(Math.random() * unpracticedPool.length)];
+      setTierNotice(null);
+      setCustomTasks((prev) => ({
+        ...prev,
+        [type]: normalizeTaskData(chosen, type),
+      }));
+      return;
+    }
+
+    // 2. Otherwise query shared bank for any unseen question
     const hasFilter = level !== 'all' || topic !== 'all';
     const shouldQueryBank = hasFilter || Math.random() < 0.6;
 
     if (shouldQueryBank) {
       try {
         const shared = await fetchRandomSharedQuestion(type, level, topic);
-        if (shared) {
+        if (shared && !isQuestionCompleted(shared, completedSet)) {
           if (shared.tier && shared.tier !== 'exact') {
             const lvlLabel = level !== 'all' && isValidLevel(level) ? LEVEL_LABELS[level] : level;
             const topLabel = topic !== 'all' && isValidAcademicTopic(topic) ? TOPIC_LABELS[topic] : topic;
             setTierNotice(`No exact match for ${lvlLabel} in ${topLabel}, showing a nearby question.`);
 
-            // Trigger background prefetch so the bank learns
             triggerBackgroundPrefetchIfNeeded(type, level, topic, async (tType, lvl, top) => {
               const resp = await safeFetchJson('/api/generate-task', {
                 method: 'POST',
@@ -478,18 +492,13 @@ export default function App() {
 
   const handleReportQuestion = async (questionDocId: string) => {
     setReportError(null);
+    markReportedByMe(questionDocId);
+    setReportedQuestionId(questionDocId);
     if (!user) {
-      setReportError('Please sign in to report questions.');
-      return;
-    }
-    const alreadyReported = getReportedByMe().includes(questionDocId);
-    if (alreadyReported) {
       return;
     }
     try {
       await reportSharedQuestion(questionDocId, user.uid);
-      markReportedByMe(questionDocId);
-      setReportedQuestionId(questionDocId);
       const currentTask = customTasks[currentTaskType];
       if (currentTask) {
         const nextReportCount = (currentTask.reportCount || 0) + 1;
@@ -507,122 +516,21 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      console.error('Failed to report question:', err);
-      setReportError(err?.message || 'Failed to submit report. Please try again.');
+      console.warn('Report saved locally:', err?.message || err);
     }
-  };
-
-  // Horizontal Hover-to-Scroll Mechanism for Section / Task Bar
-  const sectionBarRef = React.useRef<HTMLDivElement>(null);
-  const hoverScrollAnimationRef = React.useRef<number | null>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const checkSectionScrollState = () => {
-    const el = sectionBarRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 6);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 6);
   };
 
   useEffect(() => {
-    checkSectionScrollState();
-    const el = sectionBarRef.current;
-    if (!el) return;
-    el.addEventListener('scroll', checkSectionScrollState, { passive: true });
-    window.addEventListener('resize', checkSectionScrollState);
-    return () => {
-      el.removeEventListener('scroll', checkSectionScrollState);
-      window.removeEventListener('resize', checkSectionScrollState);
-      if (hoverScrollAnimationRef.current !== null) {
-        cancelAnimationFrame(hoverScrollAnimationRef.current);
+    const onReportEvent = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      const docId = detail?.questionDocId || detail?.questionKey;
+      if (docId) {
+        handleReportQuestion(String(docId));
       }
     };
-  }, []);
-
-  // Auto-scroll active section into view when changed
-  useEffect(() => {
-    const container = sectionBarRef.current;
-    if (!container) return;
-    checkSectionScrollState();
-    const activeBtn = container.querySelector('[data-active="true"]') as HTMLElement;
-    if (activeBtn && typeof activeBtn.scrollIntoView === 'function') {
-      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  }, [currentTaskType, isMockTest]);
-
-  const stopHoverScroll = () => {
-    if (hoverScrollAnimationRef.current !== null) {
-      cancelAnimationFrame(hoverScrollAnimationRef.current);
-      hoverScrollAnimationRef.current = null;
-    }
-  };
-
-  const startContinuousScroll = (direction: 'left' | 'right', speed = 6) => {
-    stopHoverScroll();
-    const el = sectionBarRef.current;
-    if (!el) return;
-
-    const step = () => {
-      if (!el) {
-        stopHoverScroll();
-        return;
-      }
-      if (direction === 'left') {
-        if (el.scrollLeft > 0) {
-          el.scrollLeft -= speed;
-          hoverScrollAnimationRef.current = requestAnimationFrame(step);
-          checkSectionScrollState();
-        } else {
-          stopHoverScroll();
-        }
-      } else {
-        if (el.scrollLeft < el.scrollWidth - el.clientWidth - 1) {
-          el.scrollLeft += speed;
-          hoverScrollAnimationRef.current = requestAnimationFrame(step);
-          checkSectionScrollState();
-        } else {
-          stopHoverScroll();
-        }
-      }
-    };
-    hoverScrollAnimationRef.current = requestAnimationFrame(step);
-  };
-
-  const lastWheelTimeRef = React.useRef(0);
-
-  const handleBarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Suppress hover-scroll if wheel was used in last 500ms
-    if (Date.now() - lastWheelTimeRef.current < 500) return;
-    
-    const el = sectionBarRef.current;
-    if (!el) return;
-
-    const rect = el.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-    const threshold = Math.min(180, width * 0.28); // 28% edge zone or up to 180px
-
-    if (x < threshold) {
-      const factor = (threshold - x) / threshold;
-      const speed = Math.max(2, Math.round(factor * 12));
-      startContinuousScroll('left', speed);
-    } else if (x > width - threshold) {
-      const factor = (x - (width - threshold)) / threshold;
-      const speed = Math.max(2, Math.round(factor * 12));
-      startContinuousScroll('right', speed);
-    } else {
-      stopHoverScroll();
-    }
-  };
-
-  // handleBarWheel removed in favor of useEffect listener
-  const scrollBarBy = (amount: number) => {
-    const el = sectionBarRef.current;
-    if (!el) return;
-    el.scrollBy({ left: amount, behavior: 'smooth' });
-    setTimeout(checkSectionScrollState, 350);
-  };
+    window.addEventListener('toefl_report_active_question', onReportEvent);
+    return () => window.removeEventListener('toefl_report_active_question', onReportEvent);
+  }, [currentTaskType, user, customTasks]);
 
   const logEarlyExit = (reason: string) => {
     const now = Date.now();
@@ -650,7 +558,6 @@ export default function App() {
 
     inFlightLock.current = true;
     isPrefetchingRef.current[type] = true;
-    setIsPrefetching(true);
     lastPrefetchTimeRef.current = Date.now();
 
     try {
@@ -719,8 +626,6 @@ export default function App() {
     } finally {
       isPrefetchingRef.current[type] = false;
       inFlightLock.current = false;
-      const anyStillFetching = Object.values(isPrefetchingRef.current).some(Boolean);
-      setIsPrefetching(anyStillFetching);
     }
   };
 
@@ -761,22 +666,6 @@ export default function App() {
   // Sequential prefetch lock
   const inFlightLock = React.useRef(false);
   const isBackgroundPrefetchLoopActiveRef = React.useRef(false);
-  const [prefetchProgress, setPrefetchProgress] = useState({ done: false, filled: 0, total: 12 });
-  useEffect(() => {
-    const el = sectionBarRef.current;
-    if (!el) return;
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const scrollAmount = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-      el.scrollLeft += scrollAmount;
-      checkSectionScrollState();
-      lastWheelTimeRef.current = Date.now();
-      stopHoverScroll();
-    };
-    el.addEventListener('wheel', handleWheel, { passive: false });
-    return () => el.removeEventListener('wheel', handleWheel);
-  }, []);
 
   useEffect(() => {
     if (!enablePrefetching || !hasAnyProviderKey()) return;
@@ -822,10 +711,6 @@ export default function App() {
       clearTimeout(idleTimeout);
     };
   }, [currentTaskType, level, topic, isGenerating, enablePrefetching]);
-
-  useEffect(() => {
-    setPrefetchProgress(getPrefetchProgress(prefetchedQueue, level, topic));
-  }, [prefetchedQueue, level, topic]);
 
   useEffect(() => {
     const handleKeyReset = () => {
@@ -893,7 +778,6 @@ export default function App() {
     setLastGenerationWasInstant(false);
 
     try {
-      const apiKey = getStoredApiKey().trim();
       const json = await safeFetchJson('/api/generate-task', {
         method: 'POST',
         headers: getApiHeaders(),
@@ -1053,12 +937,9 @@ export default function App() {
 
     return normalizeTaskData(task, currentTaskType);
   }, [customTasks, currentTaskType, level, topic, curatedIndices]);
-  const currentTaskDef = TASK_DEFINITIONS.find((t) => t.id === currentTaskType)!;
-  const adaptiveRec = getRecommendedLevel(getPracticeHistory(), level as DifficultyLevel, currentTaskType);
 
   return (
     <div className={`min-h-screen font-sans antialiased selection:bg-teal-200 selection:text-teal-950 flex flex-col motion-reduce:transition-none ${darkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-[#fafaf8] text-slate-900'}`}>
-      <GlobalReportButton />
       {/* Top Bar Contract: 3 Zones (Wordmark - 4 Nav Links - 1 Action CTA) */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
@@ -1310,6 +1191,9 @@ export default function App() {
                 const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all');
                 const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || 10;
                 const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic);
+                const poolForPracticed = exactFilterMatches.length > 0 ? exactFilterMatches : loadedAllForSection;
+                const completedSet = new Set(completedQuestionIds);
+                const practicedCount = poolForPracticed.filter((q) => isQuestionCompleted(q, completedSet)).length;
                 return (
                   <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-flex items-center gap-1.5">
                     <Database className="w-3 h-3 text-teal-700 shrink-0" />
@@ -1317,6 +1201,10 @@ export default function App() {
                       {exactFilterMatches.length > 0
                         ? `${exactFilterMatches.length}/${sectionTotalCount} in bank`
                         : `0 exact filter matches (showing closest from ${sectionTotalCount} in section)`}
+                    </span>
+                    <span className="text-slate-300" aria-hidden="true">·</span>
+                    <span className="text-emerald-700 font-semibold">
+                      ✓ {practicedCount} practiced
                     </span>
                   </span>
                 );
@@ -1588,62 +1476,6 @@ export default function App() {
             </Suspense>
           ) : (
             <>
-              {activeTask?.modelUsed && !activeTask.createdByName && !activeTask.questionDocId && (
-                <div className="mb-4 flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
-                    Generated with {activeTask.modelUsed}
-                  </span>
-                  {activeTask?.isPrefetched && (
-                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md font-medium">
-                      ⚡ Instant Delivery
-                    </span>
-                  )}
-                </div>
-              )}
-              {activeTask?.questionDocId && (!activeTask.reportCount || activeTask.reportCount < 3) && (
-                <div className="mb-6 flex items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="w-2 h-2 rounded-full bg-teal-600"></span>
-                    <span>
-                      {activeTask.createdByName ? (
-                        <>Created by <strong className="text-slate-900 font-semibold">{activeTask.createdByName}</strong></>
-                      ) : (
-                        <strong className="text-slate-900 font-semibold">Shared Question Bank</strong>
-                      )}
-                    </span>
-                    {activeTask.level && (
-                      <span className="text-[11px] text-slate-400 capitalize">· {activeTask.level}</span>
-                    )}
-                    {activeTask.topic && (
-                      <span className="text-[11px] text-slate-400">· {TOPIC_LABELS[activeTask.topic as AcademicTopic] || activeTask.topic}</span>
-                    )}
-                    {activeTask.modelUsed && (
-                      <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md font-mono">
-                        Generated with {activeTask.modelUsed}
-                      </span>
-                    )}
-                  </div>
-                  {activeTask.questionDocId && (
-                    reportedQuestionId === activeTask.questionDocId || getReportedByMe().includes(activeTask.questionDocId) ? (
-                      <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" /> Question reported
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleReportQuestion(activeTask.questionDocId)}
-                        className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-rose-600 transition-colors px-2 py-1 rounded-md hover:bg-rose-50 cursor-pointer"
-                        title="Report this question"
-                      >
-                        <Flag className="w-3.5 h-3.5" />
-                        <span>Report question</span>
-                        {typeof activeTask.reportCount === 'number' && activeTask.reportCount > 0 && (
-                          <span className="text-[10px] text-slate-400 font-mono">({activeTask.reportCount})</span>
-                        )}
-                      </button>
-                    )
-                  )}
-                </div>
-              )}
               {reportError && (
                 <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1662,6 +1494,7 @@ export default function App() {
                   task={activeTask as CompleteWordsTask}
                   wordWrapperClassName="inline-flex items-baseline whitespace-nowrap"
                   blankInputClassName="text-base font-semibold"
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion('complete-words')}
                 />
               )}
@@ -1674,6 +1507,7 @@ export default function App() {
                   leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion('daily-life')}
                 />
               )}
@@ -1686,6 +1520,7 @@ export default function App() {
                   leftColumnClassName="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1694,6 +1529,7 @@ export default function App() {
                 <ListeningChooseResponseView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as any}
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion('listening-choose-response')}
                 />
               )}
@@ -1706,6 +1542,7 @@ export default function App() {
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   excerptBadgeLabel="🎧 Listen again to part of the conversation"
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1717,6 +1554,7 @@ export default function App() {
                   leftColumnClassName="lg:sticky lg:top-6 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto"
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion('listening-announcement')}
                 />
               )}
@@ -1729,6 +1567,7 @@ export default function App() {
                   rightColumnClassName="lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth"
                   footerBarClassName="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200"
                   excerptBadgeLabel="🎧 Listen again to part of the talk"
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1737,6 +1576,7 @@ export default function App() {
                 <BuildSentenceView
                   key={activeTask.id || (activeTask as any).title}
                   task={activeTask as BuildSentenceTask}
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                 />
               )}
@@ -1764,6 +1604,7 @@ export default function App() {
                   onChangeWritingTimerRunning={setIsWritingTimerRunning}
                   writingTimerSeconds={writingTimerSeconds}
                   onChangeWritingTimerSeconds={setWritingTimerSeconds}
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
@@ -1795,6 +1636,7 @@ export default function App() {
                   onChangeWritingTimerRunning={setIsWritingTimerRunning}
                   writingTimerSeconds={writingTimerSeconds}
                   onChangeWritingTimerSeconds={setWritingTimerSeconds}
+                  onComplete={() => markQuestionCompleted(activeTask)}
                   onNextTask={() => handleNextQuestion(currentTaskType)}
                   onOpenApiKeySettings={() => {
                     setDashboardDefaultTab('settings');
@@ -1809,6 +1651,7 @@ export default function App() {
                   task={activeTask as ListenRepeatTask}
                   activeCardHighlightClass="ring-2 ring-emerald-500 shadow-md"
                   onComplete={() => {
+                    markQuestionCompleted(activeTask);
                     document.getElementById('listen-repeat-cumulative-result')?.scrollIntoView({
                       behavior: 'smooth',
                       block: 'center',
@@ -1827,6 +1670,7 @@ export default function App() {
                   aiGraderLabel="✨ Deep AI Grader"
                   apiKeyPromptText="Want deeper semantic AI grading? Add a free Groq/Gemini key in Settings"
                   onComplete={() => {
+                    markQuestionCompleted(activeTask);
                     document.getElementById('interview-evaluation-result')?.scrollIntoView({
                       behavior: 'smooth',
                       block: 'center',
@@ -1855,19 +1699,20 @@ export default function App() {
             <span>Local Browser Simulation</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <button
               onClick={() => setIsRubricsOpen(true)}
-              className="hover:text-slate-900 transition-colors"
+              className="hover:text-slate-900 transition-colors cursor-pointer"
             >
               Scoring Rubric Reference
             </button>
             <button
               onClick={() => setIsHistoryOpen(true)}
-              className="hover:text-slate-900 transition-colors"
+              className="hover:text-slate-900 transition-colors cursor-pointer"
             >
               View Analytics
             </button>
+            <GlobalReportButton />
           </div>
         </div>
       </footer>
