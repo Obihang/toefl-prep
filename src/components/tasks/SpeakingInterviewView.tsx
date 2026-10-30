@@ -2,7 +2,7 @@ import { parseDialogueLine } from '../../utils/voices';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { markUserAiRequest } from '../../utils/userActivity';
 import { SpeakingInterviewTask } from '../../data/curatedQuestions';
-import { Mic, Play, Sparkles, AlertCircle, ArrowRight, Loader2, Headphones, Zap, HardDrive } from 'lucide-react';
+import { Mic, Play, Sparkles, AlertCircle, ArrowRight, Loader2, Headphones, Zap, HardDrive, RotateCcw } from 'lucide-react';
 import { OfflineTranscriberModal } from '../shared/OfflineTranscriberModal';
 import { checkModelCachedStatus, getWhisperModelChoice } from '../../utils/localWhisperStt';
 import {
@@ -99,8 +99,6 @@ export const SpeakingInterviewView: React.FC<Props> = ({
   const playbackSessionIdRef = useRef<number>(0);
   const voiceSessionRef = useRef<VoiceSession | null>(null);
 
-  const draftStorageKey = `toefl_draft_speaking_interview_${task.id || task.title}`;
-
   const stopAllAudio = useCallback(() => {
     playbackSessionIdRef.current++;
     if (recordingAudioRef.current) {
@@ -124,7 +122,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     stopSpeaking();
   }, []);
 
-  // Reset completion guard & blobs on mount or task change, and restore saved draft transcripts
+  // Always start 100% clean on mount or task change (no old draft restoration across reloads)
   useEffect(() => {
     hasCompletedRef.current = false;
     blobsRef.current = {};
@@ -132,37 +130,23 @@ export const SpeakingInterviewView: React.FC<Props> = ({
     setStep('idle');
     setEvaluationResult(null);
     setEvalError(null);
-    try {
-      const rawDraft = localStorage.getItem(draftStorageKey);
-      if (rawDraft) {
-        const parsed = JSON.parse(rawDraft);
-        if (parsed && typeof parsed === 'object') {
-          // Clean any stale single-dot hallucinations from saved draft
-          const cleanedDraft: Record<number, any> = {};
-          for (const [k, v] of Object.entries(parsed)) {
-            if (typeof v === 'string') {
-              const { transcript } = filterWhisperHallucinations(v, []);
-              cleanedDraft[k as any] = transcript;
-            } else {
-              cleanedDraft[k as any] = v;
-            }
-          }
-          answersRef.current = cleanedDraft;
-          setAnswers(cleanedDraft);
-          return;
-        }
-      }
-    } catch {}
+    setShowPromptText(false);
     answersRef.current = {};
     setAnswers({});
-  }, [task.id, task.title, draftStorageKey]);
+    setAudioBlobs({});
+    // Clean up any legacy draft keys
+    try {
+      const draftStorageKey = `toefl_draft_speaking_interview_${task.id || task.title}`;
+      localStorage.removeItem(draftStorageKey);
+    } catch {}
+    return () => {
+      stopAllAudio();
+    };
+  }, [task.id, task.title, stopAllAudio]);
 
   useEffect(() => {
     answersRef.current = answers;
-    try {
-      localStorage.setItem(draftStorageKey, JSON.stringify(answers));
-    } catch {}
-  }, [draftStorageKey, answers]);
+  }, [answers]);
 
   const interviewerName = (task as any).interviewerName || 'Interviewer';
   const interviewerVoiceInfo = useMemo(() => {
@@ -967,11 +951,18 @@ export const SpeakingInterviewView: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => {
+              stopAllAudio();
+              setAnswers({});
+              answersRef.current = {};
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setEvaluationResult(null);
+              setEvalError(null);
+              setShowPromptText(false);
+              setCurrentQIndex(0);
               setAutoStart(true);
               autoStartRef.current = true;
-              const nextUnanswered = task.questions.findIndex((_, idx) => !answers[idx]?.trim());
-              const startIdx = nextUnanswered >= 0 ? nextUnanswered : 0;
-              handlePlayQuestion(startIdx);
+              handlePlayQuestion(0);
             }}
             disabled={activeAudioIdx !== null || micStatus !== 'idle'}
             className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
@@ -1283,17 +1274,50 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         />
       </div>
 
-      {onNextTask && (
-        <div className="pt-2 flex justify-end">
+      <div className="pt-2 flex items-center justify-end gap-3 flex-wrap">
+        {(evaluationResult || Object.values(answers).some((a) => typeof a === 'string' && a.trim().length > 0)) && (
           <button
-            onClick={onNextTask}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            type="button"
+            onClick={() => {
+              stopAllAudio();
+              setAnswers({});
+              answersRef.current = {};
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setEvaluationResult(null);
+              setEvalError(null);
+              setShowPromptText(false);
+              setCurrentQIndex(0);
+              setAutoStart(false);
+              autoStartRef.current = false;
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Try Again</span>
+          </button>
+        )}
+        {onNextTask && (
+          <button
+            onClick={() => {
+              stopAllAudio();
+              setAnswers({});
+              answersRef.current = {};
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setEvaluationResult(null);
+              setEvalError(null);
+              setShowPromptText(false);
+              setCurrentQIndex(0);
+              onNextTask();
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
           >
             Next Interview Set
             <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

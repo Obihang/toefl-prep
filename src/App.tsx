@@ -169,6 +169,20 @@ export default function App() {
     };
   }, [currentTaskType, isMockTest]);
 
+  // Ensure fresh start on reload: purge any legacy draft keys
+  useEffect(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('toefl_draft_')) {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    } catch {}
+  }, []);
+
   // Curated question bank sync state across all 12 task types
   const [bankStats, setBankStats] = useState<{
     totalQuestions: number;

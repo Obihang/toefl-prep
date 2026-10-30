@@ -64,7 +64,8 @@ export const SpeakingControls: React.FC<SpeakingControlsProps> = ({
   hasAnswerText = false,
 }) => {
   const allowedSeconds = currentQ.responseTimeSeconds || 45;
-  const isRevealed = showPromptText || hasRecording || hasAnswerText;
+  // Only reveal question prompt and bullet points when showPromptText is explicitly enabled or after evaluation
+  const isRevealed = Boolean(showPromptText);
 
   return (
     <div className="space-y-3">

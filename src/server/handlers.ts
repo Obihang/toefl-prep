@@ -636,10 +636,73 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
 }
 export { handleTtsCheckEndpoint } from './api/tts-check';
 
+function getDictionaryCandidates(rawWord: string): string[] {
+  const w = rawWord.trim().toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, '');
+  if (!w) return [];
+  const candidates: string[] = [w];
+
+  // 1. If ending in 'ies' -> w.slice(0, -3) + 'y' (e.g. cavities -> cavity)
+  if (w.endsWith('ies') && w.length > 4) {
+    candidates.push(w.slice(0, -3) + 'y');
+  }
+  // 2. If ending in 'es' -> w.slice(0, -2) and w.slice(0, -1) (e.g. classes -> class, boxes -> box, juices -> juice)
+  if (w.endsWith('es') && w.length > 3) {
+    candidates.push(w.slice(0, -2));
+    candidates.push(w.slice(0, -1));
+  }
+  // 3. If ending in 's' (and not 'ss', 'us', 'is') -> w.slice(0, -1) (e.g. fosters -> foster)
+  if (w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us') && !w.endsWith('is') && w.length > 3) {
+    candidates.push(w.slice(0, -1));
+  }
+  // 4. If ending in 'ed' -> w.slice(0, -2) and w.slice(0, -1) (e.g. juxtaposed -> juxtapose, mitigated -> mitigate)
+  if (w.endsWith('ed') && w.length > 4) {
+    candidates.push(w.slice(0, -2));
+    candidates.push(w.slice(0, -1));
+    if (w.length > 5 && w[w.length - 3] === w[w.length - 4]) {
+      candidates.push(w.slice(0, -3)); // stopped -> stop
+    }
+  }
+  // 5. If ending in 'ing' -> w.slice(0, -3) and w.slice(0, -3) + 'e' (e.g. fostering -> foster, making -> make)
+  if (w.endsWith('ing') && w.length > 5) {
+    candidates.push(w.slice(0, -3));
+    candidates.push(w.slice(0, -3) + 'e');
+    if (w.length > 6 && w[w.length - 4] === w[w.length - 5]) {
+      candidates.push(w.slice(0, -4)); // running -> run
+    }
+  }
+  // 6. If ending in 'ly' -> w.slice(0, -2) (e.g. empirically -> empirical)
+  if (w.endsWith('ly') && w.length > 4) {
+    candidates.push(w.slice(0, -2));
+  }
+
+  return Array.from(new Set(candidates.filter((c) => c && c.length >= 2)));
+}
+
+function cleanHtmlAndEntities(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, '$1')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&[a-z]+;/gi, '')
+    .replace(/^\([^)]+\)\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function handleDictionaryEndpoint(req: Req, res: Res) {
   const { word } = req.query;
   if (!word || typeof word !== 'string') return res.status(400).json({ success: false, error: 'Word required' });
-  const w = word.trim().toLowerCase();
+  const rawClean = word.trim().toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, '');
+  if (!rawClean) return res.status(400).json({ success: false, error: 'Valid word required' });
+
+  const candidates = getDictionaryCandidates(rawClean);
 
   const isArchaicOrPlato = (def: string) =>
     /\b(plato|platonist|sect|obsolete|archaic|historical|dated|rare|misspelling of|alternative form of|urine)\b/i.test(def);
@@ -663,27 +726,82 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
     return score;
   };
 
-  // Cascade logic: 1. Wikimedia Wiktionary REST, 2. FreeDictionaryAPI, 3. Datamuse
-  const sources = [
-    async () => { // 1. Wikimedia Wiktionary REST API
+  // Step 1: Try dictionaryapi.dev for the exact word first, then stem/lemma candidates
+  for (const cand of candidates) {
+    try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(w)}`, {
-          signal: controller.signal,
-          headers: { 'User-Agent': 'TOEFLPrepStudio/1.0 (educational app)' }
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const data = await res.json();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const resp = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cand)}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data) && data[0] && Array.isArray(data[0].meanings)) {
+          const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
+          for (const m of data[0].meanings) {
+            const pos = String(m.partOfSpeech || 'noun').toLowerCase();
+            for (const d of (m.definitions || [])) {
+              if (!d.definition) continue;
+              const cleanDef = cleanHtmlAndEntities(String(d.definition));
+              if (cleanDef.split(/\s+/).length <= 1) continue;
+              if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(cleanDef)) continue;
+              meanings.push({
+                partOfSpeech: pos,
+                definition: cleanDef,
+                example: typeof d.example === 'string' ? cleanHtmlAndEntities(d.example) : '',
+              });
+            }
+          }
+
+          if (meanings.length > 0) {
+            const modernMeanings = meanings.filter((m) => !isArchaicOrPlato(m.definition));
+            const finalMeanings = (modernMeanings.length > 0 ? modernMeanings : meanings).sort((a, b) => {
+              const aScore = scoreDefinition(a.definition);
+              const bScore = scoreDefinition(b.definition);
+              if (aScore !== bScore) return bScore - aScore;
+              if (a.example && !b.example) return -1;
+              if (!a.example && b.example) return 1;
+              return 0;
+            });
+
+            return res.json({
+              word: cand,
+              lookupWord: rawClean,
+              meanings: finalMeanings.slice(0, 4),
+              phonetic: data[0].phonetic || data[0].phonetics?.find((p: any) => p.text)?.text || '',
+              source: 'dictionaryapi',
+            });
+          }
+        }
+      }
+    } catch {
+      // continue to next candidate
+    }
+  }
+
+  // Step 2: Fallback to Wikimedia Wiktionary REST for candidate words
+  for (const cand of candidates) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const resp = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(cand)}`, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'TOEFLPrepStudio/1.0 (educational app)' }
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
         const enEntries = data.en || [];
         const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
         for (const entry of enEntries) {
           const pos = String(entry.partOfSpeech || 'noun').toLowerCase();
           for (const defObj of (entry.definitions || [])) {
             const defHtml = defObj.definition || '';
-            const cleanDef = String(defHtml).replace(/<[^>]*>?/gm, '').replace(/^\([^)]+\)\s*/, '').trim();
-            if (!cleanDef || /(obsolete|archaic|dated|rare|misspelling of|alternative form of)/i.test(cleanDef)) continue;
+            const cleanDef = cleanHtmlAndEntities(defHtml);
+            // Skip 1-word stub lines and empty lines
+            if (!cleanDef || cleanDef.split(/\s+/).length <= 1) continue;
+            if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of)/i.test(cleanDef)) continue;
             meanings.push({
               partOfSpeech: pos,
               definition: cleanDef,
@@ -691,124 +809,67 @@ export async function handleDictionaryEndpoint(req: Req, res: Res) {
             });
           }
         }
-        if (meanings.length === 0) return null;
-        return {
-          meanings: meanings.slice(0, 3),
-          source: 'wiktionary_rest',
-        };
-      } catch {
-        clearTimeout(timeout);
-        return null;
-      }
-    },
-    async () => { // 2. DictionaryAPI (clean definitions, real examples, audio)
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`, {
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (!Array.isArray(data) || !data[0] || !Array.isArray(data[0].meanings)) return null;
-
-        const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
-        for (const m of data[0].meanings) {
-          const pos = String(m.partOfSpeech || 'noun').toLowerCase();
-          for (const d of (m.definitions || [])) {
-            if (!d.definition) continue;
-            const cleanDef = String(d.definition).replace(/^\([^)]+\)\s*/, '').trim();
-            if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(cleanDef)) continue;
-            meanings.push({
-              partOfSpeech: pos,
-              definition: cleanDef,
-              example: typeof d.example === 'string' ? d.example.trim() : '',
-            });
-          }
+        if (meanings.length > 0) {
+          return res.json({
+            word: cand,
+            lookupWord: rawClean,
+            meanings: meanings.slice(0, 3),
+            source: 'wiktionary_rest',
+          });
         }
-        if (meanings.length === 0) return null;
-
-        const modernMeanings = meanings.filter((m) => !isArchaicOrPlato(m.definition));
-        const finalMeanings = (modernMeanings.length > 0 ? modernMeanings : meanings).sort((a, b) => {
-          const aScore = scoreDefinition(a.definition);
-          const bScore = scoreDefinition(b.definition);
-          if (aScore !== bScore) return bScore - aScore;
-          if (a.example && !b.example) return -1;
-          if (!a.example && b.example) return 1;
-          return 0;
-        });
-
-        return {
-          meanings: finalMeanings,
-          phonetic: data[0].phonetic || data[0].phonetics?.find((p: any) => p.text)?.text || '',
-          source: 'dictionaryapi',
-        };
-      } catch {
-        clearTimeout(timeout);
-        return null;
       }
-    },
-    async () => { // 2. Datamuse with STRICT exact-word check
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 4500);
-      try {
-        const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(w)}&md=dprs&max=5`, {
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (!Array.isArray(data)) return null;
-
-        const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
-        for (const item of data) {
-          // STRICT CHECK: NEVER include definitions from rhyming, similar, or neighboring words
-          if (!item.word || item.word.toLowerCase() !== w) continue;
-          if (!Array.isArray(item.defs)) continue;
-
-          for (const defStr of item.defs) {
-            const parts = defStr.split('\t');
-            if (parts.length < 2) continue;
-            const posCode = parts[0].trim().toLowerCase();
-            const defText = parts[1].replace(/^\([^)]+\)\s*/, '').trim();
-            if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(defText)) continue;
-
-            const posMap: Record<string, string> = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: 'noun' };
-            meanings.push({
-              partOfSpeech: posMap[posCode] || posCode || 'noun',
-              definition: defText,
-              example: '',
-            });
-          }
-        }
-        const modernMeanings = meanings.filter((m) => !isArchaicOrPlato(m.definition));
-        const finalMeanings = (modernMeanings.length > 0 ? modernMeanings : meanings).sort((a, b) => {
-          const aScore = scoreDefinition(a.definition);
-          const bScore = scoreDefinition(b.definition);
-          if (aScore !== bScore) return bScore - aScore;
-          return 0;
-        });
-
-        if (finalMeanings.length === 0) return null;
-        return {
-          meanings: finalMeanings,
-          source: 'datamuse',
-        };
-      } catch {
-        clearTimeout(timeout);
-        return null;
-      }
-    },
-  ];
-
-  for (const source of sources) {
-    try {
-      const result = await source();
-      if (result && Array.isArray(result.meanings) && result.meanings.length > 0) {
-        return res.json(result);
-      }
-    } catch {}
+    } catch {
+      // continue
+    }
   }
-  return res.status(404).json({ success: false, error: 'Not found' });
+
+  // Step 3: Datamuse fallback
+  for (const cand of candidates) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3500);
+      const resp = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cand)}&md=dprs&max=5`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data)) {
+          const meanings: Array<{ partOfSpeech: string; definition: string; example: string }> = [];
+          for (const item of data) {
+            if (!item.word || item.word.toLowerCase() !== cand) continue;
+            if (!Array.isArray(item.defs)) continue;
+
+            for (const defStr of item.defs) {
+              const parts = defStr.split('\t');
+              if (parts.length < 2) continue;
+              const posCode = parts[0].trim().toLowerCase();
+              const defText = cleanHtmlAndEntities(parts[1]);
+              if (!defText || defText.split(/\s+/).length <= 1) continue;
+              if (/(obsolete|archaic|dated|rare|misspelling of|alternative form of|urine)/i.test(defText)) continue;
+
+              const posMap: Record<string, string> = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', u: 'noun' };
+              meanings.push({
+                partOfSpeech: posMap[posCode] || posCode || 'noun',
+                definition: defText,
+                example: '',
+              });
+            }
+          }
+          if (meanings.length > 0) {
+            return res.json({
+              word: cand,
+              lookupWord: rawClean,
+              meanings: meanings.slice(0, 3),
+              source: 'datamuse',
+            });
+          }
+        }
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  return res.status(404).json({ success: false, error: 'Word not found' });
 }

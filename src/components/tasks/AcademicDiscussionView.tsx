@@ -113,29 +113,18 @@ export const AcademicDiscussionView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [isEvaluating]);
 
-  const draftStorageKey = `toefl_draft_academic_discussion_${task.id || task.title}`;
-
   React.useEffect(() => {
-    let savedResponse = '';
-    try {
-      const rawDraft = localStorage.getItem(draftStorageKey);
-      if (typeof rawDraft === 'string') {
-        savedResponse = rawDraft;
-      }
-    } catch {}
-    setResponse(savedResponse);
+    setResponse('');
     setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
     setIsWritingTimerRunning(isWritingTimerEnabled);
     setIsEvaluating(false);
     setEvalResult(null);
     setEvalError(null);
-  }, [task.id, task.title]);
-
-  React.useEffect(() => {
     try {
-      localStorage.setItem(draftStorageKey, response);
+      const draftStorageKey = `toefl_draft_academic_discussion_${task.id || task.title}`;
+      localStorage.removeItem(draftStorageKey);
     } catch {}
-  }, [draftStorageKey, response]);
+  }, [task.id, task.title]);
 
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -602,9 +591,6 @@ export const AcademicDiscussionView: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => {
-              try {
-                localStorage.removeItem(draftStorageKey);
-              } catch {}
               setResponse('');
               setEvalResult(null);
               setEvalError(null);
@@ -619,7 +605,13 @@ export const AcademicDiscussionView: React.FC<Props> = ({
         )}
         {onNextTask && (
           <button
-            onClick={onNextTask}
+            onClick={() => {
+              setResponse('');
+              setEvalResult(null);
+              setEvalError(null);
+              setTimeLeft(OFFICIAL_DISCUSSION_TIME_SECONDS);
+              onNextTask();
+            }}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             Next Discussion Topic

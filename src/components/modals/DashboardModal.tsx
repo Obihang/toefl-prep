@@ -19,7 +19,8 @@ import {
   calculateToeflEstimate,
   convertScaledToBand6,
 } from '../../utils/scoreTracker';
-import { getVocabularyWords, saveVocabularyWord, deleteVocabularyWord, VocabularyWord } from '../../utils/vocabulary';
+import { getVocabularyWords, saveVocabularyWord as saveVocabRemote, deleteVocabularyWord as deleteVocabRemote, VocabularyWord } from '../../utils/vocabulary';
+import { getVocabularyList, saveVocabularyWord as saveVocabLocal, removeVocabularyWord as removeVocabLocal } from '../../utils/vocabularyStore';
 import { getQuestionCountsPerTaskType } from '../../utils/questionBankStorage';
 
 interface Props {
@@ -102,7 +103,44 @@ export const DashboardModal: React.FC<Props> = ({
       if (isOpen) {
         setStats(getUserStats());
         getCompletedDays().then(setCompletedDays).catch(() => setCompletedDays([]));
-        getVocabularyWords().then(setVocab).catch(() => setVocab([]));
+        
+        getVocabularyWords().then((remoteWords) => {
+          const localItems = getVocabularyList();
+          const mergedMap = new Map<string, VocabularyWord>();
+
+          localItems.forEach((lw) => {
+            mergedMap.set(lw.word.toLowerCase(), {
+              id: lw.id,
+              userId: 'local',
+              word: lw.word,
+              definition: lw.definition || '',
+              context: lw.contextSentence || '',
+              taskType: lw.section || 'general',
+              leitnerBox: 1,
+              nextReviewDate: new Date(),
+              createdAt: lw.timestamp,
+            });
+          });
+
+          remoteWords.forEach((rw) => {
+            mergedMap.set(rw.word.toLowerCase(), rw);
+          });
+
+          setVocab(Array.from(mergedMap.values()));
+        }).catch(() => {
+          const localItems = getVocabularyList();
+          setVocab(localItems.map((lw) => ({
+            id: lw.id,
+            userId: 'local',
+            word: lw.word,
+            definition: lw.definition || '',
+            context: lw.contextSentence || '',
+            taskType: lw.section || 'general',
+            leitnerBox: 1,
+            nextReviewDate: new Date(),
+            createdAt: lw.timestamp,
+          })));
+        });
 
         const storedTarget = localStorage.getItem('toefl_target_score') || '100';
         const storedDate = localStorage.getItem('toefl_test_date') || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
@@ -116,8 +154,10 @@ export const DashboardModal: React.FC<Props> = ({
 
     loadUserData();
     window.addEventListener('toefl_user_changed', loadUserData);
+    window.addEventListener('toefl_vocab_updated', loadUserData);
     return () => {
       window.removeEventListener('toefl_user_changed', loadUserData);
+      window.removeEventListener('toefl_vocab_updated', loadUserData);
     };
   }, [isOpen]);
 
@@ -146,17 +186,17 @@ export const DashboardModal: React.FC<Props> = ({
   const handleAddVocab = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWord.trim() || !newDef.trim()) return;
-    await saveVocabularyWord(newWord.trim(), newDef.trim());
+    saveVocabLocal(newWord.trim(), undefined, newDef.trim(), 'Manual');
+    await saveVocabRemote(newWord.trim(), newDef.trim());
     setNewWord('');
     setNewDef('');
-    const updated = await getVocabularyWords();
-    setVocab(updated);
+    window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
   };
 
-  const handleDeleteVocab = async (id: string) => {
-    await deleteVocabularyWord(id);
-    const updated = await getVocabularyWords();
-    setVocab(updated);
+  const handleDeleteVocab = async (id: string, word?: string) => {
+    removeVocabLocal(word || id);
+    await deleteVocabRemote(id);
+    window.dispatchEvent(new CustomEvent('toefl_vocab_updated'));
   };
 
   if (!isOpen) return null;

@@ -122,10 +122,19 @@ export const ListenRepeatView: React.FC<Props> = ({
     blobsRef.current = {};
     setCurrentIndex(0);
     setStep('practice');
+    setShowPromptText(false);
+    setStates(
+      task.sentences.map(() => ({
+        userInput: '',
+        isRecording: false,
+        checked: false,
+      }))
+    );
+    setAudioBlobs({});
     return () => {
       stopAllAudio();
     };
-  }, [task.id, stopAllAudio]);
+  }, [task.id, stopAllAudio, task.sentences]);
 
   const speakerName = (task as any).speakerName || 'Narrator';
 
@@ -917,10 +926,21 @@ export const ListenRepeatView: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => {
+              stopAllAudio();
+              setStates(
+                task.sentences.map(() => ({
+                  userInput: '',
+                  isRecording: false,
+                  checked: false,
+                }))
+              );
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setCurrentIndex(0);
+              setShowPromptText(false);
               setAutoStart(true);
-              const nextUnchecked = states.findIndex((s) => !s.checked);
-              const startIdx = nextUnchecked >= 0 ? nextUnchecked : 0;
-              handlePlay(startIdx);
+              autoStartRef.current = true;
+              handlePlay(0);
             }}
             disabled={activeAudioIdx !== null || micStatus !== 'idle'}
             className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
@@ -1025,7 +1045,7 @@ export const ListenRepeatView: React.FC<Props> = ({
               </div>
 
               {/* Question / Sentence Prompt: Hidden by default just like real exam */}
-              {!showPromptText && !state.checked && !audioBlobs[idx] && !state.userInput.trim() ? (
+              {!showPromptText && !state.checked ? (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-center gap-2">
                   <Headphones className="w-4 h-4 text-teal-600 shrink-0" />
                   <span>🎧 Listen to the sentence and speak after the beep (sentence text is hidden just like the real exam).</span>
@@ -1427,17 +1447,56 @@ export const ListenRepeatView: React.FC<Props> = ({
         </div>
       )}
 
-      {onNextTask && (
-        <div className="pt-2 flex justify-end">
+      <div className="pt-2 flex items-center justify-end gap-3 flex-wrap">
+        {completedCount > 0 && (
           <button
-            onClick={onNextTask}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            type="button"
+            onClick={() => {
+              stopAllAudio();
+              setStates(
+                task.sentences.map(() => ({
+                  userInput: '',
+                  isRecording: false,
+                  checked: false,
+                }))
+              );
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setCurrentIndex(0);
+              setShowPromptText(false);
+              setAutoStart(false);
+              autoStartRef.current = false;
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Try Again</span>
+          </button>
+        )}
+        {onNextTask && (
+          <button
+            onClick={() => {
+              stopAllAudio();
+              setStates(
+                task.sentences.map(() => ({
+                  userInput: '',
+                  isRecording: false,
+                  checked: false,
+                }))
+              );
+              setAudioBlobs({});
+              blobsRef.current = {};
+              setCurrentIndex(0);
+              setShowPromptText(false);
+              onNextTask();
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
           >
             Next Speaking Exercise
             <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };
