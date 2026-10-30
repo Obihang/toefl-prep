@@ -722,6 +722,19 @@ export function detectGrammarAndMechanicsErrors(
   const text = String(rawText || '').replace(/^Subject:.*$/im, '').trim();
   if (!text) return [];
 
+  const taskTypeStr = String(
+    extra?.taskType ||
+    extra?.canonicalType ||
+    extra?.task?.taskType ||
+    promptData?.taskType ||
+    ''
+  ).toLowerCase();
+  const isSpeakingTask =
+    extra?.isSpeakingTask === true ||
+    taskTypeStr.includes('speaking') ||
+    taskTypeStr.includes('interview') ||
+    taskTypeStr.includes('repeat');
+
   const errors: GrammarErrorItem[] = [];
   const seenOriginals = new Set<string>();
 
@@ -731,6 +744,8 @@ export function detectGrammarAndMechanicsErrors(
     explanation: string,
     type: GrammarErrorItem['type'] = 'grammar'
   ) => {
+    // NEVER flag typing/writing mechanics (run-on sentences, missing punctuation, capitalization, sign-off comma) on speech transcripts!
+    if (isSpeakingTask && type === 'mechanics') return;
     const cleanOrig = original.trim();
     if (!cleanOrig || seenOriginals.has(cleanOrig.toLowerCase())) return;
     seenOriginals.add(cleanOrig.toLowerCase());
@@ -744,28 +759,30 @@ export function detectGrammarAndMechanicsErrors(
 
   let m: RegExpExecArray | null;
 
-  // 1. Standalone lowercase "i" and contractions "i'm", "i've", "i'll", "i'd", "i couldn't"
-  const lowerIContractionRegex = /\b(i'(?:m|ve|ll|d))\b/g;
-  while ((m = lowerIContractionRegex.exec(text)) !== null) {
-    const tok = m[1];
-    pushError(
-      tok,
-      'I' + tok.slice(1),
-      'Capitalization error: the first-person singular pronoun "I" must always be capitalized in English.',
-      'mechanics'
-    );
-  }
+  // 1. Standalone lowercase "i" and contractions "i'm", "i've", "i'll", "i'd", "i couldn't" (Writing tasks only)
+  if (!isSpeakingTask) {
+    const lowerIContractionRegex = /\b(i'(?:m|ve|ll|d))\b/g;
+    while ((m = lowerIContractionRegex.exec(text)) !== null) {
+      const tok = m[1];
+      pushError(
+        tok,
+        'I' + tok.slice(1),
+        'Capitalization error: the first-person singular pronoun "I" must always be capitalized in English.',
+        'mechanics'
+      );
+    }
 
-  const lowerIStandaloneRegex = /\bi\b/g;
-  while ((m = lowerIStandaloneRegex.exec(text)) !== null) {
-    const afterChar = text[m.index + 1] || '';
-    if (afterChar === "'" || afterChar === '.') continue;
-    pushError(
-      'i',
-      'I',
-      'Capitalization error: the first-person singular pronoun "I" must always be capitalized in English.',
-      'mechanics'
-    );
+    const lowerIStandaloneRegex = /\bi\b/g;
+    while ((m = lowerIStandaloneRegex.exec(text)) !== null) {
+      const afterChar = text[m.index + 1] || '';
+      if (afterChar === "'" || afterChar === '.') continue;
+      pushError(
+        'i',
+        'I',
+        'Capitalization error: the first-person singular pronoun "I" must always be capitalized in English.',
+        'mechanics'
+      );
+    }
   }
 
   // 2. Double / repeated consecutive words ("about about", "the the", "and and", "is is")
@@ -888,7 +905,51 @@ export function detectGrammarAndMechanicsErrors(
   }
 
   // 5. Common ESL Grammar, Spoken Disfluency & Collocation Patterns
-  // 5a-1. Spoken Stutters & Phrase Repetitions (e.g. "I don't I don't I don't", "I don't like I don't like", "For example, for example", "The, the")
+  // 5a-1. Spoken Stutters & Phrase Repetitions (e.g. "I I don't", "I don't I don't", "I can focus I can focus", "with my self" -> "by myself")
+  const doubleIDontRegex = /\b(i),?\s+(i\s+don't|i\s+dont)\b/gi;
+  while ((m = doubleIDontRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      "I don't",
+      'Speech Disfluency / Repetition: remove repeated spoken stutter ("I I don\'t") for fluent spoken delivery.',
+      'grammar'
+    );
+  }
+
+  const doubleISimpleRegex = /\b(i),?\s+(i)\b/gi;
+  while ((m = doubleISimpleRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'I',
+      'Speech Disfluency / Repetition: remove repeated spoken pronoun ("I I").',
+      'grammar'
+    );
+  }
+
+  const multiWordStutterRegex = /\b([a-zA-Z]+(?:\s+[a-zA-Z]+){1,3}),?\s+\1\b/gi;
+  while ((m = multiWordStutterRegex.exec(text)) !== null) {
+    const orig = m[0];
+    const phrase = m[1];
+    if (/\b(?:day\s+by\s+day|step\s+by\s+step|side\s+by\s+side|hand\s+in\s+hand)\b/i.test(orig)) continue;
+    const cap = phrase.charAt(0).toUpperCase() + phrase.slice(1);
+    pushError(
+      orig,
+      cap,
+      `Speech Disfluency / Repetition: remove repeated spoken phrase ("${orig}") for fluent spoken delivery.`,
+      'grammar'
+    );
+  }
+
+  const withMyselfRegex = /\b(?:with\s+my\s*self)\b/gi;
+  while ((m = withMyselfRegex.exec(text)) !== null) {
+    pushError(
+      m[0],
+      'by myself',
+      'Collocation error: use "by myself" (or "on my own") to mean alone; "with myself" is unidiomatic here.',
+      'grammar'
+    );
+  }
+
   const stutterPhraseRegex = /\b(i\s+don't\s+like|i\s+dont\s+like|i\s+don't|i\s+dont|for\s+example|in\s+the|on\s+the|at\s+the|to\s+the|it\s+is|there\s+is|there\s+are|we\s+can|they\s+are|you\s+know|i\s+mean),?\s+(?:\1)\b/gi;
   while ((m = stutterPhraseRegex.exec(text)) !== null) {
     const orig = m[0];
@@ -1439,41 +1500,43 @@ export function detectGrammarAndMechanicsErrors(
     }
   }
 
-  // 14. Missing comma after formal closing sign-off ("Sincerely", "Best regards", "Kind regards")
-  const signOffNoCommaRegex = /(?:^|\n)\s*(Sincerely|Best\s+regards|Kind\s+regards|Warm\s+regards|Respectfully)\s*(?=\n|$)/i;
-  const signOffMatch = text.match(signOffNoCommaRegex);
-  if (signOffMatch) {
-    pushError(
-      signOffMatch[1],
-      `${signOffMatch[1]},`,
-      `Punctuation error: place a comma after the closing sign-off ("${signOffMatch[1]},").`,
-      'mechanics'
-    );
-  }
-
-  // 15. Missing sentence-initial capitalization
-  const sentences = text.split(/(?<=[.!?])\s+/);
-  for (const s of sentences) {
-    const trimmed = s.trim();
-    if (/^[a-z]/.test(trimmed)) {
-      const firstWords = trimmed.split(/\s+/).slice(0, 3).join(' ');
+  // 14. Missing comma after formal closing sign-off (Writing tasks only)
+  if (!isSpeakingTask) {
+    const signOffNoCommaRegex = /(?:^|\n)\s*(Sincerely|Best\s+regards|Kind\s+regards|Warm\s+regards|Respectfully)\s*(?=\n|$)/i;
+    const signOffMatch = text.match(signOffNoCommaRegex);
+    if (signOffMatch) {
       pushError(
-        firstWords,
-        firstWords.charAt(0).toUpperCase() + firstWords.slice(1),
-        'Capitalize the first letter at the beginning of every sentence.',
+        signOffMatch[1],
+        `${signOffMatch[1]},`,
+        `Punctuation error: place a comma after the closing sign-off ("${signOffMatch[1]},").`,
         'mechanics'
       );
     }
-    // 16. Run-on sentences > 45 words without internal semicolon or period
-    const sWords = trimmed.split(/\s+/).filter(Boolean);
-    if (sWords.length > 45 && !trimmed.includes(';')) {
-      const snippet = `${sWords.slice(0, 7).join(' ')} ... (${sWords.length} words)`;
-      pushError(
-        snippet,
-        `${sWords.slice(0, 7).join(' ')}. [Break into two sentences]`,
-        'Run-on sentence exceeding 45 words without terminal punctuation; divide long clauses into two distinct sentences.',
-        'mechanics'
-      );
+
+    // 15. Missing sentence-initial capitalization (Writing tasks only)
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    for (const s of sentences) {
+      const trimmed = s.trim();
+      if (/^[a-z]/.test(trimmed)) {
+        const firstWords = trimmed.split(/\s+/).slice(0, 3).join(' ');
+        pushError(
+          firstWords,
+          firstWords.charAt(0).toUpperCase() + firstWords.slice(1),
+          'Capitalize the first letter at the beginning of every sentence.',
+          'mechanics'
+        );
+      }
+      // 16. Run-on sentences > 45 words without internal semicolon or period (Writing tasks only)
+      const sWords = trimmed.split(/\s+/).filter(Boolean);
+      if (sWords.length > 45 && !trimmed.includes(';')) {
+        const snippet = `${sWords.slice(0, 7).join(' ')} ... (${sWords.length} words)`;
+        pushError(
+          snippet,
+          `${sWords.slice(0, 7).join(' ')}. [Break into two sentences]`,
+          'Run-on sentence exceeding 45 words without terminal punctuation; divide long clauses into two distinct sentences.',
+          'mechanics'
+        );
+      }
     }
   }
 
@@ -1774,6 +1837,35 @@ function parseSpeakingInterviewResponses(
 
   const answeredCount = slots.filter((s) => tokenizeWords(s).length >= 3).length;
   return { slotResponses: slots, answeredCount };
+}
+
+export function generateConversationalInterviewModelAnswer(questionText: string, idx: number): string {
+  const q = String(questionText || '').toLowerCase();
+  if (/alone|group|collaborat/i.test(q)) {
+    return 'Personally, I definitely prefer studying alone in a quiet space like the library. When I study by myself, I can concentrate deeply and learn complex course material at my own pace without distractions. For example, during midterms last semester, reviewing my lecture notes independently allowed me to grasp difficult formulas much faster. While study groups can be helpful for brainstorming before exams, independent study gives me the sustained focus I need to achieve high grades.';
+  }
+  if (/prioritize|deadline|time/i.test(q)) {
+    return 'When facing multiple academic deadlines in the same week, I prioritize by creating a structured digital schedule and tackling the heaviest assignments first. For example, last term I had a research paper and a biology midterm due on the same Friday. I broke the essay into daily writing milestones and studied for the exam in the evenings, which kept me consistent and prevented last-minute stress.';
+  }
+  if (/textbook|digital|e-?book|paper/i.test(q)) {
+    return 'In my opinion, transitioning to digital e-books is a very beneficial policy for university students. E-books significantly reduce textbook costs and make searching for specific terms across chapters effortless. Furthermore, carrying one light laptop is far more convenient than carrying multiple heavy physical books across campus every day. Although screen fatigue can occasionally occur, the financial savings and portability make digital textbooks a far better choice.';
+  }
+  if (/facility|service|well-?being|health|mental/i.test(q)) {
+    return 'If I could introduce one new facility on campus to support student well-being, I would establish a dedicated 24-hour quiet wellness and relaxation lounge. College coursework can be extremely demanding, and students often lack a comfortable, low-stress area to recharge between long lectures. Providing quiet rest areas, guided meditation spaces, and complimentary tea would help students decompress, manage academic stress, and maintain their mental and physical health.';
+  }
+  if (/favorite\s+place|campus.*study|relax.*between/i.test(q)) {
+    return 'My favorite spot on campus is definitely the second floor of the science library, right next to the large windows overlooking the garden. I prefer studying there because the atmosphere is peaceful and quiet, unlike the busy student center or cafeteria. There are individual study desks with natural lighting and power outlets. Whenever I feel mentally fatigued between demanding classes, looking out at the trees helps me recharge and regain my focus.';
+  }
+  if (/first-?year|freshm[ae]n|adjust|away\s+from\s+home/i.test(q)) {
+    return 'In my view, universities should establish dedicated peer-mentoring programs where incoming first-year students are paired with experienced upper-year students from their academic department. Transitioning to university life can be challenging, especially managing independent schedules and course syllabi. A mentor can offer practical advice on study habits and finding campus resources, which helps new students build confidence and feel connected right away.';
+  }
+  if (/club|organization|require|mandatory/i.test(q)) {
+    return 'While I strongly encourage campus involvement, I do not believe universities should make club participation strictly mandatory. First-year students already face significant pressure adjusting to university-level academic rigor, and some also work part-time jobs. Imposing a mandatory requirement creates unnecessary anxiety. Instead, universities should host an expansive student activities fair with incentives, allowing students to explore their interests autonomously.';
+  }
+  if (/waste|energy|environment|plastic|recycle/i.test(q)) {
+    return 'In our household, we follow several practical daily habits to conserve energy and minimize waste. For instance, we consistently carry reusable canvas bags and insulated water bottles, preventing hundreds of single-use plastic containers from entering local landfills each year. Furthermore, we make a deliberate effort to turn off electronic appliances when not in use. While these individual actions seem modest, practiced consistently across a community, they significantly reduce environmental impact.';
+  }
+  return `In addressing this issue, I believe the most effective approach is to maintain a balanced, practical perspective supported by consistent effort. For instance, in my own academic experience, analyzing core challenges methodically and consulting with professors always produced stronger results than rushing through decisions. Ultimately, steady preparation and open communication ensure lasting success for students and faculty alike.`;
 }
 
 /**
@@ -2314,37 +2406,47 @@ export function evaluateLocally(
   } else if (canonicalType === 'speaking-interview') {
     specificInterviewModelAnswers.length = 0;
     interviewSubmissionData.length = 0;
-    const rawQuestions: any[] = Array.isArray(promptData?.questions)
-      ? promptData.questions
-      : Array.isArray(extra?.task?.questions)
+    const rawQuestions: any[] = Array.isArray(extra?.task?.questions) && extra.task.questions.length > 0
       ? extra.task.questions
+      : Array.isArray(promptData?.questions)
+      ? promptData.questions
       : [];
 
     const parsedInterview = parseSpeakingInterviewResponses(studentResponse, extra);
 
     for (let i = 0; i < 4; i++) {
-      const qObj = rawQuestions[i];
-      const qText = String(qObj?.question || qObj?.prompt || `Question ${i + 1}`).trim();
-      let qModel = qObj?.sampleAnswer || extra?.task?.modelAnswers?.[i];
+      const qFromTask = extra?.task?.questions?.[i];
+      const qFromPrompt = Array.isArray(promptData?.questions) ? promptData.questions[i] : undefined;
+      const qObj = qFromTask || qFromPrompt;
 
-      if (!qModel || typeof qModel !== 'string' || qModel.trim().length < 30) {
-        const pts = Array.isArray(qObj?.suggestedPoints) && qObj.suggestedPoints.length > 0
-          ? qObj.suggestedPoints.join(', ')
-          : 'concrete examples and analytical reasoning';
-        qModel = `Regarding ${qText.toLowerCase().replace(/[?.]+$/, '')}, I believe this plays a crucial role in modern higher education. Specifically, taking into account ${pts.toLowerCase()} enables students and faculty to navigate academic challenges with greater confidence. For instance, in my own coursework experience, maintaining consistent preparation and collaborative dialogue significantly improved our analytical results. Ultimately, fostering this balanced perspective supports sustained personal and professional excellence.`;
+      const qText = String(
+        (typeof qObj === 'string' ? qObj : qObj?.question || qObj?.prompt) ||
+        (typeof qFromPrompt === 'string' ? qFromPrompt : qFromPrompt?.question || qFromPrompt?.prompt) ||
+        `Question ${i + 1}`
+      ).trim();
+
+      let qModel =
+        (typeof qObj === 'object' ? qObj?.sampleAnswer || qObj?.modelAnswer : undefined) ||
+        (typeof qFromTask === 'object' ? qFromTask?.sampleAnswer || qFromTask?.modelAnswer : undefined) ||
+        extra?.task?.modelAnswers?.[i] ||
+        promptData?.modelAnswers?.[i];
+
+      if (!qModel || typeof qModel !== 'string' || qModel.trim().length < 30 || qModel.includes('plays a crucial role in modern higher education')) {
+        qModel = generateConversationalInterviewModelAnswer(qText, i);
       }
 
       specificInterviewModelAnswers.push(qModel.trim());
 
       const userTranscript = parsedInterview.slotResponses[i] || '';
       const qCorrections = userTranscript.trim()
-        ? detectGrammarAndMechanicsErrors(userTranscript, promptData, extra)
+        ? detectGrammarAndMechanicsErrors(userTranscript, promptData, { ...extra, isSpeakingTask: true })
         : [];
       const qMetrics = extra?.submissionData?.[i]?.metrics || (extra as any)?.[`metrics_${i}`];
 
       interviewSubmissionData.push({
         question: qText,
         transcript: userTranscript,
+        studentResponse: userTranscript,
         metrics: qMetrics,
         corrections: qCorrections,
         modelAnswer: qModel.trim(),
@@ -2354,7 +2456,7 @@ export function evaluateLocally(
     }
 
     exemplar = specificInterviewModelAnswers
-      .map((ans, idx) => `Q${idx + 1} Model Answer (${rawQuestions[idx]?.question || `Question ${idx + 1}`}):\n${ans}`)
+      .map((ans, idx) => `Q${idx + 1} Model Answer (${rawQuestions[idx]?.question || extra?.task?.questions?.[idx]?.question || `Question ${idx + 1}`}):\n${ans}`)
       .join('\n\n');
   } else {
     exemplar = `From my perspective, ${promptData?.title || 'this academic topic'} plays a pivotal role in modern higher education. First, when institutions prioritize structured, evidence-based practices, students develop stronger analytical and problem-solving capabilities. For instance, in my own academic coursework, collaborative seminars allowed us to synthesize theoretical models with real-world applications. Ultimately, balancing innovation with rigorous standards ensures long-term success.`;
@@ -2553,6 +2655,18 @@ export function mergeAiAndLocalEvaluation(aiEval: any, localEval: LocalEvaluatio
     ...aiEval,
     criteria: validCriteria,
     bulletAnalysis: aiEval.bulletAnalysis || localEval.bulletAnalysis,
+    submissionData:
+      Array.isArray(localEval.submissionData) && localEval.submissionData.length > 0
+        ? localEval.submissionData
+        : Array.isArray(aiEval.submissionData) && aiEval.submissionData.length > 0
+        ? aiEval.submissionData
+        : undefined,
+    questionModelAnswers:
+      Array.isArray(localEval.questionModelAnswers) && localEval.questionModelAnswers.length > 0
+        ? localEval.questionModelAnswers
+        : Array.isArray(aiEval.questionModelAnswers) && aiEval.questionModelAnswers.length > 0
+        ? aiEval.questionModelAnswers
+        : undefined,
     corrections: mergedCorrections,
     errors: mergedCorrections,
     grammarErrors: mergedCorrections,

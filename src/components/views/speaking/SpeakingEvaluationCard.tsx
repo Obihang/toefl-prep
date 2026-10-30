@@ -11,6 +11,8 @@ import { HighlightedText } from '../../shared/FeedbackComparison';
 export interface SpeakingEvaluationCardProps {
   evaluationResult: any;
   task?: any;
+  interviewResponses?: Record<string | number, any> | string[];
+  userTranscripts?: Record<string | number, any> | string[];
   isBenchmarkOpen?: boolean;
   onToggleBenchmark?: () => void;
 }
@@ -21,6 +23,35 @@ const DEFAULT_TRANSITIONS = [
   'conversely', 'in addition', 'thus', 'as a result', 'for instance',
   'for example', 'ultimately', 'additionally', 'notably', 'similarly',
 ];
+
+function generateSpecificModelAnswer(questionText: string, idx: number): string {
+  const q = String(questionText || '').toLowerCase();
+  if (/alone|group|collaborat/i.test(q)) {
+    return 'Personally, I definitely prefer studying alone in a quiet space like the library. When I study by myself, I can concentrate deeply and learn complex course material at my own pace without distractions. For example, during midterms last semester, reviewing my lecture notes independently allowed me to grasp difficult formulas much faster. While study groups can be helpful for brainstorming before exams, independent study gives me the sustained focus I need to achieve high grades.';
+  }
+  if (/prioritize|deadline|time/i.test(q)) {
+    return 'When facing multiple academic deadlines in the same week, I prioritize by creating a structured digital schedule and tackling the heaviest assignments first. For example, last term I had a research paper and a biology midterm due on the same Friday. I broke the essay into daily writing milestones and studied for the exam in the evenings, which kept me consistent and prevented last-minute stress.';
+  }
+  if (/textbook|digital|e-?book|paper/i.test(q)) {
+    return 'In my opinion, transitioning to digital e-books is a very beneficial policy for university students. E-books significantly reduce textbook costs and make searching for specific terms across chapters effortless. Furthermore, carrying one light laptop is far more convenient than carrying multiple heavy physical books across campus every day. Although screen fatigue can occasionally occur, the financial savings and portability make digital textbooks a far better choice.';
+  }
+  if (/facility|service|well-?being|health|mental/i.test(q)) {
+    return 'If I could introduce one new facility on campus to support student well-being, I would establish a dedicated 24-hour quiet wellness and relaxation lounge. College coursework can be extremely demanding, and students often lack a comfortable, low-stress area to recharge between long lectures. Providing quiet rest areas, guided meditation spaces, and complimentary tea would help students decompress, manage academic stress, and maintain their mental and physical health.';
+  }
+  if (/favorite\s+place|campus.*study|relax.*between/i.test(q)) {
+    return 'My favorite spot on campus is definitely the second floor of the science library, right next to the large windows overlooking the garden. I prefer studying there because the atmosphere is peaceful and quiet, unlike the busy student center or cafeteria. There are individual study desks with natural lighting and power outlets. Whenever I feel mentally fatigued between demanding classes, looking out at the trees helps me recharge and regain my focus.';
+  }
+  if (/first-?year|freshm[ae]n|adjust|away\s+from\s+home/i.test(q)) {
+    return 'In my view, universities should establish dedicated peer-mentoring programs where incoming first-year students are paired with experienced upper-year students from their academic department. Transitioning to university life can be challenging, especially managing independent schedules and course syllabi. A mentor can offer practical advice on study habits and finding campus resources, which helps new students build confidence and feel connected right away.';
+  }
+  if (/club|organization|require|mandatory/i.test(q)) {
+    return 'While I strongly encourage campus involvement, I do not believe universities should make club participation strictly mandatory. First-year students already face significant pressure adjusting to university-level academic rigor, and some also work part-time jobs. Imposing a mandatory requirement creates unnecessary anxiety. Instead, universities should host an expansive student activities fair with incentives, allowing students to explore their interests autonomously.';
+  }
+  if (/waste|energy|environment|plastic|recycle/i.test(q)) {
+    return 'In our household, we follow several practical daily habits to conserve energy and minimize waste. For instance, we consistently carry reusable canvas bags and insulated water bottles, preventing hundreds of single-use plastic containers from entering local landfills each year. Furthermore, we make a deliberate effort to turn off electronic appliances when not in use. While these individual actions seem modest, practiced consistently across a community, they significantly reduce environmental impact.';
+  }
+  return `In addressing this issue, I believe the most effective approach is to maintain a balanced, practical perspective supported by consistent effort. For instance, in my own academic experience, analyzing core challenges methodically and consulting with professors always produced stronger results than rushing through decisions. Ultimately, steady preparation and open communication ensure lasting success for students and faculty alike.`;
+}
 
 function highlightTransitions(content: string) {
   if (!content) return content;
@@ -45,6 +76,8 @@ function highlightTransitions(content: string) {
 export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
   evaluationResult,
   task,
+  interviewResponses,
+  userTranscripts,
 }) => {
   if (!evaluationResult) return null;
 
@@ -200,8 +233,41 @@ export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
             <div className="space-y-4">
               {questions.map((q, idx) => {
                 const sub = submissionData[idx];
-                const transcript = sub?.transcript || '';
-                const qCorrections = sub?.corrections || safeCorrections;
+                const respAny = interviewResponses as any;
+                const transAny = userTranscripts as any;
+                const directAnswer =
+                  respAny?.[idx] ??
+                  respAny?.[String(idx)] ??
+                  transAny?.[idx] ??
+                  transAny?.[String(idx)] ??
+                  (typeof interviewResponses === 'object' && interviewResponses !== null
+                    ? respAny[`q${idx + 1}`] ?? respAny[`Q${idx + 1}`]
+                    : undefined);
+
+                let transcript = String(
+                  sub?.transcript ||
+                  sub?.studentResponse ||
+                  sub?.response ||
+                  directAnswer ||
+                  ''
+                ).trim();
+
+                if (!transcript && evaluationResult?.studentResponse) {
+                  const raw = String(evaluationResult.studentResponse);
+                  const qRegex = new RegExp(`(?:^|\\n)\\s*(?:Q${idx + 1}|Question\\s*${idx + 1})\\s*[:.)-]\\s*([\\s\\S]*?)(?=(?:\\n\\s*(?:Q[1-4]|Question\\s*[1-4])\\s*[:.)-])|$)`, 'i');
+                  const match = raw.match(qRegex);
+                  if (match && match[1]) {
+                    transcript = match[1].replace(/^[^\n]*\nResponse:\s*/i, '').replace(/^Response:\s*/i, '').trim();
+                  }
+                }
+
+                const qCorrections = (sub?.corrections && sub.corrections.length > 0)
+                  ? sub.corrections
+                  : safeCorrections.filter((c: any) => {
+                      const orig = String(c?.original || '').trim().toLowerCase();
+                      return orig && transcript.toLowerCase().includes(orig);
+                    });
+
                 const fillerCount = sub?.fillerCount ?? 0;
                 const wpm = sub?.wpm ?? 0;
 
@@ -267,11 +333,19 @@ export const SpeakingEvaluationCard: React.FC<SpeakingEvaluationCardProps> = ({
             <div className="space-y-4">
               {questions.map((q, idx) => {
                 const sub = submissionData[idx];
-                const modelAnswer =
-                  sub?.modelAnswer ||
-                  evaluationResult.questionModelAnswers?.[idx] ||
+                const candidateModel =
                   q.sampleAnswer ||
-                  `In addressing ${q.question.toLowerCase().replace(/[?.]+$/, '')}, I believe this is a critical consideration in higher education. Having clear institutional guidelines and proactive community support ensures that all students can navigate their academic responsibilities effectively while developing essential lifelong skills.`;
+                  q.modelAnswer ||
+                  evaluationResult.questionModelAnswers?.[idx] ||
+                  sub?.modelAnswer;
+
+                const modelAnswer =
+                  candidateModel &&
+                  typeof candidateModel === 'string' &&
+                  candidateModel.trim().length > 30 &&
+                  !candidateModel.includes('plays a crucial role in modern higher education')
+                    ? candidateModel.trim()
+                    : generateSpecificModelAnswer(q.question, idx);
 
                 return (
                   <div key={idx} className="border border-teal-200 rounded-xl p-4 bg-teal-50/40 space-y-2.5 shadow-2xs">

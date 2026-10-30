@@ -1217,7 +1217,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
 
       const rawQs = Array.isArray(task.questions) ? task.questions : [];
       const normalizedQs = rawQs
-        .map((q: any) => {
+        .map((q: any, qIdx: number) => {
           const qText = String(typeof q === 'string' ? q : q?.question || q?.prompt || '').trim();
           if (!qText) return null;
           return {
@@ -1233,7 +1233,14 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
                     'Support your argument with a concrete academic or personal example',
                     'Synthesize the broader implications of your view',
                   ],
-            sampleAnswer: typeof q?.sampleAnswer === 'string' ? q.sampleAnswer.trim() : undefined,
+            sampleAnswer:
+              typeof q?.sampleAnswer === 'string' && q.sampleAnswer.trim().length > 0
+                ? q.sampleAnswer.trim()
+                : typeof q?.modelAnswer === 'string' && q.modelAnswer.trim().length > 0
+                ? q.modelAnswer.trim()
+                : Array.isArray(task?.modelAnswers) && typeof task.modelAnswers[qIdx] === 'string'
+                ? task.modelAnswers[qIdx].trim()
+                : undefined,
           };
         })
         .filter(Boolean) as Array<{
@@ -1255,6 +1262,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
             'Explain how this obstacle affects daily academic work',
             'Propose a realistic initial mitigation step',
           ],
+          sampleAnswer: 'In my view, the most immediate challenge students face in this area is managing limited time and academic resources effectively. When new policies or courses are introduced without clear orientation, students often feel overwhelmed and struggle to balance coursework with extracurricular commitments. For example, during my freshman year, navigating self-directed research was difficult until our department hosted targeted workshops. Providing accessible peer advising significantly eases this initial friction.',
         },
         {
           question:
@@ -1266,6 +1274,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
             'Provide an example of a high-impact institutional investment',
             'Explain how stakeholders benefit over time',
           ],
+          sampleAnswer: 'Universities should prioritize long-term instructional quality even when confronted with short-term fiscal constraints. Investing in modern digital infrastructure, laboratory upgrades, and experienced faculty pays substantial dividends by enhancing graduate employability and institutional reputation. For instance, universities that invested in comprehensive digital learning hubs experienced higher student retention rates. A strategic, forward-looking investment strategy ultimately delivers sustainable institutional value.',
         },
         {
           question:
@@ -1277,6 +1286,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
             'Acknowledge one valid point from the opposing perspective',
             'Defend your conclusion with specific evidence',
           ],
+          sampleAnswer: 'I partially agree that certain legacy practices require modern updates, yet core pedagogical traditions remain essential. While integrating collaborative technology and practical project-based learning enhances engagement, traditional lecture fundamentals provide the theoretical groundwork students need. For example, combining classic seminar discussions with contemporary simulations yielded the best learning outcomes in our economics courses. Balancing foundational theory with modern innovation produces the most capable scholars.',
         },
         {
           question:
@@ -1288,6 +1298,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
             'Evaluate potential risks and ethical considerations',
             'Conclude with how future graduates should prepare',
           ],
+          sampleAnswer: 'Over the coming decade, I anticipate that automated analytics and collaborative digital platforms will fundamentally reshape academic and professional practices. Routine computational tasks will become automated, allowing researchers and students to focus on critical interpretation and interdisciplinary problem-solving. Consequently, future graduates must cultivate strong adaptability, digital literacy, and ethical judgment to lead effectively in an evolving technological landscape.',
         },
       ];
 

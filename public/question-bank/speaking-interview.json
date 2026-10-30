@@ -1,5 +1,66 @@
 [
   {
+    "id": "si-1",
+    "title": "University Life & Study Habits",
+    "taskType": "speaking-interview",
+    "topic": "campus-life",
+    "level": "intermediate",
+    "difficulty": "intermediate",
+    "interviewerName": "Professor Lee",
+    "interviewerGender": "female",
+    "context": "You are participating in an academic interview regarding university study environments and campus choices.",
+    "questions": [
+      {
+        "id": "si-1-q1",
+        "question": "Do you prefer studying alone in a quiet space or collaborating with peers in a study group? Why?",
+        "prepTimeSeconds": 15,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "State clear preference (solitary vs group study)",
+          "Provide specific reasons (concentration, diverse viewpoints, accountability)",
+          "Give a concrete personal example from your academic experience"
+        ],
+        "sampleAnswer": "Personally, I definitely prefer studying alone in a quiet space like the upper floors of the university library. When I study by myself, I can concentrate deeply on complex lecture concepts without external distractions and work through problem sets at my own pace. For example, during midterms last semester, reviewing my economics notes in complete silence allowed me to master difficult quantitative formulas much faster than trying to coordinate discussion times with a large study group."
+      },
+      {
+        "id": "si-1-q2",
+        "question": "How do you prioritize your time when you have multiple academic deadlines approaching in the same week?",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 45,
+        "suggestedPoints": [
+          "Mention organizational strategies (digital calendars, priority matrices, breaking down tasks)",
+          "Discuss how you manage stress and maintain consistency",
+          "Explain the outcome of applying this strategy"
+        ],
+        "sampleAnswer": "When facing multiple overlapping deadlines in the same week, I prioritize by creating a structured digital schedule and tackling assignments that carry the heaviest academic weight first. For example, last term I had a research paper and a biology midterm due on the same Friday. I broke the essay into daily writing milestones and studied for the exam in the evenings, which kept me consistent, preserved my energy, and eliminated last-minute stress."
+      },
+      {
+        "id": "si-1-q3",
+        "question": "Some universities are replacing traditional paper textbooks entirely with digital e-books. Do you think this is a beneficial policy?",
+        "prepTimeSeconds": 20,
+        "responseTimeSeconds": 50,
+        "suggestedPoints": [
+          "Evaluate pros (cost reduction, searchability, environmental impact) and cons (screen fatigue, distraction)",
+          "Take a balanced stance and offer a reasoned conclusion",
+          "Highlight impact on student equity"
+        ],
+        "sampleAnswer": "In my view, transitioning to digital e-books is a very beneficial policy for university students. Digital textbooks significantly reduce semester textbook expenses and allow students to search for specific terms across hundreds of pages instantaneously. Furthermore, carrying one lightweight laptop is far more convenient than lugging several heavy physical books across campus every day. Although screen fatigue can occasionally occur, the financial savings and accessibility make digital textbooks a far better choice."
+      },
+      {
+        "id": "si-1-q4",
+        "question": "If you could introduce one new facility or service on your university campus to improve student well-being, what would it be and why?",
+        "prepTimeSeconds": 25,
+        "responseTimeSeconds": 60,
+        "suggestedPoints": [
+          "Propose a specific facility (wellness/meditation center, 24/7 maker space, peer tutoring hub)",
+          "Justify its necessity with current campus challenges",
+          "Detail the long-term benefits to the university community"
+        ],
+        "sampleAnswer": "If I could introduce one new facility on campus to support student well-being, I would establish a dedicated 24-hour quiet wellness and relaxation lounge. University coursework often induces immense psychological stress, especially during final examinations, and currently students have very few quiet spaces specifically reserved for unwinding. Providing restorative rest spaces, guided meditation workshops, and complimentary herbal tea would give students a peaceful retreat between rigorous seminars, substantially enhancing mental well-being and academic productivity."
+      }
+    ]
+  },
+  {
     "id": "si-curated-1",
     "taskType": "speaking-interview",
     "topic": "campus-life",

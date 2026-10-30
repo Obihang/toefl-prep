@@ -412,6 +412,7 @@ export const SpeakingInterviewView: React.FC<Props> = ({
 
       return {
         question: q.question,
+        transcript: response,
         studentResponse: response,
         fillerCount,
         wpm,
@@ -1275,6 +1276,8 @@ export const SpeakingInterviewView: React.FC<Props> = ({
         <SpeakingEvaluationCard
           evaluationResult={evaluationResult}
           task={task}
+          interviewResponses={answers}
+          userTranscripts={answers}
           isBenchmarkOpen={isBenchmarkOpen}
           onToggleBenchmark={() => setIsBenchmarkOpen(!isBenchmarkOpen)}
         />
