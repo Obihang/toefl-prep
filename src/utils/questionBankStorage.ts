@@ -14,7 +14,6 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   limit,
@@ -76,6 +75,7 @@ export function getQuestionContentSignature(taskType: string, data: any): string
   const content = data?.content || data || {};
   const mainText =
     content.passage ||
+    content.audioScript ||
     content.text ||
     content.script ||
     content.situation ||
@@ -92,11 +92,29 @@ export function getQuestionContentSignature(taskType: string, data: any): string
       : '') ||
     JSON.stringify(content);
 
-  const normalizedText = String(mainText)
+  const rawSig = String(mainText)
     .replace(/\s+/g, ' ')
     .trim()
-    .toLowerCase()
-    .slice(0, 300);
+    .toLowerCase();
+
+  const qSig =
+    content.questions?.[0]?.question ||
+    content.questions?.[0]?.q ||
+    content.items?.[0]?.prompt ||
+    content.items?.[0]?.question ||
+    content.sentences?.[0]?.targetSentence ||
+    data?.questions?.[0]?.question ||
+    data?.items?.[0]?.prompt ||
+    data?.items?.[0]?.question ||
+    data?.sentences?.[0]?.targetSentence ||
+    '';
+
+  const cleanQSig = String(qSig)
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  const normalizedText = `${rawSig.slice(0, 240)}__${cleanQSig.slice(0, 120)}`;
 
   return `${canonicalType}:::${normalizedText}`;
 }
@@ -188,12 +206,12 @@ export async function clearAllLocalQuestions(): Promise<void> {
 let purgePromise: Promise<void> | null = null;
 
 /**
- * One-time 2026 v2 migration that purges all legacy/corrupted questions from IndexedDB,
- * localStorage prefetch caches, and Firestore 'questions' collection before seeding the 80 clean items.
+ * One-time 2026 migration that purges legacy/corrupted questions from IndexedDB
+ * and localStorage prefetch caches. Firestore documents are filtered via schemaVersion.
  */
 export async function ensurePurged2026V2(): Promise<void> {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
-  if (localStorage.getItem(TOEFL_2026_PURGE_V2) === 'true') return;
+  if (localStorage.getItem(TOEFL_2026_PURGE_V19) === 'true') return;
   if (purgePromise) return purgePromise;
 
   purgePromise = (async () => {
@@ -203,26 +221,10 @@ export async function ensurePurged2026V2(): Promise<void> {
       localStorage.removeItem('toefl_prefetch_queue_v3');
       localStorage.removeItem('toefl_seen_question_ids');
 
-      if (db) {
-        try {
-          await ensureAuthenticated();
-          const snap = await getDocs(collection(db, 'questions'));
-          if (!snap.empty) {
-            await Promise.all(
-              snap.docs.map((d) =>
-                deleteDoc(doc(db, 'questions', d.id)).catch(() => {})
-              )
-            );
-          }
-        } catch (fsErr) {
-          console.warn('Firestore legacy question purge skipped or partial:', fsErr);
-        }
-      }
-
-      localStorage.setItem(TOEFL_2026_PURGE_V2, 'true');
+      localStorage.setItem(TOEFL_2026_PURGE_V19, 'true');
       localStorage.setItem(STATIC_SHARDS_SYNC_KEY, 'true');
     } catch (err) {
-      console.warn('Error during TOEFL_2026_PURGE_V2 migration:', err);
+      console.warn('Error during TOEFL_2026_PURGE_V19 migration:', err);
     } finally {
       purgePromise = null;
     }
@@ -231,6 +233,7 @@ export async function ensurePurged2026V2(): Promise<void> {
   return purgePromise;
 }
 
+export const purgeLegacyQuestionsIfNeeded = ensurePurged2026V2;
 export const ensurePurged2026V4 = ensurePurged2026V2;
 export const ensurePurged2026V3 = ensurePurged2026V2;
 

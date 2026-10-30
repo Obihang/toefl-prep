@@ -147,7 +147,12 @@ service cloud.firestore {
         && (
           isQuestionIncrementOnly()
           || isAdmin()
-          || request.resource.data.get('id', questionId) == resource.data.get('id', questionId)
+          || (
+            request.resource.data.get('id', questionId) == resource.data.get('id', questionId)
+            && request.resource.data.taskType == resource.data.taskType
+            && request.resource.data.get('data', {}) == resource.data.get('data', {})
+            && request.resource.data.get('content', {}) == resource.data.get('content', {})
+          )
           || (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount'])
             && request.resource.data.reportCount == (resource.data.get('reportCount', 0) + 1)

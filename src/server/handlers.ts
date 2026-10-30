@@ -622,13 +622,53 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
     let audioBuffer: Buffer | null = null;
     let mimeType = 'audio/mpeg';
     let modelUsed = `Neural Stream (${selectedVoice})`;
+    let providerUsed = 'fallback';
+
+    const requestedProvider = ttsProvider || provider;
+    const customKey = ttsApiKey || voiceApiKey || (requestedProvider === 'openai' ? userApiKey : '');
+    const gender = isMale ? 'male' : 'female';
+
+    // Stage 1: Explicit custom OpenAI TTS when requestedProvider === 'openai' and customKey is provided
+    if (requestedProvider === 'openai' && customKey) {
+      try {
+        const openaiVoice = gender === 'male' ? 'onyx' : 'nova';
+        const openaiUrl = ttsBaseUrl
+          ? `${ttsBaseUrl.replace(/\/+$/, '')}/audio/speech`
+          : 'https://api.openai.com/v1/audio/speech';
+        const openaiRes = await fetch(openaiUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${customKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'tts-1',
+            voice: openaiVoice,
+            input: cleanText,
+          }),
+        });
+        if (openaiRes.ok) {
+          const arrayBuffer = await openaiRes.arrayBuffer();
+          if (arrayBuffer && arrayBuffer.byteLength > 0) {
+            audioBuffer = Buffer.from(arrayBuffer);
+            mimeType = 'audio/mpeg';
+            modelUsed = `OpenAI tts-1 (${openaiVoice})`;
+            providerUsed = 'openai';
+          }
+        }
+      } catch (openaiErr) {
+        console.warn('Custom OpenAI TTS failed, falling back to Edge TTS:', redactSensitiveInfo(openaiErr));
+      }
+    }
 
     // Stage 2: Guaranteed Zero-Dependency Node fetch MP3 stream (Zero-key synthesis)
-    const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, isMale ? 'male' : 'female', selectedVoice || customVoice);
-    if (zeroKeyRes) {
-      audioBuffer = zeroKeyRes.buffer;
-      mimeType = 'audio/mpeg';
-      modelUsed = zeroKeyRes.modelUsed;
+    if (!audioBuffer || audioBuffer.length === 0) {
+      const zeroKeyRes = await synthesizeWithZeroKeyFetch(cleanText, speakerName, gender, selectedVoice || customVoice);
+      if (zeroKeyRes) {
+        audioBuffer = zeroKeyRes.buffer;
+        mimeType = 'audio/mpeg';
+        modelUsed = zeroKeyRes.modelUsed;
+      }
     }
 
     if (!audioBuffer || audioBuffer.length === 0) {
@@ -662,7 +702,7 @@ export async function handleTtsEndpoint(req: Req, res: Res) {
       audioUrl: audioUrl,
       mimeType,
       modelUsed,
-      providerUsed: 'fallback',
+      providerUsed,
       hash,
       cached: false,
       isMale,
