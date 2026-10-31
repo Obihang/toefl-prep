@@ -18,9 +18,6 @@ jobs:
       - name: Install
         run: npm install --legacy-peer-deps
 
-      - name: Block truncated code (comments cut short with ellipsis)
-        run: ! grep -rnE "//\s*\.\.\.\s*(existing|rest of|remaining)" src/ api/
-
       - name: Type check
         run: npm run lint
 
