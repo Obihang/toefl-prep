@@ -2063,7 +2063,7 @@ export const ExamEngine: React.FC = () => {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>✨ Generate &amp; Save New Full Mock Set (AI)</span>
+                    <span>Generate &amp; Save New Full Mock Set (AI)</span>
                   </>
                 )}
               </button>
@@ -2082,7 +2082,7 @@ export const ExamEngine: React.FC = () => {
                 ) : (
                   <>
                     <Shuffle className="w-4 h-4 text-teal-300" />
-                    <span>🔀 Quick Randomized Mock Exam</span>
+                    <span>Quick Randomized Mock Exam</span>
                   </>
                 )}
               </button>
@@ -2180,7 +2180,7 @@ export const ExamEngine: React.FC = () => {
                         {isAiSet ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
                             <Sparkles className="w-3 h-3 text-purple-700" />
-                            <span>✨ AI-Generated Set</span>
+                            <span>AI-Generated Set</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
@@ -2232,7 +2232,7 @@ export const ExamEngine: React.FC = () => {
                           className="w-full py-2.5 px-4 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs"
                         >
                           <Play className="w-3.5 h-3.5 fill-current" />
-                          <span>▶️ Start Mock Exam</span>
+                          <span>Start Mock Exam</span>
                         </button>
                       ) : (
                         <div className="grid grid-cols-2 gap-2">
@@ -2243,7 +2243,7 @@ export const ExamEngine: React.FC = () => {
                             className="py-2 px-3 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
-                            <span>🔄 Retake Exam</span>
+                            <span>Retake Exam</span>
                           </button>
                           <button
                             type="button"
@@ -2251,7 +2251,7 @@ export const ExamEngine: React.FC = () => {
                             className="py-2 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5"
                           >
                             <BarChart3 className="w-3.5 h-3.5 text-teal-700" />
-                            <span>📊 Score Report</span>
+                            <span>Score Report</span>
                           </button>
                         </div>
                       )}

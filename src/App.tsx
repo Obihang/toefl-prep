@@ -1198,289 +1198,293 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
-        {/* Workspace Controls Deck: Task Type Segmented Bar */}
-        <section aria-label="Task Selection Bar" className="space-y-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div
-                role="group"
-                aria-label="Practice Mode Switcher"
-                className="inline-flex items-center p-1 bg-slate-200/90 rounded-xl border border-slate-300/70 shadow-2xs"
-              >
-                <button
-                  type="button"
-                  onClick={() => setPracticeMode('exam')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    practiceMode === 'exam'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="Official 2026 ETS Exam Simulation Mode (strict timers, official item counts, isolated Exam question bank)"
-                >
-                  <span>🎯 Official Exam Mode</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMockTest(false);
-                    setPracticeMode('coach');
-                  }}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    practiceMode === 'coach'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                  title="Coach & Marathon Mode (extended question volume, interactive hints, grammar & writing blueprints, audio speed control, isolated Coach question bank)"
-                >
-                  <span>🎓 Coach &amp; Marathon Mode</span>
-                </button>
-              </div>
-              <span className="text-xs text-slate-500 hidden lg:inline">
-                {practiceMode === 'coach'
-                  ? 'Extended marathon volume, step-by-step hints, writing & speaking blueprints, and isolated Coach bank'
-                  : 'Select task format from official 2026 TOEFL iBT test specifications:'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Current Section:</span>
-              <span className="text-xs font-semibold text-teal-800 uppercase tracking-wider">
-                {activeSection}
-              </span>
-            </div>
-          </div>
-
-          {practiceMode === 'coach' && !isMockTest && (
-            <div className="px-3.5 py-2 bg-indigo-50/90 border border-indigo-200 rounded-xl flex items-center justify-between gap-3 flex-wrap text-xs text-indigo-950">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-indigo-600 text-white font-bold rounded-md text-[10px] uppercase tracking-wider">
-                  Coach &amp; Marathon Bank
-                </span>
-                <span className="font-medium">
-                  Zero overlap with Exam Mode questions · Extended item counts · Interactive hints &amp; Band 6.0 blueprints enabled
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Section-Filtered Task Format Selector Bar */}
-          <div className="p-1 bg-slate-200/80 rounded-xl flex items-center gap-1.5 flex-wrap">
-            {TASK_DEFINITIONS.filter((td) => td.section === activeSection).map((td) => {
-              const isActive =
-                !isMockTest &&
-                (currentTaskType === td.id ||
-                  (td.id === 'reading-academic' && currentTaskType === 'reading-passage') ||
-                  (td.id === 'listening-dialogue' && currentTaskType === 'listening-conversation') ||
-                  (td.id === 'listening-academic-talk' && currentTaskType === 'listening-lecture'));
-              const readyCount = (prefetchedQueue[td.id] || []).filter(
-                (item) => matchesLevelFilter(item, level) && matchesTopicFilter(item, topic)
-              ).length;
-              const isReady = readyCount > 0;
-              const cleanLabel = td.name.replace(/^[RLWS]\s*[·•.]\s*/i, '').trim();
-              return (
-                <button
-                  key={td.id}
-                  data-active={isActive ? 'true' : 'false'}
-                  onClick={() => {
-                    setIsMockTest(false);
-                    setCurrentTaskType(td.id);
-                    setGenerationError(null);
-                  }}
-                  className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
-                    isActive
-                      ? 'bg-white text-slate-950 font-bold shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-                >
-                  <span className="text-slate-400 font-normal text-[11px]">{td.section.slice(0, 1)} ·</span>
-                  <span>{cleanLabel}</span>
-                  {isReady && (
-                    <span
-                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 rounded-full"
-                      title={`${readyCount} instant question${readyCount > 1 ? 's' : ''} pre-fetched and ready`}
-                    >
-                      <span>⚡</span>
-                      {readyCount > 1 && <span>{readyCount}</span>}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Generator Controls Strip */}
-        <section
-          aria-label="Practice Parameters"
-          className="space-y-2"
-        >
-          <div
-            className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4"
-          >
-            <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
-              <div className="flex items-center gap-2">
-                <label htmlFor="select-level" className="text-xs text-slate-500 font-medium">
-                  Proficiency Level:
-                </label>
-                <select
-                  id="select-level"
-                  value={level}
-                  onChange={(e) => setLevel(e.target.value)}
-                  className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
-                >
-                  <option value="all">All Levels</option>
-                  {LEVELS.map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {LEVEL_LABELS[lvl]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <label htmlFor="select-topic" className="text-xs text-slate-500 font-medium">
-                  Academic Topic:
-                </label>
-                <select
-                  id="select-topic"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
-                >
-                  <option value="all">All Topics</option>
-                  {ACADEMIC_TOPICS.map((top) => (
-                    <option key={top} value={top}>
-                      {TOPIC_LABELS[top]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {(currentTaskType === 'reading-academic' || currentTaskType === 'daily-life' || currentTaskType === 'reading-passage') && (
-                <div className="flex items-center gap-2">
-                  <label htmlFor="select-skill-focus" className="text-xs text-teal-800 font-semibold flex items-center gap-1">
-                    <Target className="w-3.5 h-3.5 text-teal-700" />
-                    <span>Skill Focus:</span>
-                  </label>
-                  <select
-                    id="select-skill-focus"
-                    value={readingSkillFocus}
-                    onChange={(e) => setReadingSkillFocus(e.target.value as ReadingQuestionSkill)}
-                    className="text-xs bg-teal-50 border border-teal-200 text-teal-900 rounded-lg px-2.5 py-1.5 font-semibold outline-hidden focus:border-teal-700 cursor-pointer"
+        {!isMockTest && (
+          <>
+            {/* Workspace Controls Deck: Task Type Segmented Bar */}
+            <section aria-label="Task Selection Bar" className="space-y-3">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div
+                    role="group"
+                    aria-label="Practice Mode Switcher"
+                    className="inline-flex items-center p-1 bg-slate-200/90 rounded-xl border border-slate-300/70 shadow-2xs"
                   >
-                    {READING_SKILL_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                    <button
+                      type="button"
+                      onClick={() => setPracticeMode('exam')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        practiceMode === 'exam'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Official 2026 ETS Exam Simulation Mode (strict timers, official item counts, isolated Exam question bank)"
+                    >
+                      <span>🎯 Official Exam Mode</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMockTest(false);
+                        setPracticeMode('coach');
+                      }}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        practiceMode === 'coach'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                      title="Coach & Marathon Mode (extended question volume, interactive hints, grammar & writing blueprints, audio speed control, isolated Coach question bank)"
+                    >
+                      <span>🎓 Coach &amp; Marathon Mode</span>
+                    </button>
+                  </div>
+                  <span className="text-xs text-slate-500 hidden lg:inline">
+                    {practiceMode === 'coach'
+                      ? 'Extended marathon volume, step-by-step hints, writing & speaking blueprints, and isolated Coach bank'
+                      : 'Select task format from official 2026 TOEFL iBT test specifications:'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400">Current Section:</span>
+                  <span className="text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                    {activeSection}
+                  </span>
+                </div>
+              </div>
+
+              {practiceMode === 'coach' && !isMockTest && (
+                <div className="px-3.5 py-2 bg-indigo-50/90 border border-indigo-200 rounded-xl flex items-center justify-between gap-3 flex-wrap text-xs text-indigo-950">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-indigo-600 text-white font-bold rounded-md text-[10px] uppercase tracking-wider">
+                      Coach &amp; Marathon Bank
+                    </span>
+                    <span className="font-medium">
+                      Zero overlap with Exam Mode questions · Extended item counts · Interactive hints &amp; Band 6.0 blueprints enabled
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {(() => {
-                const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all', practiceMode);
-                const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || (practiceMode === 'coach' ? 2 : 10);
-                const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic, practiceMode);
-                const poolForPracticed = exactFilterMatches.length > 0 ? exactFilterMatches : loadedAllForSection;
-                const completedSet = new Set(completedQuestionIds);
-                const practicedCount = poolForPracticed.filter((q) => isQuestionCompleted(q, completedSet)).length;
-                return (
-                  <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-flex items-center gap-1.5">
-                    <Database className="w-3 h-3 text-teal-700 shrink-0" />
-                    <span>
-                      {exactFilterMatches.length > 0
-                        ? `${exactFilterMatches.length}/${sectionTotalCount} in ${practiceMode === 'coach' ? 'coach bank' : 'bank'}`
-                        : `0 exact filter matches (showing closest from ${sectionTotalCount} in ${practiceMode === 'coach' ? 'coach bank' : 'section'})`}
-                    </span>
-                    <span className="text-slate-300" aria-hidden="true">·</span>
-                    <span className="text-emerald-700 font-semibold">
-                      ✓ {practicedCount} practiced
-                    </span>
-                  </span>
-                );
-              })()}
-            </div>
+              {/* Section-Filtered Task Format Selector Bar */}
+              <div className="p-1 bg-slate-200/80 rounded-xl flex items-center gap-1.5 flex-wrap">
+                {TASK_DEFINITIONS.filter((td) => td.section === activeSection).map((td) => {
+                  const isActive =
+                    !isMockTest &&
+                    (currentTaskType === td.id ||
+                      (td.id === 'reading-academic' && currentTaskType === 'reading-passage') ||
+                      (td.id === 'listening-dialogue' && currentTaskType === 'listening-conversation') ||
+                      (td.id === 'listening-academic-talk' && currentTaskType === 'listening-lecture'));
+                  const readyCount = (prefetchedQueue[td.id] || []).filter(
+                    (item) => matchesLevelFilter(item, level) && matchesTopicFilter(item, topic)
+                  ).length;
+                  const isReady = readyCount > 0;
+                  const cleanLabel = td.name.replace(/^[RLWS]\s*[·•.]\s*/i, '').trim();
+                  return (
+                    <button
+                      key={td.id}
+                      data-active={isActive ? 'true' : 'false'}
+                      onClick={() => {
+                        setIsMockTest(false);
+                        setCurrentTaskType(td.id);
+                        setGenerationError(null);
+                      }}
+                      className={`flex-1 sm:flex-initial px-4 py-2 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5 ${
+                        isActive
+                          ? 'bg-white text-slate-950 font-bold shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                      }`}
+                    >
+                      <span className="text-slate-400 font-normal text-[11px]">{td.section.slice(0, 1)} ·</span>
+                      <span>{cleanLabel}</span>
+                      {isReady && (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 bg-emerald-100 rounded-full"
+                          title={`${readyCount} instant question${readyCount > 1 ? 's' : ''} pre-fetched and ready`}
+                        >
+                          <span>⚡</span>
+                          {readyCount > 1 && <span>{readyCount}</span>}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
 
-            <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
-              {isAudioSection && (
-                <button
-                  type="button"
-                  onClick={handlePreCacheAudio}
-                  disabled={isPreCachingAudio}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-75 ${
-                    preCacheStatus && preCacheStatus.includes('0ms ready')
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                      : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs'
-                  }`}
-                  title="Pre-cache high-fidelity voices for the current section into IndexedDB for 0ms offline playback"
-                >
-                  <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
-                  <span>
-                    {isPreCachingAudio
-                      ? preCacheStatus || 'Caching audio...'
-                      : preCacheStatus && preCacheStatus.includes('0ms ready')
-                      ? 'Audio Cached (0ms ⚡)'
-                      : 'Pre-Cache Audio'}
-                  </span>
-                </button>
-              )}
-
-              <button
-                onClick={() => handleNextQuestion(currentTaskType)}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                title="Load next question from shared question bank or curated pool"
+            {/* Generator Controls Strip */}
+            <section
+              aria-label="Practice Parameters"
+              className="space-y-2"
+            >
+              <div
+                className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-                <span>Next Question</span>
-              </button>
+                <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="select-level" className="text-xs text-slate-500 font-medium">
+                      Proficiency Level:
+                    </label>
+                    <select
+                      id="select-level"
+                      value={level}
+                      onChange={(e) => setLevel(e.target.value)}
+                      className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
+                    >
+                      <option value="all">All Levels</option>
+                      {LEVELS.map((lvl) => (
+                        <option key={lvl} value={lvl}>
+                          {LEVEL_LABELS[lvl]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <button
-                onClick={handleGenerateNewAiTask}
-                disabled={isGenerating}
-                className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 rounded-lg shadow-xs transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                  hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
-                    ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-500/20'
-                    : 'bg-teal-800 hover:bg-teal-900'
-                }`}
-                title={
-                  hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
-                    ? 'Instant generation from background cache'
-                    : 'Generate customized TOEFL item with AI'
-                }
-              >
-                <Sparkles className="w-3.5 h-3.5 text-teal-300" />
-                <span>
-                  {isGenerating
-                    ? 'Generating Question...'
-                    : hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
-                    ? 'Generate New (Instant ⚡)'
-                    : 'Generate New with AI'}
-                </span>
-              </button>
-            </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="select-topic" className="text-xs text-slate-500 font-medium">
+                      Academic Topic:
+                    </label>
+                    <select
+                      id="select-topic"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      className="text-xs bg-slate-50 border border-slate-200 text-slate-800 rounded-lg px-2.5 py-1.5 font-medium outline-hidden focus:border-teal-600"
+                    >
+                      <option value="all">All Topics</option>
+                      {ACADEMIC_TOPICS.map((top) => (
+                        <option key={top} value={top}>
+                          {TOPIC_LABELS[top]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (() => {
-              const remainingSec = Math.max(1, Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000));
-              const remainingMin = Math.ceil(remainingSec / 60);
-              const msg = rateLimitPauseState.kind === 'per-day'
-                ? `Prefetch paused: daily quota reached, retrying in ${remainingMin}m`
-                : `Prefetch paused: rate limited, retrying in ${remainingSec}s`;
-              return (
-                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-2 mt-2 w-full md:w-auto">
-                  <span>{msg}</span>
+                  {(currentTaskType === 'reading-academic' || currentTaskType === 'daily-life' || currentTaskType === 'reading-passage') && (
+                    <div className="flex items-center gap-2">
+                      <label htmlFor="select-skill-focus" className="text-xs text-teal-800 font-semibold flex items-center gap-1">
+                        <Target className="w-3.5 h-3.5 text-teal-700" />
+                        <span>Skill Focus:</span>
+                      </label>
+                      <select
+                        id="select-skill-focus"
+                        value={readingSkillFocus}
+                        onChange={(e) => setReadingSkillFocus(e.target.value as ReadingQuestionSkill)}
+                        className="text-xs bg-teal-50 border border-teal-200 text-teal-900 rounded-lg px-2.5 py-1.5 font-semibold outline-hidden focus:border-teal-700 cursor-pointer"
+                      >
+                        {READING_SKILL_OPTIONS.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const loadedAllForSection = getLoadedCuratedTasks(currentTaskType, 'all', 'all', practiceMode);
+                    const sectionTotalCount = bankStats?.countsPerTaskType?.[currentTaskType] || loadedAllForSection.length || (practiceMode === 'coach' ? 2 : 10);
+                    const exactFilterMatches = getFilteredBankTasks(currentTaskType, level, topic, practiceMode);
+                    const poolForPracticed = exactFilterMatches.length > 0 ? exactFilterMatches : loadedAllForSection;
+                    const completedSet = new Set(completedQuestionIds);
+                    const practicedCount = poolForPracticed.filter((q) => isQuestionCompleted(q, completedSet)).length;
+                    return (
+                      <span className="text-[11px] text-slate-500 font-medium hidden sm:inline-flex items-center gap-1.5">
+                        <Database className="w-3 h-3 text-teal-700 shrink-0" />
+                        <span>
+                          {exactFilterMatches.length > 0
+                            ? `${exactFilterMatches.length}/${sectionTotalCount} in ${practiceMode === 'coach' ? 'coach bank' : 'bank'}`
+                            : `0 exact filter matches (showing closest from ${sectionTotalCount} in ${practiceMode === 'coach' ? 'coach bank' : 'section'})`}
+                        </span>
+                        <span className="text-slate-300" aria-hidden="true">·</span>
+                        <span className="text-emerald-700 font-semibold">
+                          ✓ {practicedCount} practiced
+                        </span>
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
+                  {isAudioSection && (
+                    <button
+                      type="button"
+                      onClick={handlePreCacheAudio}
+                      disabled={isPreCachingAudio}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-75 ${
+                        preCacheStatus && preCacheStatus.includes('0ms ready')
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                          : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 shadow-2xs'
+                      }`}
+                      title="Pre-cache high-fidelity voices for the current section into IndexedDB for 0ms offline playback"
+                    >
+                      <Volume2 className={`w-3.5 h-3.5 ${isPreCachingAudio ? 'animate-pulse text-teal-600' : 'text-teal-700'}`} />
+                      <span>
+                        {isPreCachingAudio
+                          ? preCacheStatus || 'Caching audio...'
+                          : preCacheStatus && preCacheStatus.includes('0ms ready')
+                          ? 'Audio Cached (0ms ⚡)'
+                          : 'Pre-Cache Audio'}
+                      </span>
+                    </button>
+                  )}
+
                   <button
-                    onClick={() => {
-                      setRateLimitPauseState(null);
-                      quotaExhaustedUntilRef.current = 0;
-                    }}
-                    className="font-semibold text-teal-800 hover:text-teal-950 underline cursor-pointer"
+                    onClick={() => handleNextQuestion(currentTaskType)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    title="Load next question from shared question bank or curated pool"
                   >
-                    Resume prefetch now
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Next Question</span>
+                  </button>
+
+                  <button
+                    onClick={handleGenerateNewAiTask}
+                    disabled={isGenerating}
+                    className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50 rounded-lg shadow-xs transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
+                        ? 'bg-emerald-700 hover:bg-emerald-800 ring-2 ring-emerald-500/20'
+                        : 'bg-teal-800 hover:bg-teal-900'
+                    }`}
+                    title={
+                      hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
+                        ? 'Instant generation from background cache'
+                        : 'Generate customized TOEFL item with AI'
+                    }
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-teal-300" />
+                    <span>
+                      {isGenerating
+                        ? 'Generating Question...'
+                        : hasReadyTask(prefetchedQueue, currentTaskType, level, topic)
+                        ? 'Generate New (Instant ⚡)'
+                        : 'Generate New with AI'}
+                    </span>
                   </button>
                 </div>
-              );
-            })()}
-          </div>
-        </section>
+
+                {rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt && (() => {
+                  const remainingSec = Math.max(1, Math.ceil((rateLimitPauseState.resumeAt - Date.now()) / 1000));
+                  const remainingMin = Math.ceil(remainingSec / 60);
+                  const msg = rateLimitPauseState.kind === 'per-day'
+                    ? `Prefetch paused: daily quota reached, retrying in ${remainingMin}m`
+                    : `Prefetch paused: rate limited, retrying in ${remainingSec}s`;
+                  return (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex items-center gap-2 mt-2 w-full md:w-auto">
+                      <span>{msg}</span>
+                      <button
+                        onClick={() => {
+                          setRateLimitPauseState(null);
+                          quotaExhaustedUntilRef.current = 0;
+                        }}
+                        className="font-semibold text-teal-800 hover:text-teal-950 underline cursor-pointer"
+                      >
+                        Resume prefetch now
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </section>
+          </>
+        )}
 
         {generationError && (
           (generationError.toLowerCase().includes('no api key') ||
