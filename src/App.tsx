@@ -78,6 +78,7 @@ import {
   matchesTopicFilter,
   loadCuratedShard,
   saveVerifiedQuestion,
+  saveQuestionToSharedBank,
 } from './utils/questionBankStorage';
 
 
@@ -429,12 +430,25 @@ export default function App() {
     return () => clearInterval(timer);
   }, [currentTaskType, isWritingTimerEnabled, isWritingTimerRunning, writingTimerSeconds]);
   
-  // Settings
-
+  // Settings & active-task background prefetch progress
   const [enablePrefetching, setEnablePrefetching] = useState<boolean>(() => {
     const saved = localStorage.getItem('toefl_enable_prefetching');
     return saved === null ? true : saved === 'true';
   });
+
+  const [prefetchProgress, setPrefetchProgress] = useState<{
+    current: number;
+    total: number;
+    status: 'idle' | 'running' | 'completed' | 'no_key';
+    taskType: string;
+  }>({
+    current: 0,
+    total: 3,
+    status: 'idle',
+    taskType: currentTaskType,
+  });
+
+  const [prefetchBatchCount, setPrefetchBatchCount] = useState<number>(0);
 
   useEffect(() => {
     localStorage.setItem('toefl_enable_prefetching', enablePrefetching ? 'true' : 'false');
@@ -639,109 +653,128 @@ export default function App() {
     return () => window.removeEventListener('toefl_report_active_question', onReportEvent);
   }, [currentTaskType, user, customTasks]);
 
-  const logEarlyExit = (reason: string) => {
-    const now = Date.now();
-    const last = lastDebugLogTimeRef.current[reason] || 0;
-    if (now - last > 30000) {
-      lastDebugLogTimeRef.current[reason] = now;
-      console.debug(`Prefetch loop exited early: ${reason}`);
+  // Active-Task Sequential Prefetch Loop (Batch of 3 questions targeting currentTaskType, level, topic, practiceMode)
+  useEffect(() => {
+    if (!enablePrefetching) {
+      setPrefetchProgress({
+        current: 0,
+        total: 3,
+        status: 'idle',
+        taskType: currentTaskType,
+      });
+      return;
     }
-  };
 
-  // Background question pre-fetch worker for any task type
-  const prefetchTaskInBackground = async (type: TaskTypeId, lvl: string, top: string) => {
-    const currentCount = prefetchedQueueRef.current[type]?.length || 0;
-    if (!hasAnyProviderKey()) { logEarlyExit('no key'); return; }
-    if (document.visibilityState !== 'visible') { logEarlyExit('tab hidden'); return; }
-    if (inFlightLock.current || isPrefetchingRef.current[type]) { logEarlyExit('lock held'); return; }
-    if (isGenerating) { logEarlyExit('cooldown'); return; }
-    if (currentCount >= 2) { logEarlyExit('queue full'); return; }
-    if (rateLimitPauseState && Date.now() < rateLimitPauseState.resumeAt) { logEarlyExit('quota pause'); return; }
-    if (Date.now() < quotaExhaustedUntilRef.current) { logEarlyExit('quota pause'); return; }
-    if (Date.now() - getLastUserAiRequestTime() < 20000 || Date.now() - lastPrefetchTimeRef.current < PREFETCH_GAP_MS) { logEarlyExit('cooldown'); return; }
+    if (!hasAnyProviderKey()) {
+      setPrefetchProgress({
+        current: 0,
+        total: 3,
+        status: 'no_key',
+        taskType: currentTaskType,
+      });
+      return;
+    }
 
-    const concreteLevel = isValidLevel(lvl) ? lvl : 'intermediate';
-    const concreteTopic = isValidAcademicTopic(top) ? top : 'science-tech';
+    let isAborted = false;
 
-    inFlightLock.current = true;
-    isPrefetchingRef.current[type] = true;
-    lastPrefetchTimeRef.current = Date.now();
-
-    const activeModeAtStart = practiceModeRef.current;
-
-    try {
-      const json = await safeFetchJson('/api/generate-task', {
-        method: 'POST',
-        headers: getApiHeaders(),
-        body: JSON.stringify({
-          taskType: type,
-          level: concreteLevel,
-          topic: concreteTopic,
-          coachMode: activeModeAtStart === 'coach',
-        }),
+    const runActiveTaskPrefetch = async () => {
+      setPrefetchProgress({
+        current: 0,
+        total: 3,
+        status: 'running',
+        taskType: currentTaskType,
       });
 
-      if (json.success && !json.data.isFallback) {
-        if (
-          lvl !== levelRef.current ||
-          top !== topicRef.current ||
-          activeModeAtStart !== practiceModeRef.current
-        ) {
-          return;
+      const concreteLevel = isValidLevel(level) ? level : 'intermediate';
+      const concreteTopic = isValidAcademicTopic(topic) ? topic : 'science-tech';
+      const targetTask = currentTaskType;
+      const targetMode = practiceMode;
+
+      for (let i = 1; i <= 3; i++) {
+        if (isAborted) break;
+
+        try {
+          const json = await safeFetchJson('/api/generate-task', {
+            method: 'POST',
+            headers: getApiHeaders(),
+            body: JSON.stringify({
+              taskType: targetTask,
+              level: concreteLevel,
+              topic: concreteTopic,
+              coachMode: targetMode === 'coach',
+            }),
+          });
+
+          if (isAborted) break;
+
+          if (json && json.success && json.data && !json.data.isFallback) {
+            const itemToSave = normalizeTaskData(json.data, targetTask);
+            await saveQuestionToSharedBank({
+              taskType: targetTask,
+              level: concreteLevel,
+              topic: concreteTopic,
+              content: itemToSave,
+              mode: targetMode,
+              source: 'ai',
+              audioUrl: itemToSave.audioUrl || null,
+              audioClips: itemToSave.audioClips || null,
+            });
+
+            // Update standby queue for instant delivery
+            const prefetchedItem: PrefetchedItem = {
+              ...itemToSave,
+              level: concreteLevel,
+              topic: concreteTopic,
+              id: itemToSave.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              isPrefetched: true,
+              createdAt: Date.now(),
+              source: 'ai',
+              generatedBy: getScholarUsername(),
+            };
+
+            setPrefetchedQueue((prev) => {
+              const currentItems = prev[targetTask] || [];
+              const nextQueue: PrefetchQueue = {
+                ...prev,
+                [targetTask]: [...currentItems, prefetchedItem].slice(-3),
+              };
+              savePrefetchQueueToStorage(nextQueue, targetMode);
+              return nextQueue;
+            });
+
+            if (isAborted) break;
+
+            setPrefetchProgress({
+              current: i,
+              total: 3,
+              status: i === 3 ? 'completed' : 'running',
+              taskType: targetTask,
+            });
+
+            // Refresh bank stats live so X/Y in bank updates immediately
+            const updatedStats = await syncCuratedQuestionBank(targetMode);
+            setBankStats(updatedStats);
+          } else {
+            break;
+          }
+        } catch (err) {
+          console.warn('Active task prefetch failed for item', i, err);
+          break;
         }
 
-        const prefetchedItem: PrefetchedItem = {
-          ...json.data,
-          level: concreteLevel,
-          topic: concreteTopic,
-          id: json.data.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          isPrefetched: true,
-          createdAt: Date.now(),
-          source: 'ai',
-          generatedBy: json.data.generatedBy || getScholarUsername(),
-        };
-
-        setPrefetchedQueue((prev) => {
-          const currentItems = prev[type] || [];
-          // Ensure we don't exceed 1 question per task type
-          const nextItems = [...currentItems, prefetchedItem].slice(-1);
-          const nextQueue: PrefetchQueue = {
-            ...prev,
-            [type]: nextItems,
-          };
-          savePrefetchQueueToStorage(nextQueue, activeModeAtStart);
-          return nextQueue;
-        });
-      } else {
-        failedRecentlyRef.current[type] = Date.now() + 30 * 1000;
-      }
-    } catch (err: any) {
-      console.debug('Background prefetch notice:', err);
-      const status = err.status || 500;
-      const json = err.json || {};
-      const errObj = json?.rateLimit || json?.data || json;
-      const reason = String(json?.data?.fallbackReason || json?.error || err.message || '').toLowerCase();
-      
-      if (status === 429 || json?.data?.isQuotaExhausted || reason.includes('429') || reason.includes('quota') || reason.includes('resource_exhausted')) {
-        const pause = evaluateRateLimitPause(errObj, Date.now());
-        setRateLimitPauseState(pause);
-        if (pause.kind === 'per-day') {
-          quotaExhaustedUntilRef.current = Date.now() + 3600 * 1000;
-        } else {
-          quotaExhaustedUntilRef.current = pause.resumeAt;
+        if (i < 3 && !isAborted) {
+          await new Promise((res) => setTimeout(res, 1200));
         }
-      } else if (status === 401 || reason.includes('invalid api key') || reason.includes('key')) {
-        quotaExhaustedUntilRef.current = Date.now() + 30 * 1000;
-      } else if (status === 503) {
-        quotaExhaustedUntilRef.current = Date.now() + 30 * 1000;
-      } else {
-        failedRecentlyRef.current[type] = Date.now() + 30 * 1000;
       }
-    } finally {
-      isPrefetchingRef.current[type] = false;
-      inFlightLock.current = false;
-    }
-  };
+    };
+
+    const timer = setTimeout(runActiveTaskPrefetch, 600);
+
+    return () => {
+      isAborted = true;
+      clearTimeout(timer);
+    };
+  }, [currentTaskType, level, topic, practiceMode, enablePrefetching, prefetchBatchCount]);
 
   // Sync / filter queue when difficulty level or academic topic changes
   useEffect(() => {
@@ -776,55 +809,6 @@ export default function App() {
       return copy;
     });
   }, [level, topic, currentTaskType, practiceMode]);
-
-  // Sequential prefetch lock
-  const inFlightLock = React.useRef(false);
-  const isBackgroundPrefetchLoopActiveRef = React.useRef(false);
-
-  useEffect(() => {
-    if (!enablePrefetching || !hasAnyProviderKey()) return;
-
-    let isCancelled = false;
-    let idleTimeout: any = null;
-
-    const runLoop = async () => {
-      if (
-        isCancelled ||
-        isBackgroundPrefetchLoopActiveRef.current ||
-        inFlightLock.current ||
-        isGenerating ||
-        document.visibilityState !== 'visible'
-      ) {
-        return;
-      }
-      if (Date.now() < quotaExhaustedUntilRef.current) return;
-
-      const target = getNextTaskToPrefetch(
-        currentTaskType,
-        prefetchedQueueRef.current,
-        level,
-        topic,
-        failedRecentlyRef.current,
-        Date.now(),
-        bankStats?.countsPerTaskType
-      );
-      if (!target) return;
-
-      isBackgroundPrefetchLoopActiveRef.current = true;
-      try {
-        await prefetchTaskInBackground(target, level, topic);
-      } finally {
-        isBackgroundPrefetchLoopActiveRef.current = false;
-      }
-    };
-
-    idleTimeout = setTimeout(runLoop, 2500);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(idleTimeout);
-    };
-  }, [currentTaskType, level, topic, isGenerating, enablePrefetching, practiceMode]);
 
   useEffect(() => {
     const handleKeyReset = () => {
@@ -884,12 +868,6 @@ export default function App() {
           .then(() => getQuestionBankStats(practiceMode).then(setBankStats))
           .catch(() => {});
 
-        // Immediately replenish 1 standby question for the active task in the background
-        if (enablePrefetching && hasAnyProviderKey()) {
-          setTimeout(() => {
-            prefetchTaskInBackground(currentTaskType, concreteLevel, concreteTopic);
-          }, 300);
-        }
         return;
       }
     }
@@ -980,13 +958,6 @@ export default function App() {
       setLastGenerationWasInstant(false);
       setGenerationSuccess(true);
       setTimeout(() => setGenerationSuccess(false), 3000);
-
-      // Immediately pre-fetch the next question into queue if quota is healthy
-      if (enablePrefetching && hasAnyProviderKey()) {
-        setTimeout(() => {
-          prefetchTaskInBackground(currentTaskType, level, topic);
-        }, 300);
-      }
     } catch (err: any) {
       console.warn('AI generation notice:', err?.message || err);
       const rawMsg = err.message || 'unknown error';
@@ -1403,6 +1374,50 @@ export default function App() {
                 </div>
 
                 <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
+                  {/* Prefetch Control Group */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEnablePrefetching((prev) => !prev)}
+                      className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                        enablePrefetching
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
+                      }`}
+                      title="Toggle background question prefetching for the active task"
+                    >
+                      <span>{enablePrefetching ? '⚡ Prefetch: ON' : '⚪ Prefetch: OFF'}</span>
+                    </button>
+
+                    {enablePrefetching && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {!hasAnyProviderKey() ? (
+                          <span className="px-2.5 py-2 bg-amber-50 text-amber-800 border border-amber-200 text-xs font-medium rounded-lg whitespace-nowrap">
+                            Key Required for Prefetch
+                          </span>
+                        ) : prefetchProgress.status === 'running' ? (
+                          <span className="flex items-center gap-1.5 px-2.5 py-2 bg-teal-50 text-teal-800 border border-teal-200 text-xs font-semibold rounded-lg whitespace-nowrap">
+                            <span className="animate-spin inline-block w-3 h-3 border-2 border-teal-600 border-t-transparent rounded-full"></span>
+                            <span>⏳ Prefetching {prefetchProgress.current}/3...</span>
+                          </span>
+                        ) : prefetchProgress.status === 'completed' ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="px-2.5 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-lg flex items-center gap-1 whitespace-nowrap">
+                              <span>✅ 3/3 Prefetched (Saved to DB)</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPrefetchBatchCount((prev) => prev + 1)}
+                              className="px-2 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              title="Prefetch another batch of 3 questions for this active task"
+                            >
+                              <span>↻ +3 More</span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                   {isAudioSection && (
                     <button
                       type="button"

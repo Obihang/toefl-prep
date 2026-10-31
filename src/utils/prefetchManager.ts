@@ -186,36 +186,19 @@ export const BACKGROUND_PREFETCH_TASKS: TaskTypeId[] = TASK_DEFINITIONS.map((t) 
 
 export function getNextTaskToPrefetch(
   currentTaskType: TaskTypeId,
-  queue: PrefetchQueue,
-  level: string,
-  topic: string,
+  _queue: PrefetchQueue,
+  _level: string,
+  _topic: string,
   cooldowns: Record<string, number>,
-  now: number,
-  bankCounts?: Record<string, number>
+  now: number
 ): TaskTypeId | null {
-  const getCount = (taskId: TaskTypeId) => {
-    const items = queue[taskId] || [];
-    return items.filter((item) => item.level === level && item.topic === topic).length;
-  };
-
   const isEligible = (taskId: TaskTypeId) => {
     return (cooldowns[taskId] || 0) <= now;
   };
 
-  // Prioritize the current active task if its instant-swap queue is empty
-  if (isEligible(currentTaskType) && getCount(currentTaskType) === 0) {
+  // Only focus on the current active task — never loop across other sections!
+  if (isEligible(currentTaskType)) {
     return currentTaskType;
-  }
-
-  // If bankCounts are provided, only background-prefetch for sections with < 12 questions,
-  // picking the section with the lowest count first instead of always index 0.
-  if (bankCounts && Object.keys(bankCounts).length > 0) {
-    const candidates = BACKGROUND_PREFETCH_TASKS.filter(
-      (id) => id !== currentTaskType && isEligible(id) && getCount(id) === 0 && (bankCounts[id] ?? 10) < 12
-    );
-    if (candidates.length === 0) return null;
-    candidates.sort((a, b) => (bankCounts[a] ?? 10) - (bankCounts[b] ?? 10));
-    return candidates[0];
   }
 
   return null;
