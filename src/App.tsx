@@ -67,6 +67,7 @@ import {
 import { getMistakesList, clearAllMistakes, MistakeRecord } from './utils/mistakesTracker';
 import { clearAllFirestoreMistakes } from './utils/mistakes';
 import { SystemStatusModal } from './components/shared/SystemStatusModal';
+import { StudioWordmark } from './components/shared/Header';
 import { preCacheSectionAudio } from './utils/audioPrewarmer';
 import { GlobalReportButton } from './components/shared/GlobalReportButton';
 import {
@@ -439,7 +440,7 @@ export default function App() {
   const [prefetchProgress, setPrefetchProgress] = useState<{
     current: number;
     total: number;
-    status: 'idle' | 'running' | 'completed' | 'no_key';
+    status: 'idle' | 'running' | 'completed' | 'no_key' | 'error';
     taskType: string;
   }>({
     current: 0,
@@ -536,6 +537,47 @@ export default function App() {
   const handleNextQuestion = async (type: TaskTypeId) => {
     setReportedQuestionId(null);
     setReportError(null);
+
+    const concreteLevel = isValidLevel(level) ? level : 'intermediate';
+    const concreteTopic = isValidAcademicTopic(topic) ? topic : 'science-tech';
+
+    // 0. Serve from prefetched queue if available!
+    if (hasReadyTask(prefetchedQueue, type, concreteLevel, concreteTopic)) {
+      const { item: readyTask, updatedQueue } = popPrefetchedTask(
+        prefetchedQueue,
+        type,
+        concreteLevel,
+        concreteTopic,
+        practiceMode
+      );
+      if (readyTask) {
+        setPrefetchedQueue(updatedQueue);
+        setCustomTasks((prev) => ({
+          ...prev,
+          [type]: normalizeTaskData(readyTask, type),
+        }));
+        if (readyTask.modelUsed) setLastModelUsed(readyTask.modelUsed);
+        setLastGenerationWasInstant(true);
+        setGenerationSuccess(true);
+        setTimeout(() => setGenerationSuccess(false), 3000);
+        saveVerifiedQuestion(
+          {
+            taskType: type,
+            level: concreteLevel,
+            topic: concreteTopic,
+            content: readyTask,
+            audioUrl: readyTask.audioUrl || null,
+            audioClips: readyTask.audioClips || null,
+            source: 'ai',
+            generatedBy: displayName || getScholarUsername(),
+          },
+          practiceMode
+        )
+          .then(() => getQuestionBankStats(practiceMode).then(setBankStats))
+          .catch(() => {});
+        return;
+      }
+    }
 
     const completedSet = new Set(getCompletedQuestionIds());
     const loadedPool = getLoadedCuratedTasks(type, level, topic, practiceMode);
@@ -653,12 +695,18 @@ export default function App() {
     return () => window.removeEventListener('toefl_report_active_question', onReportEvent);
   }, [currentTaskType, user, customTasks]);
 
-  // Active-Task Sequential Prefetch Loop (Batch of 3 questions targeting currentTaskType, level, topic, practiceMode)
+  // Smart Section-Aware Prefetch Loop:
+  // For the current activeSection, ensures every task in sectionTasks has 1 prefetched question ready.
   useEffect(() => {
+    const sectionTasks = TASK_DEFINITIONS
+      .filter((t) => t.section === activeSection)
+      .map((t) => t.id);
+    const totalInSection = sectionTasks.length;
+
     if (!enablePrefetching) {
       setPrefetchProgress({
         current: 0,
-        total: 3,
+        total: totalInSection,
         status: 'idle',
         taskType: currentTaskType,
       });
@@ -668,7 +716,7 @@ export default function App() {
     if (!hasAnyProviderKey()) {
       setPrefetchProgress({
         current: 0,
-        total: 3,
+        total: totalInSection,
         status: 'no_key',
         taskType: currentTaskType,
       });
@@ -677,28 +725,63 @@ export default function App() {
 
     let isAborted = false;
 
-    const runActiveTaskPrefetch = async () => {
-      setPrefetchProgress({
-        current: 0,
-        total: 3,
-        status: 'running',
-        taskType: currentTaskType,
-      });
-
+    const runSectionSmartPrefetch = async () => {
       const concreteLevel = isValidLevel(level) ? level : 'intermediate';
       const concreteTopic = isValidAcademicTopic(topic) ? topic : 'science-tech';
-      const targetTask = currentTaskType;
       const targetMode = practiceMode;
 
-      for (let i = 1; i <= 3; i++) {
+      // Check which tasks in activeSection do NOT have a prefetched question ready for level/topic
+      const currentQueue = prefetchedQueueRef.current;
+      const getPrefetchCountForTask = (tId: string) => {
+        const items = currentQueue[tId] || [];
+        return items.filter(
+          (item) => matchesLevelFilter(item, level) && matchesTopicFilter(item, topic)
+        ).length;
+      };
+
+      const missingTasks = sectionTasks.filter((tId) => getPrefetchCountForTask(tId) === 0);
+
+      // Order currentTaskType (activeTask) first if it is missing
+      if (missingTasks.includes(currentTaskType)) {
+        missingTasks.sort((a, b) => (a === currentTaskType ? -1 : b === currentTaskType ? 1 : 0));
+      }
+
+      let readyCount = totalInSection - missingTasks.length;
+
+      if (missingTasks.length === 0) {
+        setPrefetchProgress({
+          current: totalInSection,
+          total: totalInSection,
+          status: 'completed',
+          taskType: currentTaskType,
+        });
+        return;
+      }
+
+      setPrefetchProgress({
+        current: readyCount,
+        total: totalInSection,
+        status: 'running',
+        taskType: missingTasks[0],
+      });
+
+      for (let i = 0; i < missingTasks.length; i++) {
         if (isAborted) break;
+        const taskToFetch = missingTasks[i];
+
+        setPrefetchProgress({
+          current: readyCount,
+          total: totalInSection,
+          status: 'running',
+          taskType: taskToFetch,
+        });
 
         try {
           const json = await safeFetchJson('/api/generate-task', {
             method: 'POST',
             headers: getApiHeaders(),
             body: JSON.stringify({
-              taskType: targetTask,
+              taskType: taskToFetch,
               level: concreteLevel,
               topic: concreteTopic,
               coachMode: targetMode === 'coach',
@@ -708,9 +791,13 @@ export default function App() {
           if (isAborted) break;
 
           if (json && json.success && json.data && !json.data.isFallback) {
-            const itemToSave = normalizeTaskData(json.data, targetTask);
+            const userUsername = getScholarUsername();
+            const itemToSave = normalizeTaskData(json.data, taskToFetch);
+            itemToSave.createdBy = itemToSave.createdBy || userUsername;
+            itemToSave.generatedBy = itemToSave.generatedBy || userUsername;
+
             await saveQuestionToSharedBank({
-              taskType: targetTask,
+              taskType: taskToFetch,
               level: concreteLevel,
               topic: concreteTopic,
               content: itemToSave,
@@ -720,7 +807,7 @@ export default function App() {
               audioClips: itemToSave.audioClips || null,
             });
 
-            // Update standby queue for instant delivery
+            // Update standby queue for instant delivery & tab badges (⚡ 1)
             const prefetchedItem: PrefetchedItem = {
               ...itemToSave,
               level: concreteLevel,
@@ -729,52 +816,66 @@ export default function App() {
               isPrefetched: true,
               createdAt: Date.now(),
               source: 'ai',
-              generatedBy: getScholarUsername(),
+              createdBy: userUsername,
+              generatedBy: userUsername,
             };
 
             setPrefetchedQueue((prev) => {
-              const currentItems = prev[targetTask] || [];
+              const currentItems = prev[taskToFetch] || [];
               const nextQueue: PrefetchQueue = {
                 ...prev,
-                [targetTask]: [...currentItems, prefetchedItem].slice(-3),
+                [taskToFetch]: [...currentItems, prefetchedItem].slice(-2),
               };
               savePrefetchQueueToStorage(nextQueue, targetMode);
+              prefetchedQueueRef.current = nextQueue;
               return nextQueue;
             });
 
-            if (isAborted) break;
+            readyCount++;
 
             setPrefetchProgress({
-              current: i,
-              total: 3,
-              status: i === 3 ? 'completed' : 'running',
-              taskType: targetTask,
+              current: readyCount,
+              total: totalInSection,
+              status: readyCount === totalInSection ? 'completed' : 'running',
+              taskType: taskToFetch,
             });
 
             // Refresh bank stats live so X/Y in bank updates immediately
             const updatedStats = await syncCuratedQuestionBank(targetMode);
             setBankStats(updatedStats);
           } else {
+            setPrefetchProgress({
+              current: readyCount,
+              total: totalInSection,
+              status: 'error',
+              taskType: taskToFetch,
+            });
             break;
           }
         } catch (err) {
-          console.warn('Active task prefetch failed for item', i, err);
+          console.warn('Section prefetch failed for task', taskToFetch, err);
+          setPrefetchProgress({
+            current: readyCount,
+            total: totalInSection,
+            status: 'error',
+            taskType: taskToFetch,
+          });
           break;
         }
 
-        if (i < 3 && !isAborted) {
-          await new Promise((res) => setTimeout(res, 1200));
+        if (i < missingTasks.length - 1 && !isAborted) {
+          await new Promise((res) => setTimeout(res, 1000));
         }
       }
     };
 
-    const timer = setTimeout(runActiveTaskPrefetch, 600);
+    const timer = setTimeout(runSectionSmartPrefetch, 500);
 
     return () => {
       isAborted = true;
       clearTimeout(timer);
     };
-  }, [currentTaskType, level, topic, practiceMode, enablePrefetching, prefetchBatchCount]);
+  }, [currentTaskType, activeSection, level, topic, practiceMode, enablePrefetching, prefetchBatchCount]);
 
   // Sync / filter queue when difficulty level or academic topic changes
   useEffect(() => {
@@ -1053,15 +1154,13 @@ export default function App() {
       {/* Top Bar Contract: 3 Zones (Wordmark - 4 Nav Links - 1 Action CTA) */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur-xs sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-8">
-          {/* Zone 1: Single text element wordmark */}
+          {/* Zone 1: Bespoke 4-Skill Studio Crest & Wordmark */}
           <a
             href="/"
-            className="text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 flex items-center gap-2"
+            className="hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
+            title="TOEFL Prep Studio — Home"
           >
-            <span className="w-8 h-8 rounded-lg bg-teal-800 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              T
-            </span>
-            <span>TOEFL Prep Studio</span>
+            <StudioWordmark />
           </a>
 
           {/* Zone 2: Clean text navigation links */}

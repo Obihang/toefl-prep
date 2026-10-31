@@ -1,0 +1,56 @@
+import React from 'react';
+
+export function StudioLogoCrest({ className = "w-9 h-9" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 36 36" className={`${className} shrink-0`} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="react-studio-crest-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#059669" />
+          <stop offset="50%" stopColor="#0d9488" />
+          <stop offset="100%" stopColor="#0f172a" />
+        </linearGradient>
+        <linearGradient id="react-studio-crest-glow" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+      
+      {/* Squircle Background */}
+      <rect width="36" height="36" rx="10" fill="url(#react-studio-crest-grad)" />
+      <rect x="0.75" y="0.75" width="34.5" height="34.5" rx="9.25" fill="none" stroke="url(#react-studio-crest-glow)" strokeWidth="1.2" opacity="0.6" />
+      
+      {/* Open Book Base (Reading & Writing) */}
+      <path d="M 7 26.5 C 10.5 25.2, 14.5 25.8, 17.5 27 L 17.5 29 C 14.5 27.8, 10.5 27.2, 7 28.5 Z" fill="#a7f3d0" opacity="0.95" />
+      <path d="M 18.5 27 C 21.5 25.8, 25.5 25.2, 29 26.5 L 29 28.5 C 25.5 27.2, 21.5 27.8, 18.5 29 Z" fill="#a7f3d0" opacity="0.95" />
+      
+      {/* Central T Pillar (Structure & TOEFL) */}
+      <rect x="11.5" y="11" width="13" height="3.5" rx="1" fill="#ffffff" />
+      <rect x="16.2" y="14.5" width="3.6" height="11" rx="0.5" fill="#ffffff" />
+      
+      {/* Soundwave Arcs (Listening & Speaking) */}
+      <path d="M 9.5 16.5 C 8.2 18, 8.2 20.5 9.5 22" fill="none" stroke="#34d399" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M 7 14.5 C 5 17, 5 21.5 7 24" fill="none" stroke="#6ee7b7" strokeWidth="1.25" strokeLinecap="round" opacity="0.8" />
+      <path d="M 26.5 16.5 C 27.8 18, 27.8 20.5 26.5 22" fill="none" stroke="#34d399" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M 29 14.5 C 31 17, 31 21.5 29 24" fill="none" stroke="#6ee7b7" strokeWidth="1.25" strokeLinecap="round" opacity="0.8" />
+      
+      {/* 4-Point Star Apex (AI Studio & Band 6.0 Mastery) */}
+      <path d="M 18 3.5 C 18 5.2, 18.8 6, 20.5 6 C 18.8 6, 18 6.8, 18 8.5 C 18 6.8, 17.2 6, 15.5 6 C 17.2 6, 18 5.2, 18 3.5 Z" fill="#fde047" />
+    </svg>
+  );
+}
+
+export function StudioWordmark() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <StudioLogoCrest className="w-9 h-9" />
+      <div className="flex items-center gap-1.5 leading-none">
+        <span className="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
+          TOEFL Prep
+        </span>
+        <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/60 dark:border-emerald-700/60 rounded-md shadow-2xs">
+          STUDIO
+        </span>
+      </div>
+    </div>
+  );
+}

@@ -593,7 +593,7 @@ export function normalizeCompleteWordsTask(raw: any): {
           if (!SENTENCE_ABBREVIATIONS.has(cleanTok)) {
             maxKeptIdx = nextSentenceEndIdx;
             concludingSentencesFound++;
-            if (concludingSentencesFound >= 1) {
+            if (concludingSentencesFound >= 2) {
               break;
             }
           }

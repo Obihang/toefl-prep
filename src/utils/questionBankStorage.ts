@@ -1548,6 +1548,7 @@ export async function saveQuestionToBank(
 
   const prefix = mode === 'coach' ? 'coach_q_' : 'q_';
   const docId = `${prefix}${contentHash.slice(0, 24)}`;
+  const userUsername = getScholarUsername();
   const enrichedContent = {
     ...content,
     id: content.id || docId,
@@ -1557,7 +1558,8 @@ export async function saveQuestionToBank(
     source,
     mode,
     schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
-    generatedBy: generatedBy || getScholarUsername(),
+    createdBy: content.createdBy || userUsername,
+    generatedBy: generatedBy || userUsername,
     createdAt: content.createdAt || Date.now(),
   };
 
@@ -1593,6 +1595,7 @@ export async function saveQuestionToBank(
       source,
       mode,
       schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
+      createdBy: userUsername,
       generatedBy: enrichedContent.generatedBy,
       updatedAt: Date.now(),
     });
@@ -1629,7 +1632,7 @@ export async function saveQuestionToBank(
       schemaVersion: CURRENT_BANK_SCHEMA_VERSION,
       generatedBy: enrichedContent.generatedBy,
       createdAt: serverTimestamp(),
-      createdBy: auth?.currentUser?.uid || 'anonymous',
+      createdBy: userUsername,
       useCount: 0,
       reportCount: 0,
     };

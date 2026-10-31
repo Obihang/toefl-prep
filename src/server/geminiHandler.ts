@@ -975,12 +975,13 @@ Return JSON format: {"title": "Marathon Academic Topic Title", "text": "The full
         }
         return `You are an official ETS 2026 TOEFL iBT test content creator. Create an authentic TOEFL Reading "Complete the Words" (C-Test) item for a student at level: ${levelDesc}. Topic: ${top}.
 STRICT 2026 TOEFL iBT SPECIFICATIONS:
-1. Write a cohesive, natural, 100% plain-English academic paragraph of strictly 65 to 85 words (exactly 3 to 4 sentences total) with ZERO brackets [ ].
+1. Write a cohesive, natural, 100% plain-English academic paragraph of strictly 70 to 90 words (exactly 4 to 5 sentences total) with ZERO brackets [ ].
 2. Sentence 1 MUST be a clear introductory sentence (10-15 words).
-3. Sentences 2 to 4 MUST be crisp, clear university-textbook prose exploring the academic topic with rich academic vocabulary.
-4. FORBIDDEN: Do NOT insert any brackets [ ] or split any words into prefixes/suffixes! Return pure, pristine plain English text.
-5. FORBIDDEN: Do NOT write repetitive filler sentences, redundant concluding summaries, or artificial buzzword lists. Write natural, authentic ETS TOEFL prose.
-Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 65-85 word plain-English academic paragraph with ZERO brackets", "totalBlanks": 10}`;
+3. Sentences 2 and 3 contain the 10 consecutive every-2nd-word blanks.
+4. Sentences 4 and 5 MUST be a natural, informative 1–2 sentence concluding tail at the end (15–25 words total) after the 10th blank.
+5. FORBIDDEN: Do NOT insert any brackets [ ] or split any words into prefixes/suffixes! Return pure, pristine plain English text.
+6. FORBIDDEN: Do NOT write repetitive filler sentences or artificial buzzword lists. Write natural, authentic ETS TOEFL prose.
+Return JSON format: {"title": "Short Academic Topic Title", "text": "The full 70-90 word plain-English academic paragraph with ZERO brackets", "totalBlanks": 10}`;
       case 'daily-life':
       case 'daily_life':
         if (isCoachMode) {
