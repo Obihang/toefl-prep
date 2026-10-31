@@ -41,7 +41,7 @@ import { inferTopic } from './inferTopic';
 import { COACH_CURATED_BANK } from './coachCuratedBank';
 
 const DB_NAME = 'TOEFL_STUDIO_DB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 export const CURRENT_BANK_SCHEMA_VERSION = 202612;
 export const TOEFL_2026_PURGE_V19 = 'toefl_bank_purged_2026_v20';
 export const TOEFL_2026_PURGE_V18 = TOEFL_2026_PURGE_V19;
@@ -175,7 +175,7 @@ export function matchesTopicFilter(q: any, selectedTopic?: string): boolean {
 
 export async function openIndexedDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(DB_NAME, 4);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
     request.onupgradeneeded = (event: any) => {
@@ -185,6 +185,9 @@ export async function openIndexedDB(): Promise<IDBDatabase> {
       }
       if (!dbInstance.objectStoreNames.contains('coach_questions')) {
         dbInstance.createObjectStore('coach_questions', { keyPath: 'id' });
+      }
+      if (!dbInstance.objectStoreNames.contains('toefl_mock_sets')) {
+        dbInstance.createObjectStore('toefl_mock_sets', { keyPath: 'id' });
       }
       if (!dbInstance.objectStoreNames.contains('toefl_audio_cache')) {
         dbInstance.createObjectStore('toefl_audio_cache', { keyPath: 'cacheKey' });

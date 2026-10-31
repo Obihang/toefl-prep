@@ -22,6 +22,9 @@ interface GoalsTabProps {
   setTestDateInput: (val: string) => void;
   setWeeklyGoalInput: (val: number) => void;
   handleSaveGoals: (e: React.FormEvent) => void;
+  mockExamSetsCount?: number;
+  examBankTotal?: number;
+  coachBankTotal?: number;
 }
 
 export const GoalsTab: React.FC<GoalsTabProps> = ({
@@ -44,6 +47,9 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
   setTestDateInput,
   setWeeklyGoalInput,
   handleSaveGoals,
+  mockExamSetsCount = 3,
+  examBankTotal,
+  coachBankTotal,
 }) => {
   return (
     <div className="space-y-6">
@@ -369,19 +375,29 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({
 
       {/* Saved Questions Database Statistics */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-2xs mt-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
               <Target className="w-4 h-4 text-teal-700" />
               Saved Questions Database Statistics (Total Bank)
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Total number of questions stored in the Firestore database across all sections (total bank, not user-filtered).
+              Isolated database partitions for Exam Mode Bank, Coach Mode Bank, and Full Mock Exam Sets.
             </p>
           </div>
-          <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
-            Database Total: {Object.values(questionCounts).reduce((a, b) => a + b, 0)} Questions
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200 shrink-0">
+              🎯 Exam Mode Bank: {examBankTotal ?? Object.values(questionCounts).reduce((a, b) => a + b, 0)} Questions
+            </span>
+            {typeof coachBankTotal === 'number' && (
+              <span className="text-xs font-semibold text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200 shrink-0">
+                🎓 Coach Mode Bank: {coachBankTotal} Questions
+              </span>
+            )}
+            <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 shrink-0">
+              📚 Full Mock Exam Sets: {mockExamSetsCount} Sets
+            </span>
+          </div>
         </div>
 
         {loadingQuestionCounts ? (

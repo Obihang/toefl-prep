@@ -10,6 +10,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     function isAdmin() {
       return isSignedIn() && request.auth.token.get('admin', false) == true;
     }
@@ -195,6 +199,13 @@ service cloud.firestore {
           )
         );
 
+      allow delete: if false;
+    }
+
+    // Dedicated Full Mock Exam Sets Database
+    match /mock_exam_sets/{setId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated();
       allow delete: if false;
     }
 
