@@ -15,7 +15,12 @@ export type PrefetchedItem = {
 export type PrefetchQueue = Record<string, PrefetchedItem[]>;
 
 const STORAGE_KEY = 'toefl_prefetched_queue_v3';
+const COACH_STORAGE_KEY = 'toefl_prefetched_coach_queue_v1';
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+
+function getStorageKeyForMode(mode: 'exam' | 'coach' = 'exam'): string {
+  return mode === 'coach' ? COACH_STORAGE_KEY : STORAGE_KEY;
+}
 
 export const PREFETCH_GAP_MS = 12000;
 export const PREFETCH_COOLDOWN_MS = 30000;
@@ -56,7 +61,8 @@ export function isPrefetchCircuitBreakerOpen(now: number = Date.now()): boolean 
 export async function prefetchQuestions(
   taskType: TaskTypeId,
   level: string,
-  topic: string
+  topic: string,
+  mode: 'exam' | 'coach' = 'exam'
 ): Promise<PrefetchedItem | null> {
   if (!hasAnyProviderKey()) {
     return null;
@@ -69,22 +75,23 @@ export async function prefetchQuestions(
   }
 
   try {
-    const json = await callBackendGenerate(taskType, level, topic);
+    const json = await callBackendGenerate(taskType, level, topic, mode === 'coach');
     if (json && json.success && json.data && !json.data.isFallback) {
       recordPrefetchSuccess();
       const item: PrefetchedItem = {
         ...json.data,
         level,
         topic,
-        id: json.data.id || `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        mode,
+        id: json.data.id || `ai-${mode}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         isPrefetched: true,
         createdAt: Date.now(),
         source: 'ai',
       };
-      const queue = loadPrefetchQueueFromStorage();
+      const queue = loadPrefetchQueueFromStorage(mode);
       const currentItems = queue[taskType] || [];
       queue[taskType] = [...currentItems, item].slice(-2);
-      savePrefetchQueueToStorage(queue);
+      savePrefetchQueueToStorage(queue, mode);
       return item;
     }
     recordPrefetchFailure();
@@ -127,10 +134,10 @@ export function evaluateRateLimitPause(
   };
 }
 
-export function loadPrefetchQueueFromStorage(): PrefetchQueue {
+export function loadPrefetchQueueFromStorage(mode: 'exam' | 'coach' = 'exam'): PrefetchQueue {
   if (typeof window === 'undefined') return {};
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(getStorageKeyForMode(mode));
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     const now = Date.now();
@@ -149,10 +156,13 @@ export function loadPrefetchQueueFromStorage(): PrefetchQueue {
   }
 }
 
-export function savePrefetchQueueToStorage(queue: PrefetchQueue): void {
+export function savePrefetchQueueToStorage(
+  queue: PrefetchQueue,
+  mode: 'exam' | 'coach' = 'exam'
+): void {
   if (typeof window === 'undefined') return;
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    sessionStorage.setItem(getStorageKeyForMode(mode), JSON.stringify(queue));
   } catch (err) {}
 }
 
@@ -223,7 +233,8 @@ export function popPrefetchedTask(
   queue: PrefetchQueue,
   taskType: string,
   level: string,
-  topic: string
+  topic: string,
+  mode: 'exam' | 'coach' = 'exam'
 ): { item: PrefetchedItem | null; updatedQueue: PrefetchQueue } {
   const items = queue[taskType] || [];
   if (items.length === 0) return { item: null, updatedQueue: queue };
@@ -233,7 +244,7 @@ export function popPrefetchedTask(
 
   if (matching.length === 0) {
     delete updatedQueue[taskType];
-    savePrefetchQueueToStorage(updatedQueue);
+    savePrefetchQueueToStorage(updatedQueue, mode);
     return { item: null, updatedQueue };
   }
 
@@ -243,6 +254,6 @@ export function popPrefetchedTask(
   } else {
     delete updatedQueue[taskType];
   }
-  savePrefetchQueueToStorage(updatedQueue);
+  savePrefetchQueueToStorage(updatedQueue, mode);
   return { item, updatedQueue };
 }

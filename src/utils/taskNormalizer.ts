@@ -403,13 +403,22 @@ export function normalizeCompleteWordsTask(raw: any): {
   explanation?: string;
 } {
   const fallbackText =
-    'Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists have discovered that synapses gradually strengthen through repeated electrical stimulation. This phenomenon directly enables cortical neurons to store vast quantities of complex information across cerebral circuits.';
+    'Synaptic plasticity is the biological foundation of human learning and memory retention. Neuroscientists have discovered that synapses gradually strengthen through repeated electrical stimulation. This phenomenon directly enables cortical neurons to store vast quantities of complex information across cerebral circuits. As neural pathways consolidate during deep restorative sleep, newly acquired declarative knowledge transitions from temporary hippocampal storage into permanent neocortical networks.';
 
   const title = String(raw?.title || 'Complete the Words').trim() || 'Complete the Words';
   let rawText = String(raw?.text || raw?.passage || raw?.content?.text || '').trim();
   if (!rawText || rawText.length < 40) {
     rawText = fallbackText;
   }
+
+  const isCoach = Boolean(
+    raw?.coachMode ||
+      raw?.mode === 'coach' ||
+      Number(raw?.totalBlanks) > 12 ||
+      (rawText.match(/\[+[^\]]+\]+/g) || []).length > 12
+  );
+  const minBlanks = isCoach ? 20 : 10;
+  const maxBlanks = isCoach ? 25 : 10;
 
   // Step 1: Repair any corrupted bracket tokens and strip brackets to produce cleanParagraph
   rawText = rawText.replace(/([a-zA-Z]+)\[+([a-zA-Z]+)\]+/g, (_, p, a) => repairBracketToken(p, a));
@@ -501,16 +510,15 @@ export function normalizeCompleteWordsTask(raw: any): {
   for (const wi of wordInfos) {
     if (!wi.isEligible) continue;
     eligibleCount++;
-    if (eligibleCount % 2 === 0 && selectedTokenIndices.size < 10) {
+    if (eligibleCount % 2 === 0 && selectedTokenIndices.size < maxBlanks) {
       selectedTokenIndices.add(wi.tokenIndex);
     }
   }
 
-  // If fewer than 10 blanks selected (e.g. passage had fewer eligible words),
-  // supplement from remaining eligible words (odd-indexed words) to reach exactly 10
-  if (selectedTokenIndices.size < 10) {
+  // If fewer than minBlanks selected, supplement from remaining eligible words
+  if (selectedTokenIndices.size < minBlanks) {
     for (const wi of wordInfos) {
-      if (selectedTokenIndices.size >= 10) break;
+      if (selectedTokenIndices.size >= minBlanks) break;
       if (wi.isEligible && !selectedTokenIndices.has(wi.tokenIndex)) {
         selectedTokenIndices.add(wi.tokenIndex);
       }
@@ -547,50 +555,52 @@ export function normalizeCompleteWordsTask(raw: any): {
     return `${wi.lead}${prefix}[${answer}]${wi.trail}`;
   });
 
-  // Step 6: Strip any extra trailing sentences beyond 1 short concluding sentence after the 10th blank
-  if (blanks.length >= 10) {
-    let token10Idx = -1;
+  // Step 6: Strip any extra trailing sentences beyond 1 single concluding sentence after the final target blank
+  const targetCutoffBlank = isCoach ? blanks.length : 10;
+  if (blanks.length >= targetCutoffBlank && targetCutoffBlank > 0) {
+    let tokenLastIdx = -1;
     let bCount = 0;
     for (let i = 0; i < tokens.length; i++) {
       if (selectedTokenIndices.has(i)) {
         bCount++;
-        if (bCount === 10) {
-          token10Idx = i;
+        if (bCount === targetCutoffBlank) {
+          tokenLastIdx = i;
           break;
         }
       }
     }
 
-    if (token10Idx !== -1) {
-      // Find end of sentence containing 10th blank
-      let sentence10EndIdx = token10Idx;
-      while (sentence10EndIdx < tokens.length) {
-        const tok = tokens[sentence10EndIdx];
+    if (tokenLastIdx !== -1) {
+      let sentenceEndIdx = tokenLastIdx;
+      while (sentenceEndIdx < tokens.length) {
+        const tok = tokens[sentenceEndIdx];
         if (/[.!?]/.test(tok)) {
           const cleanTok = tok.replace(/[^a-zA-Z0-9.'’]/g, '').toLowerCase();
           if (!SENTENCE_ABBREVIATIONS.has(cleanTok)) {
             break;
           }
         }
-        sentence10EndIdx++;
+        sentenceEndIdx++;
       }
 
-      // Allow at most 1 short concluding sentence after the 10th blank sentence
-      let maxKeptIdx = sentence10EndIdx;
-      let nextSentenceEndIdx = sentence10EndIdx + 1;
+      let maxKeptIdx = sentenceEndIdx;
+      let concludingSentencesFound = 0;
+      let nextSentenceEndIdx = sentenceEndIdx + 1;
       while (nextSentenceEndIdx < tokens.length) {
         const tok = tokens[nextSentenceEndIdx];
         if (/[.!?]/.test(tok)) {
           const cleanTok = tok.replace(/[^a-zA-Z0-9.'’]/g, '').toLowerCase();
           if (!SENTENCE_ABBREVIATIONS.has(cleanTok)) {
             maxKeptIdx = nextSentenceEndIdx;
-            break;
+            concludingSentencesFound++;
+            if (concludingSentencesFound >= 1) {
+              break;
+            }
           }
         }
         nextSentenceEndIdx++;
       }
 
-      // Truncate rebuiltTokens beyond maxKeptIdx
       rebuiltTokens.splice(maxKeptIdx + 1);
     }
   }
@@ -1128,9 +1138,10 @@ export function normalizeBuildSentenceTask(raw: any): {
     normalizedItems.push(normalizeBuildSentenceItem(fb, normalizedItems.length, raw?.topic, title));
   }
 
+  const isCoach = Boolean(raw?.coachMode || raw?.mode === 'coach' || normalizedItems.length > 5);
   return {
     title,
-    items: normalizedItems.slice(0, 5),
+    items: normalizedItems.slice(0, isCoach ? 10 : 5),
   };
 }
 
@@ -1184,7 +1195,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         : [];
 
       // Filter out overly short fragments (< 5 words)
-      rawSentences = rawSentences.filter((s) => s.split(/\s+/).filter(Boolean).length >= 5);
+      rawSentences = rawSentences.filter((s) => s.replace(/\|/g, ' ').split(/\s+/).filter(Boolean).length >= 5);
 
       let fbIdx = 0;
       while (rawSentences.length < 7 && fbIdx < FALLBACK_LISTEN_REPEAT_SENTENCES.length) {
@@ -1194,12 +1205,14 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         }
       }
 
+      const isCoachLr = Boolean(task.coachMode || task.mode === 'coach' || rawSentences.length > 7);
+
       return {
         ...task,
         title,
         speakerName,
         speakerGender,
-        sentences: rawSentences.slice(0, 7),
+        sentences: rawSentences.slice(0, isCoachLr ? 12 : 7),
       };
     }
 
@@ -1233,6 +1246,29 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
                     'Support your argument with a concrete academic or personal example',
                     'Synthesize the broader implications of your view',
                   ],
+            ...(q?.speakingFormula ? { speakingFormula: q.speakingFormula } : {}),
+            ...(Array.isArray(q?.topicVocabulary)
+              ? {
+                  topicVocabulary: q.topicVocabulary.map((v: any) =>
+                    typeof v === 'string'
+                      ? v
+                      : v && typeof v === 'object'
+                      ? `${v.word || v.term || ''}${v.meaning || v.definition ? ': ' + (v.meaning || v.definition) : ''}`
+                      : String(v || '')
+                  ),
+                }
+              : {}),
+            ...(Array.isArray(q?.sentenceStarters)
+              ? {
+                  sentenceStarters: q.sentenceStarters.map((st: any) =>
+                    typeof st === 'string'
+                      ? st
+                      : st && typeof st === 'object'
+                      ? String(st.text || st.starter || st.sentence || JSON.stringify(st))
+                      : String(st || '')
+                  ),
+                }
+              : {}),
             sampleAnswer:
               typeof q?.sampleAnswer === 'string' && q.sampleAnswer.trim().length > 0
                 ? q.sampleAnswer.trim()
@@ -1249,6 +1285,9 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         prepTimeSeconds: number;
         responseTimeSeconds: number;
         suggestedPoints: string[];
+        speakingFormula?: any;
+        topicVocabulary?: string[];
+        sentenceStarters?: string[];
         sampleAnswer?: string;
       }>;
 
@@ -1307,7 +1346,10 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         normalizedQs.push(defaultFollowUps[fIdx++]);
       }
 
-      const modelAnswers = normalizedQs
+      const isCoachSi = Boolean(task.coachMode || task.mode === 'coach' || normalizedQs.length > 4);
+      const maxSiQs = isCoachSi ? 6 : 4;
+      const finalQs = normalizedQs.slice(0, maxSiQs);
+      const modelAnswers = finalQs
         .map((q) => q.sampleAnswer)
         .filter((sa): sa is string => typeof sa === 'string' && sa.trim().length > 0);
 
@@ -1317,7 +1359,7 @@ export function normalizeTaskContent(taskType: string, rawTask: any): any {
         context,
         interviewerName,
         interviewerGender,
-        questions: normalizedQs.slice(0, 4),
+        questions: finalQs,
         ...(modelAnswers.length > 0 ? { modelAnswers } : {}),
       };
     }
@@ -1976,6 +2018,10 @@ export function verifyAndNormalizeMcqQuestions(
       typeof q.audioExcerpt === 'string' && q.audioExcerpt.trim().length > 0
         ? q.audioExcerpt.trim()
         : undefined;
+    const hint =
+      typeof q.hint === 'string' && q.hint.trim().length > 0
+        ? q.hint.trim()
+        : undefined;
 
     result.push({
       q: qText,
@@ -1987,6 +2033,7 @@ export function verifyAndNormalizeMcqQuestions(
       explanation: updatedWhy,
       questionType: validQType,
       ...(audioExcerpt ? { audioExcerpt } : {}),
+      ...(hint ? { hint } : {}),
     });
   }
 
@@ -2046,7 +2093,11 @@ export function normalizeListeningDialogueTask(task: any, normalizedType?: strin
   };
 
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
-  const baseQuestions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.').slice(0, 2);
+  const isCoachLd = Boolean(task?.coachMode || task?.mode === 'coach' || rawQs.length > 2);
+  const baseQuestions = verifyAndNormalizeMcqQuestions(rawQs, 'Directly stated in the audio passage.').slice(
+    0,
+    isCoachLd ? 6 : 2
+  );
   const questions = enrichListeningQuestionsWithExcerpt(baseQuestions, script, false);
 
   return {
@@ -2079,11 +2130,12 @@ export function normalizeDailyLifeTask(task: any): any {
   ).trim();
   const context = String(task?.context || task?.situation || '').trim();
   const rawQs = Array.isArray(task?.questions) ? task.questions : [];
+  const isCoachDl = Boolean(task?.coachMode || task?.mode === 'coach' || rawQs.length > 3);
   const normalizedQs = verifyAndNormalizeMcqQuestions(
     rawQs,
     'Directly supported by the document or message.'
   )
-    .slice(0, 3)
+    .slice(0, isCoachDl ? 5 : 3)
     .map((q) => ({
       ...q,
       questionType: inferDailyLifeQuestionType(q.q, q.questionType),
@@ -2132,6 +2184,7 @@ export function normalizeListeningChooseResponseTask(task: any): any {
       it?.why || it?.explanation || 'Most appropriate and natural response in this spoken campus exchange.'
     ).trim();
     const why = updateExplanationOptionLetter(rawWhy, validRawAnswer, balanced.correctAnswer);
+    const coachTip = typeof it?.coachTip === 'string' && it.coachTip.trim() ? it.coachTip.trim() : undefined;
 
     return {
       audioPrompt,
@@ -2144,6 +2197,7 @@ export function normalizeListeningChooseResponseTask(task: any): any {
       correctAnswer: balanced.correctAnswer,
       why,
       explanation: why,
+      ...(coachTip ? { coachTip } : {}),
     };
   });
 
@@ -2380,7 +2434,7 @@ export function validateNormalizedTask(taskTypeOrItem: string | any, normalizedD
     case 'listen-repeat': {
       const sentences = Array.isArray(data.sentences) ? data.sentences : [];
       if (sentences.length < 7) return false;
-      return sentences.every((s: string) => String(s || '').trim().split(/\s+/).filter(Boolean).length >= 5);
+      return sentences.every((s: string) => String(s || '').replace(/\|/g, ' ').trim().split(/\s+/).filter(Boolean).length >= 5);
     }
 
     case 'speaking-interview': {

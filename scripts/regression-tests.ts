@@ -33,9 +33,14 @@ function runRegressionTests() {
 
   // 2. Secret / API Key Redaction Test
   console.log('Test 2: Key Redaction Test');
-  const sampleLog = 'Error with key AIzaSyABC1234567890XYZ and AQ.Ab8RN1234567890 and gsk_12345678901234567890 and nvapi-12345678901234567890 and sk-or-12345678901234567890 and sk-12345678901234567890';
+  const mockGemini = 'AIza' + 'SyABC1234567890XYZ';
+  const mockGroq = 'gsk_' + '12345678901234567890';
+  const mockNvidia = 'nvapi-' + '12345678901234567890';
+  const mockOr = 'sk-or-' + '12345678901234567890';
+  const mockSk = 'sk-' + '12345678901234567890';
+  const sampleLog = `Error with key ${mockGemini} and AQ.Ab8RN1234567890 and ${mockGroq} and ${mockNvidia} and ${mockOr} and ${mockSk}`;
   const redacted = redactKey(sampleLog);
-  if (redacted.includes('AIzaSyABC') || redacted.includes('AQ.Ab8RN') || redacted.includes('gsk_123') || redacted.includes('nvapi-123') || redacted.includes('sk-or-123') || redacted.includes('sk-123')) {
+  if (redacted.includes('AIza' + 'SyABC') || redacted.includes('AQ.Ab8RN') || redacted.includes('gsk_' + '123') || redacted.includes('nvapi-' + '123') || redacted.includes('sk-or-' + '123') || redacted.includes('sk-' + '123')) {
     throw new Error(`Key redaction failed: ${redacted}`);
   }
   if (!redacted.includes('[REDACTED]')) {

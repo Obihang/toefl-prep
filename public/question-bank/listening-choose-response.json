@@ -17,7 +17,8 @@
           "Yes, the librarian was very helpful."
         ],
         "answer": 0,
-        "why": "The speaker asks if they saw the listener in the library recently; explaining it was their twin brother directly answers the question."
+        "why": "The speaker asks if they saw the listener in the library recently; explaining it was their twin brother directly answers the question.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Excuse me, do you know which floor the reserve desk is on?",
@@ -30,7 +31,8 @@
           "The wooden desk is near the window."
         ],
         "answer": 1,
-        "why": "The speaker asks for the floor location of the reserve desk, and Option B gives the exact floor and directions."
+        "why": "The speaker asks for the floor location of the reserve desk, and Option B gives the exact floor and directions.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Is anyone sitting in this chair next to you?",
@@ -43,7 +45,8 @@
           "Yes, I have been studying for two hours."
         ],
         "answer": 2,
-        "why": "Saying 'No, go ahead and take it' is the natural conversational response when someone asks if an empty seat is available."
+        "why": "Saying 'No, go ahead and take it' is the natural conversational response when someone asks if an empty seat is available.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Why is the main entrance to the student center blocked off?",
@@ -56,7 +59,8 @@
           "They're repainting the front steps this afternoon."
         ],
         "answer": 3,
-        "why": "The speaker asks why the entrance is blocked, and explaining that workers are repainting the front steps gives the direct cause."
+        "why": "The speaker asks why the entrance is blocked, and explaining that workers are repainting the front steps gives the direct cause.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Could I borrow a charger for my laptop for twenty minutes?",
@@ -69,7 +73,8 @@
           "Twenty minutes is too short for a movie."
         ],
         "answer": 0,
-        "why": "Offering the spare charger in one's bag directly fulfills the speaker's polite request."
+        "why": "Offering the spare charger in one's bag directly fulfills the speaker's polite request.",
+        "correctAnswer": 0
       }
     ]
   },
@@ -91,7 +96,8 @@
           "Her office is on the fourth floor."
         ],
         "answer": 1,
-        "why": "Being third on the waitlist directly explains the student's current enrollment status for the seminar."
+        "why": "Being third on the waitlist directly explains the student's current enrollment status for the seminar.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "When is the last day we can drop a class without a fee?",
@@ -104,7 +110,8 @@
           "Four classes is a full course load."
         ],
         "answer": 2,
-        "why": "The speaker asks for a deadline ('When is the last day...'), and 'This Friday before five o'clock' provides the exact time."
+        "why": "The speaker asks for a deadline ('When is the last day...'), and 'This Friday before five o'clock' provides the exact time.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Don't you need the advisor's signature before submitting that form?",
@@ -117,7 +124,8 @@
           "Wait, I thought online approval was enough."
         ],
         "answer": 3,
-        "why": "Expressing surprise that online approval isn't sufficient is a natural response to being reminded about a signature requirement."
+        "why": "Expressing surprise that online approval isn't sufficient is a natural response to being reminded about a signature requirement.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Would you rather take the morning lab or the evening section?",
@@ -130,7 +138,8 @@
           "I already bought my safety goggles."
         ],
         "answer": 0,
-        "why": "The speaker asks for a preference between two class times, and choosing the morning one explains which option works best."
+        "why": "The speaker asks for a preference between two class times, and choosing the morning one explains which option works best.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Who should I talk to about transferring credits from another college?",
@@ -143,7 +152,8 @@
           "The college campus is very walkable."
         ],
         "answer": 1,
-        "why": "Directing the student to the registrar's office answers who handles transfer credit evaluations."
+        "why": "Directing the student to the registrar's office answers who handles transfer credit evaluations.",
+        "correctAnswer": 1
       }
     ]
   },
@@ -160,12 +170,13 @@
         "speakerGender": "male",
         "options": [
           "The lab report is due next Tuesday.",
-          "The teaching assistant calibrated it ten minutes ago.",
           "We collected twelve water samples from the pond.",
+          "The teaching assistant calibrated it ten minutes ago.",
           "Spectrometers measure light wavelengths."
         ],
-        "answer": 1,
-        "why": "Confirming that the teaching assistant just calibrated the instrument directly addresses whether calibration was done."
+        "answer": 2,
+        "why": "Confirming that the teaching assistant just calibrated the instrument directly addresses whether calibration was done.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Why did our circuit board keep overheating during the robotics test?",
@@ -174,37 +185,40 @@
         "options": [
           "The robotics club meets every Thursday night.",
           "We need to order more copper wire.",
-          "One of the voltage regulators was wired backward.",
-          "The competition takes place in April."
+          "The competition takes place in April.",
+          "One of the voltage regulators was wired backward."
         ],
-        "answer": 2,
-        "why": "Identifying a backward voltage regulator explains the technical cause of the overheating."
+        "answer": 3,
+        "why": "Identifying a backward voltage regulator explains the technical cause of the overheating.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Where can we find the dataset for the climate modeling assignment?",
         "speakerName": "Dr. Carter",
         "speakerGender": "male",
         "options": [
-          "The climate has warmed over the past century.",
+          "I uploaded the CSV files to the course portal.",
           "My laptop needs a software update.",
           "It's a group project for three students.",
-          "I uploaded the CSV files to the course portal."
+          "The climate has warmed over the past century."
         ],
-        "answer": 3,
-        "why": "Stating that the files were uploaded to the course portal answers where the dataset is located."
+        "answer": 0,
+        "why": "Stating that the files were uploaded to the course portal answers where the dataset is located.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Shouldn't we wear protective gloves while handling these solvent bottles?",
         "speakerName": "Nora",
         "speakerGender": "female",
         "options": [
-          "Good catch—there's a box of nitrile gloves by the sink.",
           "The bottles are stored in the metal cabinet.",
+          "Good catch—there's a box of nitrile gloves by the sink.",
           "We finished the experiment ahead of schedule.",
           "Chemistry is my favorite class this term."
         ],
-        "answer": 0,
-        "why": "Agreeing ('Good catch') and pointing out where the gloves are kept is the natural response in a lab safety exchange."
+        "answer": 1,
+        "why": "Agreeing ('Good catch') and pointing out where the gloves are kept is the natural response in a lab safety exchange.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "How long will the centrifuge take to finish spinning these tubes?",
@@ -212,12 +226,13 @@
         "speakerGender": "male",
         "options": [
           "There are eight glass tubes in the rack.",
-          "Only about four more minutes on this cycle.",
           "The machine was serviced last month.",
+          "Only about four more minutes on this cycle.",
           "Please label each sample clearly."
         ],
-        "answer": 1,
-        "why": "The speaker asks 'How long', and 'Only about four more minutes' provides the remaining duration."
+        "answer": 2,
+        "why": "The speaker asks 'How long', and 'Only about four more minutes' provides the remaining duration.",
+        "correctAnswer": 2
       }
     ]
   },
@@ -235,37 +250,40 @@
         "options": [
           "The gallery is open on weekends.",
           "Charcoal smudges easily on rough paper.",
-          "I'm framing two of them tonight.",
-          "The museum ticket was free with my ID."
+          "The museum ticket was free with my ID.",
+          "I'm framing two of them tonight."
         ],
-        "answer": 2,
-        "why": "Saying 'I'm framing two of them tonight' confirms the speaker's plan to submit the artwork."
+        "answer": 3,
+        "why": "Saying 'I'm framing two of them tonight' confirms the speaker's plan to submit the artwork.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Who's unlocking the ceramics studio this Saturday morning?",
         "speakerName": "Julian",
         "speakerGender": "male",
         "options": [
-          "The kiln reaches temperatures over two thousand degrees.",
+          "The graduate assistant on duty has the keys.",
           "I prefer oil painting to sculpture.",
           "Saturday is the best day to sleep in.",
-          "The graduate assistant on duty has the keys."
+          "The kiln reaches temperatures over two thousand degrees."
         ],
-        "answer": 3,
-        "why": "The question asks 'Who's unlocking...', and identifying the graduate assistant on duty answers who has the keys."
+        "answer": 0,
+        "why": "The question asks 'Who's unlocking...', and identifying the graduate assistant on duty answers who has the keys.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "What did the professor say about the lighting in your photography portfolio?",
         "speakerName": "Zoe",
         "speakerGender": "female",
         "options": [
-          "She suggested softening the shadows in the outdoor shots.",
           "I bought a new camera lens last week.",
+          "She suggested softening the shadows in the outdoor shots.",
           "The darkroom is down the hall.",
           "Portfolios are worth forty percent of our grade."
         ],
-        "answer": 0,
-        "why": "Reporting her feedback on softening the shadows directly answers what the professor said about the lighting."
+        "answer": 1,
+        "why": "Reporting her feedback on softening the shadows directly answers what the professor said about the lighting.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Do we need to bring our own scripts to the theater audition?",
@@ -273,12 +291,13 @@
         "speakerGender": "male",
         "options": [
           "The play was written in the nineteenth century.",
-          "No, the director will hand out short scenes there.",
           "Rehearsals start at seven every evening.",
+          "No, the director will hand out short scenes there.",
           "The stage crew built a rotating set."
         ],
-        "answer": 1,
-        "why": "Clarifying that the director will provide scenes at the audition directly answers the yes/no question."
+        "answer": 2,
+        "why": "Clarifying that the director will provide scenes at the audition directly answers the yes/no question.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Why was the rehearsal for the chamber orchestra moved to the chapel?",
@@ -287,11 +306,12 @@
         "options": [
           "I play the cello in the second row.",
           "The concert program includes three symphonies.",
-          "The main recital hall is having its piano tuned.",
-          "The chapel was built eighty years ago."
+          "The chapel was built eighty years ago.",
+          "The main recital hall is having its piano tuned."
         ],
-        "answer": 2,
-        "why": "Explaining that the recital hall's piano is being tuned gives the reason for relocating the rehearsal."
+        "answer": 3,
+        "why": "Explaining that the recital hall's piano is being tuned gives the reason for relocating the rehearsal.",
+        "correctAnswer": 3
       }
     ]
   },
@@ -307,26 +327,28 @@
         "speakerName": "Ryan",
         "speakerGender": "male",
         "options": [
-          "Winter starts in December.",
+          "Yeah, they replaced the thermostat this morning.",
           "My roommate is from Chicago.",
           "The dorm has a shared kitchen downstairs.",
-          "Yeah, they replaced the thermostat this morning."
+          "Winter starts in December."
         ],
-        "answer": 3,
-        "why": "Confirming that they replaced the thermostat this morning directly answers whether the heater has been fixed."
+        "answer": 0,
+        "why": "Confirming that they replaced the thermostat this morning directly answers whether the heater has been fixed.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Where do we pick up packages that are too big for our mailboxes?",
         "speakerName": "Ava",
         "speakerGender": "female",
         "options": [
-          "At the front desk in the residence hall lobby.",
           "The post office closes at five.",
+          "At the front desk in the residence hall lobby.",
           "I ordered a textbook online.",
           "The cardboard box was very heavy."
         ],
-        "answer": 0,
-        "why": "The speaker asks 'Where do we pick up packages', and 'At the front desk in the residence hall lobby' gives the location."
+        "answer": 1,
+        "why": "The speaker asks 'Where do we pick up packages', and 'At the front desk in the residence hall lobby' gives the location.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Do the washing machines in the basement take coins or our student cards?",
@@ -334,12 +356,13 @@
         "speakerGender": "male",
         "options": [
           "I need to fold my laundry tonight.",
-          "You can tap your student ID card on the reader.",
           "The basement stairs are next to the lounge.",
+          "You can tap your student ID card on the reader.",
           "Detergent is on sale at the campus store."
         ],
-        "answer": 1,
-        "why": "Explaining that you tap your student ID card answers the choice question between coins and student cards."
+        "answer": 2,
+        "why": "Explaining that you tap your student ID card answers the choice question between coins and student cards.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Would you mind turning your music down a little bit?",
@@ -348,24 +371,26 @@
         "options": [
           "That band is touring next summer.",
           "I bought these speakers last year.",
-          "Oh, sorry! I'll put my headphones on right now.",
-          "Quiet hours start at ten o'clock."
+          "Quiet hours start at ten o'clock.",
+          "Oh, sorry! I'll put my headphones on right now."
         ],
-        "answer": 2,
-        "why": "Apologizing and offering to use headphones is the polite, natural response to a request to lower the volume."
+        "answer": 3,
+        "why": "Apologizing and offering to use headphones is the polite, natural response to a request to lower the volume.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "When do we have to move out of the dorms after final exams?",
         "speakerName": "Sam",
         "speakerGender": "male",
         "options": [
-          "My last exam is on Wednesday morning.",
+          "Within twenty-four hours of your last exam.",
           "I rented a storage unit near campus.",
           "The resident advisor held a floor meeting.",
-          "Within twenty-four hours of your last exam."
+          "My last exam is on Wednesday morning."
         ],
-        "answer": 3,
-        "why": "Specifying the 24-hour rule after one's last exam directly answers when students must move out."
+        "answer": 0,
+        "why": "Specifying the 24-hour rule after one's last exam directly answers when students must move out.",
+        "correctAnswer": 0
       }
     ]
   },
@@ -381,13 +406,14 @@
         "speakerName": "Prof. Bennett",
         "speakerGender": "male",
         "options": [
-          "Quite a bit, especially the nineteenth-century shipping ledgers.",
           "The university archive requires white cotton gloves.",
+          "Quite a bit, especially the nineteenth-century shipping ledgers.",
           "The author published three books on maritime history.",
           "Our seminar paper is fifteen pages long."
         ],
-        "answer": 0,
-        "why": "Agreeing ('Quite a bit') and citing the specific shipping ledgers directly addresses how the records contradicted the hypothesis."
+        "answer": 1,
+        "why": "Agreeing ('Quite a bit') and citing the specific shipping ledgers directly addresses how the records contradicted the hypothesis.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "How did the excavation team date the pottery shards so precisely?",
@@ -395,12 +421,13 @@
         "speakerGender": "female",
         "options": [
           "The museum display opens next month.",
-          "They used radiocarbon dating on charcoal from the same layer.",
           "The clay came from a nearby riverbank.",
+          "They used radiocarbon dating on charcoal from the same layer.",
           "Archaeology field school lasts six weeks."
         ],
-        "answer": 1,
-        "why": "Explaining that radiocarbon dating was used on charcoal in the same stratum answers 'How' the shards were dated."
+        "answer": 2,
+        "why": "Explaining that radiocarbon dating was used on charcoal in the same stratum answers 'How' the shards were dated.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Why is Dr. Morales rescheduling Wednesday's historiography colloquium?",
@@ -409,37 +436,40 @@
         "options": [
           "The reading list has twelve journal articles.",
           "I already finished my presentation slides.",
-          "She was invited to give a keynote lecture in Boston.",
-          "The history department is in the brick building."
+          "The history department is in the brick building.",
+          "She was invited to give a keynote lecture in Boston."
         ],
-        "answer": 2,
-        "why": "Stating that she is giving a keynote lecture in Boston explains why she had to reschedule the colloquium."
+        "answer": 3,
+        "why": "Stating that she is giving a keynote lecture in Boston explains why she had to reschedule the colloquium.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Have you decided which primary sources you'll cite in your prospectus?",
         "speakerName": "Dr. Lin",
         "speakerGender": "female",
         "options": [
-          "The bibliography uses Chicago style.",
+          "I'm focusing on diplomatic cables from the 1920s.",
           "Primary sources are original historical documents.",
           "I printed two copies of the syllabus.",
-          "I'm focusing on diplomatic cables from the 1920s."
+          "The bibliography uses Chicago style."
         ],
-        "answer": 3,
-        "why": "Naming diplomatic cables from the 1920s directly answers which primary sources the student chose."
+        "answer": 0,
+        "why": "Naming diplomatic cables from the 1920s directly answers which primary sources the student chose.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Could you send me the link to that digitized manuscript collection?",
         "speakerName": "Arthur",
         "speakerGender": "male",
         "options": [
-          "I'll email it to you as soon as I open my laptop.",
           "The manuscripts were written in medieval Latin.",
+          "I'll email it to you as soon as I open my laptop.",
           "The library scanner has high resolution.",
           "I attended the lecture on paleography."
         ],
-        "answer": 0,
-        "why": "Promising to email the link right away is the natural response to the request."
+        "answer": 1,
+        "why": "Promising to email the link right away is the natural response to the request.",
+        "correctAnswer": 1
       }
     ]
   },
@@ -456,12 +486,13 @@
         "speakerGender": "female",
         "options": [
           "Wetlands filter pollutants from runoff water.",
-          "Yes, unless there's thunder and lightning.",
           "I wrote my paper on migratory birds.",
+          "Yes, unless there's thunder and lightning.",
           "The university van holds十二 passengers."
         ],
-        "answer": 1,
-        "why": "Confirming that the trip is on unless there is lightning directly answers the conditional question about rain."
+        "answer": 2,
+        "why": "Confirming that the trip is on unless there is lightning directly answers the conditional question about rain.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Who's in charge of bringing the soil pH testing kit?",
@@ -470,37 +501,40 @@
         "options": [
           "Acidic soil affects plant root growth.",
           "We tested five plots near the forest edge.",
-          "Elena signed it out from the equipment room yesterday.",
-          "The lab manual is in my backpack."
+          "The lab manual is in my backpack.",
+          "Elena signed it out from the equipment room yesterday."
         ],
-        "answer": 2,
-        "why": "Stating that Elena signed it out yesterday answers who has responsibility for the testing kit."
+        "answer": 3,
+        "why": "Stating that Elena signed it out yesterday answers who has responsibility for the testing kit.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Why has the trout population in the upper creek declined this year?",
         "speakerName": "Dr. Brooks",
         "speakerGender": "female",
         "options": [
-          "We wore waterproof boots in the stream.",
+          "Warmer water temperatures reduced dissolved oxygen levels.",
           "The creek flows into the main reservoir.",
           "Fish scales can indicate age under a microscope.",
-          "Warmer water temperatures reduced dissolved oxygen levels."
+          "We wore waterproof boots in the stream."
         ],
-        "answer": 3,
-        "why": "Explaining that warmer temperatures lowered dissolved oxygen provides the ecological cause for the decline."
+        "answer": 0,
+        "why": "Explaining that warmer temperatures lowered dissolved oxygen provides the ecological cause for the decline.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Where should we set up the camera traps for the nocturnal wildlife survey?",
         "speakerName": "Jared",
         "speakerGender": "male",
         "options": [
-          "Along the game trail near the fallen oak tree.",
           "The batteries last for three weeks.",
+          "Along the game trail near the fallen oak tree.",
           "Owls and foxes are active at night.",
           "We downloaded the photos this morning."
         ],
-        "answer": 0,
-        "why": "Pointing to the game trail near the fallen oak tree answers 'Where' to place the camera traps."
+        "answer": 1,
+        "why": "Pointing to the game trail near the fallen oak tree answers 'Where' to place the camera traps.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Did you back up the GPS coordinates from today's botanical survey?",
@@ -508,12 +542,13 @@
         "speakerGender": "female",
         "options": [
           "We identified fourteen native fern species.",
-          "Yes, they're saved on the shared cloud drive.",
           "The handheld GPS unit is waterproof.",
+          "Yes, they're saved on the shared cloud drive.",
           "The trail was steeper than we expected."
         ],
-        "answer": 1,
-        "why": "Confirming that the coordinates are saved on the cloud drive directly answers whether they were backed up."
+        "answer": 2,
+        "why": "Confirming that the coordinates are saved on the cloud drive directly answers whether they were backed up.",
+        "correctAnswer": 2
       }
     ]
   },
@@ -531,37 +566,40 @@
         "options": [
           "The clinic is next to the pharmacy.",
           "Drink plenty of water when you have a cold.",
-          "No, they accept walk-ins every afternoon.",
-          "My health insurance form is online."
+          "My health insurance form is online.",
+          "No, they accept walk-ins every afternoon."
         ],
-        "answer": 2,
-        "why": "Explaining that walk-ins are accepted every afternoon directly answers whether an appointment is needed."
+        "answer": 3,
+        "why": "Explaining that walk-ins are accepted every afternoon directly answers whether an appointment is needed.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "What time does the indoor lap pool open for student swim hours?",
         "speakerName": "Kylie",
         "speakerGender": "female",
         "options": [
-          "Towels are available at the locker room desk.",
+          "Six-thirty on weekdays and eight on weekends.",
           "The water temperature is eighty degrees.",
           "I swim freestyle for thirty minutes.",
-          "Six-thirty on weekdays and eight on weekends."
+          "Towels are available at the locker room desk."
         ],
-        "answer": 3,
-        "why": "Providing the opening times for weekdays and weekends directly answers 'What time does the indoor lap pool open?'"
+        "answer": 0,
+        "why": "Providing the opening times for weekdays and weekends directly answers 'What time does the indoor lap pool open?'",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "How did you sprain your ankle before the intramural soccer match?",
         "speakerName": "Derek",
         "speakerGender": "male",
         "options": [
-          "I stepped in a hole while jogging on the quad.",
           "Our team won by two goals.",
+          "I stepped in a hole while jogging on the quad.",
           "The physical therapist gave me an ice pack.",
           "Soccer cleats provide better traction on grass."
         ],
-        "answer": 0,
-        "why": "Explaining that the speaker stepped in a hole while jogging answers how the injury happened."
+        "answer": 1,
+        "why": "Explaining that the speaker stepped in a hole while jogging answers how the injury happened.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Is the nutrition workshop open to undergraduates or just medical students?",
@@ -569,12 +607,13 @@
         "speakerGender": "female",
         "options": [
           "Vegetables are rich in essential vitamins.",
-          "Anyone with a valid campus ID is welcome.",
           "The medical school is across town.",
+          "Anyone with a valid campus ID is welcome.",
           "The speaker is a registered dietitian."
         ],
-        "answer": 1,
-        "why": "Clarifying that anyone with a campus ID can attend answers the question about eligibility."
+        "answer": 2,
+        "why": "Clarifying that anyone with a campus ID can attend answers the question about eligibility.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Where can I refill my reusable water bottle in this building?",
@@ -583,11 +622,12 @@
         "options": [
           "Stainless steel keeps water cold all day.",
           "The vending machine sells juice and snacks.",
-          "There's a filtered hydration station by the restrooms.",
-          "You should drink eight glasses a day."
+          "You should drink eight glasses a day.",
+          "There's a filtered hydration station by the restrooms."
         ],
-        "answer": 2,
-        "why": "Directing the speaker to the filtered hydration station by the restrooms answers where to refill the bottle."
+        "answer": 3,
+        "why": "Directing the speaker to the filtered hydration station by the restrooms answers where to refill the bottle.",
+        "correctAnswer": 3
       }
     ]
   },
@@ -603,26 +643,28 @@
         "speakerName": "Rachel",
         "speakerGender": "female",
         "options": [
-          "The internship pays a monthly stipend.",
+          "She told me to move my technical skills section to the top.",
           "The career fair is in the gymnasium.",
           "I wore a navy suit to the interview.",
-          "She told me to move my technical skills section to the top."
+          "The internship pays a monthly stipend."
         ],
-        "answer": 3,
-        "why": "Describing her advice to move the technical skills section to the top directly answers what changes she suggested."
+        "answer": 0,
+        "why": "Describing her advice to move the technical skills section to the top directly answers what changes she suggested.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Which engineering firms are conducting on-campus interviews this Thursday?",
         "speakerName": "Kevin",
         "speakerGender": "male",
         "options": [
-          "Mostly civil and aerospace companies—the full list is on the portal.",
           "I'm majoring in mechanical engineering.",
+          "Mostly civil and aerospace companies—the full list is on the portal.",
           "Interviews usually last thirty minutes.",
           "Thursday is my busiest day of classes."
         ],
-        "answer": 0,
-        "why": "Identifying the types of firms and where the full list is posted directly answers which firms are interviewing."
+        "answer": 1,
+        "why": "Identifying the types of firms and where the full list is posted directly answers which firms are interviewing.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Why didn't you apply for the summer analyst position in Chicago?",
@@ -630,12 +672,13 @@
         "speakerGender": "female",
         "options": [
           "Chicago is famous for its architecture.",
-          "I already accepted a research fellowship here on campus.",
           "Financial analysts study market trends.",
+          "I already accepted a research fellowship here on campus.",
           "The application required two letters of recommendation."
         ],
-        "answer": 1,
-        "why": "Having already accepted an on-campus fellowship explains why the listener didn't apply for the Chicago job."
+        "answer": 2,
+        "why": "Having already accepted an on-campus fellowship explains why the listener didn't apply for the Chicago job.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "How many printed copies of my resume should I bring to the expo?",
@@ -644,24 +687,26 @@
         "options": [
           "Use heavy cream-colored paper for printing.",
           "The expo runs from ten until three.",
-          "At least fifteen, just in case you talk to extra recruiters.",
-          "My cover letter is one page long."
+          "My cover letter is one page long.",
+          "At least fifteen, just in case you talk to extra recruiters."
         ],
-        "answer": 2,
-        "why": "Recommending 'At least fifteen' directly answers 'How many printed copies...'"
+        "answer": 3,
+        "why": "Recommending 'At least fifteen' directly answers 'How many printed copies...'",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "When do we hear back from the internship selection committee?",
         "speakerName": "Diana",
         "speakerGender": "female",
         "options": [
-          "The committee has five faculty members.",
+          "They said finalists would be notified by next Monday.",
           "I submitted my portfolio last night.",
           "The internship counts for academic credit.",
-          "They said finalists would be notified by next Monday."
+          "The committee has five faculty members."
         ],
-        "answer": 3,
-        "why": "Stating that finalists will be notified by next Monday answers 'When do we hear back...'"
+        "answer": 0,
+        "why": "Stating that finalists will be notified by next Monday answers 'When do we hear back...'",
+        "correctAnswer": 0
       }
     ]
   },
@@ -677,13 +722,14 @@
         "speakerName": "Alex",
         "speakerGender": "male",
         "options": [
-          "You need to connect to the campus VPN first when off-network.",
           "The computer lab has forty Linux workstations.",
+          "You need to connect to the campus VPN first when off-network.",
           "Python is widely used for machine learning.",
           "My password has twelve characters."
         ],
-        "answer": 0,
-        "why": "Explaining that the campus VPN is required off-network gives the exact technical reason for the SSH timeout."
+        "answer": 1,
+        "why": "Explaining that the campus VPN is required off-network gives the exact technical reason for the SSH timeout.",
+        "correctAnswer": 1
       },
       {
         "audioPrompt": "Has the IT help desk resolved the Wi-Fi outage in the science annex?",
@@ -691,12 +737,13 @@
         "speakerGender": "female",
         "options": [
           "The science annex was renovated in 2022.",
-          "They're replacing a faulty network switch right now.",
           "I downloaded the lecture slides at home.",
+          "They're replacing a faulty network switch right now.",
           "The help desk is on the ground floor."
         ],
-        "answer": 1,
-        "why": "Reporting that technicians are currently replacing a faulty switch explains the status of the Wi-Fi repair."
+        "answer": 2,
+        "why": "Reporting that technicians are currently replacing a faulty switch explains the status of the Wi-Fi repair.",
+        "correctAnswer": 2
       },
       {
         "audioPrompt": "Didn't our team push the latest database migration to the staging server?",
@@ -705,37 +752,40 @@
         "options": [
           "Relational databases use structured query language.",
           "Our final project presentation is next week.",
-          "No, we held off because one unit test was failing.",
-          "The server rack is cooled by fans."
+          "The server rack is cooled by fans.",
+          "No, we held off because one unit test was failing."
         ],
-        "answer": 2,
-        "why": "Explaining that the team waited due to a failing unit test directly answers why the migration wasn't pushed."
+        "answer": 3,
+        "why": "Explaining that the team waited due to a failing unit test directly answers why the migration wasn't pushed.",
+        "correctAnswer": 3
       },
       {
         "audioPrompt": "Where can students get a free campus license for the statistical software?",
         "speakerName": "Dr. Novak",
         "speakerGender": "female",
         "options": [
-          "Statistics is a prerequisite for econometrics.",
+          "Through the software download portal using your university login.",
           "The software requires eight gigabytes of RAM.",
           "We analyzed the survey results in class.",
-          "Through the software download portal using your university login."
+          "Statistics is a prerequisite for econometrics."
         ],
-        "answer": 3,
-        "why": "Directing students to the software download portal with their university login answers where to obtain the license."
+        "answer": 0,
+        "why": "Directing students to the software download portal with their university login answers where to obtain the license.",
+        "correctAnswer": 0
       },
       {
         "audioPrompt": "Would you mind reviewing my pull request before tonight's code freeze?",
         "speakerName": "Omar",
         "speakerGender": "male",
         "options": [
-          "Sure, I'll look over your changes right after lunch.",
           "The software engineering class has sixty students.",
+          "Sure, I'll look over your changes right after lunch.",
           "Git tracks changes in source code.",
           "It's supposed to freeze tonight according to the weather report."
         ],
-        "answer": 0,
-        "why": "Agreeing to review the changes right after lunch is the natural response to a code review request."
+        "answer": 1,
+        "why": "Agreeing to review the changes right after lunch is the natural response to a code review request.",
+        "correctAnswer": 1
       }
     ]
   }

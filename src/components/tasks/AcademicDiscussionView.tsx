@@ -13,6 +13,7 @@ import { TaskSubtitleMeta, TaskReportButton } from '../shared/TaskHeaderMeta';
 
 interface Props {
   task: AcademicDiscussionTask;
+  coachMode?: boolean;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
   onOpenApiKeySettings?: () => void;
@@ -33,6 +34,7 @@ const OFFICIAL_DISCUSSION_TIME_SECONDS = 600; // 10 minutes official ETS Academi
 
 export const AcademicDiscussionView: React.FC<Props> = ({
   task,
+  coachMode = false,
   onNextTask,
   onComplete,
   onOpenApiKeySettings,
@@ -48,9 +50,42 @@ export const AcademicDiscussionView: React.FC<Props> = ({
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [showCoachBlueprint, setShowCoachBlueprint] = useState(true);
 
-  // Official 10-Minute Timer (auto-starts by default unless user toggled Timer Off)
+  const coachBlueprint = React.useMemo(() => {
+    const custom = (task as any).coachBlueprint;
+    if (Array.isArray(custom) && custom.length > 0) return custom;
+    return [
+      {
+        stage: '1. Direct Stance & Position',
+        tip: 'State your clear position on the professor’s question in sentence 1 without repeating the prompt.',
+        starters: [
+          'In my view, the most compelling approach to this issue is ',
+          'While both perspectives have merit, I strongly contend that ',
+        ],
+      },
+      {
+        stage: '2. Engage with a Classmate’s Point',
+        tip: 'Acknowledge or respectfully challenge one student’s argument to show collaborative engagement.',
+        starters: [
+          'Building upon the point raised in the discussion, it is also crucial to consider ',
+          'Although the opposing view highlights an important concern, it overlooks ',
+        ],
+      },
+      {
+        stage: '3. New Reasoning & Concrete Example',
+        tip: 'Contribute an original reason or specific real-world mechanism that advances the seminar discussion.',
+        starters: [
+          'Specifically, empirical evidence from recent policy implementations demonstrates that ',
+          'For instance, when institutions prioritize this framework, they consistently achieve ',
+        ],
+      },
+    ];
+  }, [task]);
+
+  // Official 10-Minute Timer (auto-starts by default unless user toggled Timer Off or in Coach Mode)
   const [localTimerEnabled, setLocalTimerEnabled] = useState<boolean>(() => {
+    if (coachMode) return false;
     try {
       return localStorage.getItem('toefl_writing_timer_enabled') !== 'false';
     } catch {
@@ -60,7 +95,9 @@ export const AcademicDiscussionView: React.FC<Props> = ({
   const isWritingTimerEnabled = externalTimerEnabled ?? localTimerEnabled;
 
   const [localTimeLeft, setLocalTimeLeft] = useState(OFFICIAL_DISCUSSION_TIME_SECONDS);
-  const [localTimerRunning, setLocalTimerRunning] = useState<boolean>(() => isWritingTimerEnabled);
+  const [localTimerRunning, setLocalTimerRunning] = useState<boolean>(() =>
+    coachMode ? false : isWritingTimerEnabled
+  );
 
   const timeLeft = externalTimerSeconds ?? localTimeLeft;
   const isWritingTimerRunning = externalTimerRunning ?? localTimerRunning;
@@ -389,6 +426,68 @@ export const AcademicDiscussionView: React.FC<Props> = ({
             </div>
             <p className="text-xs text-slate-500 leading-relaxed">{task.question}</p>
           </div>
+
+          {coachMode && (
+            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider">
+                  🎓 Step-by-Step Discussion Coach &amp; Sentence Starters
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowCoachBlueprint((v) => !v)}
+                  className="text-[11px] font-semibold text-indigo-700 hover:text-indigo-950 underline cursor-pointer"
+                >
+                  {showCoachBlueprint ? 'Collapse Guide' : 'Expand Guide'}
+                </button>
+              </div>
+              {showCoachBlueprint && (
+                <div className="space-y-2.5">
+                  {coachBlueprint.map((step: any, sIdx: number) => {
+                    const stepTitle = String(step.stage || step.step || step.title || `Stage ${sIdx + 1}`);
+                    const stepDesc = String(step.purpose || step.description || step.tip || '');
+                    const rawStarters = Array.isArray(step.starters) ? step.starters : [];
+
+                    return (
+                      <div key={sIdx} className="bg-white/90 border border-indigo-100 rounded-lg p-3 space-y-1.5">
+                        <div className="text-xs font-bold text-indigo-950">{stepTitle}</div>
+                        {stepDesc && <p className="text-[11px] text-slate-600 leading-snug">{stepDesc}</p>}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {rawStarters.map((st: any, stIdx: number) => {
+                            const starterText =
+                              typeof st === 'string'
+                                ? st
+                                : st && typeof st === 'object'
+                                ? String(st.text || st.starter || st.label || JSON.stringify(st))
+                                : String(st || '');
+                            if (!starterText) return null;
+
+                            return (
+                              <button
+                                key={stIdx}
+                                type="button"
+                                onClick={() =>
+                                  setResponse((prev) =>
+                                    prev.trim()
+                                      ? `${prev.replace(/\s+$/, '')} ${starterText}`
+                                      : starterText
+                                  )
+                                }
+                                className="text-left text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
+                                title="Click to insert sentence starter into your draft"
+                              >
+                                + &ldquo;{starterText}&rdquo;
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <textarea
             rows={12}

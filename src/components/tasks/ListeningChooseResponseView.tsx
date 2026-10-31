@@ -72,12 +72,14 @@ export interface ListeningChooseResponseTask {
 
 interface Props {
   task: ListeningChooseResponseTask;
+  coachMode?: boolean;
   onNextTask?: () => void;
   onComplete?: (result: number) => void;
 }
 
 export const ListeningChooseResponseView: React.FC<Props> = ({
   task,
+  coachMode = false,
   onNextTask,
   onComplete,
 }) => {
@@ -119,6 +121,9 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
   const [playCounts, setPlayCounts] = useState<Record<number, number>>({});
+  const [audioSpeed, setAudioSpeed] = useState<number>(1.0);
+  const [revealedHints, setRevealedHints] = useState<Record<number, boolean>>({});
+  const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
 
   const currentIndex = chooseResponseActiveIdx;
   const setCurrentIndex = setChooseResponseActiveIdx;
@@ -140,6 +145,8 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
     setIsLoadingAudio(false);
     setShowTranscript(false);
     setPlayCounts({});
+    setRevealedHints({});
+    setCheckedItems({});
   }, [task.id, task.title]);
 
   const itemVoices = useMemo(() => {
@@ -242,7 +249,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         if (playbackSessionRef.current !== currentSession) return;
 
         await speakWithCloudTTS(itemCleanPrompt, itemGender, {
-          rate: 0.96,
+          rate: coachMode ? audioSpeed : 0.96,
           voice: itemVoiceName,
           voiceName: itemVoiceName,
           gender: itemGender,
@@ -276,7 +283,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         }
       }
     },
-    [items, itemVoices]
+    [items, itemVoices, coachMode, audioSpeed]
   );
 
   // Auto-play spoken prompt when advancing to the next item (chooseResponseActiveIdx changing to 1, 2, 3, 4 when !chooseResponseSubmitted)
@@ -458,7 +465,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
               <Keyboard className="w-3.5 h-3.5 text-slate-400" />
               <span>
-                ⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item
+                <strong className="font-semibold text-slate-800">Enter</strong>: Next item
               </span>
               <span aria-hidden="true" className="text-slate-300">·</span>
               <span>
@@ -551,7 +558,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         </div>
 
         {/* Audio Wave / Status Indicator */}
-        <div className="mt-5 pt-4 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-400">
+        <div className="mt-5 pt-4 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <Volume2 className="w-4 h-4 text-teal-400" />
             <span>
@@ -563,20 +570,45 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             </span>
           </div>
 
-          {submitted && (
-            <button
-              type="button"
-              onClick={() => setShowTranscript(!showTranscript)}
-              className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 cursor-pointer"
-            >
-              {showTranscript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showTranscript ? 'Hide Prompt Text' : 'View Spoken Script'}
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {coachMode && (
+              <div className="inline-flex items-center bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-[11px]">
+                {[
+                  { rate: 0.85, label: '0.85x Slow' },
+                  { rate: 1.0, label: '1.0x Normal' },
+                  { rate: 1.15, label: '1.15x Fast' },
+                ].map((sp) => (
+                  <button
+                    key={sp.rate}
+                    type="button"
+                    onClick={() => setAudioSpeed(sp.rate)}
+                    className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                      audioSpeed === sp.rate
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {sp.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {(submitted || coachMode) && (
+              <button
+                type="button"
+                onClick={() => setShowTranscript(!showTranscript)}
+                className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 cursor-pointer"
+              >
+                {showTranscript ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showTranscript ? 'Hide Prompt Text' : 'View Spoken Script'}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Revealed Transcript (strictly after submission) */}
-        {submitted && showTranscript && (
+        {/* Revealed Transcript (after submission or when toggled in Coach Mode) */}
+        {(submitted || coachMode) && showTranscript && (
           <div className="mt-4 p-4 rounded-xl bg-slate-950/60 border border-slate-700 text-sm text-slate-200 leading-relaxed font-normal">
             <div className="text-[11px] font-semibold text-teal-400 uppercase tracking-wider mb-1">
               Spoken Transcript ({speakerName}):
@@ -588,25 +620,72 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
 
       {/* Answer Choices */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
           <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
             Choose the best response for Item {currentIndex + 1}:
           </span>
-          <span className="text-xs text-slate-500 font-mono">
-            {answeredCount} of {totalItems} answered
-          </span>
+          <div className="flex items-center gap-2">
+            {coachMode && !submitted && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRevealedHints((prev) => ({
+                      ...prev,
+                      [currentIndex]: !prev[currentIndex],
+                    }))
+                  }
+                  className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                >
+                  {revealedHints[currentIndex] ? 'Hide Pragmatic Hint' : '💡 Coach Hint'}
+                </button>
+                {selectedIdx !== null && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCheckedItems((prev) => ({
+                        ...prev,
+                        [currentIndex]: !prev[currentIndex],
+                      }))
+                    }
+                    className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                  >
+                    {checkedItems[currentIndex] ? 'Hide Check' : '✓ Check Item'}
+                  </button>
+                )}
+              </>
+            )}
+            <span className="text-xs text-slate-500 font-mono">
+              {answeredCount} of {totalItems} answered
+            </span>
+          </div>
         </div>
+
+        {coachMode && revealedHints[currentIndex] && !submitted && (
+          <div className="p-3.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 leading-relaxed">
+            <strong className="font-bold text-indigo-900">🎓 Conversational Pragmatics Tip:</strong>{' '}
+            {(() => {
+              const rawTip = (currentItem as any)?.coachTip || (currentItem as any)?.hint;
+              if (typeof rawTip === 'string') return rawTip;
+              if (rawTip && typeof rawTip === 'object') {
+                return String(rawTip.text || rawTip.tip || rawTip.hint || JSON.stringify(rawTip));
+              }
+              return String(explanation || '');
+            })()}
+          </div>
+        )}
 
         <div className="space-y-2.5">
           {(currentItem?.options || []).map((opt, optIdx) => {
             const isSelected = selectedIdx === optIdx;
             const isRightOption = correctAnswerIdx === optIdx;
             const optionLetter = String.fromCharCode(65 + optIdx);
+            const showEval = submitted || Boolean(coachMode && checkedItems[currentIndex]);
 
             let optionClasses =
               'border-slate-200 bg-white hover:bg-slate-50 text-slate-800';
 
-            if (submitted) {
+            if (showEval) {
               if (isRightOption) {
                 optionClasses =
                   'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium ring-1 ring-emerald-500';
@@ -628,7 +707,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                    submitted && isRightOption
+                    showEval && isRightOption
                       ? 'bg-emerald-600 text-white'
                       : isSelected
                       ? 'bg-teal-700 text-white'
@@ -652,11 +731,11 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Post-Submission Explanation for Current Item */}
-      {submitted && (
+      {/* Post-Submission or Coach Check Explanation for Current Item */}
+      {(submitted || (coachMode && checkedItems[currentIndex])) && (
         <div
           className={`p-5 rounded-xl border leading-relaxed text-sm ${
-            isCurrentCorrect
+            selectedIdx === correctAnswerIdx
               ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : 'bg-rose-50 border-rose-200 text-rose-900'
           }`}
@@ -665,7 +744,7 @@ export const ListeningChooseResponseView: React.FC<Props> = ({
             <HelpCircle className="w-5 h-5 shrink-0 mt-0.5" />
             <div>
               <strong className="block font-semibold mb-1">
-                Item {currentIndex + 1}: {isCurrentCorrect ? 'Correct Response!' : 'Incorrect Choice'}
+                Item {currentIndex + 1}: {selectedIdx === correctAnswerIdx ? 'Correct Response!' : 'Incorrect Choice'}
               </strong>
               <p className="text-slate-800 text-xs sm:text-sm">{explanation}</p>
             </div>

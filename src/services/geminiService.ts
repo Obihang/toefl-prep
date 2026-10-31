@@ -157,9 +157,24 @@ export async function callBackendGenerate(
   level: string = 'intermediate',
   topic: string = 'science-tech',
   promptData?: any,
-  extraOptions?: Record<string, any>
+  extraOptions?: Record<string, any> | boolean
 ): Promise<any> {
   const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
+  const optionsObj = typeof extraOptions === 'boolean' ? { coachMode: extraOptions } : extraOptions;
+  const isCoachMode = Boolean(
+    promptData === true ||
+      promptData?.coachMode === true ||
+      promptData?.mode === 'coach' ||
+      optionsObj?.coachMode === true ||
+      optionsObj?.mode === 'coach'
+  );
+  const basePromptData =
+    typeof promptData === 'object' && promptData !== null
+      ? { ...promptData, ...(isCoachMode ? { coachMode: true, mode: 'coach' } : {}) }
+      : isCoachMode
+      ? { coachMode: true, mode: 'coach' }
+      : undefined;
+
   const isReadingAcademic =
     taskType === 'reading-academic' || taskType === 'reading_academic' || taskType === 'reading-passage';
   const isListeningWithExcerpt =
@@ -179,30 +194,34 @@ export async function callBackendGenerate(
     taskType === 'listen-repeat' ||
     taskType === 'speaking_listen_repeat' ||
     taskType === 'speaking-listen-repeat';
-  const readingQuestionFocus = promptData?.questionSkillFocus || promptData?.readingQuestionFocus || 'all';
+  const readingQuestionFocus =
+    basePromptData?.questionSkillFocus || basePromptData?.readingQuestionFocus || 'all';
   const enrichedPromptData = isReadingAcademic
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         questionSkillFocus: readingQuestionFocus,
         readingQuestionFocus,
-        requiredQuestionTypes: readingQuestionFocus === 'all' ? OFFICIAL_5_READING_QUESTION_TYPES : undefined,
+        requiredQuestionTypes:
+          readingQuestionFocus === 'all' ? OFFICIAL_5_READING_QUESTION_TYPES : undefined,
       }
     : isListeningWithExcerpt
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         requiresAudioExcerpt: true,
       }
     : isBuildSentence
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         ...OFFICIAL_BUILD_SENTENCE_SPEC,
+        itemsPerSet: isCoachMode ? 8 : OFFICIAL_BUILD_SENTENCE_SPEC.itemsPerSet,
       }
     : isListenRepeat
     ? {
-        ...(promptData || {}),
+        ...(basePromptData || {}),
         ...OFFICIAL_LISTEN_REPEAT_SPEC,
+        sentencesPerSet: isCoachMode ? 12 : OFFICIAL_LISTEN_REPEAT_SPEC.sentencesPerSet,
       }
-    : promptData;
+    : basePromptData;
 
   const options = {
     provider,
@@ -210,7 +229,8 @@ export async function callBackendGenerate(
     customApiKey: apiKey,
     providerKeys,
     availableKeys: providerKeys,
-    ...(extraOptions || {}),
+    coachMode: isCoachMode,
+    ...(optionsObj || {}),
   };
 
   return safeFetchJson('/api/generate-task', {
@@ -220,6 +240,7 @@ export async function callBackendGenerate(
       taskType,
       level,
       topic,
+      coachMode: isCoachMode,
       promptData: enrichedPromptData,
       customApiKey: apiKey,
       provider,
@@ -236,9 +257,10 @@ export async function generateTaskContent(
   level: string = 'intermediate',
   topic: string = 'science-tech',
   promptData?: any,
-  extraOptions?: Record<string, any>
+  extraOptions?: Record<string, any> | boolean
 ): Promise<any> {
-  const res = await callBackendGenerate(taskType, level, topic, promptData, extraOptions);
+  const optionsObj = typeof extraOptions === 'boolean' ? { coachMode: extraOptions } : extraOptions;
+  const res = await callBackendGenerate(taskType, level, topic, promptData, optionsObj);
   const rawData = res?.data || res;
   return normalizeTaskData(rawData, taskType);
 }

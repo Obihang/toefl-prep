@@ -92,6 +92,23 @@ export type ListeningQuestionSkill =
   | "Speaker's Purpose / Function"
   | 'Inference / Implied Meaning';
 
+export type PracticeMode = 'exam' | 'coach';
+
+export interface CoachBlueprintStage {
+  stage: string;
+  goal: string;
+  starters: string[];
+  connectors?: string[];
+}
+
+export interface SpeakingQuestionCoach {
+  pointFormula: string;
+  reasonFormula: string;
+  exampleFormula: string;
+  topicVocabulary: string[];
+  sentenceStarters: string[];
+}
+
 export interface ListeningComprehensionQuestion {
   q: string;
   question?: string;
@@ -102,6 +119,7 @@ export interface ListeningComprehensionQuestion {
   explanation?: string;
   audioExcerpt?: string;
   questionType?: string;
+  hint?: string;
 }
 
 export interface BuildSentenceItem {
@@ -126,6 +144,8 @@ export interface BuildSentenceTask {
   level: string;
   topic: string;
   items: BuildSentenceItem[];
+  mode?: PracticeMode;
+  coachMode?: boolean;
 }
 
 export interface ScoreEntry {

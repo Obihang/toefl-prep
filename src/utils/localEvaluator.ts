@@ -857,6 +857,9 @@ export function detectGrammarAndMechanicsErrors(
     }
   }
 
+  const STANDARD_ENGLISH_SUFFIX_REGEX =
+    /(?:tion|sion|ment|ness|ity|ive|ous|al|ic|ly|ed|ing|er|est|able|ible)$/i;
+
   wordTokenRegex.lastIndex = 0;
   while ((m = wordTokenRegex.exec(text)) !== null) {
     const rawWord = m[1];
@@ -866,13 +869,14 @@ export function detectGrammarAndMechanicsErrors(
       validLookup.has(lowerWord) ||
       COMMON_VALID_WORDS.has(lowerWord) ||
       COMMON_ACADEMIC_MISSPELLINGS[lowerWord] ||
-      STOP_WORDS.has(lowerWord)
+      STOP_WORDS.has(lowerWord) ||
+      STANDARD_ENGLISH_SUFFIX_REGEX.test(lowerWord)
     ) {
       continue;
     }
 
     for (const [targetLower, targetDisplay] of targetVocabMap.entries()) {
-      if (Math.abs(lowerWord.length - targetLower.length) > 2) continue;
+      if (Math.abs(lowerWord.length - targetLower.length) > 1) continue;
       // Avoid flagging valid inflections of the target word
       if (
         lowerWord === `${targetLower}s` ||
@@ -884,16 +888,14 @@ export function detectGrammarAndMechanicsErrors(
         continue;
       }
       // Require same starting letter and ending letter to avoid false positives on unrelated words
-      if (lowerWord[0] !== targetLower[0]) continue;
-      const dist = levenshteinDistance(lowerWord, targetLower);
       if (
-        dist === 1 ||
-        (dist === 2 &&
-          lowerWord.length >= 7 &&
-          targetLower.length >= 7 &&
-          lowerWord[1] === targetLower[1] &&
-          lowerWord[lowerWord.length - 1] === targetLower[targetLower.length - 1])
+        lowerWord[0] !== targetLower[0] ||
+        lowerWord[lowerWord.length - 1] !== targetLower[targetLower.length - 1]
       ) {
+        continue;
+      }
+      const dist = levenshteinDistance(lowerWord, targetLower);
+      if (dist === 1) {
         pushError(
           rawWord,
           targetDisplay,

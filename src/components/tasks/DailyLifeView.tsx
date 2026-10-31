@@ -53,6 +53,7 @@ interface Props {
   leftColumnClassName?: string;
   rightColumnClassName?: string;
   footerBarClassName?: string;
+  coachMode?: boolean;
 }
 
 export const DailyLifeView: React.FC<Props> = ({
@@ -63,10 +64,21 @@ export const DailyLifeView: React.FC<Props> = ({
   leftColumnClassName = 'lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto',
   rightColumnClassName = 'lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-2 scroll-smooth',
   footerBarClassName = 'flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200',
+  coachMode = false,
 }) => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [submitted, setSubmitted] = useState(false);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
+  const [openHints, setOpenHints] = useState<Record<number, boolean>>({});
+  const [checkedQuestions, setCheckedQuestions] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    setSelectedAnswers({});
+    setSubmitted(false);
+    setActiveQuestionIdx(0);
+    setOpenHints({});
+    setCheckedQuestions({});
+  }, [task.id, task.title]);
 
   const format = (task.formatType || task.format || 'notice').toLowerCase();
   const textContent = task.contentText || task.text || task.notice || '';
@@ -75,6 +87,9 @@ export const DailyLifeView: React.FC<Props> = ({
     if (submitted) return;
     setActiveQuestionIdx(qIdx);
     setSelectedAnswers((prev) => ({ ...prev, [qIdx]: optIdx }));
+    if (checkedQuestions[qIdx]) {
+      setCheckedQuestions((prev) => ({ ...prev, [qIdx]: false }));
+    }
   };
 
   const calculateScore = useCallback(() => {
@@ -124,6 +139,8 @@ export const DailyLifeView: React.FC<Props> = ({
     setSelectedAnswers({});
     setSubmitted(false);
     setActiveQuestionIdx(0);
+    setOpenHints({});
+    setCheckedQuestions({});
   };
 
   const score = submitted ? calculateScore() : 0;
@@ -303,18 +320,18 @@ export const DailyLifeView: React.FC<Props> = ({
     switch (resolved) {
       case 'main_purpose':
       case 'rhetorical_purpose':
-        return { label: 'Main Purpose', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+        return { label: 'Main Purpose', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', strategy: 'Identify the primary action or announcement the sender wants the recipient to understand.' };
       case 'inference':
-        return { label: 'Inference', bg: 'bg-purple-50 text-purple-700 border-purple-200' };
+        return { label: 'Inference', bg: 'bg-purple-50 text-purple-700 border-purple-200', strategy: 'Connect two specific conditions, dates, or policies in the document to see what logically follows.' };
       case 'idiomatic_meaning':
       case 'vocabulary':
-        return { label: 'Idiomatic / Informal Meaning', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+        return { label: 'Idiomatic / Informal Meaning', bg: 'bg-amber-50 text-amber-700 border-amber-200', strategy: 'Read the surrounding sentences to determine the speaker’s practical intent behind the expression.' };
       case 'negative_factual':
-        return { label: 'Negative Factual (EXCEPT)', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+        return { label: 'Negative Factual (EXCEPT)', bg: 'bg-rose-50 text-rose-700 border-rose-200', strategy: 'Verify each option against the document details; choose the one option that is NOT mentioned or is contradicted.' };
       case 'factual_detail':
       case 'factual':
       default:
-        return { label: 'Factual Detail', bg: 'bg-teal-50 text-teal-700 border-teal-200' };
+        return { label: 'Factual Detail', bg: 'bg-teal-50 text-teal-700 border-teal-200', strategy: 'Scan the document for the exact date, fee, requirement, or location asked about in the question.' };
     }
   };
 
@@ -329,6 +346,11 @@ export const DailyLifeView: React.FC<Props> = ({
               {badge.label}
             </span>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">{task.title}</h2>
+            {coachMode && (
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                🎓 Coach &amp; Marathon Mode ({task.questions.length} Questions)
+              </span>
+            )}
           </div>
           <TaskSubtitleMeta
             task={task}
@@ -351,7 +373,7 @@ export const DailyLifeView: React.FC<Props> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
             <Keyboard className="w-3.5 h-3.5 text-slate-400" />
-            <span>⌨️ <strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
+            <span><strong className="font-semibold text-slate-800">Enter</strong>: Next item</span>
             <span aria-hidden="true" className="text-slate-300">·</span>
             <span><strong className="font-semibold text-teal-800">Ctrl + Enter</strong>: Submit</span>
           </div>
@@ -378,21 +400,29 @@ export const DailyLifeView: React.FC<Props> = ({
           {task.questions.map((q, qIdx) => {
             const userChoice = selectedAnswers[qIdx];
             const isCorrect = userChoice === q.answer;
+            const isQuestionChecked = submitted || Boolean(checkedQuestions[qIdx]);
             const skillBadge = getQuestionSkillBadge(q.questionType, q.q);
+            const rawHint = (q as any).hint;
+            const hintText =
+              typeof rawHint === 'string'
+                ? rawHint
+                : rawHint && typeof rawHint === 'object'
+                ? String(rawHint.text || rawHint.hint || rawHint.tip || rawHint.strategy || JSON.stringify(rawHint))
+                : String(skillBadge.strategy || '');
 
             return (
               <div
                 key={qIdx}
                 id={`dl-q-${qIdx}`}
                 className={`bg-white border rounded-xl p-5 shadow-xs transition-colors ${
-                  submitted
+                  isQuestionChecked
                     ? isCorrect
                       ? 'border-emerald-200 bg-emerald-50/20'
                       : 'border-rose-200 bg-rose-50/20'
                     : 'border-slate-200'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="flex items-center justify-center w-5 h-5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
                       {qIdx + 1}
@@ -401,7 +431,34 @@ export const DailyLifeView: React.FC<Props> = ({
                       {skillBadge.label}
                     </span>
                   </div>
+                  {coachMode && !submitted && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setOpenHints((prev) => ({ ...prev, [qIdx]: !prev[qIdx] }))}
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-colors cursor-pointer"
+                      >
+                        {openHints[qIdx] ? 'Hide Hint' : '💡 Coach Hint & Strategy'}
+                      </button>
+                      {userChoice !== undefined && !checkedQuestions[qIdx] && (
+                        <button
+                          type="button"
+                          onClick={() => setCheckedQuestions((prev) => ({ ...prev, [qIdx]: true }))}
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-teal-700 hover:bg-teal-800 text-white transition-colors cursor-pointer"
+                        >
+                          ✓ Check This Question
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {coachMode && openHints[qIdx] && !submitted && (
+                  <div className="mb-3 p-3 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-950 space-y-1">
+                    <div className="font-bold text-indigo-900">🎓 {skillBadge.label} Strategy:</div>
+                    <p className="text-indigo-900 leading-relaxed">{hintText}</p>
+                  </div>
+                )}
 
                 <p className="text-sm font-semibold text-slate-900 leading-snug mb-3">{q.q}</p>
 
@@ -413,7 +470,7 @@ export const DailyLifeView: React.FC<Props> = ({
                     let optionClasses =
                       'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70 text-slate-800';
 
-                    if (submitted) {
+                    if (isQuestionChecked) {
                       if (isRightOption) {
                         optionClasses = 'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium';
                       } else if (isSelected && !isRightOption) {
@@ -445,7 +502,7 @@ export const DailyLifeView: React.FC<Props> = ({
                   })}
                 </div>
 
-                {submitted && (
+                {isQuestionChecked && (
                   <div className="mt-3.5 pt-3 border-t border-slate-200/80 text-xs leading-relaxed">
                     <div className="flex items-start gap-1.5 text-slate-700">
                       <HelpCircle className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />

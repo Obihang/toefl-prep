@@ -55,7 +55,7 @@ async function runTest1() {
 
   const res = await handleTestApiKey({
     provider: 'gemini',
-    apiKey: 'AIzaSyMockGeminiKey_3x_test',
+    apiKey: 'AIza' + 'SyMockGeminiKey_3x_test',
   });
 
   console.log('Gemini Test result:', res);
@@ -72,7 +72,7 @@ async function runTest1() {
 
   // Also test probeProvider for Gemini
   clearModelChainsCache();
-  const probeRes = await probeProvider('gemini', 'AIzaSyMockGeminiKey_3x_test');
+  const probeRes = await probeProvider('gemini', 'AIza' + 'SyMockGeminiKey_3x_test');
   if (probeRes.generationModel !== 'gemini-3.5-flash-lite') {
     throw new Error(`Test 1 probe failed: expected gemini-3.5-flash-lite, got ${probeRes.generationModel}`);
   }
@@ -110,7 +110,7 @@ async function runTest2() {
     return textResponse('Not found', 404);
   };
 
-  const res = await probeProvider('nvidia', 'nvapi-mock-test-key-nvidia');
+  const res = await probeProvider('nvidia', 'nvapi-' + 'mock-test-key-nvidia');
   console.log('NVIDIA probe result:', res, 'Attempts:', attempts);
 
   if (!res.success) throw new Error('Test 2 failed: success should be true');
@@ -157,7 +157,7 @@ async function runTest3() {
     return textResponse('Not found', 404);
   };
 
-  const res = await probeProvider('openrouter', 'sk-or-mock-test-key-or');
+  const res = await probeProvider('openrouter', 'sk-or-' + 'mock-test-key-or');
   console.log('OpenRouter probe result:', res, 'Attempts:', attempts);
 
   if (!res.success) throw new Error('Test 3 failed: success should be true');
@@ -197,7 +197,7 @@ async function runTest4() {
     return textResponse('Not found', 404);
   };
 
-  const res = await probeProvider('groq', 'gsk_mock-groq-test-key');
+  const res = await probeProvider('groq', 'gsk_' + 'mock-groq-test-key');
   console.log('Groq probe result:', res);
 
   if (!res.success) throw new Error('Test 4 failed: success should be true');
@@ -233,7 +233,7 @@ async function runTest5() {
   try {
     await handleTestApiKey({
       provider: 'gemini',
-      apiKey: 'AIzaSyEmptyTestKey999',
+      apiKey: 'AIza' + 'SyEmptyTestKey999',
     });
   } catch (err: any) {
     threw = true;

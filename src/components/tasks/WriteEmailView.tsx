@@ -27,6 +27,7 @@ interface Props {
   onChangeWritingTimerRunning?: (running: boolean) => void;
   writingTimerSeconds?: number;
   onChangeWritingTimerSeconds?: (seconds: number) => void;
+  coachMode?: boolean;
 }
 
 const OFFICIAL_EMAIL_TIME_SECONDS = 420; // 7 minutes official ETS timing (PDF Page 14)
@@ -42,6 +43,7 @@ export const WriteEmailView: React.FC<Props> = ({
   onChangeWritingTimerRunning,
   writingTimerSeconds: externalTimerSeconds,
   onChangeWritingTimerSeconds,
+  coachMode = false,
 }) => {
   const defaultSubject = `Inquiry regarding ${task.title}`;
   const [subject, setSubject] = useState(defaultSubject);
@@ -50,22 +52,63 @@ export const WriteEmailView: React.FC<Props> = ({
   const [evalSeconds, setEvalSeconds] = useState(0);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [showCoachBlueprint, setShowCoachBlueprint] = useState(true);
 
-  // Official 7-Minute Timer (auto-starts by default unless user toggled Timer Off)
+  const coachBlueprint = React.useMemo(() => {
+    const bp = (task as any).coachBlueprint;
+    if (Array.isArray(bp) && bp.length > 0) return bp;
+    return [
+      {
+        stage: '1. Formal Salutation & Purpose',
+        purpose: 'Address the recipient politely and state your exact purpose in the opening sentence.',
+        starters: [
+          `Dear ${task.recipient.split(',')[0]},\n\nI am writing to formally inquire about `,
+          'I hope this email finds you well. I am reaching out regarding ',
+        ],
+      },
+      {
+        stage: '2. Goal 1 & Supporting Context',
+        purpose: `Address Goal 1: ${task.goals?.[0] || 'Provide background context clearly.'}`,
+        starters: [
+          'Specifically, I would like to explain that ',
+          'As a current student in the program, I noticed that ',
+        ],
+      },
+      {
+        stage: '3. Goal 2 & Specific Details',
+        purpose: `Address Goal 2: ${task.goals?.[1] || 'Elaborate on the second required point.'}`,
+        starters: [
+          'Furthermore, I would like to propose that ',
+          'In addition to this, it would be helpful to know whether ',
+        ],
+      },
+      {
+        stage: '4. Goal 3 & Courteous Sign-Off',
+        purpose: `Address Goal 3: ${task.goals?.[2] || 'Conclude with a polite next step.'}`,
+        starters: [
+          'Finally, could you please let me know ',
+          'Thank you very much for your time and consideration.\n\nSincerely,\nAlex Rivera',
+        ],
+      },
+    ];
+  }, [task]);
+
+  // Official 7-Minute Timer (auto-starts by default in Exam Mode; defaults to Off in Coach Mode)
   const [localTimerEnabled, setLocalTimerEnabled] = useState<boolean>(() => {
+    if (coachMode) return false;
     try {
       return localStorage.getItem('toefl_writing_timer_enabled') !== 'false';
     } catch {
       return true;
     }
   });
-  const isWritingTimerEnabled = externalTimerEnabled ?? localTimerEnabled;
+  const isWritingTimerEnabled = coachMode ? localTimerEnabled : (externalTimerEnabled ?? localTimerEnabled);
 
   const [localTimeLeft, setLocalTimeLeft] = useState(OFFICIAL_EMAIL_TIME_SECONDS);
   const [localTimerRunning, setLocalTimerRunning] = useState<boolean>(() => isWritingTimerEnabled);
 
   const timeLeft = externalTimerSeconds ?? localTimeLeft;
-  const isWritingTimerRunning = externalTimerRunning ?? localTimerRunning;
+  const isWritingTimerRunning = coachMode ? localTimerRunning : (externalTimerRunning ?? localTimerRunning);
 
   const setTimeLeft = (val: number | ((prev: number) => number)) => {
     const nextVal = typeof val === 'function' ? val(timeLeft) : val;
@@ -81,10 +124,12 @@ export const WriteEmailView: React.FC<Props> = ({
 
   const handleToggleTimerEnabled = (enabled: boolean) => {
     setLocalTimerEnabled(enabled);
-    try {
-      localStorage.setItem('toefl_writing_timer_enabled', enabled ? 'true' : 'false');
-    } catch {}
-    onToggleWritingTimer?.(enabled);
+    if (!coachMode) {
+      try {
+        localStorage.setItem('toefl_writing_timer_enabled', enabled ? 'true' : 'false');
+      } catch {}
+      onToggleWritingTimer?.(enabled);
+    }
     if (enabled) {
       if (timeLeft <= 0) {
         setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
@@ -96,14 +141,21 @@ export const WriteEmailView: React.FC<Props> = ({
   };
 
   useEffect(() => {
+    if (coachMode) {
+      setLocalTimerEnabled(false);
+      setLocalTimerRunning(false);
+    }
+  }, [coachMode, task.id]);
+
+  useEffect(() => {
     let timer: any = null;
-    if (isWritingTimerEnabled && isWritingTimerRunning && timeLeft > 0 && externalTimerSeconds === undefined) {
+    if (isWritingTimerEnabled && isWritingTimerRunning && timeLeft > 0 && (coachMode || externalTimerSeconds === undefined)) {
       timer = setInterval(() => {
         setLocalTimeLeft((prev) => (prev <= 1 ? 0 : prev - 1));
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [isWritingTimerEnabled, isWritingTimerRunning, timeLeft, externalTimerSeconds]);
+  }, [isWritingTimerEnabled, isWritingTimerRunning, timeLeft, externalTimerSeconds, coachMode]);
 
   useEffect(() => {
     let interval: any = null;
@@ -120,7 +172,7 @@ export const WriteEmailView: React.FC<Props> = ({
     setSubject(`Inquiry regarding ${task.title}`);
     setBody('');
     setTimeLeft(OFFICIAL_EMAIL_TIME_SECONDS);
-    setIsWritingTimerRunning(isWritingTimerEnabled);
+    setIsWritingTimerRunning(coachMode ? false : isWritingTimerEnabled);
     setIsEvaluating(false);
     setEvalResult(null);
     setEvalError(null);
@@ -128,7 +180,7 @@ export const WriteEmailView: React.FC<Props> = ({
       const draftStorageKey = `toefl_draft_write_email_${task.id || task.title}`;
       localStorage.removeItem(draftStorageKey);
     } catch {}
-  }, [task.id, task.title]);
+  }, [task.id, task.title, coachMode]);
 
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -364,6 +416,68 @@ export const WriteEmailView: React.FC<Props> = ({
 
         {/* Email Client Composer */}
         <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3.5">
+          {coachMode && (
+            <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider">
+                  🎓 Step-by-Step Writing Coach &amp; Sentence Starters
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowCoachBlueprint((v) => !v)}
+                  className="text-[11px] font-semibold text-indigo-700 hover:text-indigo-950 underline cursor-pointer"
+                >
+                  {showCoachBlueprint ? 'Collapse Guide' : 'Expand Guide'}
+                </button>
+              </div>
+              {showCoachBlueprint && (
+                <div className="space-y-2.5">
+                  {coachBlueprint.map((step: any, sIdx: number) => {
+                    const stepTitle = String(step.stage || step.step || step.title || `Stage ${sIdx + 1}`);
+                    const stepDesc = String(step.purpose || step.description || '');
+                    const rawStarters = Array.isArray(step.starters) ? step.starters : [];
+
+                    return (
+                      <div key={sIdx} className="bg-white/90 border border-indigo-100 rounded-lg p-3 space-y-1.5">
+                        <div className="text-xs font-bold text-indigo-950">{stepTitle}</div>
+                        {stepDesc && <p className="text-[11px] text-slate-600 leading-snug">{stepDesc}</p>}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {rawStarters.map((st: any, stIdx: number) => {
+                            const starterText =
+                              typeof st === 'string'
+                                ? st
+                                : st && typeof st === 'object'
+                                ? String(st.text || st.starter || st.label || JSON.stringify(st))
+                                : String(st || '');
+                            if (!starterText) return null;
+
+                            return (
+                              <button
+                                key={stIdx}
+                                type="button"
+                                onClick={() =>
+                                  setBody((prev) =>
+                                    prev.trim()
+                                      ? `${prev.replace(/\s+$/, '')} ${starterText}`
+                                      : starterText
+                                  )
+                                }
+                                className="text-left text-[11px] bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 px-2.5 py-1 rounded-md transition-colors cursor-pointer font-medium"
+                                title="Click to insert sentence starter into your draft"
+                              >
+                                + &ldquo;{starterText.replace(/\n+/g, ' ')}&rdquo;
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2 pb-2 border-b border-slate-100 text-xs">
             <div className="flex items-center gap-2">
               <span className="w-16 text-slate-400 font-medium">To:</span>

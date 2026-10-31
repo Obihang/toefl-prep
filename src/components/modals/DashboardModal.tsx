@@ -22,6 +22,7 @@ import {
 import { getVocabularyWords, saveVocabularyWord as saveVocabRemote, deleteVocabularyWord as deleteVocabRemote, VocabularyWord } from '../../utils/vocabulary';
 import { getVocabularyList, saveVocabularyWord as saveVocabLocal, removeVocabularyWord as removeVocabLocal } from '../../utils/vocabularyStore';
 import { getQuestionCountsPerTaskType } from '../../utils/questionBankStorage';
+import { getMockExamSetsCount } from '../../utils/examStorage';
 
 interface Props {
   isOpen: boolean;
@@ -30,6 +31,7 @@ interface Props {
   openRubrics: () => void;
   defaultTab?: 'dashboard' | 'goals' | 'settings' | 'vocabulary' | 'mistakes';
   currentTaskType?: string;
+  practiceMode?: 'exam' | 'coach';
   onNavigateToTask?: (sectionOrTask: string) => void;
   onResetProgress?: () => void;
 }
@@ -41,6 +43,7 @@ export const DashboardModal: React.FC<Props> = ({
   openRubrics,
   defaultTab = 'dashboard',
   currentTaskType,
+  practiceMode = 'exam',
   onNavigateToTask,
   onResetProgress,
 }) => {
@@ -76,6 +79,9 @@ export const DashboardModal: React.FC<Props> = ({
     'speaking-interview': 0,
   });
   const [loadingQuestionCounts, setLoadingQuestionCounts] = useState(false);
+  const [mockExamSetsCount, setMockExamSetsCount] = useState<number>(3);
+  const [examBankTotal, setExamBankTotal] = useState<number>(0);
+  const [coachBankTotal, setCoachBankTotal] = useState<number>(0);
 
   useEffect(() => {
     if (defaultTab) {
@@ -86,10 +92,18 @@ export const DashboardModal: React.FC<Props> = ({
   useEffect(() => {
     let mounted = true;
     setLoadingQuestionCounts(true);
-    getQuestionCountsPerTaskType()
-      .then((counts) => {
+    Promise.all([
+      getQuestionCountsPerTaskType(practiceMode),
+      getQuestionCountsPerTaskType('exam'),
+      getQuestionCountsPerTaskType('coach'),
+      getMockExamSetsCount(),
+    ])
+      .then(([counts, examCounts, coachCounts, setsCount]) => {
         if (mounted) {
           setQuestionCounts(counts);
+          setExamBankTotal(Object.values(examCounts).reduce((a, b) => a + b, 0));
+          setCoachBankTotal(Object.values(coachCounts).reduce((a, b) => a + b, 0));
+          setMockExamSetsCount(setsCount);
           setLoadingQuestionCounts(false);
         }
       })
@@ -99,7 +113,7 @@ export const DashboardModal: React.FC<Props> = ({
     return () => {
       mounted = false;
     };
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, practiceMode]);
 
   useEffect(() => {
     const loadUserData = () => {
@@ -222,12 +236,25 @@ export const DashboardModal: React.FC<Props> = ({
               <p className="text-xs text-slate-500">Track performance, manage study goals, and configure preferences</p>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-1.5 mr-2">
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+                🎯 Exam Bank: {examBankTotal || totalBankCount}
+              </span>
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                🎓 Coach Bank: {coachBankTotal}
+              </span>
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                📚 Full Mock Exam Sets: {mockExamSetsCount} Sets
+              </span>
+            </div>
+            <button 
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs Bar - flex-shrink-0, sticky, solid background, z-20, pb-2 so bottom labels/focus rings are never clipped */}
@@ -341,9 +368,12 @@ export const DashboardModal: React.FC<Props> = ({
               setTestDateInput={setTestDateInput}
               setWeeklyGoalInput={setWeeklyGoalInput}
               handleSaveGoals={handleSaveGoals}
+              mockExamSetsCount={mockExamSetsCount}
+              examBankTotal={examBankTotal}
+              coachBankTotal={coachBankTotal}
             />
           )}
-          {activeTab === 'settings' && <SettingsTab currentTaskType={currentTaskType} />}
+          {activeTab === 'settings' && <SettingsTab currentTaskType={currentTaskType} practiceMode={practiceMode} />}
           {activeTab === 'vocabulary' && (
             <VocabularyTab
               vocab={vocab}

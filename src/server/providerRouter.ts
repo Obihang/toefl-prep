@@ -54,29 +54,31 @@ export function collectAvailableProviders(options?: ApiCallOptions): ProviderCan
   }
 
   // 4. Server environment variables
-  if (!map.has('gemini') && process.env.GEMINI_API_KEY) {
-    map.set('gemini', process.env.GEMINI_API_KEY.trim());
-  }
-  if (!map.has('groq') && process.env.GROQ_API_KEY) {
-    map.set('groq', process.env.GROQ_API_KEY.trim());
-  }
-  if (!map.has('openai') && process.env.OPENAI_API_KEY) {
-    map.set('openai', process.env.OPENAI_API_KEY.trim());
-  }
-  if (!map.has('anthropic') && process.env.ANTHROPIC_API_KEY) {
-    map.set('anthropic', process.env.ANTHROPIC_API_KEY.trim());
-  }
-  if (!map.has('openrouter') && process.env.OPENROUTER_API_KEY) {
-    map.set('openrouter', process.env.OPENROUTER_API_KEY.trim());
-  }
-  if (!map.has('nvidia') && process.env.NVIDIA_API_KEY) {
-    map.set('nvidia', process.env.NVIDIA_API_KEY.trim());
-  }
-  if (!map.has('deepseek') && process.env.DEEPSEEK_API_KEY) {
-    map.set('deepseek', process.env.DEEPSEEK_API_KEY.trim());
-  }
-  if (!map.has('xai') && process.env.XAI_API_KEY) {
-    map.set('xai', process.env.XAI_API_KEY.trim());
+  if (process.env.ALLOW_SERVER_ENV_KEYS === 'true' || process.env.NODE_ENV !== 'production') {
+    if (!map.has('gemini') && process.env.GEMINI_API_KEY) {
+      map.set('gemini', process.env.GEMINI_API_KEY.trim());
+    }
+    if (!map.has('groq') && process.env.GROQ_API_KEY) {
+      map.set('groq', process.env.GROQ_API_KEY.trim());
+    }
+    if (!map.has('openai') && process.env.OPENAI_API_KEY) {
+      map.set('openai', process.env.OPENAI_API_KEY.trim());
+    }
+    if (!map.has('anthropic') && process.env.ANTHROPIC_API_KEY) {
+      map.set('anthropic', process.env.ANTHROPIC_API_KEY.trim());
+    }
+    if (!map.has('openrouter') && process.env.OPENROUTER_API_KEY) {
+      map.set('openrouter', process.env.OPENROUTER_API_KEY.trim());
+    }
+    if (!map.has('nvidia') && process.env.NVIDIA_API_KEY) {
+      map.set('nvidia', process.env.NVIDIA_API_KEY.trim());
+    }
+    if (!map.has('deepseek') && process.env.DEEPSEEK_API_KEY) {
+      map.set('deepseek', process.env.DEEPSEEK_API_KEY.trim());
+    }
+    if (!map.has('xai') && process.env.XAI_API_KEY) {
+      map.set('xai', process.env.XAI_API_KEY.trim());
+    }
   }
 
   const isAutoSingle = map.size === 1 && (!opts.provider || opts.provider.toLowerCase() === 'auto');

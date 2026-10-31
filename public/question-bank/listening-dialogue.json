@@ -26,25 +26,27 @@
           "audioExcerpt": "Professor Miller: Relying only on self-reported sleep logs can be pretty inaccurate, though.",
           "questionType": "Speaker's Purpose / Function",
           "options": [
-            "To point out that freshmen and seniors take completely different types of exams.",
             "To warn that students often estimate their own sleep hours inaccurately on logs.",
+            "To point out that freshmen and seniors take completely different types of exams.",
             "To explain that the psychology department has already funded a similar study.",
             "To suggest that wearable fitness trackers are too expensive for undergraduate projects."
           ],
-          "answer": 1,
-          "why": "Professor Miller says this to point out the methodological flaw of relying solely on self-reported sleep logs, since students often guess their sleep hours."
+          "answer": 0,
+          "why": "Professor Miller says this to point out the methodological flaw of relying solely on self-reported sleep logs, since students often guess their sleep hours.",
+          "correctAnswer": 0
         },
         {
           "q": "What will the student most likely do next?",
           "questionType": "Inference / Implied Meaning",
           "options": [
             "Cancel her study and choose a new psychology topic.",
-            "Begin distributing paper questionnaires in the freshmen dormitories.",
             "Revise her ethics approval form to include wearable tracker data.",
+            "Begin distributing paper questionnaires in the freshmen dormitories.",
             "Purchase fitness trackers from an off-campus electronics store."
           ],
-          "answer": 2,
-          "why": "At the end of the conversation, the professor instructs Emma to update her ethics form first so he can sign it tomorrow."
+          "answer": 1,
+          "why": "At the end of the conversation, the professor instructs Emma to update her ethics form first so he can sign it tomorrow.",
+          "correctAnswer": 1
         }
       ],
       "difficulty": "upper-intermediate"
@@ -78,24 +80,26 @@
           "questionType": "Inference / Implied Meaning",
           "options": [
             "The textbook is missing several pages from the chapter on Gothic cathedrals.",
-            "The student cannot take the reserve copy home overnight to his apartment.",
             "The book is only available to graduate students in architecture.",
+            "The student cannot take the reserve copy home overnight to his apartment.",
             "The student must submit an interlibrary loan form to read the book."
           ],
-          "answer": 1,
-          "why": "By stating that reserve books stay in the library for three-hour loans only, Ms. Rivera implies Lucas cannot borrow it overnight."
+          "answer": 2,
+          "why": "By stating that reserve books stay in the library for three-hour loans only, Ms. Rivera implies Lucas cannot borrow it overnight.",
+          "correctAnswer": 2
         },
         {
           "q": "Why does the student urgently need the textbook?",
           "questionType": "Detail",
           "options": [
-            "He has to complete a seminar summary due on Wednesday morning.",
+            "He needs to photocopy the bibliography for Professor Chen.",
             "He lost the copy he borrowed earlier in the semester.",
             "He is preparing slides for a guest lecture on Friday.",
-            "He needs to photocopy the bibliography for Professor Chen."
+            "He has to complete a seminar summary due on Wednesday morning."
           ],
-          "answer": 0,
-          "why": "Lucas mentions that his seminar summary is due this Wednesday morning."
+          "answer": 3,
+          "why": "Lucas mentions that his seminar summary is due this Wednesday morning.",
+          "correctAnswer": 3
         }
       ],
       "difficulty": "intermediate"
@@ -127,13 +131,14 @@
           "q": "According to the professor, why does a coral expel its symbiotic algae during heat stress?",
           "questionType": "Detail",
           "options": [
-            "To make room for cold-water bacteria in its skeleton.",
             "Because the heat-damaged algae begin producing toxic oxygen molecules.",
+            "To make room for cold-water bacteria in its skeleton.",
             "To attract predatory fish that clean the reef surface.",
             "Because the algae consume too much calcium carbonate."
           ],
-          "answer": 1,
-          "why": "Dr. Vance explains that heat stress damages the algae's photosynthetic process, causing them to release toxic oxygen molecules that threaten the coral's tissue."
+          "answer": 0,
+          "why": "Dr. Vance explains that heat stress damages the algae's photosynthetic process, causing them to release toxic oxygen molecules that threaten the coral's tissue.",
+          "correctAnswer": 0
         },
         {
           "q": "What does the professor imply when he says this?",
@@ -146,7 +151,8 @@
             "Bleaching only occurs in shallow freshwater lakes."
           ],
           "answer": 1,
-          "why": "Dr. Vance implies that coral bleaching is not immediately fatal and can be reversed if water temperatures cool quickly."
+          "why": "Dr. Vance implies that coral bleaching is not immediately fatal and can be reversed if water temperatures cool quickly.",
+          "correctAnswer": 1
         }
       ],
       "difficulty": "advanced"
@@ -180,12 +186,13 @@
           "questionType": "Speaker's Purpose / Function",
           "options": [
             "To explain that the main boiler in Oak Hall has been turned off for the season.",
-            "To provide a likely diagnosis for why the student's radiator is completely cold.",
             "To scold the student for leaving the window above the radiator open overnight.",
+            "To provide a likely diagnosis for why the student's radiator is completely cold.",
             "To suggest that the thermostat on the third floor needs new batteries."
           ],
-          "answer": 1,
-          "why": "Ms. O'Connor says this to explain the probable technical cause of the cold radiator based on Daniel's description."
+          "answer": 2,
+          "why": "Ms. O'Connor says this to explain the probable technical cause of the cold radiator based on Daniel's description.",
+          "correctAnswer": 2
         },
         {
           "q": "What must the student do before leaving the housing office?",
@@ -193,11 +200,12 @@
           "options": [
             "Pay a maintenance fee for the replacement valve.",
             "Wait in his dorm room until four o'clock.",
-            "Sign an entry waiver allowing the technician into his room.",
-            "Borrow a portable space heater from the front desk."
+            "Borrow a portable space heater from the front desk.",
+            "Sign an entry waiver allowing the technician into his room."
           ],
-          "answer": 2,
-          "why": "Ms. O'Connor tells Daniel that he does not need to stay in his room if he signs the entry waiver."
+          "answer": 3,
+          "why": "Ms. O'Connor tells Daniel that he does not need to stay in his room if he signs the entry waiver.",
+          "correctAnswer": 3
         }
       ],
       "difficulty": "beginner"
@@ -230,13 +238,14 @@
           "audioExcerpt": "Professor Lindqvist: That's a fascinating period, Hannah, but it's far too broad for ten pages.",
           "questionType": "Speaker's Purpose / Function",
           "options": [
-            "To inform her that fifteenth-century frescoes are not covered in the course syllabus.",
             "To encourage her to narrow the scope of her research paper topic.",
+            "To inform her that fifteenth-century frescoes are not covered in the course syllabus.",
             "To warn her that there are no translated sources on Italian frescoes in the library.",
             "To let her know another student in the seminar already selected the same topic."
           ],
-          "answer": 1,
-          "why": "Professor Lindqvist says this to guide Hannah toward narrowing her overly broad topic so it fits a ten-page term paper."
+          "answer": 0,
+          "why": "Professor Lindqvist says this to guide Hannah toward narrowing her overly broad topic so it fits a ten-page term paper.",
+          "correctAnswer": 0
         },
         {
           "q": "What source does the professor recommend the student consult?",
@@ -248,7 +257,8 @@
             "Audio recordings from last semester's guest lecture."
           ],
           "answer": 1,
-          "why": "At the end of the conversation, Professor Lindqvist recommends checking the museum conservation bulletins in the digital art archive."
+          "why": "At the end of the conversation, Professor Lindqvist recommends checking the museum conservation bulletins in the digital art archive.",
+          "correctAnswer": 1
         }
       ],
       "difficulty": "upper-intermediate"
@@ -282,12 +292,13 @@
           "questionType": "Speaker's Purpose / Function",
           "options": [
             "To ask if he received a low grade on the final lab report.",
-            "To point out that his relevant technical project should be featured more prominently.",
             "To check whether he has finished analyzing the fifteen stream samples.",
+            "To point out that his relevant technical project should be featured more prominently.",
             "To suggest that he remove the hydrology project from his resume."
           ],
-          "answer": 1,
-          "why": "Career Coach Brenda asks why the hydrology project is buried at the bottom to prompt Alex to move his most relevant engineering experience higher up."
+          "answer": 2,
+          "why": "Career Coach Brenda asks why the hydrology project is buried at the bottom to prompt Alex to move his most relevant engineering experience higher up.",
+          "correctAnswer": 2
         },
         {
           "q": "What does the career advisor suggest the student include in his project description?",
@@ -295,11 +306,12 @@
           "options": [
             "The names of the other students in his lab group.",
             "A letter of reference from his bookstore manager.",
-            "Specific details about the GIS software and number of stream samples analyzed.",
-            "A list of all introductory courses he took during freshman year."
+            "A list of all introductory courses he took during freshman year.",
+            "Specific details about the GIS software and number of stream samples analyzed."
           ],
-          "answer": 2,
-          "why": "Career Coach Brenda advises him to mention the water-quality/GIS software and include the exact number of stream samples (fifteen) in his first bullet point."
+          "answer": 3,
+          "why": "Career Coach Brenda advises him to mention the water-quality/GIS software and include the exact number of stream samples (fifteen) in his first bullet point.",
+          "correctAnswer": 3
         }
       ],
       "difficulty": "intermediate"
@@ -331,26 +343,28 @@
           "q": "Why does the student want to reduce her campus meal plan?",
           "questionType": "Gist / Main Idea",
           "options": [
-            "The main dining hall is too far from her dormitory.",
             "She eats breakfast in her suite before her morning biology labs.",
+            "The main dining hall is too far from her dormitory.",
             "She is moving off campus at the end of the month.",
             "The dining hall stopped serving vegetarian options."
           ],
-          "answer": 1,
-          "why": "Chloe explains that because of her morning biology labs, she usually prepares breakfast in her suite and does not use all her swipes."
+          "answer": 0,
+          "why": "Chloe explains that because of her morning biology labs, she usually prepares breakfast in her suite and does not use all her swipes.",
+          "correctAnswer": 0
         },
         {
           "q": "What does the coordinator imply when he says this?",
           "audioExcerpt": "Mr. Grant: Good timing—tomorrow is actually the final day to downgrade plans without a fee.",
           "questionType": "Inference / Implied Meaning",
           "options": [
-            "The student will be charged a penalty fee if she waits until next week to switch.",
             "The dining hall will close permanently after tomorrow.",
+            "The student will be charged a penalty fee if she waits until next week to switch.",
             "Students are not allowed to change meal plans during the autumn semester.",
             "The difference in cost will be mailed to her parents as a paper check."
           ],
-          "answer": 0,
-          "why": "By noting that tomorrow is the final day to downgrade without a fee, Mr. Grant implies that waiting longer would incur a fee."
+          "answer": 1,
+          "why": "By noting that tomorrow is the final day to downgrade without a fee, Mr. Grant implies that waiting longer would incur a fee.",
+          "correctAnswer": 1
         }
       ],
       "difficulty": "beginner"
@@ -383,13 +397,14 @@
           "audioExcerpt": "Dr. Patel: Three people per coring tube gets crowded on the narrow boardwalk.",
           "questionType": "Speaker's Purpose / Function",
           "options": [
-            "To explain why she does not want the student to join an existing pair.",
-            "To warn that all of the other pairs have already completed their wetland sampling.",
             "To apologize for not having enough protective boots for three students.",
+            "To warn that all of the other pairs have already completed their wetland sampling.",
+            "To explain why she does not want the student to join an existing pair.",
             "To remind him that university rules prohibit groups larger than two in lectures."
           ],
-          "answer": 0,
-          "why": "Dr. Patel says this to explain the practical reason why Noah should not join an existing two-person group on the narrow wetland boardwalk."
+          "answer": 2,
+          "why": "Dr. Patel says this to explain the practical reason why Noah should not join an existing two-person group on the narrow wetland boardwalk.",
+          "correctAnswer": 2
         },
         {
           "q": "What does the professor allow Noah and Priya to do?",
@@ -397,11 +412,12 @@
           "options": [
             "Submit a single joint lab report for both sections.",
             "Postpone their wetland trip until the following weekend.",
-            "Collect soil measurements together and write separate reports.",
-            "Analyze archived soil samples in the indoor lab instead."
+            "Analyze archived soil samples in the indoor lab instead.",
+            "Collect soil measurements together and write separate reports."
           ],
-          "answer": 2,
-          "why": "Dr. Patel tells Noah that he and Priya can collect and share the raw measurements on Saturday and then write their lab reports independently."
+          "answer": 3,
+          "why": "Dr. Patel tells Noah that he and Priya can collect and share the raw measurements on Saturday and then write their lab reports independently.",
+          "correctAnswer": 3
         }
       ],
       "difficulty": "intermediate"
@@ -434,25 +450,27 @@
           "audioExcerpt": "Mr. Brooks: That's completely fine—we run a hands-on training workshop this Thursday evening.",
           "questionType": "Inference / Implied Meaning",
           "options": [
-            "Only theater majors are permitted to operate the lighting console.",
             "Prior experience is not required to volunteer for the lighting crew.",
+            "Only theater majors are permitted to operate the lighting console.",
             "Volunteers must purchase their own toolkits before Thursday.",
             "Assistants must attend every rehearsal starting this week."
           ],
-          "answer": 1,
-          "why": "When Sofia mentions she has never operated a lighting board, Mr. Brooks reassures her that it is fine because training is provided."
+          "answer": 0,
+          "why": "When Sofia mentions she has never operated a lighting board, Mr. Brooks reassures her that it is fine because training is provided.",
+          "correctAnswer": 0
         },
         {
           "q": "When will the student be required to attend rehearsals?",
           "questionType": "Detail",
           "options": [
             "Every Tuesday and Thursday afternoon throughout the semester.",
-            "Only on opening night of the autumn play.",
             "During the final dress rehearsals in tech week in November.",
+            "Only on opening night of the autumn play.",
             "Every weekend morning starting in October."
           ],
-          "answer": 2,
-          "why": "Mr. Brooks specifies that she only needs to attend the final dress rehearsals during tech week in November."
+          "answer": 1,
+          "why": "Mr. Brooks specifies that she only needs to attend the final dress rehearsals during tech week in November.",
+          "correctAnswer": 1
         }
       ],
       "difficulty": "intermediate"
@@ -486,12 +504,13 @@
           "questionType": "Speaker's Purpose / Function",
           "options": [
             "To explain that the syllabus prohibits missing class for extracurricular events.",
-            "To explain why simply moving his current presentation topic to another week is problematic.",
             "To point out that there are no remaining class sessions left in the semester.",
+            "To explain why simply moving his current presentation topic to another week is problematic.",
             "To remind him that he has already rescheduled his presentation once before."
           ],
-          "answer": 1,
-          "why": "Professor Chen says this to explain why Ethan cannot simply present his central bank topic on a different date."
+          "answer": 2,
+          "why": "Professor Chen says this to explain why Ethan cannot simply present his central bank topic on a different date.",
+          "correctAnswer": 2
         },
         {
           "q": "How is the scheduling conflict resolved?",
@@ -499,11 +518,12 @@
           "options": [
             "Ethan will record a video of his presentation before leaving on Monday.",
             "The debate tournament was moved to the following weekend.",
-            "Ethan will swap presentation dates and topics with his classmate Rachel.",
-            "Professor Chen will lecture on central bank rates in Ethan's place."
+            "Professor Chen will lecture on central bank rates in Ethan's place.",
+            "Ethan will swap presentation dates and topics with his classmate Rachel."
           ],
-          "answer": 2,
-          "why": "Ethan explains that he spoke with Rachel, who agreed to swap dates and present on Tuesday while he presents on microfinance in Week Eight."
+          "answer": 3,
+          "why": "Ethan explains that he spoke with Rachel, who agreed to swap dates and present on Tuesday while he presents on microfinance in Week Eight.",
+          "correctAnswer": 3
         }
       ],
       "difficulty": "advanced"

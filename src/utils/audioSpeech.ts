@@ -218,8 +218,8 @@ export function stripSpeakerAndFormatting(text: string): string {
   // 4. Strip parenthesized stage directions e.g. (pauses), (laughs), (clears throat)
   cleaned = cleaned.replace(/\((?:pauses?|sighs?|laughs?|chuckles?|clears throat|applause|cheering|coughing|sound|music|gasp|whispering|shouting|silence|interrupted)\)/gi, ' ');
 
-  // 5. Strip markdown formatting (*, **, _, __, #, `, >)
-  cleaned = cleaned.replace(/[*_#`>]+/g, ' ');
+  // 5. Strip markdown formatting and prosody chunking bars (*, **, _, __, #, `, >, |)
+  cleaned = cleaned.replace(/[*_#`>|]+/g, ' ');
 
   // 6. Clean up whitespace
   return cleaned.replace(/\s+/g, ' ').trim();
@@ -769,7 +769,7 @@ export async function playDecodedSpeech(
 
   return new Promise<void>((resolve, reject) => {
     let finished = false;
-    const durationSec = audioBuffer.duration || 1;
+    const durationSec = (audioBuffer.duration || 1) / Math.max(0.5, playbackRate || 1.0);
     const timeoutMs = Math.round(durationSec * 1000) + 1500;
 
     const cleanup = () => {
@@ -808,112 +808,6 @@ export async function playDecodedSpeech(
   });
 }
 
-// Persistent Microphone Stream Retention
-let activeMicStream: MediaStream | null = null;
-let micIdleTimer: any = null;
-
-function resetMicIdleTimer() {
-  if (micIdleTimer) clearTimeout(micIdleTimer);
-  micIdleTimer = setTimeout(() => {
-    releaseMicStream();
-  }, 60000);
-}
-
-function handleMicVisibilityChange() {
-  if (document.hidden) {
-    releaseMicStream();
-  }
-}
-
-/**
- * Routes MediaStream through High-Pass (95 Hz) + Low-Pass (7000 Hz) + Dynamics Compressor Web Audio graph.
- */
-export function createFilteredVoiceStream(rawStream: MediaStream): { stream: MediaStream; cleanup: () => void } {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return { stream: rawStream, cleanup: () => {} };
-
-    const ctx = new AudioCtx();
-    const source = ctx.createMediaStreamSource(rawStream);
-
-    // High-pass filter at 95 Hz (removes low-frequency fan & AC rumble)
-    const highPass = ctx.createBiquadFilter();
-    highPass.type = 'highpass';
-    highPass.frequency.setValueAtTime(95, ctx.currentTime);
-
-    // Low-pass filter at 7000 Hz (removes high-frequency hiss/static)
-    const lowPass = ctx.createBiquadFilter();
-    lowPass.type = 'lowpass';
-    lowPass.frequency.setValueAtTime(7000, ctx.currentTime);
-
-    // Dynamics compressor for close-talk voice leveling
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.setValueAtTime(-24, ctx.currentTime);
-    compressor.knee.setValueAtTime(12, ctx.currentTime);
-    compressor.ratio.setValueAtTime(4, ctx.currentTime);
-    compressor.attack.setValueAtTime(0.003, ctx.currentTime);
-    compressor.release.setValueAtTime(0.25, ctx.currentTime);
-
-    const destination = ctx.createMediaStreamDestination();
-
-    source.connect(highPass);
-    highPass.connect(lowPass);
-    lowPass.connect(compressor);
-    compressor.connect(destination);
-
-    const cleanup = () => {
-      try {
-        source.disconnect();
-        highPass.disconnect();
-        lowPass.disconnect();
-        compressor.disconnect();
-        if (ctx.state !== 'closed') ctx.close().catch(() => {});
-      } catch {}
-    };
-
-    return { stream: destination.stream, cleanup };
-  } catch {
-    return { stream: rawStream, cleanup: () => {} };
-  }
-}
-
-export async function getMicStream(): Promise<MediaStream> {
-  if (activeMicStream && activeMicStream.active) {
-    resetMicIdleTimer();
-    return activeMicStream;
-  }
-
-  const rawStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      channelCount: 1,
-      sampleRate: 16000,
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: false, // Prevents boosting distant background voices/noise when using earphones
-    },
-  });
-
-  const { stream } = createFilteredVoiceStream(rawStream);
-  activeMicStream = stream;
-
-  if (typeof document !== 'undefined') {
-    document.removeEventListener('visibilitychange', handleMicVisibilityChange);
-    document.addEventListener('visibilitychange', handleMicVisibilityChange);
-  }
-
-  resetMicIdleTimer();
-  return activeMicStream;
-}
-
-export function releaseMicStream() {
-  if (micIdleTimer) clearTimeout(micIdleTimer);
-  if (activeMicStream) {
-    try {
-      activeMicStream.getTracks().forEach((track) => track.stop());
-    } catch {}
-    activeMicStream = null;
-  }
-}
 
 // TTS Daily Limit Tracker & Circuit Breaker
 const TTS_SUCCESS_COUNT_KEY = 'toefl_tts_success_count';
@@ -1191,7 +1085,7 @@ export async function playSpeech(
         options.onStatus?.('Voice: Cached (Neural TTS)');
         options.onEngineDetected?.('Voice: Cached (Neural TTS)');
         options.onStart?.();
-        await playDecodedSpeech(fullMemHit, options.onEnd);
+        await playDecodedSpeech(fullMemHit, options.onEnd, undefined, options.rate || 1.0);
         return { ok: true };
       }
       return { ok: false, reason: 'Session cancelled or changed', cancelled: true };
@@ -1235,7 +1129,9 @@ export async function playSpeech(
         const isLastChunk = cIdx === chunks.length - 1;
         await playDecodedSpeech(
           currentResult.audioBuffer,
-          isLastChunk ? options.onEnd : undefined
+          isLastChunk ? options.onEnd : undefined,
+          undefined,
+          options.rate || 1.0
         );
       }
 

@@ -25,13 +25,13 @@
       {
         "q": "What requirement must students meet to enter the library after 10:00 PM?",
         "options": [
-          "Present a valid student identification card at the West entrance",
           "Reserve a designated study carrel 24 hours in advance",
+          "Present a valid student identification card at the West entrance",
           "Register with the campus night security desk by phone",
           "Pay a late-night facility fee at the circulation desk"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The notice clearly specifies that 'Student ID card swipe access is required after 10:00 PM at the West entrance only.'",
         "questionType": "factual_detail"
       }
@@ -50,13 +50,13 @@
       {
         "q": "Why did Oakridge Student Living Management send this email to residents?",
         "options": [
-          "To notify residents of an upcoming mandatory apartment maintenance and safety inspection",
-          "To announce a monthly rent increase for suites with privately modified locks",
           "To prohibit residents from keeping household pets inside student apartments",
+          "To announce a monthly rent increase for suites with privately modified locks",
+          "To notify residents of an upcoming mandatory apartment maintenance and safety inspection",
           "To offer optional air-conditioning upgrades for the winter semester"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The email informs residents that maintenance technicians will enter suites on October 18 to replace HVAC filters and test smoke alarms.",
         "questionType": "main_purpose"
       },
@@ -64,25 +64,25 @@
         "q": "What are residents instructed to do regarding their pets during the maintenance visit?",
         "options": [
           "Remove them from the apartment premises entirely for the entire day",
-          "Secure them inside a bedroom or an enclosed travel crate",
+          "Register them with the building manager before 9:00 AM",
           "Leave them in the main living room with food and water",
-          "Register them with the building manager before 9:00 AM"
+          "Secure them inside a bedroom or an enclosed travel crate"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The email explicitly requests: 'please ensure all household pets are secured in a bedroom or travel crate.'",
         "questionType": "factual_detail"
       },
       {
         "q": "What can be inferred about apartments with privately modified deadbolt locks?",
         "options": [
-          "They are exempt from the semi-annual smoke detector inspection",
           "Technicians may be unable to enter them using standard master keys unless the leasing office is notified",
+          "They are exempt from the semi-annual smoke detector inspection",
           "Residents in those units will be evicted immediately",
           "Their air intake filters were already replaced last month"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "Because technicians must enter all suites even when residents are not home, a privately modified deadbolt lock would prevent standard key entry unless coordinated with the leasing office.",
         "questionType": "inference"
       }
@@ -101,13 +101,13 @@
       {
         "q": "Why is Marcus unable to meet at the campus cafe at 3:00 PM?",
         "options": [
-          "He must complete another laboratory class until 3:30 PM",
           "He has to work a shift at the campus library",
+          "He must complete another laboratory class until 3:30 PM",
           "He has an advising appointment with Dr. Alvarez",
           "He needs to finish analyzing the microplastic data"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "Marcus explicitly states: 'I have organic chemistry lab until 3:30 PM.'",
         "questionType": "factual_detail"
       },
@@ -115,12 +115,12 @@
         "q": "What does Sam mean by the informal phrase 'crunch the lab sample numbers'?",
         "options": [
           "Delete inaccurate measurements from the laboratory notebook",
-          "Process and analyze the quantitative data from the water samples",
           "Collect additional water specimens from the local watershed",
+          "Process and analyze the quantitative data from the water samples",
           "Print physical copies of the grading rubric for the group"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "In informal usage, 'crunch the numbers' means to calculate, process, and analyze numerical data.",
         "questionType": "idiomatic_meaning"
       },
@@ -129,11 +129,11 @@
         "options": [
           "To request an extension on a laboratory assignment deadline",
           "To debate scientific findings regarding local watershed contamination",
-          "To coordinate research tasks and schedule a group meeting time",
-          "To complain about the professor's strict grading expectations"
+          "To complain about the professor's strict grading expectations",
+          "To coordinate research tasks and schedule a group meeting time"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The students are dividing up research tasks and agreeing on a time and room to merge their drafts.",
         "questionType": "main_purpose"
       }
@@ -152,39 +152,39 @@
       {
         "q": "Which organization specifically recommends that attendees bring samples of their programming code?",
         "options": [
-          "Apex Robotics",
           "Vanguard FinTech",
+          "Apex Robotics",
           "GreenGrid Utilities",
           "BioHealth Labs"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The schedule states for Vanguard FinTech at 1:15 PM: '[Bring portfolio code samples]'.",
         "questionType": "factual_detail"
       },
       {
         "q": "What does the phrase 'Resume drop encouraged' in the GreenGrid Utilities listing mean?",
         "options": [
-          "Applicants should leave printed copies of their resumes with company representatives",
           "Students are advised to omit prior work experience from their applications",
+          "Applicants should leave printed copies of their resumes with company representatives",
           "Attendees must cancel their registration before 11:00 AM",
           "The session has been canceled due to low student turnout"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "At a career fair, a 'resume drop' refers to submitting or handing in one's resume directly to recruiters.",
         "questionType": "idiomatic_meaning"
       },
       {
         "q": "What can be inferred about a mechanical engineering freshman who has taken no biology or chemistry courses?",
         "options": [
-          "The student is eligible to attend Session A, but does not meet the prerequisite for Session D",
-          "The student is prohibited from attending any morning sessions at the Career Expo",
           "The student automatically qualifies for the Clinical Research Associate position",
+          "The student is prohibited from attending any morning sessions at the Career Expo",
+          "The student is eligible to attend Session A, but does not meet the prerequisite for Session D",
           "The student must pay an admission fee to enter the Auditorium"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "Session A (Apex Robotics) is open to all engineering majors, whereas Session D (BioHealth Labs) requires 16+ credits in biology or chemistry.",
         "questionType": "inference"
       }
@@ -216,13 +216,13 @@
       {
         "q": "All of the following ingredients or allergens are mentioned in the station descriptions EXCEPT:",
         "options": [
-          "Sesame",
-          "Dairy",
           "Eggs",
+          "Dairy",
+          "Sesame",
           "Gluten"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "Station 2 explicitly states 'egg-free', whereas sesame (Station 3), dairy (Stations 2 and 4), and gluten (Station 4) are present.",
         "questionType": "negative_factual"
       },
@@ -230,12 +230,12 @@
         "q": "What can be inferred about students who require special dietary accommodations?",
         "options": [
           "They cannot eat at North Quad Commons under any circumstances",
-          "They must bring meals prepared outside the university campus",
           "They can speak with Chef Ramon to arrange dedicated meal preparation",
+          "They must bring meals prepared outside the university campus",
           "They have to submit medical clearance forms two days prior"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The text advises diners to 'Ask Chef Ramon for dedicated allergy prep', implying custom assistance is available upon request.",
         "questionType": "inference"
       }
@@ -255,25 +255,25 @@
         "q": "Under what condition will a customer incur a 15% fee when returning an item?",
         "options": [
           "Returning a textbook after the first 10 days of the semester",
-          "Returning electronic equipment with opened packaging",
           "Requesting cash rather than store credit for safety goggles",
+          "Returning electronic equipment with opened packaging",
           "Exchanging a rental book for an updated hardcover edition"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The policy states: 'Calculators and electronics are subject to a 15% restocking fee if packaging is unsealed.'",
         "questionType": "factual_detail"
       },
       {
         "q": "What does the term 'auto-replacement billing' mean in the return policy?",
         "options": [
-          "Automatically charging the student's account for the full cost of a replacement book",
+          "Replacing damaged lab goggles at no additional charge",
           "Issuing an automatic refund to the customer's original credit card",
           "Renewing the textbook rental for an additional academic semester",
-          "Replacing damaged lab goggles at no additional charge"
+          "Automatically charging the student's account for the full cost of a replacement book"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "'Auto-replacement billing' means the bookstore automatically bills the renter for the cost of replacing an unreturned rental textbook.",
         "questionType": "idiomatic_meaning"
       },
@@ -305,13 +305,13 @@
       {
         "q": "What is the main purpose of this social media post?",
         "options": [
-          "To invite the campus community to attend a senior art exhibition opening",
           "To announce audition dates for the student string quartet",
+          "To invite the campus community to attend a senior art exhibition opening",
           "To solicit financial donations for renovating the Lower Galleria",
           "To publish the winners of last year's People's Choice Grant"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The post invites students and community members to Friday's opening night of the 'Resilient Horizons' senior art exhibition.",
         "questionType": "main_purpose"
       },
@@ -320,11 +320,11 @@
         "options": [
           "An acoustic chamber music concert by the quartet",
           "A ribbon-cutting ceremony by university administrators",
-          "A guided gallery tour conducted by art professors",
-          "A question-and-answer session with the featured artists"
+          "A question-and-answer session with the featured artists",
+          "A guided gallery tour conducted by art professors"
         ],
-        "answer": 3,
-        "correctAnswer": 3,
+        "answer": 2,
+        "correctAnswer": 2,
         "why": "The post states that opening night features 'an artist Q&A at 7:15 PM.'",
         "questionType": "factual_detail"
       }
@@ -345,11 +345,11 @@
         "options": [
           "To the municipal swimming complex across town",
           "To the outdoor diving well behind the gymnasium",
-          "To the nearby indoor therapy pool facility",
-          "To the university lakefront boathouse dock"
+          "To the university lakefront boathouse dock",
+          "To the nearby indoor therapy pool facility"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "The notice states: 'All morning swim practices and recreational lap swimming will relocate to the adjacent indoor therapy pool.'",
         "questionType": "factual_detail"
       },
@@ -381,13 +381,13 @@
       {
         "q": "What is the main purpose of this email?",
         "options": [
-          "To inform commuter students about the opening and updated rules for spring parking permit renewals",
           "To notify students that all campus parking garages will be permanently closed",
+          "To inform commuter students about the opening and updated rules for spring parking permit renewals",
           "To issue a parking citation for an unregistered license plate",
           "To distribute plastic rearview mirror hangtags by campus mail"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "The email announces when Spring Commuter permit renewal opens and explains reduced quotas, profile updates, and digital license-plate permits.",
         "questionType": "main_purpose"
       },
@@ -408,12 +408,12 @@
         "q": "The word 'quotas' in the email is closest in meaning to:",
         "options": [
           "enforcement fines",
-          "predetermined limits",
+          "geographic boundaries",
           "maintenance expenses",
-          "geographic boundaries"
+          "predetermined limits"
         ],
-        "answer": 1,
-        "correctAnswer": 1,
+        "answer": 3,
+        "correctAnswer": 3,
         "why": "In this context, 'permit quotas' refers to the set maximum limits or allotments of permits available.",
         "questionType": "idiomatic_meaning"
       }
@@ -432,26 +432,26 @@
       {
         "q": "Which service will NOT be offline during Saturday's maintenance window?",
         "options": [
-          "The Canvas course management system",
-          "The student course registration portal",
           "University email and campus Wi-Fi networks",
+          "The student course registration portal",
+          "The Canvas course management system",
           "Campus cloud file storage drives"
         ],
-        "answer": 2,
-        "correctAnswer": 2,
+        "answer": 0,
+        "correctAnswer": 0,
         "why": "The notice explicitly confirms: 'Campus Wi-Fi and university email (@university.edu) will operate normally.'",
         "questionType": "negative_factual"
       },
       {
         "q": "What can be inferred about students who need to submit a Canvas assignment on Saturday?",
         "options": [
-          "They will be unable to upload files to Canvas between 1:00 AM and 6:00 AM",
           "They must visit the IT Service Desk in person to reset their passwords",
+          "They will be unable to upload files to Canvas between 1:00 AM and 6:00 AM",
           "Their university email accounts will be erased during the upgrade",
           "They will be charged a late fee for logging in after 6:00 AM"
         ],
-        "answer": 0,
-        "correctAnswer": 0,
+        "answer": 1,
+        "correctAnswer": 1,
         "why": "Because Canvas will be offline from 1:00 AM to 6:00 AM on Saturday, students cannot upload assignments to Canvas during that five-hour window.",
         "questionType": "inference"
       }

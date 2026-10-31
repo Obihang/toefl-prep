@@ -37,9 +37,36 @@ import {
   convertScaledToBand6,
   convertOverall120ToBand6,
   getCefrFromBand6,
+  getCompletedQuestionIds,
 } from '../utils/scoreTracker';
 import { stopSpeaking } from '../utils/audioSpeech';
-import { Clock, ArrowRight, Award, CheckCircle2, ShieldCheck, GitBranch } from 'lucide-react';
+import { hasAnyProviderKey } from '../utils/apiKey';
+import { callBackendGenerate } from '../services/geminiService';
+import { saveVerifiedQuestion } from '../utils/questionBankStorage';
+import { CURATED_MOCK_EXAM_SETS, MockExamSet } from '../utils/mockExamSetsBank';
+import {
+  syncAndGetMockExamSets,
+  generateAndSaveNewAiMockExamSet,
+  getMockSetScores,
+  saveMockSetScore,
+  MockSetScoreSummary,
+} from '../utils/examStorage';
+import {
+  Clock,
+  ArrowRight,
+  Award,
+  CheckCircle2,
+  ShieldCheck,
+  GitBranch,
+  Sparkles,
+  Loader2,
+  BookOpen,
+  Shuffle,
+  Play,
+  RotateCcw,
+  BarChart3,
+  ArrowLeft,
+} from 'lucide-react';
 
 export { TaskType };
 
@@ -582,28 +609,92 @@ function getItemUniqueKey(item: any): string {
   return String(item.id || item.questionDocId || item.title || '').trim();
 }
 
+export function getExamUsedIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('toefl_exam_used_ids');
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export function recordExamUsedId(itemOrId: any): void {
+  if (typeof window === 'undefined' || !itemOrId) return;
+  try {
+    const existing = new Set(getExamUsedIds());
+    const candidates =
+      typeof itemOrId === 'string'
+        ? [itemOrId]
+        : [itemOrId.id, itemOrId.questionDocId, itemOrId.title, (itemOrId as any)._id].filter(Boolean);
+    candidates.forEach((c) => {
+      existing.add(String(c).trim());
+      existing.add(String(c).trim().toLowerCase());
+    });
+    localStorage.setItem('toefl_exam_used_ids', JSON.stringify(Array.from(existing).slice(-1000)));
+  } catch {}
+}
+
+export function getAllHistoricallySeenQuestionIds(): Set<string> {
+  const set = new Set<string>();
+  try {
+    const completed = getCompletedQuestionIds();
+    completed.forEach((id) => {
+      set.add(id);
+      set.add(id.toLowerCase());
+    });
+    const examUsed = getExamUsedIds();
+    examUsed.forEach((id) => {
+      set.add(id);
+      set.add(id.toLowerCase());
+    });
+  } catch {}
+  return set;
+}
+
+function isItemHistoricallySeen(item: any, seenSet: Set<string>): boolean {
+  if (!item || seenSet.size === 0) return false;
+  const id = item.id ? String(item.id).trim() : '';
+  const docId = item.questionDocId ? String(item.questionDocId).trim() : '';
+  const title = item.title ? String(item.title).trim() : '';
+  if (id && (seenSet.has(id) || seenSet.has(id.toLowerCase()))) return true;
+  if (docId && (seenSet.has(docId) || seenSet.has(docId.toLowerCase()))) return true;
+  if (title && (seenSet.has(title) || seenSet.has(title.toLowerCase()))) return true;
+  return false;
+}
+
 /**
- * Selects a question from the curated bank or fallback list while strictly filtering out
- * any item whose ID is already in `usedQuestionIds` so Module 2 NEVER repeats Module 1.
+ * Selects a question from the curated bank or fallback list while:
+ * 1. Filtering out any question ID already in `usedQuestionIds` so Module 2 NEVER repeats Module 1
+ * 2. Filtering out any question ID already practiced in section practice (`toefl_completed_question_ids`) or past exams (`toefl_exam_used_ids`) first, only falling back if all questions have been seen.
  */
 function pickFromBankOrFallback<T>(
   taskTypeId: string,
   fallbackList: T[],
   usedQuestionIds: Set<string>,
   stage?: AdaptiveModuleStage,
-  track?: AdaptiveTrack
+  track?: AdaptiveTrack,
+  historicallySeenIds?: Set<string>
 ): T {
   const loaded = getLoadedCuratedTasks(taskTypeId, 'all', 'all');
   const rawPool: any[] =
     Array.isArray(loaded) && loaded.length > 0 ? [...loaded, ...fallbackList] : [...fallbackList];
 
   // Safeguard 1: Never repeat Module 1 questions in Module 2 — filter out any question whose id is in usedQuestionIds
-  const unusedCandidates = rawPool.filter((item) => {
+  const sessionUnused = rawPool.filter((item) => {
     const key = getItemUniqueKey(item);
     return key ? !usedQuestionIds.has(key) : true;
   });
 
-  const candidatePool = unusedCandidates.length > 0 ? unusedCandidates : rawPool;
+  const sessionPool = sessionUnused.length > 0 ? sessionUnused : rawPool;
+
+  // Safeguard 2: Prioritize questions unseen in section practice or past mock exams!
+  const seenSet = historicallySeenIds || getAllHistoricallySeenQuestionIds();
+  const unseenCandidates = sessionPool.filter((item) => !isItemHistoricallySeen(item, seenSet));
+
+  // Prioritize unseen questions first, only falling back if all questions have been seen
+  const candidatePool = unseenCandidates.length > 0 ? unseenCandidates : sessionPool;
 
   // If selecting for READING_MODULE_2 or LISTENING_MODULE_2, prefer difficulty matching the adaptive routing track
   let stageFilteredPool = candidatePool;
@@ -626,7 +717,71 @@ function pickFromBankOrFallback<T>(
   if (chosenKey) {
     usedQuestionIds.add(chosenKey);
   }
+  recordExamUsedId(normalized);
   return normalized;
+}
+
+async function getOrGenerateTaskForSlot<T>(
+  taskTypeId: string,
+  fallbackList: T[],
+  usedQuestionIds: Set<string>,
+  stage?: AdaptiveModuleStage,
+  track?: AdaptiveTrack,
+  historicallySeenIds?: Set<string>,
+  forceFreshAi: boolean = false,
+  targetLevel: string = 'intermediate',
+  targetTopic: string = 'campus-life'
+): Promise<T> {
+  const seenIds = historicallySeenIds || getAllHistoricallySeenQuestionIds();
+  const loaded = getLoadedCuratedTasks(taskTypeId, 'all', 'all');
+  const rawPool: any[] =
+    Array.isArray(loaded) && loaded.length > 0 ? [...loaded, ...fallbackList] : [...fallbackList];
+  const sessionUnused = rawPool.filter((item) => {
+    const key = getItemUniqueKey(item);
+    return key ? !usedQuestionIds.has(key) : true;
+  });
+  const sessionPool = sessionUnused.length > 0 ? sessionUnused : rawPool;
+  const unseenCandidates = sessionPool.filter((item) => !isItemHistoricallySeen(item, seenIds));
+
+  // Determine if we should generate via AI:
+  // 1. If forceFreshAi is true AND user has a provider key
+  // 2. OR if unseen candidates in the curated bank are exhausted (unseenCandidates.length === 0) AND user has a provider key
+  const shouldAttemptAi = (forceFreshAi || unseenCandidates.length === 0) && hasAnyProviderKey();
+
+  if (shouldAttemptAi) {
+    try {
+      const resp = await callBackendGenerate(taskTypeId, targetLevel, targetTopic);
+      if (resp && resp.success && resp.data && !resp.data.isFallback) {
+        const normalized = normalizeTaskData(resp.data, taskTypeId) as T;
+        const key = getItemUniqueKey(normalized);
+        if (key && !usedQuestionIds.has(key)) {
+          usedQuestionIds.add(key);
+          recordExamUsedId(normalized);
+          saveVerifiedQuestion({
+            taskType: taskTypeId,
+            level: targetLevel,
+            topic: targetTopic,
+            content: normalized,
+            audioUrl: (normalized as any).audioUrl || null,
+            audioClips: (normalized as any).audioClips || null,
+            source: 'ai',
+          }).catch(() => {});
+          return normalized;
+        }
+      }
+    } catch (err) {
+      console.warn(`[ExamEngine] Live AI generation for slot ${taskTypeId} failed, falling back to curated bank:`, err);
+    }
+  }
+
+  return pickFromBankOrFallback<T>(
+    taskTypeId,
+    fallbackList,
+    usedQuestionIds,
+    stage,
+    track,
+    seenIds
+  );
 }
 
 export interface ExamTaskBundle {
@@ -816,6 +971,349 @@ export function pickRandomTasks(
   };
 }
 
+export async function buildFullExamBundleAsync(
+  usedQuestionIds: Set<string>,
+  readingTrack: AdaptiveTrack = 'higher',
+  listeningTrack: AdaptiveTrack = 'higher',
+  forceFreshAi: boolean = false,
+  onProgress?: (msg: string, completed: number, total: number) => void
+): Promise<ExamTaskBundle> {
+  const seenIds = getAllHistoricallySeenQuestionIds();
+  let step = 0;
+  const total = 19;
+
+  const updateProgress = (label: string) => {
+    step++;
+    onProgress?.(`Preparing ${label} (${step}/${total})...`, step, total);
+  };
+
+  updateProgress('Reading Module 1 Complete Words');
+  const completeWordsMod1 = await getOrGenerateTaskForSlot<CompleteWordsTask>(
+    'complete-words',
+    CURATED_COMPLETE_WORDS,
+    usedQuestionIds,
+    'READING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 1 Daily Life');
+  const dailyLifeMod1 = await getOrGenerateTaskForSlot<DailyLifeTask>(
+    'daily-life',
+    FALLBACK_DAILY_LIFE_LIST,
+    usedQuestionIds,
+    'READING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 1 Academic Passage');
+  const readingMod1 = await getOrGenerateTaskForSlot<ReadingPassageTask>(
+    'reading-academic',
+    CURATED_READING_PASSAGES,
+    usedQuestionIds,
+    'READING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'academic'
+  );
+
+  updateProgress('Reading Module 2 Complete Words');
+  const completeWordsMod2 = await getOrGenerateTaskForSlot<CompleteWordsTask>(
+    'complete-words',
+    CURATED_COMPLETE_WORDS,
+    usedQuestionIds,
+    'READING_MODULE_2',
+    readingTrack,
+    seenIds,
+    forceFreshAi,
+    readingTrack === 'higher' ? 'advanced' : 'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 2 Daily Life');
+  const dailyLifeMod2 = await getOrGenerateTaskForSlot<DailyLifeTask>(
+    'daily-life',
+    FALLBACK_DAILY_LIFE_LIST,
+    usedQuestionIds,
+    'READING_MODULE_2',
+    readingTrack,
+    seenIds,
+    forceFreshAi,
+    readingTrack === 'higher' ? 'advanced' : 'intermediate',
+    'campus-life'
+  );
+
+  updateProgress('Reading Module 2 Academic Passage');
+  const readingMod2 = await getOrGenerateTaskForSlot<ReadingPassageTask>(
+    'reading-academic',
+    CURATED_READING_PASSAGES,
+    usedQuestionIds,
+    'READING_MODULE_2',
+    readingTrack,
+    seenIds,
+    forceFreshAi,
+    readingTrack === 'higher' ? 'advanced' : 'intermediate',
+    'academic'
+  );
+
+  updateProgress('Listening Module 1 Choose Response');
+  const chooseResponseMod1 = await getOrGenerateTaskForSlot<ListeningChooseResponseTask>(
+    'listening-choose-response',
+    FALLBACK_CHOOSE_RESPONSE_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'daily-conversation'
+  );
+
+  updateProgress('Listening Module 1 Dialogue');
+  const listeningMod1 = await getOrGenerateTaskForSlot<ListeningTask>(
+    'listening-dialogue',
+    CURATED_LISTENING,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-conversation'
+  );
+
+  updateProgress('Listening Module 1 Announcement');
+  const announcementMod1 = await getOrGenerateTaskForSlot<ListeningAnnouncementTask>(
+    'listening-announcement',
+    FALLBACK_ANNOUNCEMENT_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'announcement'
+  );
+
+  updateProgress('Listening Module 1 Academic Talk');
+  const academicTalkMod1 = await getOrGenerateTaskForSlot<ListeningAcademicTalkTask>(
+    'listening-academic-talk',
+    FALLBACK_ACADEMIC_TALK_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_1',
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'academic'
+  );
+
+  updateProgress('Listening Module 2 Choose Response');
+  const chooseResponseMod2 = await getOrGenerateTaskForSlot<ListeningChooseResponseTask>(
+    'listening-choose-response',
+    FALLBACK_CHOOSE_RESPONSE_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'daily-conversation'
+  );
+
+  updateProgress('Listening Module 2 Dialogue');
+  const listeningMod2 = await getOrGenerateTaskForSlot<ListeningTask>(
+    'listening-dialogue',
+    CURATED_LISTENING,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'campus-conversation'
+  );
+
+  updateProgress('Listening Module 2 Announcement');
+  const announcementMod2 = await getOrGenerateTaskForSlot<ListeningAnnouncementTask>(
+    'listening-announcement',
+    FALLBACK_ANNOUNCEMENT_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'announcement'
+  );
+
+  updateProgress('Listening Module 2 Academic Talk');
+  const academicTalkMod2 = await getOrGenerateTaskForSlot<ListeningAcademicTalkTask>(
+    'listening-academic-talk',
+    FALLBACK_ACADEMIC_TALK_LIST,
+    usedQuestionIds,
+    'LISTENING_MODULE_2',
+    listeningTrack,
+    seenIds,
+    forceFreshAi,
+    listeningTrack === 'higher' ? 'advanced' : 'intermediate',
+    'academic'
+  );
+
+  updateProgress('Writing Build Sentence');
+  const buildSentence = await getOrGenerateTaskForSlot<BuildSentenceTask>(
+    'build-sentence',
+    CURATED_BUILD_SENTENCES,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'general'
+  );
+
+  updateProgress('Writing Write Email');
+  const writeEmail = await getOrGenerateTaskForSlot<WriteEmailTask>(
+    'write-email',
+    CURATED_WRITE_EMAILS,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'campus-communication'
+  );
+
+  updateProgress('Writing Academic Discussion');
+  const writing = await getOrGenerateTaskForSlot<AcademicDiscussionTask>(
+    'academic-discussion',
+    CURATED_ACADEMIC_DISCUSSIONS,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'advanced',
+    'academic-discussion'
+  );
+
+  updateProgress('Speaking Listen and Repeat');
+  const listenRepeat = await getOrGenerateTaskForSlot<ListenRepeatTask>(
+    'listen-repeat',
+    CURATED_LISTEN_REPEAT,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'sentence-repetition'
+  );
+
+  updateProgress('Speaking Interview');
+  const speaking = await getOrGenerateTaskForSlot<SpeakingInterviewTask>(
+    'speaking-interview',
+    CURATED_SPEAKING_INTERVIEWS,
+    usedQuestionIds,
+    undefined,
+    undefined,
+    seenIds,
+    forceFreshAi,
+    'intermediate',
+    'interview'
+  );
+
+  return {
+    completeWordsMod1,
+    dailyLifeMod1,
+    readingMod1,
+    completeWordsMod2,
+    dailyLifeMod2,
+    readingMod2,
+    chooseResponseMod1,
+    listeningMod1,
+    announcementMod1,
+    academicTalkMod1,
+    chooseResponseMod2,
+    listeningMod2,
+    announcementMod2,
+    academicTalkMod2,
+    buildSentence,
+    writeEmail,
+    writing,
+    listenRepeat,
+    speaking,
+  };
+}
+
+export function buildExamBundleFromMockSet(
+  mockSet: MockExamSet,
+  readingTrack: AdaptiveTrack = 'higher',
+  listeningTrack: AdaptiveTrack = 'higher'
+): ExamTaskBundle {
+  const rM1 = mockSet.modules.readingModule1;
+  const rM2 =
+    readingTrack === 'higher' ? mockSet.modules.readingModule2Hard : mockSet.modules.readingModule2Easy;
+  const lM1 = mockSet.modules.listeningModule1;
+  const lM2 =
+    listeningTrack === 'higher'
+      ? mockSet.modules.listeningModule2Hard
+      : mockSet.modules.listeningModule2Easy;
+  const w = mockSet.modules.writing;
+  const s = mockSet.modules.speaking;
+
+  return {
+    completeWordsMod1: normalizeTaskData(rM1.completeWords, 'complete-words') as CompleteWordsTask,
+    dailyLifeMod1: normalizeTaskData(rM1.dailyLife, 'daily-life') as DailyLifeTask,
+    readingMod1: normalizeTaskData(rM1.readingPassage, 'reading-academic') as ReadingPassageTask,
+    completeWordsMod2: normalizeTaskData(rM2.completeWords, 'complete-words') as CompleteWordsTask,
+    dailyLifeMod2: normalizeTaskData(rM2.dailyLife, 'daily-life') as DailyLifeTask,
+    readingMod2: normalizeTaskData(rM2.readingPassage, 'reading-academic') as ReadingPassageTask,
+    chooseResponseMod1: normalizeTaskData(
+      lM1.chooseResponse,
+      'listening-choose-response'
+    ) as ListeningChooseResponseTask,
+    listeningMod1: normalizeTaskData(lM1.conversation, 'listening-dialogue') as ListeningTask,
+    announcementMod1: normalizeTaskData(
+      lM1.announcement,
+      'listening-announcement'
+    ) as ListeningAnnouncementTask,
+    academicTalkMod1: normalizeTaskData(
+      lM1.academicTalk,
+      'listening-academic-talk'
+    ) as ListeningAcademicTalkTask,
+    chooseResponseMod2: normalizeTaskData(
+      lM2.chooseResponse,
+      'listening-choose-response'
+    ) as ListeningChooseResponseTask,
+    listeningMod2: normalizeTaskData(lM2.conversation, 'listening-dialogue') as ListeningTask,
+    announcementMod2: normalizeTaskData(
+      lM2.announcement,
+      'listening-announcement'
+    ) as ListeningAnnouncementTask,
+    academicTalkMod2: normalizeTaskData(
+      lM2.academicTalk,
+      'listening-academic-talk'
+    ) as ListeningAcademicTalkTask,
+    buildSentence: normalizeTaskData(w.buildSentence, 'build-sentence') as BuildSentenceTask,
+    writeEmail: normalizeTaskData(w.writeEmail, 'write-email') as WriteEmailTask,
+    writing: normalizeTaskData(w.academicDiscussion, 'academic-discussion') as AcademicDiscussionTask,
+    listenRepeat: normalizeTaskData(s.listenRepeat, 'listen-repeat') as ListenRepeatTask,
+    speaking: normalizeTaskData(s.speakingInterview, 'speaking-interview') as SpeakingInterviewTask,
+  };
+}
+
 /**
  * Full 2026 ETS TOEFL iBT® Exam Simulation Engine
  * Covers all 12 official task types in the 4-section order (Reading -> Listening -> Writing -> Speaking)
@@ -829,12 +1327,32 @@ export const ExamEngine: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState(OFFICIAL_SECTIONS_2026[0].officialTime);
   const [isTestComplete, setIsTestComplete] = useState(false);
 
+  // Full Mock Exam Sets Database state
+  const [mockSets, setMockSets] = useState<MockExamSet[]>(() => CURATED_MOCK_EXAM_SETS);
+  const [activeMockSet, setActiveMockSet] = useState<MockExamSet | null>(null);
+  const [mockSetScores, setMockSetScores] = useState<Record<string, MockSetScoreSummary>>(() =>
+    getMockSetScores()
+  );
+  const [viewingSavedReportSet, setViewingSavedReportSet] = useState<MockExamSet | null>(null);
+
+  // AI Full Mock Set Generator state
+  const [isGeneratingAiSet, setIsGeneratingAiSet] = useState(false);
+  const [aiSetProgressText, setAiSetProgressText] = useState('');
+  const [aiSetProgressStep, setAiSetProgressStep] = useState(0);
+  const [aiSetProgressTotal, setAiSetProgressTotal] = useState(26);
+
   // Safeguard 1: Track used question IDs across the exam session so Module 2 NEVER repeats Module 1
   const usedQuestionIdsRef = useRef<Set<string>>(new Set());
 
   // Track Module 1 -> Module 2 adaptive routing track for Reading and Listening
   const [readingAdaptiveTrack, setReadingAdaptiveTrack] = useState<AdaptiveTrack>('higher');
   const [listeningAdaptiveTrack, setListeningAdaptiveTrack] = useState<AdaptiveTrack>('higher');
+
+  // Fresh AI Exam options for Quick Randomized Mock Exam
+  const [generateFreshAi, setGenerateFreshAi] = useState<boolean>(false);
+  const [isPreparingExam, setIsPreparingExam] = useState<boolean>(false);
+  const [prepProgressText, setPrepProgressText] = useState<string>('');
+  const [prepProgressCount, setPrepProgressCount] = useState<number>(0);
 
   const getSectionTime = useCallback(
     (sec: SectionConfig) => {
@@ -843,20 +1361,27 @@ export const ExamEngine: React.FC = () => {
     [examMode]
   );
 
-  // Pick random curated tasks across all 12 official task types and adaptive modules
+  // Pick initial tasks from Mock Set #1 by default
   const [testTasks, setTestTasks] = useState<ExamTaskBundle>(() => {
-    usedQuestionIdsRef.current.clear();
-    return pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher');
+    return buildExamBundleFromMockSet(CURATED_MOCK_EXAM_SETS[0], 'higher', 'higher');
   });
 
-  // Sync static question bank shards on mount so all 12 task types have their full pools ready
+  // Sync static question bank shards and Full Mock Exam Sets database on mount
   useEffect(() => {
-    syncCuratedQuestionBank()
-      .then(() => {
-        usedQuestionIdsRef.current.clear();
-        setTestTasks(pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher'));
-      })
-      .catch(() => {});
+    syncCuratedQuestionBank().catch(() => {});
+    const loadSets = () => {
+      syncAndGetMockExamSets()
+        .then((sets) => {
+          setMockSets(sets);
+        })
+        .catch(() => {});
+      setMockSetScores(getMockSetScores());
+    };
+    loadSets();
+    window.addEventListener('toefl_mock_sets_updated', loadSets);
+    return () => {
+      window.removeEventListener('toefl_mock_sets_updated', loadSets);
+    };
   }, []);
 
   // Stop all playing audio whenever section or task changes or test starts/completes
@@ -891,11 +1416,37 @@ export const ExamEngine: React.FC = () => {
     Speaking: false,
   });
 
+  // Persist completed Mock Exam Set score report when exam finishes
+  const savedAttemptRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (isTestComplete && !savedAttemptRef.current) {
+      savedAttemptRef.current = true;
+      if (activeMockSet) {
+        const totalScore =
+          sectionScores.Reading + sectionScores.Listening + sectionScores.Writing + sectionScores.Speaking;
+        const overallBand = convertOverall120ToBand6(totalScore);
+        const cefr = getCefrFromBand6(overallBand);
+        saveMockSetScore(
+          activeMockSet.id,
+          sectionScores,
+          readingAdaptiveTrack,
+          listeningAdaptiveTrack,
+          overallBand,
+          cefr.code,
+          cefr.name
+        );
+        setMockSetScores(getMockSetScores());
+      }
+    } else if (!isTestComplete) {
+      savedAttemptRef.current = false;
+    }
+  }, [isTestComplete, activeMockSet, sectionScores, readingAdaptiveTrack, listeningAdaptiveTrack]);
+
   const currentSection = OFFICIAL_SECTIONS_2026[currentSectionIndex];
   const currentSectionTasks = currentSection.tasks;
   const activeTaskDescriptor = currentSectionTasks[currentTaskIndexInSection] || currentSectionTasks[0];
 
-  // Dynamically re-select Module 2 questions when routing from Module 1 -> Module 2
+  // Dynamically select Module 2 questions when routing from Module 1 -> Module 2
   const routeToModule2IfNeeded = useCallback(
     (nextTaskIdx: number) => {
       const prevTask = currentSectionTasks[currentTaskIndexInSection];
@@ -911,30 +1462,43 @@ export const ExamEngine: React.FC = () => {
         const routedTrack: AdaptiveTrack = m1Avg >= 18 ? 'higher' : 'standard';
         setReadingAdaptiveTrack(routedTrack);
 
-        setTestTasks((prev) => ({
-          ...prev,
-          completeWordsMod2: pickFromBankOrFallback<CompleteWordsTask>(
-            'complete-words',
-            CURATED_COMPLETE_WORDS,
-            usedQuestionIdsRef.current,
-            'READING_MODULE_2',
-            routedTrack
-          ),
-          dailyLifeMod2: pickFromBankOrFallback<DailyLifeTask>(
-            'daily-life',
-            FALLBACK_DAILY_LIFE_LIST,
-            usedQuestionIdsRef.current,
-            'READING_MODULE_2',
-            routedTrack
-          ),
-          readingMod2: pickFromBankOrFallback<ReadingPassageTask>(
-            'reading-academic',
-            CURATED_READING_PASSAGES,
-            usedQuestionIdsRef.current,
-            'READING_MODULE_2',
-            routedTrack
-          ),
-        }));
+        if (activeMockSet) {
+          const rM2 =
+            routedTrack === 'higher'
+              ? activeMockSet.modules.readingModule2Hard
+              : activeMockSet.modules.readingModule2Easy;
+          setTestTasks((prev) => ({
+            ...prev,
+            completeWordsMod2: normalizeTaskData(rM2.completeWords, 'complete-words') as CompleteWordsTask,
+            dailyLifeMod2: normalizeTaskData(rM2.dailyLife, 'daily-life') as DailyLifeTask,
+            readingMod2: normalizeTaskData(rM2.readingPassage, 'reading-academic') as ReadingPassageTask,
+          }));
+        } else {
+          setTestTasks((prev) => ({
+            ...prev,
+            completeWordsMod2: pickFromBankOrFallback<CompleteWordsTask>(
+              'complete-words',
+              CURATED_COMPLETE_WORDS,
+              usedQuestionIdsRef.current,
+              'READING_MODULE_2',
+              routedTrack
+            ),
+            dailyLifeMod2: pickFromBankOrFallback<DailyLifeTask>(
+              'daily-life',
+              FALLBACK_DAILY_LIFE_LIST,
+              usedQuestionIdsRef.current,
+              'READING_MODULE_2',
+              routedTrack
+            ),
+            readingMod2: pickFromBankOrFallback<ReadingPassageTask>(
+              'reading-academic',
+              CURATED_READING_PASSAGES,
+              usedQuestionIdsRef.current,
+              'READING_MODULE_2',
+              routedTrack
+            ),
+          }));
+        }
       } else if (prevTask.moduleStage === 'LISTENING_MODULE_1' && nextTask.moduleStage === 'LISTENING_MODULE_2') {
         const lScores = taskScoresBySection.Listening || {};
         const m1Keys = [
@@ -949,40 +1513,63 @@ export const ExamEngine: React.FC = () => {
         const routedTrack: AdaptiveTrack = m1Avg >= 18 ? 'higher' : 'standard';
         setListeningAdaptiveTrack(routedTrack);
 
-        setTestTasks((prev) => ({
-          ...prev,
-          chooseResponseMod2: pickFromBankOrFallback<ListeningChooseResponseTask>(
-            'listening-choose-response',
-            FALLBACK_CHOOSE_RESPONSE_LIST,
-            usedQuestionIdsRef.current,
-            'LISTENING_MODULE_2',
-            routedTrack
-          ),
-          listeningMod2: pickFromBankOrFallback<ListeningTask>(
-            'listening-dialogue',
-            CURATED_LISTENING,
-            usedQuestionIdsRef.current,
-            'LISTENING_MODULE_2',
-            routedTrack
-          ),
-          announcementMod2: pickFromBankOrFallback<ListeningAnnouncementTask>(
-            'listening-announcement',
-            FALLBACK_ANNOUNCEMENT_LIST,
-            usedQuestionIdsRef.current,
-            'LISTENING_MODULE_2',
-            routedTrack
-          ),
-          academicTalkMod2: pickFromBankOrFallback<ListeningAcademicTalkTask>(
-            'listening-academic-talk',
-            FALLBACK_ACADEMIC_TALK_LIST,
-            usedQuestionIdsRef.current,
-            'LISTENING_MODULE_2',
-            routedTrack
-          ),
-        }));
+        if (activeMockSet) {
+          const lM2 =
+            routedTrack === 'higher'
+              ? activeMockSet.modules.listeningModule2Hard
+              : activeMockSet.modules.listeningModule2Easy;
+          setTestTasks((prev) => ({
+            ...prev,
+            chooseResponseMod2: normalizeTaskData(
+              lM2.chooseResponse,
+              'listening-choose-response'
+            ) as ListeningChooseResponseTask,
+            listeningMod2: normalizeTaskData(lM2.conversation, 'listening-dialogue') as ListeningTask,
+            announcementMod2: normalizeTaskData(
+              lM2.announcement,
+              'listening-announcement'
+            ) as ListeningAnnouncementTask,
+            academicTalkMod2: normalizeTaskData(
+              lM2.academicTalk,
+              'listening-academic-talk'
+            ) as ListeningAcademicTalkTask,
+          }));
+        } else {
+          setTestTasks((prev) => ({
+            ...prev,
+            chooseResponseMod2: pickFromBankOrFallback<ListeningChooseResponseTask>(
+              'listening-choose-response',
+              FALLBACK_CHOOSE_RESPONSE_LIST,
+              usedQuestionIdsRef.current,
+              'LISTENING_MODULE_2',
+              routedTrack
+            ),
+            listeningMod2: pickFromBankOrFallback<ListeningTask>(
+              'listening-dialogue',
+              CURATED_LISTENING,
+              usedQuestionIdsRef.current,
+              'LISTENING_MODULE_2',
+              routedTrack
+            ),
+            announcementMod2: pickFromBankOrFallback<ListeningAnnouncementTask>(
+              'listening-announcement',
+              FALLBACK_ANNOUNCEMENT_LIST,
+              usedQuestionIdsRef.current,
+              'LISTENING_MODULE_2',
+              routedTrack
+            ),
+            academicTalkMod2: pickFromBankOrFallback<ListeningAcademicTalkTask>(
+              'listening-academic-talk',
+              FALLBACK_ACADEMIC_TALK_LIST,
+              usedQuestionIdsRef.current,
+              'LISTENING_MODULE_2',
+              routedTrack
+            ),
+          }));
+        }
       }
     },
-    [currentSectionTasks, currentTaskIndexInSection, taskScoresBySection]
+    [currentSectionTasks, currentTaskIndexInSection, taskScoresBySection, activeMockSet]
   );
 
   // Safeguard 2: Compute exact adaptive stage header badge text
@@ -1026,7 +1613,9 @@ export const ExamEngine: React.FC = () => {
           const secTime = getSectionTime(sec);
           savePracticeRecord({
             taskType: sec.type,
-            taskTitle: `Full Mock Test - ${key} (Timed Out)`,
+            taskTitle: activeMockSet
+              ? `${activeMockSet.title} - ${key} (Timed Out)`
+              : `Full Mock Test - ${key} (Timed Out)`,
             section: key,
             score: 0,
             maxScore: 30,
@@ -1038,7 +1627,7 @@ export const ExamEngine: React.FC = () => {
         }
       });
     }
-  }, [currentSectionIndex, completedSections, getSectionTime]);
+  }, [currentSectionIndex, completedSections, getSectionTime, activeMockSet]);
 
   // Handle section timer countdown
   useEffect(() => {
@@ -1085,7 +1674,7 @@ export const ExamEngine: React.FC = () => {
         values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : numericScore;
       setSectionScores((sPrev) => ({ ...sPrev, [section]: avgScaled }));
 
-      // Update adaptive routing track based on Module 1 performance
+      // Update adaptive routing track based on Module 1 performance (>= 60% / >= 18/30 -> higher)
       if (section === 'Reading' && slotKey.startsWith('reading_m1_')) {
         const m1Keys = ['reading_m1_complete_words', 'reading_m1_daily_life', 'reading_m1_academic'];
         const m1Vals = m1Keys
@@ -1093,7 +1682,20 @@ export const ExamEngine: React.FC = () => {
           .filter((v): v is number => typeof v === 'number');
         if (m1Vals.length > 0) {
           const m1Avg = m1Vals.reduce((a, b) => a + b, 0) / m1Vals.length;
-          setReadingAdaptiveTrack(m1Avg >= 18 ? 'higher' : 'standard');
+          const nextTrack: AdaptiveTrack = m1Avg >= 18 ? 'higher' : 'standard';
+          setReadingAdaptiveTrack(nextTrack);
+          if (activeMockSet) {
+            const rM2 =
+              nextTrack === 'higher'
+                ? activeMockSet.modules.readingModule2Hard
+                : activeMockSet.modules.readingModule2Easy;
+            setTestTasks((tPrev) => ({
+              ...tPrev,
+              completeWordsMod2: normalizeTaskData(rM2.completeWords, 'complete-words') as CompleteWordsTask,
+              dailyLifeMod2: normalizeTaskData(rM2.dailyLife, 'daily-life') as DailyLifeTask,
+              readingMod2: normalizeTaskData(rM2.readingPassage, 'reading-academic') as ReadingPassageTask,
+            }));
+          }
         }
       } else if (section === 'Listening' && slotKey.startsWith('listening_m1_')) {
         const m1Keys = [
@@ -1107,7 +1709,30 @@ export const ExamEngine: React.FC = () => {
           .filter((v): v is number => typeof v === 'number');
         if (m1Vals.length > 0) {
           const m1Avg = m1Vals.reduce((a, b) => a + b, 0) / m1Vals.length;
-          setListeningAdaptiveTrack(m1Avg >= 18 ? 'higher' : 'standard');
+          const nextTrack: AdaptiveTrack = m1Avg >= 18 ? 'higher' : 'standard';
+          setListeningAdaptiveTrack(nextTrack);
+          if (activeMockSet) {
+            const lM2 =
+              nextTrack === 'higher'
+                ? activeMockSet.modules.listeningModule2Hard
+                : activeMockSet.modules.listeningModule2Easy;
+            setTestTasks((tPrev) => ({
+              ...tPrev,
+              chooseResponseMod2: normalizeTaskData(
+                lM2.chooseResponse,
+                'listening-choose-response'
+              ) as ListeningChooseResponseTask,
+              listeningMod2: normalizeTaskData(lM2.conversation, 'listening-dialogue') as ListeningTask,
+              announcementMod2: normalizeTaskData(
+                lM2.announcement,
+                'listening-announcement'
+              ) as ListeningAnnouncementTask,
+              academicTalkMod2: normalizeTaskData(
+                lM2.academicTalk,
+                'listening-academic-talk'
+              ) as ListeningAcademicTalkTask,
+            }));
+          }
         }
       }
 
@@ -1119,26 +1744,101 @@ export const ExamEngine: React.FC = () => {
     setCompletedSections((prev) => ({ ...prev, [section]: true }));
   };
 
-  const handleStartExam = () => {
-    // Reset used question IDs on exam start so Module 1 and Module 2 are freshly selected without overlap
-    usedQuestionIdsRef.current.clear();
-    setReadingAdaptiveTrack('higher');
-    setListeningAdaptiveTrack('higher');
-    setTestTasks(pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher'));
-    setCurrentSectionIndex(0);
-    setCurrentTaskIndexInSection(0);
-    setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
-    setIsStarted(true);
-  };
-
-  const handleRetake = () => {
-    usedQuestionIdsRef.current.clear();
+  // Start a specific pre-built or AI-generated Full Mock Exam Set
+  const handleStartMockSet = (mockSet: MockExamSet) => {
+    setViewingSavedReportSet(null);
+    setActiveMockSet(mockSet);
     setReadingAdaptiveTrack('higher');
     setListeningAdaptiveTrack('higher');
     setSectionScores({ Reading: 0, Listening: 0, Writing: 0, Speaking: 0 });
     setTaskScoresBySection({ Reading: {}, Listening: {}, Writing: {}, Speaking: {} });
     setCompletedSections({ Reading: false, Listening: false, Writing: false, Speaking: false });
-    setTestTasks(pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher'));
+    const bundle = buildExamBundleFromMockSet(mockSet, 'higher', 'higher');
+    setTestTasks(bundle);
+    setCurrentSectionIndex(0);
+    setCurrentTaskIndexInSection(0);
+    setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
+    setIsTestComplete(false);
+    setIsStarted(true);
+  };
+
+  // Generate & Save a brand-new Full Mock Exam Set via AI and add to the Lobby Database
+  const handleGenerateAndSaveAiSet = async () => {
+    if (isGeneratingAiSet) return;
+    setIsGeneratingAiSet(true);
+    setAiSetProgressStep(0);
+    setAiSetProgressTotal(26);
+    setAiSetProgressText('Generating Reading Module 1...');
+    try {
+      const nextNum = mockSets.length + 1;
+      await generateAndSaveNewAiMockExamSet(nextNum, (msg, step, total) => {
+        setAiSetProgressText(msg);
+        setAiSetProgressStep(step);
+        setAiSetProgressTotal(total);
+      });
+      const updatedSets = await syncAndGetMockExamSets();
+      setMockSets(updatedSets);
+    } catch (err) {
+      console.error('[ExamEngine] Error generating new AI Mock Set:', err);
+    } finally {
+      setIsGeneratingAiSet(false);
+      setAiSetProgressText('');
+    }
+  };
+
+  // Quick Randomized Mock Exam (assembled from unseen questions across the question bank)
+  const handleStartExam = async () => {
+    setViewingSavedReportSet(null);
+    setActiveMockSet(null);
+    setIsPreparingExam(true);
+    setPrepProgressText('Preparing exam questions...');
+    setPrepProgressCount(0);
+    try {
+      usedQuestionIdsRef.current.clear();
+      setReadingAdaptiveTrack('higher');
+      setListeningAdaptiveTrack('higher');
+      setSectionScores({ Reading: 0, Listening: 0, Writing: 0, Speaking: 0 });
+      setTaskScoresBySection({ Reading: {}, Listening: {}, Writing: {}, Speaking: {} });
+      setCompletedSections({ Reading: false, Listening: false, Writing: false, Speaking: false });
+      const bundle = await buildFullExamBundleAsync(
+        usedQuestionIdsRef.current,
+        'higher',
+        'higher',
+        generateFreshAi,
+        (msg, completed) => {
+          setPrepProgressText(msg);
+          setPrepProgressCount(completed);
+        }
+      );
+      setTestTasks(bundle);
+      setCurrentSectionIndex(0);
+      setCurrentTaskIndexInSection(0);
+      setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
+      setIsTestComplete(false);
+      setIsStarted(true);
+    } catch (err) {
+      console.error('[ExamEngine] Error preparing exam bundle:', err);
+      usedQuestionIdsRef.current.clear();
+      setTestTasks(pickRandomTasks(usedQuestionIdsRef.current, 'higher', 'higher'));
+      setCurrentSectionIndex(0);
+      setCurrentTaskIndexInSection(0);
+      setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
+      setIsTestComplete(false);
+      setIsStarted(true);
+    } finally {
+      setIsPreparingExam(false);
+    }
+  };
+
+  const handleRetake = () => {
+    usedQuestionIdsRef.current.clear();
+    setActiveMockSet(null);
+    setViewingSavedReportSet(null);
+    setReadingAdaptiveTrack('higher');
+    setListeningAdaptiveTrack('higher');
+    setSectionScores({ Reading: 0, Listening: 0, Writing: 0, Speaking: 0 });
+    setTaskScoresBySection({ Reading: {}, Listening: {}, Writing: {}, Speaking: {} });
+    setCompletedSections({ Reading: false, Listening: false, Writing: false, Speaking: false });
     setCurrentSectionIndex(0);
     setCurrentTaskIndexInSection(0);
     setTimeLeft(getSectionTime(OFFICIAL_SECTIONS_2026[0]));
@@ -1153,86 +1853,414 @@ export const ExamEngine: React.FC = () => {
   };
 
   if (!isStarted) {
-    return (
-      <div className="max-w-4xl mx-auto p-8 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6 text-center">
-        <div className="w-16 h-16 bg-teal-100 text-teal-800 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-          <Clock className="w-8 h-8" />
-        </div>
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Official 2026 ETS Multistage Adaptive Exam · All 12 Task Types
+    // Viewing a saved score report for a completed Mock Exam Set
+    if (viewingSavedReportSet && mockSetScores[viewingSavedReportSet.id]?.lastReport) {
+      const saved = mockSetScores[viewingSavedReportSet.id];
+      const rep = saved.lastReport;
+      const rBand = convertScaledToBand6(rep.sectionScores.Reading, 'Reading');
+      const lBand = convertScaledToBand6(rep.sectionScores.Listening, 'Listening');
+      const wBand = convertScaledToBand6(rep.sectionScores.Writing, 'Writing');
+      const sBand = convertScaledToBand6(rep.sectionScores.Speaking, 'Speaking');
+      const isUpper = rep.readingTrack === 'higher' || rep.listeningTrack === 'higher';
+
+      return (
+        <div className="space-y-6 max-w-2xl mx-auto p-6 bg-white border border-slate-200 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <button
+              type="button"
+              onClick={() => setViewingSavedReportSet(null)}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-teal-800 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Mock Test Center</span>
+            </button>
+            <span className="text-[11px] font-semibold text-teal-800 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
+              Attempts: {saved.attemptsCount} · Best: Band {saved.bestBand6.toFixed(1)} ({saved.bestScore120}/120)
+            </span>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">TOEFL iBT® Full Simulated Exam</h2>
-          <p className="text-sm text-slate-500 max-w-xl mx-auto">
-            Experience the official 4-section exam order: <strong>Reading → Listening → Writing → Speaking</strong> with Multistage Adaptive <strong>Module 1 (Routing Stage) → Module 2 (Adaptive Stage)</strong> and zero question repetition across modules.
-          </p>
-        </div>
 
-        {/* Exam Timing Selection */}
-        <div className="flex justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => setExamMode('official')}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
-              examMode === 'official'
-                ? 'bg-teal-800 text-white border-teal-800 shadow-sm'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            Official ETS 2026 Timing (90 Mins Total)
-          </button>
-          <button
-            type="button"
-            onClick={() => setExamMode('accelerated')}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
-              examMode === 'accelerated'
-                ? 'bg-teal-800 text-white border-teal-800 shadow-sm'
-                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            Accelerated Practice Mode (45 Mins Total)
-          </button>
-        </div>
+          <div className="text-center space-y-2 border-b border-slate-100 pb-5">
+            <div className="w-12 h-12 bg-teal-100 text-teal-800 rounded-full flex items-center justify-center mx-auto">
+              <Award className="w-6 h-6" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">{viewingSavedReportSet.title}</h2>
+            <p className="text-xs text-slate-500">
+              Official 2026 Mock Test Score Report · Completed{' '}
+              {new Date(rep.completedAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-left">
-          {OFFICIAL_SECTIONS_2026.map((sec, idx) => {
-            const secMins = Math.round(getSectionTime(sec) / 60);
-            const uniqueLabels = Array.from(
-              new Set(sec.tasks.map((t) => t.label.replace(/\s*\(Adaptive\)$/, '')))
-            );
-            return (
-              <div key={sec.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold text-teal-700 uppercase">Section {idx + 1}</span>
-                  <span className="text-[11px] text-slate-500 font-mono">{secMins} mins</span>
-                </div>
-                <div className="text-xs font-bold text-slate-900">{sec.name}</div>
-                {(sec.sectionKey === 'Reading' || sec.sectionKey === 'Listening') && (
-                  <div className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-block">
-                    Module 1 (Routing) → Module 2 (Adaptive)
-                  </div>
-                )}
-                <ul className="space-y-1 pt-1 border-t border-slate-200/70">
-                  {uniqueLabels.map((lbl) => (
-                    <li key={lbl} className="text-[11px] text-slate-600 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-teal-600 shrink-0" />
-                      <span className="truncate">{lbl}</span>
-                    </li>
-                  ))}
-                </ul>
+          <div className="p-3.5 bg-emerald-50/90 border border-emerald-200 rounded-xl space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-950">
+                <GitBranch className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  {isUpper
+                    ? 'Adaptive Path: Routed to Upper-Tier Module 2 ✓'
+                    : 'Adaptive Path: Standard Track'}
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200">
+                Multistage Adaptive (Module 1 → Module 2)
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-700 pt-1 border-t border-emerald-200/60">
+              <div>
+                <strong>Reading Path:</strong>{' '}
+                {rep.readingTrack === 'higher'
+                  ? 'Routed to Upper-Tier Module 2 ✓ (Higher Difficulty)'
+                  : 'Standard Track (Module 2)'}
+              </div>
+              <div>
+                <strong>Listening Path:</strong>{' '}
+                {rep.listeningTrack === 'higher'
+                  ? 'Routed to Upper-Tier Module 2 ✓ (Higher Difficulty)'
+                  : 'Standard Track (Module 2)'}
+              </div>
+            </div>
+          </div>
 
-        <div className="pt-2">
-          <button
-            onClick={handleStartExam}
-            className="px-8 py-3 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition-colors shadow-md cursor-pointer"
-          >
-            Start Exam Simulation
-          </button>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 bg-slate-900 text-white rounded-xl text-center space-y-1">
+              <div className="text-xs text-slate-300 font-semibold uppercase">Overall Band Score</div>
+              <div className="text-3xl font-mono font-bold text-teal-400">
+                Band {rep.overallBand6.toFixed(1)} / 6.0
+              </div>
+              <div className="text-xs text-slate-400 font-mono">{rep.totalScore120} / 120 Concordance Score</div>
+            </div>
+            <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl text-center space-y-1">
+              <div className="text-xs text-teal-700 font-semibold uppercase">CEFR Level</div>
+              <div className="text-xl font-bold text-teal-950">{rep.cefrCode} Mastery</div>
+              <div className="text-xs text-teal-800 font-medium">{rep.cefrName}</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center space-y-0.5">
+              <div className="text-xs text-slate-500 font-medium">1. Reading</div>
+              <div className="text-base font-mono font-bold text-teal-800">Band {rBand.toFixed(1)} / 6.0</div>
+              <div className="text-[11px] font-mono text-slate-600">{rep.sectionScores.Reading} / 30 Scaled</div>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center space-y-0.5">
+              <div className="text-xs text-slate-500 font-medium">2. Listening</div>
+              <div className="text-base font-mono font-bold text-teal-800">Band {lBand.toFixed(1)} / 6.0</div>
+              <div className="text-[11px] font-mono text-slate-600">{rep.sectionScores.Listening} / 30 Scaled</div>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center space-y-0.5">
+              <div className="text-xs text-slate-500 font-medium">3. Writing</div>
+              <div className="text-base font-mono font-bold text-teal-800">Band {wBand.toFixed(1)} / 6.0</div>
+              <div className="text-[11px] font-mono text-slate-600">{rep.sectionScores.Writing} / 30 Scaled</div>
+            </div>
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center space-y-0.5">
+              <div className="text-xs text-slate-500 font-medium">4. Speaking</div>
+              <div className="text-base font-mono font-bold text-teal-800">Band {sBand.toFixed(1)} / 6.0</div>
+              <div className="text-[11px] font-mono text-slate-600">{rep.sectionScores.Speaking} / 30 Scaled</div>
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleStartMockSet(viewingSavedReportSet)}
+              className="px-6 py-2.5 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition-colors cursor-pointer inline-flex items-center gap-2 shadow-sm"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retake This Mock Exam</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const completedCount = mockSets.filter((s) => Boolean(mockSetScores[s.id])).length;
+    const unattemptedCount = Math.max(0, mockSets.length - completedCount);
+
+    return (
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Top Lobby Hero & Database Summary Header */}
+        <div className="p-6 sm:p-8 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Official 2026 ETS Multistage Adaptive Exam · Dedicated Mock Exam Database
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">TOEFL iBT® Full Mock Test Center</h2>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-2xl">
+                Choose a complete, unspoiled Full-Length Mock Exam Set from the database or generate a brand-new AI Mock Set. Each set includes dedicated <strong>Module 1 (Routing) → Module 2 (Upper-Tier &amp; Standard Adaptive)</strong> tracks across <strong>Reading, Listening, Writing, and Speaking</strong> with zero overlap with Section Practice or Coach Mode.
+              </p>
+            </div>
+
+            {/* Timing Mode Toggle */}
+            <div className="flex flex-col sm:flex-row md:flex-col gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setExamMode('official')}
+                className={`px-3.5 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer text-left flex items-center justify-between gap-3 ${
+                  examMode === 'official'
+                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>⏱️ Official ETS 2026 Timing</span>
+                <span className="font-mono text-[11px] opacity-85">90m</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setExamMode('accelerated')}
+                className={`px-3.5 py-2 text-xs font-semibold rounded-xl border transition-all cursor-pointer text-left flex items-center justify-between gap-3 ${
+                  examMode === 'accelerated'
+                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>⚡ Accelerated Practice Timing</span>
+                <span className="font-mono text-[11px] opacity-85">45m</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Database Summary Bar & Action Controls */}
+          <div className="p-4 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white rounded-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2.5 bg-teal-500/20 border border-teal-400/30 rounded-xl text-teal-300 shrink-0">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="text-sm sm:text-base font-bold text-white flex items-center gap-2 flex-wrap">
+                  <span>📚 Full Mock Exam Sets in Database: {mockSets.length} Sets Available</span>
+                </div>
+                <div className="text-xs text-teal-200/90 mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 font-semibold text-[11px]">
+                    🟢 {unattemptedCount} Unattempted
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-200 border border-teal-400/30 font-semibold text-[11px]">
+                    ✅ {completedCount} Completed
+                  </span>
+                  <span className="text-slate-300 text-[11px]">
+                    · Stored in IndexedDB &amp; Firestore (`mock_exam_sets`)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={handleGenerateAndSaveAiSet}
+                disabled={isGeneratingAiSet || isPreparingExam}
+                className="px-4 py-2.5 text-xs font-bold bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 shadow-sm"
+              >
+                {isGeneratingAiSet ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Generating Set #{mockSets.length + 1}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Generate &amp; Save New Full Mock Set (AI)</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleStartExam}
+                disabled={isGeneratingAiSet || isPreparingExam}
+                className="px-4 py-2.5 text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {isPreparingExam ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Assembling ({prepProgressCount}/19)...</span>
+                  </>
+                ) : (
+                  <>
+                    <Shuffle className="w-4 h-4 text-teal-300" />
+                    <span>Quick Randomized Mock Exam</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Live Progress Bar when Generating & Saving a New Full Mock Set via AI */}
+          {isGeneratingAiSet && (
+            <div className="p-4 bg-teal-50/90 border border-teal-200 rounded-xl space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs font-bold text-teal-950">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+                  <span>{aiSetProgressText || 'Generating Full Mock Exam Set via AI...'}</span>
+                </div>
+                <span className="font-mono text-teal-800">
+                  {aiSetProgressStep} / {aiSetProgressTotal} Modules
+                </span>
+              </div>
+              <div className="w-full bg-teal-200/60 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-teal-600 to-emerald-500 h-2.5 rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.max(5, Math.round((aiSetProgressStep / Math.max(1, aiSetProgressTotal)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[11px] text-teal-800">
+                Generating Reading Module 1 → Reading Module 2 (Hard &amp; Easy) → Listening Module 1 → Listening Module 2 (Hard &amp; Easy) → Writing &amp; Speaking, and saving permanently to database...
+              </p>
+            </div>
+          )}
+
+          {/* Live Progress Bar for Quick Randomized Mock Exam */}
+          {isPreparingExam && (
+            <div className="p-4 bg-slate-50 border border-teal-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-teal-900">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-teal-700" />
+                  <span>{prepProgressText || 'Preparing randomized exam tasks...'}</span>
+                </div>
+                <span className="font-mono text-teal-700">{prepProgressCount} / 19</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-teal-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round((prepProgressCount / 19) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Grid of Available Full Mock Exam Sets */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Available Full-Length Mock Exam Sets ({mockSets.length})
+              </h3>
+              {hasAnyProviderKey() && (
+                <label className="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={generateFreshAi}
+                    onChange={(e) => setGenerateFreshAi(e.target.checked)}
+                    disabled={isPreparingExam}
+                    className="w-3.5 h-3.5 text-teal-600 rounded border-slate-300 cursor-pointer"
+                  />
+                  <span>Use live AI for Quick Randomized Mock</span>
+                </label>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {mockSets.map((set, idx) => {
+                const scoreSummary = mockSetScores[set.id];
+                const isCompleted = Boolean(scoreSummary);
+                const isAiSet = set.source === 'ai_generated';
+                const readingTitle = set.modules?.readingModule1?.readingPassage?.title || 'Academic Reading';
+                const lectureTitle = set.modules?.listeningModule1?.academicTalk?.title || 'Academic Lecture';
+
+                return (
+                  <div
+                    key={set.id}
+                    className={`rounded-2xl border p-5 flex flex-col justify-between space-y-4 transition-all shadow-2xs hover:shadow-md ${
+                      isCompleted
+                        ? 'bg-emerald-50/30 border-emerald-200'
+                        : 'bg-white border-slate-200 hover:border-teal-300'
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      {/* Top Badges: Set Number + Source Badge */}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-slate-900 text-white font-mono">
+                          SET #{idx + 1}
+                        </span>
+                        {isAiSet ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                            <Sparkles className="w-3 h-3 text-purple-700" />
+                            <span>AI-Generated Set</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
+                            <ShieldCheck className="w-3 h-3 text-teal-700" />
+                            <span>Built-in Official-Style Set</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Set Title */}
+                      <h4 className="text-sm font-bold text-slate-900 leading-snug">{set.title}</h4>
+
+                      {/* Section Breakdown */}
+                      <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1.5 text-[11px] text-slate-600">
+                        <div className="font-semibold text-slate-800">
+                          Reading (Mod 1 &amp; Adaptive Mod 2 · {examMode === 'official' ? '30m' : '15m'}) · Listening (Mod 1 &amp; Adaptive Mod 2 · {examMode === 'official' ? '29m' : '15m'}) · Writing ({examMode === 'official' ? '23m' : '10m'}) · Speaking ({examMode === 'official' ? '8m' : '5m'})
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate" title={readingTitle}>
+                          📖 {readingTitle}
+                        </div>
+                        <div className="text-[10px] text-slate-500 truncate" title={lectureTitle}>
+                          🎧 {lectureTitle}
+                        </div>
+                      </div>
+
+                      {/* Completion Status Pill */}
+                      {isCompleted && scoreSummary ? (
+                        <div className="p-2.5 bg-emerald-100/80 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-950 flex items-center justify-between">
+                          <span>
+                            ✅ Completed — Best Score: Band {scoreSummary.bestBand6.toFixed(1)} / 6.0 (
+                            {scoreSummary.bestScore120}/120 · CEFR {scoreSummary.bestCefr})
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between">
+                          <span>🟢 Unattempted — Ready</span>
+                          <span className="text-[10px] font-mono text-slate-500">12 Tasks · 4 Sections</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Action Buttons */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                      {!isCompleted ? (
+                        <button
+                          type="button"
+                          onClick={() => handleStartMockSet(set)}
+                          disabled={isGeneratingAiSet || isPreparingExam}
+                          className="w-full py-2.5 px-4 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center justify-center gap-2 shadow-xs"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Start Mock Exam</span>
+                        </button>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStartMockSet(set)}
+                            disabled={isGeneratingAiSet || isPreparingExam}
+                            className="py-2 px-3 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Retake Exam</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setViewingSavedReportSet(set)}
+                            className="py-2 px-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5"
+                          >
+                            <BarChart3 className="w-3.5 h-3.5 text-teal-700" />
+                            <span>Score Report</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1257,6 +2285,11 @@ export const ExamEngine: React.FC = () => {
             <Award className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900">Official 2026 Mock Test Score Report</h2>
+          {activeMockSet && (
+            <div className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full inline-block">
+              {activeMockSet.title}
+            </div>
+          )}
           <p className="text-xs text-slate-500">
             Dual Reporting: 1.0–6.0 Band Scale, CEFR Level &amp; 0–120 Concordance Score
           </p>
@@ -1334,12 +2367,20 @@ export const ExamEngine: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-4 text-center">
+        <div className="pt-4 flex justify-center gap-3">
+          {activeMockSet && (
+            <button
+              onClick={() => handleStartMockSet(activeMockSet)}
+              className="px-5 py-2.5 text-sm font-semibold text-teal-900 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors cursor-pointer"
+            >
+              🔄 Retake This Set
+            </button>
+          )}
           <button
             onClick={handleRetake}
             className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition-colors cursor-pointer shadow-sm"
           >
-            Take Another Simulated Exam
+            Return to Mock Test Center
           </button>
         </div>
       </div>
