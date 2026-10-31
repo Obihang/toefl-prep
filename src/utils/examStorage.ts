@@ -1,7 +1,7 @@
 import { collection, doc, getDocs, setDoc } from 'firebase/firestore';
 import { db, ensureAuthenticated } from '../firebase';
 import { openIndexedDB } from './questionBankStorage';
-import { callBackendGenerate } from '../services/geminiService';
+import { callBackendGenerate, runWithDynamicKeyPool } from '../services/geminiService';
 import { normalizeTaskData } from './taskNormalizer';
 import {
   CURATED_MOCK_EXAM_SETS,
@@ -253,287 +253,279 @@ export async function generateAndSaveNewAiMockExamSet(
   onProgress?: (stageText: string, step: number, total: number) => void
 ): Promise<MockExamSet> {
   const totalSteps = 26;
-  let currentStep = 0;
+  let completedSteps = 0;
   const fallbackTemplate =
     CURATED_MOCK_EXAM_SETS[(nextSetNumber - 1) % CURATED_MOCK_EXAM_SETS.length] || CURATED_MOCK_EXAM_SETS[0];
   const setId = `mock_ai_${Date.now()}`;
 
-  const bump = (msg: string) => {
-    currentStep++;
-    onProgress?.(msg, currentStep, totalSteps);
+  const reportProgress = (msg: string) => {
+    completedSteps++;
+    onProgress?.(msg, completedSteps, totalSteps);
   };
 
-  // 1. Reading Module 1 (Routing Stage)
-  bump('Generating Reading Module 1 (Complete the Words)...');
-  const rM1Cw = await generateSingleTaskWithFallback(
-    'complete-words',
-    'intermediate',
-    'science-tech',
-    fallbackTemplate.modules.readingModule1.completeWords,
-    `${setId}_cw_m1`
-  );
-  bump('Generating Reading Module 1 (Read in Daily Life)...');
-  const rM1Dl = await generateSingleTaskWithFallback(
-    'daily-life',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.readingModule1.dailyLife,
-    `${setId}_dl_m1`
-  );
-  bump('Generating Reading Module 1 (Academic Passage)...');
-  const rM1Rp = await generateSingleTaskWithFallback(
-    'reading-academic',
-    'upper-intermediate',
-    'natural-sciences',
-    fallbackTemplate.modules.readingModule1.readingPassage,
-    `${setId}_rp_m1`
-  );
+  const tasksMap: Record<string, any> = {};
+
+  const jobs = [
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'complete-words', 'intermediate', 'science-tech',
+        fallbackTemplate.modules.readingModule1.completeWords, `${setId}_cw_m1`
+      );
+      tasksMap.rM1Cw = res;
+      reportProgress('Generated Reading Module 1 (Complete the Words)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'daily-life', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.readingModule1.dailyLife, `${setId}_dl_m1`
+      );
+      tasksMap.rM1Dl = res;
+      reportProgress('Generated Reading Module 1 (Read in Daily Life)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'reading-academic', 'upper-intermediate', 'natural-sciences',
+        fallbackTemplate.modules.readingModule1.readingPassage, `${setId}_rp_m1`
+      );
+      tasksMap.rM1Rp = res;
+      reportProgress('Generated Reading Module 1 (Academic Passage)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'complete-words', 'advanced', 'natural-sciences',
+        fallbackTemplate.modules.readingModule2Hard.completeWords, `${setId}_cw_m2h`
+      );
+      tasksMap.rM2HCw = res;
+      reportProgress('Generated Reading Module 2 Hard (Complete the Words)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'daily-life', 'advanced', 'campus-life',
+        fallbackTemplate.modules.readingModule2Hard.dailyLife, `${setId}_dl_m2h`
+      );
+      tasksMap.rM2HDl = res;
+      reportProgress('Generated Reading Module 2 Hard (Read in Daily Life)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'reading-academic', 'advanced', 'social-sciences',
+        fallbackTemplate.modules.readingModule2Hard.readingPassage, `${setId}_rp_m2h`
+      );
+      tasksMap.rM2HRp = res;
+      reportProgress('Generated Reading Module 2 Hard (Academic Passage)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'complete-words', 'intermediate', 'environment',
+        fallbackTemplate.modules.readingModule2Easy.completeWords, `${setId}_cw_m2e`
+      );
+      tasksMap.rM2ECw = res;
+      reportProgress('Generated Reading Module 2 Standard (Complete the Words)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'daily-life', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.readingModule2Easy.dailyLife, `${setId}_dl_m2e`
+      );
+      tasksMap.rM2EDl = res;
+      reportProgress('Generated Reading Module 2 Standard (Read in Daily Life)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'reading-academic', 'intermediate', 'arts-humanities',
+        fallbackTemplate.modules.readingModule2Easy.readingPassage, `${setId}_rp_m2e`
+      );
+      tasksMap.rM2ERp = res;
+      reportProgress('Generated Reading Module 2 Standard (Academic Passage)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-choose-response', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.listeningModule1.chooseResponse, `${setId}_lcr_m1`
+      );
+      tasksMap.lM1Cr = res;
+      reportProgress('Generated Listening Module 1 (Choose a Response)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-dialogue', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.listeningModule1.conversation, `${setId}_ld_m1`
+      );
+      tasksMap.lM1Conv = res;
+      reportProgress('Generated Listening Module 1 (Campus Conversation)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-announcement', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.listeningModule1.announcement, `${setId}_la_m1`
+      );
+      tasksMap.lM1Ann = res;
+      reportProgress('Generated Listening Module 1 (Campus Announcement)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-academic-talk', 'upper-intermediate', 'natural-sciences',
+        fallbackTemplate.modules.listeningModule1.academicTalk, `${setId}_lat_m1`
+      );
+      tasksMap.lM1Talk = res;
+      reportProgress('Generated Listening Module 1 (Academic Talk)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-choose-response', 'advanced', 'campus-life',
+        fallbackTemplate.modules.listeningModule2Hard.chooseResponse, `${setId}_lcr_m2h`
+      );
+      tasksMap.lM2HCr = res;
+      reportProgress('Generated Listening Module 2 Hard (Choose a Response)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-dialogue', 'advanced', 'campus-life',
+        fallbackTemplate.modules.listeningModule2Hard.conversation, `${setId}_ld_m2h`
+      );
+      tasksMap.lM2HConv = res;
+      reportProgress('Generated Listening Module 2 Hard (Campus Conversation)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-announcement', 'advanced', 'campus-life',
+        fallbackTemplate.modules.listeningModule2Hard.announcement, `${setId}_la_m2h`
+      );
+      tasksMap.lM2HAnn = res;
+      reportProgress('Generated Listening Module 2 Hard (Campus Announcement)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-academic-talk', 'advanced', 'science-tech',
+        fallbackTemplate.modules.listeningModule2Hard.academicTalk, `${setId}_lat_m2h`
+      );
+      tasksMap.lM2HTalk = res;
+      reportProgress('Generated Listening Module 2 Hard (Academic Talk)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-choose-response', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.listeningModule2Easy.chooseResponse, `${setId}_lcr_m2e`
+      );
+      tasksMap.lM2ECr = res;
+      reportProgress('Generated Listening Module 2 Standard (Choose a Response)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-dialogue', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.listeningModule2Easy.conversation, `${setId}_ld_m2e`
+      );
+      tasksMap.lM2EConv = res;
+      reportProgress('Generated Listening Module 2 Standard (Campus Conversation)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-announcement', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.listeningModule2Easy.announcement, `${setId}_la_m2e`
+      );
+      tasksMap.lM2EAnn = res;
+      reportProgress('Generated Listening Module 2 Standard (Campus Announcement)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listening-academic-talk', 'intermediate', 'environment',
+        fallbackTemplate.modules.listeningModule2Easy.academicTalk, `${setId}_lat_m2e`
+      );
+      tasksMap.lM2ETalk = res;
+      reportProgress('Generated Listening Module 2 Standard (Academic Talk)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'build-sentence', 'upper-intermediate', 'campus-life',
+        fallbackTemplate.modules.writing.buildSentence, `${setId}_bs`
+      );
+      tasksMap.wBs = res;
+      reportProgress('Generated Writing (Build a Sentence)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'write-email', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.writing.writeEmail, `${setId}_we`
+      );
+      tasksMap.wEmail = res;
+      reportProgress('Generated Writing (Write an Email)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'academic-discussion', 'advanced', 'social-sciences',
+        fallbackTemplate.modules.writing.academicDiscussion, `${setId}_ad`
+      );
+      tasksMap.wAd = res;
+      reportProgress('Generated Writing (Academic Discussion)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'listen-repeat', 'intermediate', 'campus-life',
+        fallbackTemplate.modules.speaking.listenRepeat, `${setId}_lr`
+      );
+      tasksMap.sLr = res;
+      reportProgress('Generated Speaking (Listen & Repeat)');
+    },
+    async () => {
+      const res = await generateSingleTaskWithFallback(
+        'speaking-interview', 'upper-intermediate', 'social-sciences',
+        fallbackTemplate.modules.speaking.speakingInterview, `${setId}_si`
+      );
+      tasksMap.sSi = res;
+      reportProgress('Generated Speaking (Take an Interview)');
+    },
+  ];
+
+  await runWithDynamicKeyPool(jobs);
 
   const readingModule1: MockExamReadingModule = {
-    completeWords: rM1Cw,
-    dailyLife: rM1Dl,
-    readingPassage: rM1Rp,
+    completeWords: tasksMap.rM1Cw,
+    dailyLife: tasksMap.rM1Dl,
+    readingPassage: tasksMap.rM1Rp,
   };
-
-  // 2. Reading Module 2 Hard (Higher-Tier Adaptive)
-  bump('Generating Reading Module 2 Hard (Complete the Words)...');
-  const rM2HCw = await generateSingleTaskWithFallback(
-    'complete-words',
-    'advanced',
-    'natural-sciences',
-    fallbackTemplate.modules.readingModule2Hard.completeWords,
-    `${setId}_cw_m2h`
-  );
-  bump('Generating Reading Module 2 Hard (Read in Daily Life)...');
-  const rM2HDl = await generateSingleTaskWithFallback(
-    'daily-life',
-    'advanced',
-    'campus-life',
-    fallbackTemplate.modules.readingModule2Hard.dailyLife,
-    `${setId}_dl_m2h`
-  );
-  bump('Generating Reading Module 2 Hard (Academic Passage)...');
-  const rM2HRp = await generateSingleTaskWithFallback(
-    'reading-academic',
-    'advanced',
-    'social-sciences',
-    fallbackTemplate.modules.readingModule2Hard.readingPassage,
-    `${setId}_rp_m2h`
-  );
 
   const readingModule2Hard: MockExamReadingModule = {
-    completeWords: rM2HCw,
-    dailyLife: rM2HDl,
-    readingPassage: rM2HRp,
+    completeWords: tasksMap.rM2HCw,
+    dailyLife: tasksMap.rM2HDl,
+    readingPassage: tasksMap.rM2HRp,
   };
-
-  // 3. Reading Module 2 Easy (Standard-Tier Adaptive)
-  bump('Generating Reading Module 2 Standard (Complete the Words)...');
-  const rM2ECw = await generateSingleTaskWithFallback(
-    'complete-words',
-    'intermediate',
-    'environment',
-    fallbackTemplate.modules.readingModule2Easy.completeWords,
-    `${setId}_cw_m2e`
-  );
-  bump('Generating Reading Module 2 Standard (Read in Daily Life)...');
-  const rM2EDl = await generateSingleTaskWithFallback(
-    'daily-life',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.readingModule2Easy.dailyLife,
-    `${setId}_dl_m2e`
-  );
-  bump('Generating Reading Module 2 Standard (Academic Passage)...');
-  const rM2ERp = await generateSingleTaskWithFallback(
-    'reading-academic',
-    'intermediate',
-    'arts-humanities',
-    fallbackTemplate.modules.readingModule2Easy.readingPassage,
-    `${setId}_rp_m2e`
-  );
 
   const readingModule2Easy: MockExamReadingModule = {
-    completeWords: rM2ECw,
-    dailyLife: rM2EDl,
-    readingPassage: rM2ERp,
+    completeWords: tasksMap.rM2ECw,
+    dailyLife: tasksMap.rM2EDl,
+    readingPassage: tasksMap.rM2ERp,
   };
-
-  // 4. Listening Module 1 (Routing Stage)
-  bump('Generating Listening Module 1 (Choose a Response)...');
-  const lM1Cr = await generateSingleTaskWithFallback(
-    'listening-choose-response',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule1.chooseResponse,
-    `${setId}_lcr_m1`
-  );
-  bump('Generating Listening Module 1 (Campus Conversation)...');
-  const lM1Conv = await generateSingleTaskWithFallback(
-    'listening-dialogue',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule1.conversation,
-    `${setId}_ld_m1`
-  );
-  bump('Generating Listening Module 1 (Campus Announcement)...');
-  const lM1Ann = await generateSingleTaskWithFallback(
-    'listening-announcement',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule1.announcement,
-    `${setId}_la_m1`
-  );
-  bump('Generating Listening Module 1 (Academic Talk)...');
-  const lM1Talk = await generateSingleTaskWithFallback(
-    'listening-academic-talk',
-    'upper-intermediate',
-    'natural-sciences',
-    fallbackTemplate.modules.listeningModule1.academicTalk,
-    `${setId}_lat_m1`
-  );
 
   const listeningModule1: MockExamListeningModule = {
-    chooseResponse: lM1Cr,
-    conversation: lM1Conv,
-    announcement: lM1Ann,
-    academicTalk: lM1Talk,
+    chooseResponse: tasksMap.lM1Cr,
+    conversation: tasksMap.lM1Conv,
+    announcement: tasksMap.lM1Ann,
+    academicTalk: tasksMap.lM1Talk,
   };
-
-  // 5. Listening Module 2 Hard (Higher-Tier Adaptive)
-  bump('Generating Listening Module 2 Hard (Choose a Response)...');
-  const lM2HCr = await generateSingleTaskWithFallback(
-    'listening-choose-response',
-    'advanced',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule2Hard.chooseResponse,
-    `${setId}_lcr_m2h`
-  );
-  bump('Generating Listening Module 2 Hard (Campus Conversation)...');
-  const lM2HConv = await generateSingleTaskWithFallback(
-    'listening-dialogue',
-    'advanced',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule2Hard.conversation,
-    `${setId}_ld_m2h`
-  );
-  bump('Generating Listening Module 2 Hard (Campus Announcement)...');
-  const lM2HAnn = await generateSingleTaskWithFallback(
-    'listening-announcement',
-    'advanced',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule2Hard.announcement,
-    `${setId}_la_m2h`
-  );
-  bump('Generating Listening Module 2 Hard (Academic Talk)...');
-  const lM2HTalk = await generateSingleTaskWithFallback(
-    'listening-academic-talk',
-    'advanced',
-    'science-tech',
-    fallbackTemplate.modules.listeningModule2Hard.academicTalk,
-    `${setId}_lat_m2h`
-  );
 
   const listeningModule2Hard: MockExamListeningModule = {
-    chooseResponse: lM2HCr,
-    conversation: lM2HConv,
-    announcement: lM2HAnn,
-    academicTalk: lM2HTalk,
+    chooseResponse: tasksMap.lM2HCr,
+    conversation: tasksMap.lM2HConv,
+    announcement: tasksMap.lM2HAnn,
+    academicTalk: tasksMap.lM2HTalk,
   };
-
-  // 6. Listening Module 2 Easy (Standard-Tier Adaptive)
-  bump('Generating Listening Module 2 Standard (Choose a Response)...');
-  const lM2ECr = await generateSingleTaskWithFallback(
-    'listening-choose-response',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule2Easy.chooseResponse,
-    `${setId}_lcr_m2e`
-  );
-  bump('Generating Listening Module 2 Standard (Campus Conversation)...');
-  const lM2EConv = await generateSingleTaskWithFallback(
-    'listening-dialogue',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule2Easy.conversation,
-    `${setId}_ld_m2e`
-  );
-  bump('Generating Listening Module 2 Standard (Campus Announcement)...');
-  const lM2EAnn = await generateSingleTaskWithFallback(
-    'listening-announcement',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.listeningModule2Easy.announcement,
-    `${setId}_la_m2e`
-  );
-  bump('Generating Listening Module 2 Standard (Academic Talk)...');
-  const lM2ETalk = await generateSingleTaskWithFallback(
-    'listening-academic-talk',
-    'intermediate',
-    'environment',
-    fallbackTemplate.modules.listeningModule2Easy.academicTalk,
-    `${setId}_lat_m2e`
-  );
 
   const listeningModule2Easy: MockExamListeningModule = {
-    chooseResponse: lM2ECr,
-    conversation: lM2EConv,
-    announcement: lM2EAnn,
-    academicTalk: lM2ETalk,
+    chooseResponse: tasksMap.lM2ECr,
+    conversation: tasksMap.lM2EConv,
+    announcement: tasksMap.lM2EAnn,
+    academicTalk: tasksMap.lM2ETalk,
   };
-
-  // 7. Writing & Speaking Sections
-  bump('Generating Writing & Speaking (Build a Sentence)...');
-  const wBs = await generateSingleTaskWithFallback(
-    'build-sentence',
-    'upper-intermediate',
-    'campus-life',
-    fallbackTemplate.modules.writing.buildSentence,
-    `${setId}_bs`
-  );
-  bump('Generating Writing & Speaking (Write an Email)...');
-  const wEmail = await generateSingleTaskWithFallback(
-    'write-email',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.writing.writeEmail,
-    `${setId}_we`
-  );
-  bump('Generating Writing & Speaking (Academic Discussion)...');
-  const wAd = await generateSingleTaskWithFallback(
-    'academic-discussion',
-    'advanced',
-    'social-sciences',
-    fallbackTemplate.modules.writing.academicDiscussion,
-    `${setId}_ad`
-  );
 
   const writing: MockExamWritingModule = {
-    buildSentence: wBs,
-    writeEmail: wEmail,
-    academicDiscussion: wAd,
+    buildSentence: tasksMap.wBs,
+    writeEmail: tasksMap.wEmail,
+    academicDiscussion: tasksMap.wAd,
   };
 
-  bump('Generating Writing & Speaking (Listen & Repeat)...');
-  const sLr = await generateSingleTaskWithFallback(
-    'listen-repeat',
-    'intermediate',
-    'campus-life',
-    fallbackTemplate.modules.speaking.listenRepeat,
-    `${setId}_lr`
-  );
-  bump('Generating Writing & Speaking (Take an Interview)...');
-  const sSi = await generateSingleTaskWithFallback(
-    'speaking-interview',
-    'upper-intermediate',
-    'social-sciences',
-    fallbackTemplate.modules.speaking.speakingInterview,
-    `${setId}_si`
-  );
-
   const speaking: MockExamSpeakingModule = {
-    listenRepeat: sLr,
-    speakingInterview: sSi,
+    listenRepeat: tasksMap.sLr,
+    speakingInterview: tasksMap.sSi,
   };
 
   const newSet: MockExamSet = {

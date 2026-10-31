@@ -11,7 +11,14 @@ import { callChatWithHealing } from './chatHealing';
 import { callGroqSpeech } from './groqSpeech';
 import { callAudio8Speech } from './audio8Speech';
 import { wrapWavHeaderIfNeeded, parseSampleRateFromMime } from '../utils/audioHelpers';
-import { collectAvailableProviders, prioritizeForGeneration } from './providerRouter';
+import {
+  collectAvailableProviders,
+  prioritizeForGeneration,
+  incrementProviderInFlight,
+  decrementProviderInFlight,
+  recordProviderErrorCooldown,
+  clearProviderCooldown,
+} from './providerRouter';
 import {
   normalizeCompleteWordsTask,
   normalizeBuildSentenceTask,
@@ -1252,6 +1259,7 @@ Return JSON format: {"title": "Academic Discussion Board", "professorName": "Pro
   let lastError: any = null;
 
   for (const candidate of prioritized) {
+    incrementProviderInFlight(candidate.provider);
     try {
       if (candidate.provider === 'gemini') {
         const ai = getAiClient(candidate.apiKey);
@@ -1289,6 +1297,7 @@ Return JSON format: {"title": "Academic Discussion Board", "professorName": "Pro
           return schema.parse(normalized);
         });
 
+        clearProviderCooldown(candidate.provider);
         return { ...result, isFallback: false, modelUsed };
       } else {
         const { text, modelUsed } = await callChatWithHealing({
@@ -1305,14 +1314,18 @@ Return JSON format: {"title": "Academic Discussion Board", "professorName": "Pro
         const parsed = cleanAndExtractJson(text);
         const normalized = normalizeTask(taskType, parsed);
         const result = schema.parse(normalized);
+        clearProviderCooldown(candidate.provider);
         return { ...result, isFallback: false, modelUsed };
       }
     } catch (candidateErr: any) {
       lastError = candidateErr;
+      recordProviderErrorCooldown(candidate.provider, candidateErr);
       const status = getStatus(candidateErr);
       const isQuota = isQuotaExhaustedError(candidateErr) || status === 429;
       console.warn(`Generation provider [${candidate.provider}] failed (${isQuota ? '429 Quota Exceeded' : candidateErr?.message || candidateErr}), continuing to next provider in chain...`);
       continue;
+    } finally {
+      decrementProviderInFlight(candidate.provider);
     }
   }
 

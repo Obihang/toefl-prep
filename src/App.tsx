@@ -23,6 +23,7 @@ import {
 import { getApiHeaders, hasAnyProviderKey, getScholarUsername } from './utils/apiKey';
 import { safeFetchJson } from './utils/apiHelper';
 import { normalizeTaskData } from './utils/taskNormalizer';
+import { runWithDynamicKeyPool, callBackendGenerate } from './services/geminiService';
 
 function getReportedByMe(): string[] {
   try {
@@ -326,6 +327,8 @@ export default function App() {
   const [lastGenerationWasInstant, setLastGenerationWasInstant] = useState(false);
   const [rateLimitPauseState, setRateLimitPauseState] = useState<{ kind: 'per-minute' | 'per-day' | 'unknown'; resumeAt: number; retryAfterSeconds: number } | null>(null);
   const lastPrefetchTimeRef = useRef(0);
+  const prefetchRunIdRef = useRef(0);
+  const lastHandledBatchCountRef = useRef(0);
   const lastDebugLogTimeRef = useRef<Record<string, number>>({});
   const [sharedBankNotice, setSharedBankNotice] = useState<string | null>(null);
 
@@ -698,6 +701,7 @@ export default function App() {
   // Smart Section-Aware Prefetch Loop:
   // For the current activeSection, ensures every task in sectionTasks has 1 prefetched question ready.
   useEffect(() => {
+    const runId = ++prefetchRunIdRef.current;
     const sectionTasks = TASK_DEFINITIONS
       .filter((t) => t.section === activeSection)
       .map((t) => t.id);
@@ -723,8 +727,6 @@ export default function App() {
       return;
     }
 
-    let isAborted = false;
-
     const runSectionSmartPrefetch = async () => {
       const concreteLevel = isValidLevel(level) ? level : 'intermediate';
       const concreteTopic = isValidAcademicTopic(topic) ? topic : 'science-tech';
@@ -746,49 +748,81 @@ export default function App() {
         missingTasks.sort((a, b) => (a === currentTaskType ? -1 : b === currentTaskType ? 1 : 0));
       }
 
-      let readyCount = totalInSection - missingTasks.length;
+      const isManualExtraClick = prefetchBatchCount > lastHandledBatchCountRef.current;
+      lastHandledBatchCountRef.current = prefetchBatchCount;
 
-      if (missingTasks.length === 0) {
-        setPrefetchProgress({
-          current: totalInSection,
-          total: totalInSection,
-          status: 'completed',
-          taskType: currentTaskType,
-        });
+      let tasksToFetch: string[] = [];
+      let initialReadyCount = totalInSection - missingTasks.length;
+
+      if (missingTasks.length > 0) {
+        tasksToFetch = missingTasks;
+      } else if (isManualExtraClick) {
+        tasksToFetch = [currentTaskType];
+      } else {
+        if (prefetchRunIdRef.current === runId) {
+          setPrefetchProgress({
+            current: totalInSection,
+            total: totalInSection,
+            status: 'completed',
+            taskType: currentTaskType,
+          });
+        }
         return;
       }
+
+      if (prefetchRunIdRef.current !== runId) return;
+
+      let readyCount = initialReadyCount;
 
       setPrefetchProgress({
         current: readyCount,
         total: totalInSection,
         status: 'running',
-        taskType: missingTasks[0],
+        taskType: tasksToFetch[0],
       });
 
-      for (let i = 0; i < missingTasks.length; i++) {
-        if (isAborted) break;
-        const taskToFetch = missingTasks[i];
+      try {
+        const fetchJobs = tasksToFetch.map((taskToFetch) => async () => {
+          if (prefetchRunIdRef.current !== runId) return;
 
-        setPrefetchProgress({
-          current: readyCount,
-          total: totalInSection,
-          status: 'running',
-          taskType: taskToFetch,
-        });
-
-        try {
-          const json = await safeFetchJson('/api/generate-task', {
-            method: 'POST',
-            headers: getApiHeaders(),
-            body: JSON.stringify({
-              taskType: taskToFetch,
-              level: concreteLevel,
-              topic: concreteTopic,
-              coachMode: targetMode === 'coach',
-            }),
+          setPrefetchProgress({
+            current: readyCount,
+            total: totalInSection,
+            status: 'running',
+            taskType: taskToFetch,
           });
 
-          if (isAborted) break;
+          let json: any = null;
+          try {
+            json = await callBackendGenerate(
+              taskToFetch,
+              concreteLevel,
+              concreteTopic,
+              targetMode === 'coach'
+            );
+          } catch (e) {
+            json = null;
+          }
+
+          if (prefetchRunIdRef.current !== runId) return;
+
+          // Retry once after 1500ms if first attempt failed or returned fallback
+          if (!json || !json.success || !json.data || json.data.isFallback) {
+            await new Promise((res) => setTimeout(res, 1500));
+            if (prefetchRunIdRef.current !== runId) return;
+            try {
+              json = await callBackendGenerate(
+                taskToFetch,
+                concreteLevel,
+                concreteTopic,
+                targetMode === 'coach'
+              );
+            } catch (e) {
+              json = null;
+            }
+          }
+
+          if (prefetchRunIdRef.current !== runId) return;
 
           if (json && json.success && json.data && !json.data.isFallback) {
             const userUsername = getScholarUsername();
@@ -806,6 +840,8 @@ export default function App() {
               audioUrl: itemToSave.audioUrl || null,
               audioClips: itemToSave.audioClips || null,
             });
+
+            if (prefetchRunIdRef.current !== runId) return;
 
             // Update standby queue for instant delivery & tab badges (⚡ 1)
             const prefetchedItem: PrefetchedItem = {
@@ -831,7 +867,9 @@ export default function App() {
               return nextQueue;
             });
 
-            readyCount++;
+            if (readyCount < totalInSection) {
+              readyCount++;
+            }
 
             setPrefetchProgress({
               current: readyCount,
@@ -842,40 +880,53 @@ export default function App() {
 
             // Refresh bank stats live so X/Y in bank updates immediately
             const updatedStats = await syncCuratedQuestionBank(targetMode);
-            setBankStats(updatedStats);
+            if (prefetchRunIdRef.current === runId) {
+              setBankStats(updatedStats);
+            }
           } else {
-            setPrefetchProgress({
-              current: readyCount,
-              total: totalInSection,
-              status: 'error',
-              taskType: taskToFetch,
-            });
-            break;
+            if (prefetchRunIdRef.current === runId) {
+              setPrefetchProgress({
+                current: readyCount,
+                total: totalInSection,
+                status: 'error',
+                taskType: taskToFetch,
+              });
+            }
           }
-        } catch (err) {
-          console.warn('Section prefetch failed for task', taskToFetch, err);
+        });
+
+        await runWithDynamicKeyPool(fetchJobs);
+      } catch (err) {
+        console.warn('Section prefetch failed:', err);
+        if (prefetchRunIdRef.current === runId) {
           setPrefetchProgress({
             current: readyCount,
             total: totalInSection,
             status: 'error',
-            taskType: taskToFetch,
+            taskType: currentTaskType,
           });
-          break;
         }
-
-        if (i < missingTasks.length - 1 && !isAborted) {
-          await new Promise((res) => setTimeout(res, 1000));
+      } finally {
+        if (prefetchRunIdRef.current === runId) {
+          setPrefetchProgress((prev) => {
+            if (readyCount >= totalInSection) {
+              return { ...prev, current: totalInSection, total: totalInSection, status: 'completed' };
+            }
+            if (prev.status === 'running') {
+              return { ...prev, status: 'error' };
+            }
+            return prev;
+          });
         }
       }
     };
 
-    const timer = setTimeout(runSectionSmartPrefetch, 500);
+    const timer = setTimeout(runSectionSmartPrefetch, 400);
 
     return () => {
-      isAborted = true;
       clearTimeout(timer);
     };
-  }, [currentTaskType, activeSection, level, topic, practiceMode, enablePrefetching, prefetchBatchCount]);
+  }, [activeSection, level, topic, practiceMode, enablePrefetching, prefetchBatchCount, isMockTest]);
 
   // Sync / filter queue when difficulty level or academic topic changes
   useEffect(() => {
@@ -1495,25 +1546,35 @@ export default function App() {
                             Key Required for Prefetch
                           </span>
                         ) : prefetchProgress.status === 'running' ? (
-                          <span className="flex items-center gap-1.5 px-2.5 py-2 bg-teal-50 text-teal-800 border border-teal-200 text-xs font-semibold rounded-lg whitespace-nowrap">
-                            <span className="animate-spin inline-block w-3 h-3 border-2 border-teal-600 border-t-transparent rounded-full"></span>
-                            <span>⏳ Prefetching {prefetchProgress.current}/3...</span>
-                          </span>
-                        ) : prefetchProgress.status === 'completed' ? (
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="px-2.5 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-lg flex items-center gap-1 whitespace-nowrap">
-                              <span>✅ 3/3 Prefetched (Saved to DB)</span>
+                            <span className="flex items-center gap-1.5 px-2.5 py-2 bg-teal-50 text-teal-800 border border-teal-200 text-xs font-semibold rounded-lg whitespace-nowrap">
+                              <span className="animate-spin inline-block w-3 h-3 border-2 border-teal-600 border-t-transparent rounded-full"></span>
+                              <span>⏳ Prefetching {prefetchProgress.current}/{prefetchProgress.total}...</span>
                             </span>
                             <button
                               type="button"
                               onClick={() => setPrefetchBatchCount((prev) => prev + 1)}
-                              className="px-2 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                              title="Prefetch another batch of 3 questions for this active task"
+                              className="px-2.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shadow-2xs"
+                              title={`Prefetch +1 more question for ${activeSection}`}
                             >
-                              <span>↻ +3 More</span>
+                              <span>↻ +1 More</span>
                             </button>
                           </div>
-                        ) : null}
+                        ) : (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="px-2.5 py-2 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold rounded-lg flex items-center gap-1 whitespace-nowrap">
+                              <span>✅ {prefetchProgress.current}/{prefetchProgress.total} Ready</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPrefetchBatchCount((prev) => prev + 1)}
+                              className="px-2.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 hover:border-slate-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer whitespace-nowrap shadow-2xs"
+                              title={`Prefetch +1 more question for ${activeSection}`}
+                            >
+                              <span>↻ +1 More</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

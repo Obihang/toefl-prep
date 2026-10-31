@@ -16,6 +16,72 @@ import { safeFetchJson } from '../utils/apiHelper';
 import { evaluateResponseLocally, mergeAiAndLocalEvaluation } from '../utils/localEvaluator';
 import { normalizeTaskData } from '../utils/taskNormalizer';
 
+// Runtime Health & Load State per Provider
+const inFlightCount: Record<string, number> = {};
+const cooldownUntil: Record<string, number> = {};
+let roundRobinCounter = 0;
+
+export function getInFlightCount(provider: string): number {
+  return inFlightCount[provider] || 0;
+}
+
+export function getCooldownUntil(provider: string): number {
+  return cooldownUntil[provider] || 0;
+}
+
+export function markProviderCooldown(provider: string, durationMs: number): void {
+  cooldownUntil[provider] = Date.now() + durationMs;
+}
+
+export function getHealthyProviderCount(): number {
+  const keys = getAllProviderKeys();
+  const configured = Object.entries(keys).filter(([_, k]) => Boolean(k && k.trim()));
+  if (configured.length === 0) {
+    return hasAnyProviderKey() ? 1 : 1;
+  }
+  const now = Date.now();
+  const healthy = configured.filter(([p]) => now >= (cooldownUntil[p] || 0));
+  return Math.max(1, healthy.length > 0 ? healthy.length : 1);
+}
+
+/**
+ * Executes an array of async job functions across available healthy provider keys.
+ * Concurrency worker count is dynamically Math.max(1, getHealthyProviderCount()).
+ */
+export async function runWithDynamicKeyPool<T>(
+  jobs: Array<() => Promise<T>>,
+  onJobComplete?: (result: T, completedCount: number, totalJobs: number) => void
+): Promise<T[]> {
+  if (jobs.length === 0) return [];
+  const results: T[] = new Array(jobs.length);
+  let nextJobIdx = 0;
+  let completedCount = 0;
+
+  const workerCount = Math.max(1, getHealthyProviderCount());
+
+  const worker = async () => {
+    while (nextJobIdx < jobs.length) {
+      const currentIdx = nextJobIdx++;
+      try {
+        const res = await jobs[currentIdx]();
+        results[currentIdx] = res;
+      } catch (err) {
+        console.warn(`[runWithDynamicKeyPool] Job ${currentIdx} failed:`, err);
+        results[currentIdx] = null as any;
+      } finally {
+        completedCount++;
+        if (onJobComplete) {
+          onJobComplete(results[currentIdx], completedCount, jobs.length);
+        }
+      }
+    }
+  };
+
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 export async function fetchDynamicModels(provider: ModelProvider, apiKey: string): Promise<string[]> {
   if (provider !== 'gemini') return GENERATION_MODELS[provider] || [];
 
@@ -52,20 +118,65 @@ export async function executeWithFallback<T>(
 ): Promise<T> {
   const providerKeys = getAllProviderKeys();
   const preferred = getStoredProvider();
-  const orderedProviders: ModelProvider[] = [];
 
-  if (preferred && preferred !== 'auto' && preferred !== 'custom' && (PROVIDER_ORDER as string[]).includes(preferred)) {
-    orderedProviders.push(preferred as ModelProvider);
-  }
-  for (const p of PROVIDER_ORDER) {
-    if (!orderedProviders.includes(p)) {
-      orderedProviders.push(p);
+  const configuredProviders = (PROVIDER_ORDER as ModelProvider[]).filter(
+    (p) => Boolean((providerKeys[p] || getStoredApiKey(p as ApiProvider) || '').trim())
+  );
+
+  if (configuredProviders.length === 0) {
+    const primaryKey = getStoredApiKey();
+    if (primaryKey) {
+      const prov = (preferred && preferred !== 'auto' && preferred !== 'custom' ? preferred : 'gemini') as ModelProvider;
+      inFlightCount[prov] = (inFlightCount[prov] || 0) + 1;
+      try {
+        const models = GENERATION_MODELS[prov] || ['gemini-2.5-flash'];
+        return await operation(prov, models[0], primaryKey);
+      } finally {
+        inFlightCount[prov] = Math.max(0, (inFlightCount[prov] || 1) - 1);
+      }
     }
+    throw new Error('No API key is configured.');
   }
 
+  const now = Date.now();
+
+  // If ALL configured providers are in cooldown, un-sidelined the one with min cooldown
+  const allInCooldown = configuredProviders.every((p) => now < (cooldownUntil[p] || 0));
+  if (allInCooldown) {
+    let minP = configuredProviders[0];
+    let minUntil = cooldownUntil[minP] || Infinity;
+    for (const p of configuredProviders) {
+      if ((cooldownUntil[p] || 0) < minUntil) {
+        minUntil = cooldownUntil[p] || 0;
+        minP = p;
+      }
+    }
+    cooldownUntil[minP] = 0;
+  }
+
+  const healthy = configuredProviders.filter((p) => Date.now() >= (cooldownUntil[p] || 0));
+  const cooledDown = configuredProviders.filter((p) => Date.now() < (cooldownUntil[p] || 0));
+
+  const startIdx = roundRobinCounter++;
+  healthy.sort((a, b) => {
+    const loadA = inFlightCount[a] || 0;
+    const loadB = inFlightCount[b] || 0;
+    if (loadA !== loadB) return loadA - loadB;
+
+    if (preferred && preferred !== 'auto' && preferred !== 'custom') {
+      if (a === preferred) return -1;
+      if (b === preferred) return 1;
+    }
+
+    const idxA = (configuredProviders.indexOf(a) - startIdx + configuredProviders.length) % configuredProviders.length;
+    const idxB = (configuredProviders.indexOf(b) - startIdx + configuredProviders.length) % configuredProviders.length;
+    return idxA - idxB;
+  });
+
+  const candidateList = [...healthy, ...cooledDown];
   let lastError: any = null;
 
-  for (const provider of orderedProviders) {
+  for (const provider of candidateList) {
     const apiKey = (providerKeys[provider] || getStoredApiKey(provider as ApiProvider) || '').trim();
     if (!apiKey) continue;
 
@@ -74,16 +185,48 @@ export async function executeWithFallback<T>(
         ? await fetchDynamicModels(provider, apiKey)
         : EVALUATION_MODELS[provider] || GENERATION_MODELS[provider] || [];
 
-    for (const model of models) {
-      try {
-        return await operation(provider, model, apiKey);
-      } catch (err) {
-        lastError = err;
+    inFlightCount[provider] = (inFlightCount[provider] || 0) + 1;
+
+    try {
+      for (const model of models) {
+        try {
+          const res = await operation(provider, model, apiKey);
+          cooldownUntil[provider] = 0;
+          return res;
+        } catch (err: any) {
+          lastError = err;
+          const status = err?.status || err?.statusCode || 0;
+          const msg = (err?.message || String(err)).toLowerCase();
+
+          if (
+            status === 429 ||
+            status === 503 ||
+            msg.includes('rate limit') ||
+            msg.includes('quota') ||
+            msg.includes('overloaded') ||
+            msg.includes('resource_exhausted')
+          ) {
+            cooldownUntil[provider] = Date.now() + 60_000;
+            break;
+          } else if (
+            status === 401 ||
+            status === 402 ||
+            status === 403 ||
+            msg.includes('invalid key') ||
+            msg.includes('unauthorized') ||
+            msg.includes('billing')
+          ) {
+            cooldownUntil[provider] = Date.now() + 10 * 60_000;
+            break;
+          }
+        }
       }
+    } finally {
+      inFlightCount[provider] = Math.max(0, (inFlightCount[provider] || 1) - 1);
     }
   }
 
-  throw lastError || new Error('No configured provider key succeeded.');
+  throw lastError || new Error('All configured provider keys failed or are unavailable.');
 }
 
 function resolveActiveProviderAndKey(): {
@@ -159,7 +302,6 @@ export async function callBackendGenerate(
   promptData?: any,
   extraOptions?: Record<string, any> | boolean
 ): Promise<any> {
-  const { provider, apiKey, providerKeys } = resolveActiveProviderAndKey();
   const optionsObj = typeof extraOptions === 'boolean' ? { coachMode: extraOptions } : extraOptions;
   const isCoachMode = Boolean(
     promptData === true ||
@@ -223,32 +365,42 @@ export async function callBackendGenerate(
       }
     : basePromptData;
 
-  const options = {
-    provider,
-    apiKey,
-    customApiKey: apiKey,
-    providerKeys,
-    availableKeys: providerKeys,
-    coachMode: isCoachMode,
-    ...(optionsObj || {}),
-  };
-
-  return safeFetchJson('/api/generate-task', {
-    method: 'POST',
-    headers: getApiHeaders(),
-    body: JSON.stringify({
-      taskType,
-      level,
-      topic,
-      coachMode: isCoachMode,
-      promptData: enrichedPromptData,
-      customApiKey: apiKey,
+  return executeWithFallback(async (provider, _model, apiKey) => {
+    const providerKeys = getAllProviderKeys();
+    const options = {
       provider,
       apiKey,
+      customApiKey: apiKey,
       providerKeys,
       availableKeys: providerKeys,
-      options,
-    }),
+      coachMode: isCoachMode,
+      ...(optionsObj || {}),
+    };
+
+    const res = await safeFetchJson('/api/generate-task', {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify({
+        taskType,
+        level,
+        topic,
+        coachMode: isCoachMode,
+        promptData: enrichedPromptData,
+        customApiKey: apiKey,
+        provider,
+        apiKey,
+        providerKeys,
+        availableKeys: providerKeys,
+        options,
+      }),
+    });
+
+    if (!res || res.success === false) {
+      const err: any = new Error(res?.error || 'Failed to generate task');
+      if (res?.status) err.status = res.status;
+      throw err;
+    }
+    return res;
   });
 }
 
@@ -278,16 +430,17 @@ export async function evaluateResponse(
     return localBaseline;
   }
 
-  const options = {
-    provider,
-    apiKey,
-    customApiKey: apiKey,
-    providerKeys,
-    availableKeys: providerKeys,
-    ...(extraOptions || {}),
-  };
+  return executeWithFallback(async (prov, _model, key) => {
+    const providerKeys = getAllProviderKeys();
+    const options = {
+      provider: prov,
+      apiKey: key,
+      customApiKey: key,
+      providerKeys,
+      availableKeys: providerKeys,
+      ...(extraOptions || {}),
+    };
 
-  try {
     const res = await safeFetchJson('/api/evaluate-response', {
       method: 'POST',
       headers: getApiHeaders(),
@@ -295,22 +448,22 @@ export async function evaluateResponse(
         taskType,
         promptData,
         studentResponse,
-        customApiKey: apiKey,
-        provider,
-        apiKey,
+        customApiKey: key,
+        provider: prov,
+        apiKey: key,
         providerKeys,
         availableKeys: providerKeys,
         options,
       }),
     });
 
-    if (res && res.success === false) {
+    if (!res || res.success === false) {
       return localBaseline;
     }
     const rawEval = res?.data || res;
     return mergeAiAndLocalEvaluation(rawEval, localBaseline);
-  } catch (err) {
-    console.warn('[geminiService] /api/evaluate-response failed, falling back to evaluateResponseLocally:', err);
+  }).catch((err) => {
+    console.warn('[geminiService] evaluateResponse AI failed, falling back to localBaseline:', err);
     return localBaseline;
-  }
+  });
 }

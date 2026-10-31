@@ -122,7 +122,7 @@ export const CollapsibleTaskInstructions: React.FC<{
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-semibold text-[11px] bg-white hover:bg-teal-50 text-teal-800 border border-slate-200 hover:border-teal-200 transition-colors shrink-0 cursor-pointer shadow-2xs"
           >
             <Info className="w-3.5 h-3.5 text-teal-700 shrink-0" />
-            <span>ℹ️ {cleanLabel}</span>
+            <span>{cleanLabel}</span>
             {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
           <span className="text-slate-600 truncate text-[11px]">{summary}</span>

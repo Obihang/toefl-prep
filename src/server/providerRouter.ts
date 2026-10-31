@@ -5,6 +5,57 @@ export interface ProviderCandidate {
   apiKey: string;
   baseUrl?: string;
   model?: string;
+  isPrimary?: boolean;
+}
+
+// Runtime Health & Load Tracker per Provider (server-side)
+export const inFlightCount: Record<string, number> = {};
+export const cooldownUntil: Record<string, number> = {};
+let generationCounter = 0;
+
+export function incrementProviderInFlight(provider: string): void {
+  const p = provider.toLowerCase();
+  inFlightCount[p] = (inFlightCount[p] || 0) + 1;
+}
+
+export function decrementProviderInFlight(provider: string): void {
+  const p = provider.toLowerCase();
+  inFlightCount[p] = Math.max(0, (inFlightCount[p] || 1) - 1);
+}
+
+export function recordProviderErrorCooldown(provider: string, statusOrError: any): void {
+  const p = provider.toLowerCase();
+  const status =
+    typeof statusOrError === 'number'
+      ? statusOrError
+      : statusOrError?.status || statusOrError?.statusCode || 0;
+  const msg = String(statusOrError?.message || statusOrError || '').toLowerCase();
+
+  if (
+    status === 429 ||
+    status === 503 ||
+    msg.includes('rate limit') ||
+    msg.includes('quota') ||
+    msg.includes('overloaded') ||
+    msg.includes('resource_exhausted')
+  ) {
+    cooldownUntil[p] = Date.now() + 60_000;
+  } else if (
+    status === 401 ||
+    status === 402 ||
+    status === 403 ||
+    msg.includes('invalid key') ||
+    msg.includes('unauthorized') ||
+    msg.includes('billing') ||
+    msg.includes('insufficient')
+  ) {
+    cooldownUntil[p] = Date.now() + 10 * 60_000;
+  }
+}
+
+export function clearProviderCooldown(provider: string): void {
+  const p = provider.toLowerCase();
+  cooldownUntil[p] = 0;
 }
 
 /**
@@ -90,38 +141,81 @@ export function collectAvailableProviders(options?: ApiCallOptions): ProviderCan
       apiKey,
       baseUrl: isPrimary ? (opts as any).baseUrl : undefined,
       model: isPrimary ? (opts as any).model : undefined,
+      isPrimary,
     };
   });
 }
 
+function partitionByCooldown(candidates: ProviderCandidate[]): {
+  healthy: ProviderCandidate[];
+  cooledDown: ProviderCandidate[];
+} {
+  const now = Date.now();
+  const allInCooldown = candidates.length > 0 && candidates.every((c) => now < (cooldownUntil[c.provider] || 0));
+  if (allInCooldown) {
+    let minC = candidates[0];
+    let minUntil = cooldownUntil[minC.provider] || Infinity;
+    for (const c of candidates) {
+      if ((cooldownUntil[c.provider] || 0) < minUntil) {
+        minUntil = cooldownUntil[c.provider] || 0;
+        minC = c;
+      }
+    }
+    cooldownUntil[minC.provider] = 0;
+  }
+
+  const healthy = candidates.filter((c) => Date.now() >= (cooldownUntil[c.provider] || 0));
+  const cooledDown = candidates.filter((c) => Date.now() < (cooldownUntil[c.provider] || 0));
+  return { healthy, cooledDown };
+}
+
 /**
- * Task Specialization for Evaluation (Grading): Needs high reasoning first.
- * If 1 key total -> route to that 1 provider.
- * If multiple keys -> gemini -> openai -> anthropic -> openrouter -> groq -> nvidia
+ * Task Specialization for Evaluation (Grading): Needs high reasoning first, respecting cooldowns & idle load.
  */
 export function prioritizeForEvaluation(candidates: ProviderCandidate[]): ProviderCandidate[] {
   if (candidates.length <= 1) return candidates;
   const EVAL_ORDER = ['gemini', 'openai', 'anthropic', 'openrouter', 'groq', 'nvidia', 'deepseek', 'xai'];
-  return [...candidates].sort((a, b) => {
+  const { healthy, cooledDown } = partitionByCooldown(candidates);
+
+  const sortFn = (a: ProviderCandidate, b: ProviderCandidate) => {
+    const loadA = inFlightCount[a.provider] || 0;
+    const loadB = inFlightCount[b.provider] || 0;
+    if (loadA !== loadB) return loadA - loadB;
     const idxA = EVAL_ORDER.indexOf(a.provider);
     const idxB = EVAL_ORDER.indexOf(b.provider);
     const scoreA = idxA === -1 ? 99 : idxA;
     const scoreB = idxB === -1 ? 99 : idxB;
     return scoreA - scoreB;
-  });
+  };
+
+  return [...healthy.sort(sortFn), ...cooledDown.sort(sortFn)];
 }
 
-let generationCounter = 0;
-
 /**
- * Task Specialization for Question Generation: Needs high throughput.
- * If 1 key total -> route to that 1 provider.
- * If multiple keys -> round-robin / shuffle available providers to distribute quota evenly.
+ * Task Specialization for Question Generation:
+ * - Healthy providers first (cooled-down keys placed at the end as last resort).
+ * - Lowest inFlightCount first (idle keys with 0 in-flight requests always picked immediately).
+ * - Explicit primary provider (if idle) prioritized, with round-robin tie-breaking across equally idle keys.
  */
 export function prioritizeForGeneration(candidates: ProviderCandidate[]): ProviderCandidate[] {
   if (candidates.length <= 1) return candidates;
+  const { healthy, cooledDown } = partitionByCooldown(candidates);
   const n = candidates.length;
   const startIdx = generationCounter % n;
   generationCounter = (generationCounter + 1) % 10000;
-  return [...candidates.slice(startIdx), ...candidates.slice(0, startIdx)];
+
+  const sortHealthy = (a: ProviderCandidate, b: ProviderCandidate) => {
+    const loadA = inFlightCount[a.provider] || 0;
+    const loadB = inFlightCount[b.provider] || 0;
+    if (loadA !== loadB) return loadA - loadB;
+
+    if (a.isPrimary && !b.isPrimary) return -1;
+    if (!a.isPrimary && b.isPrimary) return 1;
+
+    const idxA = (candidates.indexOf(a) - startIdx + n) % n;
+    const idxB = (candidates.indexOf(b) - startIdx + n) % n;
+    return idxA - idxB;
+  };
+
+  return [...healthy.sort(sortHealthy), ...cooledDown];
 }
